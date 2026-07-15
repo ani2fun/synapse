@@ -1,0 +1,101 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   RUNNABLE CODE BLOCK (oracle: runnable.css — structural classes kept verbatim
+   so later steps' chrome lands on the same names)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.synapse-prose .workbench { margin: 1.5rem 0; }
+
+.runnable {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  background: #fff;
+  overflow: hidden;
+  margin: 1.5rem 0;
+}
+.runnable__bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+}
+.wb__eyebrow { font-size: 0.72rem; letter-spacing: 0.08em; color: #64748b; font-weight: 600; }
+.wb__prompt { color: #0d9488; font-family: ui-monospace, monospace; }
+.wb__actions { display: flex; align-items: center; gap: 0.5rem; }
+.wb__lang-pill {
+  font-size: 0.75rem;
+  color: #0f766e;
+  background: #ccfbf1;
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+}
+.wb__ghost {
+  font-size: 0.78rem;
+  color: #475569;
+  background: none;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.4rem;
+  padding: 0.15rem 0.6rem;
+  cursor: pointer;
+}
+.wb__ghost:hover { border-color: #0d9488; color: #0f766e; }
+.wb__ghost--live { background: #ccfbf1; border-color: #0d9488; color: #0f766e; }
+
+/* Instant tooltip (oracle: native title is too slow + hidden on disabled controls). */
+.wb__tip { position: relative; display: inline-flex; }
+.wb__tip:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  white-space: nowrap;
+  background: #0f172a;
+  color: #f8fafc;
+  font-size: 0.72rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.35rem;
+  z-index: 20;
+}
+
+.runnable__run {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #f0fdfa;
+  background: #0d9488;
+  border: none;
+  border-radius: 0.4rem;
+  padding: 0.25rem 0.75rem;
+  cursor: pointer;
+}
+.runnable__run:hover { background: #0f766e; }
+.runnable__run:disabled { opacity: 0.6; cursor: default; }
+
+.runnable__editor { position: relative; }
+
+.runnable__out { padding: 0.6rem 0.9rem; border-top: 1px solid #e2e8f0; }
+.runnable__out--running { color: #64748b; font-size: 0.85rem; }
+.runnable__out--error { background: #fef2f2; }
+.runnable__status { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem; }
+.runnable__badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+}
+.runnable__badge--ok { color: #15803d; background: #dcfce7; }
+.runnable__badge--fail { color: #b91c1c; background: #fee2e2; }
+.runnable__meta { font-family: ui-monospace, monospace; font-size: 0.75rem; color: #64748b; }
+.runnable__stdout,
+.runnable__stream {
+  background: #f1f5f9;
+  border-radius: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  overflow-x: auto;
+  margin: 0.25rem 0;
+}
+.runnable__details { margin: 0.25rem 0; }
+.runnable__details-label { font-size: 0.75rem; color: #64748b; cursor: pointer; }
+.runnable__empty { font-style: italic; color: #94a3b8; font-size: 0.8rem; margin: 0.25rem 0; }

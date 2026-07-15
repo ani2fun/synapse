@@ -84,16 +84,30 @@ fn LessonBody(lesson: RwSignal<AsyncResult<LessonPayloadDto>>) -> impl IntoView 
 }
 
 fn loaded_lesson(payload: &LessonPayloadDto) -> impl IntoView + use<> {
-    // The body crosses the island bridge asynchronously; the walking-skeleton renderer holds
-    // this seam until step 08 ports the oracle's full pipeline behind the same loader.
+    // The body crosses the island bridge asynchronously; once the HTML lands, the interactive
+    // placeholders hydrate (runnable blocks today; solutions/quizzes/diagrams with their
+    // steps). The boxed unmount handles keep the mounts alive; clearing them (navigation /
+    // unmount) tears the blocks down.
     let html = RwSignal::new(String::from("<p>rendering…</p>"));
+    let body_ref: NodeRef<leptos::html::Div> = NodeRef::new();
+    let mounts: StoredValue<Vec<Box<dyn std::any::Any>>, LocalStorage> = StoredValue::new_local(Vec::new());
     let raw = payload.raw.clone();
     spawn_local(async move {
         match islands::markdown::render(&raw).await {
-            Ok(rendered) => html.set(rendered),
+            Ok(rendered) => {
+                // The oracle's pattern (`el.innerHTML = html` then mount blocks): write the DOM
+                // directly and hydrate in the same breath — no render-effect race. The signal
+                // stays for the placeholder/error states only.
+                let Some(body) = body_ref.get_untracked() else {
+                    return;
+                };
+                body.set_inner_html(&rendered);
+                mounts.set_value(crate::execution::view::hydrate_workbenches(&body));
+            }
             Err(error) => html.set(format!("<p>markdown island failed: {error:?}</p>")),
         }
     });
+    on_cleanup(move || mounts.set_value(Vec::new()));
 
     let nav_link = |target: &Option<String>, label: &'static str, class: &'static str| {
         target.clone().map(|path| {
@@ -106,7 +120,7 @@ fn loaded_lesson(payload: &LessonPayloadDto) -> impl IntoView + use<> {
             <h1>{payload.frontmatter.title.clone()}</h1>
             {payload.frontmatter.summary.clone().map(|s| view! { <p class="lesson-summary">{s}</p> })}
         </header>
-        <div class="lesson-body synapse-prose" inner_html=move || html.get()></div>
+        <div class="lesson-body synapse-prose" node_ref=body_ref inner_html=move || html.get()></div>
         <nav class="lesson-nav">
             {nav_link(&payload.prev, "← Previous", "nav-prev")}
             {nav_link(&payload.next, "Next →", "nav-next")}

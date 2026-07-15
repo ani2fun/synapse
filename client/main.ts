@@ -5,6 +5,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import "./styles/markdown.css";
+import "./styles/runnable.css";
 import init from "./pkg/synapse_client.js";
 
 await init({

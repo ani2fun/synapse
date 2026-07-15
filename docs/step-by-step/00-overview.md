@@ -38,3 +38,4 @@ introduced the feature, never as later afterthoughts.
 | 08 | `step-08` | [The markdown pipeline](08-the-markdown-pipeline.md) | 2026-07-15 |
 | 09 | `step-09` | [The execution domain](09-the-execution-domain.md) | 2026-07-15 |
 | 10 | `step-10` | [The go-judge adapter](10-the-go-judge-adapter.md) | 2026-07-15 |
+| 11 | `step-11` | [Monaco and the runnable block](11-monaco-and-the-runnable-block.md) | 2026-07-15 |

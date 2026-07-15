@@ -1921,9 +1921,11 @@ dependencies = [
  "leptos",
  "leptos_router",
  "serde",
+ "serde_json",
  "synapse-shared",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
