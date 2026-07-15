@@ -5,15 +5,46 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>synapse-rs</title>
     <style>
-      /* Walking-skeleton chrome only — the design system (tokens, Tailwind) arrives step 06. */
+      /* Walking-skeleton chrome — the oracle's teal-tinted design system (tokens, Tailwind)
+         is step 08's slice; this is just enough structure to read by. */
       body { font-family: system-ui, sans-serif; margin: 0; color: #0f172a; background: #f8fafc; }
+      a { color: #0d9488; text-decoration: none; }
+      .muted { color: #64748b; }
+      .error { color: #b91c1c; }
       .shell-header { display: flex; gap: 0.75rem; align-items: baseline; padding: 0.75rem 1.25rem;
-                      background: #0d9488; color: #f0fdfa; }
-      .shell-brand { font-weight: 700; }
-      .shell-tag { font-size: 0.85rem; opacity: 0.85; }
-      .shell-main { padding: 1.25rem; max-width: 44rem; }
-      .probe h2 { margin-top: 1.5rem; font-size: 1rem; color: #0d9488; }
-      .probe-markdown { border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 0.25rem 1rem; }
+                      background: #0d9488; }
+      .shell-brand { font-weight: 700; color: #f0fdfa; }
+      .shell-tag { font-size: 0.85rem; color: #f0fdfa; opacity: 0.85; }
+      .shell-main { padding: 1.25rem; max-width: 72rem; margin: 0 auto; }
+
+      /* library */
+      .library-level { display: flex; flex-direction: column; gap: 0.75rem; }
+      .library-category { margin: 0.75rem 0; }
+      .library-category h2 { color: #0f766e; font-size: 1.1rem; }
+      .book-card { display: block; border: 1px solid #e2e8f0; border-radius: 0.6rem;
+                   padding: 0.75rem 1rem; background: #fff; }
+      .book-card:hover { border-color: #0d9488; }
+      .book-card h3 { margin: 0 0 0.25rem; color: #0f172a; }
+      .book-card p { margin: 0; }
+      .badge { font-size: 0.75rem; color: #0f766e; }
+
+      /* reader */
+      .reader { display: grid; grid-template-columns: 16rem 1fr; gap: 1.5rem; }
+      .reader-sidebar { border-right: 1px solid #e2e8f0; padding-right: 1rem; }
+      .sidebar-book { font-size: 0.95rem; color: #0f766e; }
+      .sidebar-lessons { list-style: none; padding: 0; margin: 0; }
+      .sidebar-lessons li { padding: 0.2rem 0.4rem; border-radius: 0.3rem; }
+      .sidebar-lessons li.current { background: #ccfbf1; }
+      .sidebar-lessons a { color: #334155; }
+      .sidebar-lessons li.current a { color: #0f766e; font-weight: 600; }
+      .lesson-book { margin: 0; font-size: 0.85rem; }
+      .lesson-summary { color: #475569; }
+      .lesson-body { line-height: 1.65; }
+      .lesson-body code { background: #f1f5f9; padding: 0.1rem 0.3rem; border-radius: 0.25rem; }
+      .lesson-nav { display: flex; justify-content: space-between; margin-top: 2rem;
+                    border-top: 1px solid #e2e8f0; padding-top: 0.75rem; }
+      @media (max-width: 48rem) { .reader { grid-template-columns: 1fr; }
+                                  .reader-sidebar { border-right: none; } }
     </style>
   </head>
   <body>

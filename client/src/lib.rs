@@ -7,7 +7,10 @@
 //! externs — the Vite aliases resolve them, and each loader dynamic-imports its heavy renderer so
 //! it stays in its own chunk, exactly like the oracle's `@JSImport` loader pattern.
 
+pub mod api;
+pub mod catalog;
 pub mod islands;
+pub mod router;
 pub mod shell;
 
 use wasm_bindgen::prelude::wasm_bindgen;

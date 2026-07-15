@@ -34,3 +34,4 @@ introduced the feature, never as later afterthoughts.
 | 04 | `step-04` | [The catalog application](04-the-catalog-application.md) | 2026-07-15 |
 | 05 | `step-05` | [The catalog infrastructure](05-the-catalog-infrastructure.md) | 2026-07-15 |
 | 06 | `step-06` | [The catalog HTTP layer](06-the-catalog-http-layer.md) | 2026-07-15 |
+| 07 | `step-07` | [The Leptos reader](07-the-leptos-reader.md) | 2026-07-15 |
