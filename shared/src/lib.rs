@@ -4,3 +4,4 @@
 //! in RS-P7.
 
 pub mod api;
+pub mod catalog;

@@ -5,13 +5,19 @@
 // Test code asserts hard — the banned-in-production panics are the point here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod common;
+
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use tower::ServiceExt;
 
+fn app() -> axum::Router {
+    common::app_over(std::path::Path::new("/nonexistent-synapse-content"))
+}
+
 #[tokio::test]
 async fn get_health_returns_the_typed_ok() {
-    let app = synapse_server::app();
+    let app = app();
 
     let res = app
         .oneshot(Request::builder().uri("/api/health").body(Body::empty()).unwrap())
@@ -33,7 +39,7 @@ async fn get_health_returns_the_typed_ok() {
 
 #[tokio::test]
 async fn unknown_route_is_a_404() {
-    let app = synapse_server::app();
+    let app = app();
 
     let res = app
         .oneshot(Request::builder().uri("/api/nope").body(Body::empty()).unwrap())

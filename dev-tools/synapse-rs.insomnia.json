@@ -34,6 +34,39 @@
       "description": "Liveness check — 200 with {\"status\": \"ok (walking skeleton)\"} while the server is up. (step 01)",
       "method": "GET",
       "url": "{{ _.base_url }}/api/health"
+    },
+    {
+      "_id": "fld_catalog",
+      "_type": "request_group",
+      "parentId": "wrk_synapse_rs",
+      "name": "catalog"
+    },
+    {
+      "_id": "req_catalog_index",
+      "_type": "request",
+      "parentId": "fld_catalog",
+      "name": "GET /api/synapse/index",
+      "description": "The browsable library index — kind-discriminated category/book tree. Carries the content cache header. (step 06)",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/synapse/index"
+    },
+    {
+      "_id": "req_catalog_lesson",
+      "_type": "request",
+      "parentId": "fld_catalog",
+      "name": "GET /api/synapse/{paths…}",
+      "description": "A lesson payload by its directory-mirror path (category…/book/chapter…/lesson) — raw markdown + frontmatter + full prev/next. (step 06)",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/synapse/learn/dsa/lists/singly"
+    },
+    {
+      "_id": "req_catalog_c4doc",
+      "_type": "request",
+      "parentId": "fld_catalog",
+      "name": "GET /api/synapse/c4-doc/{elementId}?lesson=",
+      "description": "A LikeC4 component's tutorial doc — the co-located _c4-docs/<leaf>.md sidecar next to the lesson. (step 06)",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/synapse/c4-doc/synapse.client.reader?lesson=learn/dsa/lists/singly"
     }
   ]
 }

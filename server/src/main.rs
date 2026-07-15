@@ -3,7 +3,10 @@
 //! here — library code carries typed `thiserror` enums per context.
 
 use std::net::SocketAddr;
+use std::sync::Arc;
 
+use synapse_server::catalog::application::CatalogService;
+use synapse_server::catalog::infrastructure::FileSystemContentRepository;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -18,10 +21,20 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let cfg = synapse_server::config::AppConfig::load()?;
+
+    // The wiring graph, in one place: config → adapters → services → the router.
+    let repo = FileSystemContentRepository::new(&cfg.content_root, cfg.auto_reload);
+    let catalog = Arc::new(CatalogService::new(repo));
+
     let addr = SocketAddr::from(([0, 0, 0, 0], cfg.port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
-    tracing::info!(port = cfg.port, "synapse-rs server started");
+    tracing::info!(
+        port = cfg.port,
+        content_root = cfg.content_root,
+        auto_reload = cfg.auto_reload,
+        "synapse-rs server started"
+    );
 
-    axum::serve(listener, synapse_server::app()).await?;
+    axum::serve(listener, synapse_server::app(catalog)).await?;
     Ok(())
 }

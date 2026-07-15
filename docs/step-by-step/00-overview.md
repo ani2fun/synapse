@@ -33,3 +33,4 @@ introduced the feature, never as later afterthoughts.
 | 03 | `step-03` | [The catalog domain](03-the-catalog-domain.md) | 2026-07-15 |
 | 04 | `step-04` | [The catalog application](04-the-catalog-application.md) | 2026-07-15 |
 | 05 | `step-05` | [The catalog infrastructure](05-the-catalog-infrastructure.md) | 2026-07-15 |
+| 06 | `step-06` | [The catalog HTTP layer](06-the-catalog-http-layer.md) | 2026-07-15 |
