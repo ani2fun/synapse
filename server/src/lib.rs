@@ -5,6 +5,7 @@
 
 pub mod catalog;
 pub mod config;
+pub mod execution;
 pub mod platform;
 
 use std::sync::Arc;
