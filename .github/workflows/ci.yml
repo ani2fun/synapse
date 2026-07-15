@@ -42,10 +42,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@v2
         with:
-          tool: wasm-pack
+          tool: wasm-bindgen@0.2.126
+      - name: wasm-opt (binaryen)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq binaryen
       - name: npm ci
         working-directory: client
         run: npm ci
+      - name: vitest (the TS-island suites)
+        working-directory: client
+        run: npm test
       - name: wasm + vite production build
         working-directory: client
         run: npm run build

@@ -4,6 +4,7 @@
 // carries); the explicit URL keeps the .wasm asset itself under Vite's control.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import "./styles/markdown.css";
 import init from "./pkg/synapse_client.js";
 
 await init({

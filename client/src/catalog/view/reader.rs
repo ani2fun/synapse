@@ -106,7 +106,7 @@ fn loaded_lesson(payload: &LessonPayloadDto) -> impl IntoView + use<> {
             <h1>{payload.frontmatter.title.clone()}</h1>
             {payload.frontmatter.summary.clone().map(|s| view! { <p class="lesson-summary">{s}</p> })}
         </header>
-        <div class="lesson-body" inner_html=move || html.get()></div>
+        <div class="lesson-body synapse-prose" inner_html=move || html.get()></div>
         <nav class="lesson-nav">
             {nav_link(&payload.prev, "← Previous", "nav-prev")}
             {nav_link(&payload.next, "Next →", "nav-next")}

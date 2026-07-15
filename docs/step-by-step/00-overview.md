@@ -35,3 +35,4 @@ introduced the feature, never as later afterthoughts.
 | 05 | `step-05` | [The catalog infrastructure](05-the-catalog-infrastructure.md) | 2026-07-15 |
 | 06 | `step-06` | [The catalog HTTP layer](06-the-catalog-http-layer.md) | 2026-07-15 |
 | 07 | `step-07` | [The Leptos reader](07-the-leptos-reader.md) | 2026-07-15 |
+| 08 | `step-08` | [The markdown pipeline](08-the-markdown-pipeline.md) | 2026-07-15 |

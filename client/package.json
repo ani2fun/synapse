@@ -3,14 +3,28 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "wasm": "wasm-pack build . --dev --target web --out-dir pkg --out-name synapse_client",
-    "wasm:release": "wasm-pack build . --release --target web --out-dir pkg --out-name synapse_client",
+    "wasm": "../dev-tools/build-wasm.sh dev",
+    "wasm:release": "../dev-tools/build-wasm.sh release",
     "dev": "npm run wasm && vite",
     "build": "npm run wasm:release && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@terrastruct/d2": "^0.1.33",
+    "mdast-util-to-hast": "^13.2.0",
+    "rehype-pretty-code": "^0.14.3",
+    "rehype-slug": "^6.0.0",
+    "rehype-stringify": "^10.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
+    "shiki": "^4.0.2",
+    "unified": "^11.0.5"
   },
   "devDependencies": {
     "typescript": "^5.6.0",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "vitest": "^4.1.7"
   }
 }

@@ -1,0 +1,103 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   LESSON PROSE + CODE (oracle: tailwind.css's .synapse-prose rules, ADR-S015/S018)
+   Hand-written subset until the design-system step brings the full token set;
+   the shiki slab values are VERBATIM from the oracle — code reads as a dark
+   island in both themes, tokens painted from var(--shiki-token-*).
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.synapse-prose {
+  line-height: 1.7;
+  color: #1e293b;
+}
+.synapse-prose h1, .synapse-prose h2, .synapse-prose h3, .synapse-prose h4 {
+  color: #0f172a;
+  line-height: 1.3;
+  margin: 1.6em 0 0.5em;
+}
+.synapse-prose h1 { font-size: 1.6rem; }
+.synapse-prose h2 { font-size: 1.3rem; }
+.synapse-prose h3 { font-size: 1.1rem; }
+.synapse-prose p { margin: 0.8em 0; }
+.synapse-prose ul, .synapse-prose ol { padding-left: 1.4rem; }
+.synapse-prose li { margin: 0.25em 0; }
+.synapse-prose blockquote {
+  border-left: 3px solid #0d9488;
+  margin: 1em 0;
+  padding: 0.25em 1em;
+  color: #475569;
+  background: #f0fdfa;
+}
+.synapse-prose table { border-collapse: collapse; margin: 1em 0; }
+.synapse-prose th, .synapse-prose td { border: 1px solid #e2e8f0; padding: 0.4em 0.75em; }
+.synapse-prose th { background: #f8fafc; }
+.synapse-prose img { max-width: 100%; }
+.synapse-prose a { text-decoration: underline; text-underline-offset: 2px; }
+
+/* The dark code slab — shiki variable values verbatim from the oracle. */
+.synapse-prose pre:not(.not-prose *) {
+  --shiki-background: #2d2d2d;
+  --shiki-foreground: #d6d3cc;
+  --shiki-token-keyword: #7e88e6;
+  --shiki-token-function: #54b3a1;
+  --shiki-token-string: #84b87d;
+  --shiki-token-string-expression: #84b87d;
+  --shiki-token-constant: #d59a55;
+  --shiki-token-comment: #8a857c;
+  --shiki-token-parameter: var(--shiki-foreground);
+  --shiki-token-punctuation: #b7b3aa;
+  --shiki-token-link: #54b3a1;
+  color: var(--shiki-foreground);
+  background: var(--shiki-background);
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  padding: 0.9rem 1.1rem;
+  font-size: 0.875rem;
+}
+.synapse-prose pre code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: none;
+  padding: 0;
+}
+
+/* Inline code stays a muted chip (shiki bypasses inline nodes). */
+.synapse-prose :not(pre) > code {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-radius: 0.25rem;
+  padding: 0.1em 0.35em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.875em;
+}
+
+/* Interactive placeholders the pipeline plants — visible seams until their
+   steps mount real widgets (workbench step 09+, mermaid/d2 later). */
+.synapse-prose .workbench,
+.synapse-prose .solution-block,
+.synapse-prose .quiz-block {
+  border: 1px dashed #94a3b8;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin: 1em 0;
+  color: #64748b;
+  background: #f8fafc;
+}
+.synapse-prose .workbench::before { content: "⌨ workbench — mounts in a later step"; font-size: 0.8rem; }
+.synapse-prose .quiz-block::before { content: "❓ quiz — mounts in a later step"; font-size: 0.8rem; }
+.synapse-prose .solution-block::before { content: "💡 solution — mounts in a later step"; font-size: 0.8rem; }
+.synapse-prose .workbench-error {
+  border: 1px solid #fca5a5;
+  background: #fef2f2;
+  color: #b91c1c;
+  border-radius: 0.5rem;
+  padding: 0.6rem 1rem;
+  margin: 1em 0;
+}
+.synapse-prose .mermaid-block,
+.synapse-prose .d2-block {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  margin: 1em 0;
+  overflow-x: auto;
+}

@@ -13,9 +13,21 @@ BUDGET_KIB="${BUDGET_KIB:-700}"
 dist="client/dist/assets"
 [[ -d "$dist" ]] || { echo "✗ no $dist — run 'cd client && npm run build' first"; exit 1; }
 
+# The critical path = exactly what index.html references (entry JS + CSS) plus
+# the app wasm the entry fetches immediately. A name glob is NOT safe here:
+# lazy npm chunks can be called index-*.js too (d2's 8 MB entry chunk is —
+# found the hard way in step 08).
 total=0
 shopt -s nullglob
-for f in "$dist"/index-*.js "$dist"/*_bg-*.wasm; do
+files=$(grep -oE 'assets/[A-Za-z0-9_.-]+' client/dist/index.html | sort -u)
+for rel in $files; do
+  f="client/dist/$rel"
+  [[ -f "$f" ]] || continue
+  sz=$(gzip -c "$f" | wc -c | tr -d ' ')
+  printf '  %s — %d KiB gz\n' "$(basename "$f")" "$((sz / 1024))"
+  total=$((total + sz))
+done
+for f in "$dist"/*_bg-*.wasm; do
   sz=$(gzip -c "$f" | wc -c | tr -d ' ')
   printf '  %s — %d KiB gz\n' "$(basename "$f")" "$((sz / 1024))"
   total=$((total + sz))

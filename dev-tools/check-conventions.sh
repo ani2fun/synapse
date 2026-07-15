@@ -78,9 +78,10 @@ echo "→ file-size caps (server/shared ≤ 500 · client ≤ 800)"
 server_ok=0
 check_caps 500 find server shared -name "*.rs" -not -path "*/target/*" || server_ok=1
 client_ok=0
-if [[ -d client || -d client-ts ]]; then
-  check_caps 800 find client client-ts \( -name "*.rs" -o -name "*.ts" \) \
-    -not -path "*/node_modules/*" -not -path "*/target/*" -not -path "*/dist/*" || client_ok=1
+if [[ -d client ]]; then
+  check_caps 800 find client \( -name "*.rs" -o -name "*.ts" \) \
+    -not -path "*/node_modules/*" -not -path "*/target/*" -not -path "*/dist/*" \
+    -not -path "*/pkg/*" || client_ok=1
 fi
 if ((server_ok == 0 && client_ok == 0)); then
   echo "  ok"
