@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ["step-*"]
+  pull_request:
+
+jobs:
+  # ── The convention gate runs FIRST — it needs nothing but grep/find/wc, so a
+  # ── purity or file-cap breach fails in seconds, before any toolchain install.
+  conventions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: dev-tools/check-conventions.sh
+
+  build-test:
+    needs: conventions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: rustfmt
+        run: cargo fmt --all --check
+      - name: clippy (the anti-pattern gate — warnings are errors)
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: tests (unit + integration + contract lock)
+        run: cargo test --workspace

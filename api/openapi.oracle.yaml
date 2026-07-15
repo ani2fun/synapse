@@ -1,0 +1,66 @@
+openapi: 3.0.3
+info:
+  title: Synapse API
+  description: |
+    Source of truth for Synapse's REST API. The sbt-openapi-codegen plugin reads
+    this file and emits tapir `Endpoint` descriptions + case classes into the
+    cross-compiled `shared` module (package `synapse.shared.api`, object `Endpoints`),
+    compiled by both server and client.
+
+    This spec mirrors the **implemented** surface and grows one endpoint per slice
+    (ADR-S019) — the roadmap lives in CLAUDE.md, the ADRs, and the C4 model, not here.
+    The catalog API is **code-first** (hand-authored, not generated) — see
+    `shared/.../catalog/CatalogApi.scala` (ADR-S012); the `ApiError` envelope below is
+    the shared error type it reuses.
+  version: 0.1.0
+
+servers:
+  - url: /
+    description: Same-origin (server serves both API and frontend statics in production)
+
+paths:
+  /api/health:
+    get:
+      operationId: getHealth
+      summary: Liveness check — 200 while the server is up.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      required: [status]
+      description: |
+        Walking-skeleton health — just a status string today. Real backing-store
+        checks (Postgres / Redis / Mongo) join it when those stores are actually
+        wired; the spec grows to match (ADR-S019).
+      properties:
+        status:
+          type: string
+          example: ok
+
+    ApiError:
+      type: object
+      required: [error]
+      description: |
+        The shared error envelope. Not referenced by a path here — it is reused by the
+        **code-first** catalog endpoints (ADR-S012), which is why it stays in the
+        generated `Endpoints`. `detail` carries a longer message; `hint` (optional) is
+        operator-facing (e.g. an env var to set).
+      properties:
+        error:
+          type: string
+          example: "Not found"
+        detail:
+          type: string
+          nullable: true
+        hint:
+          type: string
+          nullable: true
+          example: "Set SYNAPSE_ROOT"

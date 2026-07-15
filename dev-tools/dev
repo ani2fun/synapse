@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# ── DEV LOOP ──────────────────────────────────────────────────────────────────
+# Runs the server on :8180 (override: SYNAPSE_PORT). Uses cargo-watch for
+# hot-rebuild when installed (`cargo install cargo-watch`), plain `cargo run`
+# otherwise. The client dev loop (Vite) joins in step 02.
+#
+# NOTE: the server reads SYNAPSE_PORT, never the bare PORT — preview tooling
+# injects PORT and must not hijack the bind (the launch.json gotcha).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+if command -v cargo-watch >/dev/null 2>&1; then
+  exec cargo watch -x 'run -p synapse-server'
+else
+  echo "tip: cargo install cargo-watch  → hot-rebuild dev loop"
+  exec cargo run -p synapse-server
+fi

@@ -1,0 +1,10 @@
+# build output
+target/
+
+# local-only agent guide (durable design lives in docs/adr/)
+CLAUDE.md
+
+# editors / OS
+.DS_Store
+.idea/
+.vscode/

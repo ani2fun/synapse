@@ -1,0 +1,39 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-07-15T00:00:00.000Z",
+  "__export_source": "synapse-rs:dev-tools",
+  "resources": [
+    {
+      "_id": "wrk_synapse_rs",
+      "_type": "workspace",
+      "name": "Synapse-RS API",
+      "description": "Synapse-RS HTTP endpoints — maintained in dev-tools/, updated as endpoints land (same rule as the oracle repo: never let it drift).",
+      "scope": "collection"
+    },
+    {
+      "_id": "env_base",
+      "_type": "environment",
+      "parentId": "wrk_synapse_rs",
+      "name": "Base Environment",
+      "data": {
+        "base_url": "http://localhost:8180"
+      }
+    },
+    {
+      "_id": "fld_platform",
+      "_type": "request_group",
+      "parentId": "wrk_synapse_rs",
+      "name": "platform"
+    },
+    {
+      "_id": "req_health",
+      "_type": "request",
+      "parentId": "fld_platform",
+      "name": "GET /api/health",
+      "description": "Liveness check — 200 with {\"status\": \"ok (walking skeleton)\"} while the server is up. (step 01)",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/health"
+    }
+  ]
+}
