@@ -4,6 +4,7 @@
 //! walking skeleton's one endpoint. `app()` assembles the full HTTP surface; the binary
 //! (`main.rs`) is the wiring point.
 
+pub mod catalog;
 pub mod config;
 pub mod platform;
 

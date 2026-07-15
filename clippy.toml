@@ -1,2 +1,2 @@
 # Proper nouns clippy::doc_markdown should not demand backticks for.
-doc-valid-idents = ["OpenAPI", ".."]
+doc-valid-idents = ["OpenAPI", "LikeC4", ".."]
