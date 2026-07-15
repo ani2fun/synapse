@@ -30,3 +30,24 @@ jobs:
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: tests (unit + integration + contract lock)
         run: cargo test --workspace
+
+  client-build:
+    needs: conventions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack
+      - name: npm ci
+        working-directory: client
+        run: npm ci
+      - name: wasm + vite production build
+        working-directory: client
+        run: npm run build
+      - name: bundle budget (700 KiB gz critical path)
+        run: dev-tools/check-bundle-budget.sh

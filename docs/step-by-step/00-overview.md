@@ -29,3 +29,4 @@ introduced the feature, never as later afterthoughts.
 | Step | Tag | Chapter | Landed |
 |---|---|---|---|
 | 01 | `step-01` | [Hello, synapse-rs](01-hello-synapse-rs.md) | 2026-07-15 |
+| 02 | `step-02` | [Leptos and the island bridge](02-leptos-and-the-island-bridge.md) | 2026-07-15 |

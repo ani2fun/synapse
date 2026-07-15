@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "synapse-rs",
+      "runtimeExecutable": "dev-tools/dev",
+      "runtimeArgs": [],
+      "port": 5273
+    }
+  ]
+}

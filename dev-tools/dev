@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
 # ── DEV LOOP ──────────────────────────────────────────────────────────────────
-# Runs the server on :8180 (override: SYNAPSE_PORT). Uses cargo-watch for
-# hot-rebuild when installed (`cargo install cargo-watch`), plain `cargo run`
-# otherwise. The client dev loop (Vite) joins in step 02.
+# The whole loop: wasm dev build → server on :8180 (background) → Vite on
+# :5273 (foreground, proxies /api). Ctrl-C stops both. If :8180 is already
+# held by a running server, the fresh bind fails and Vite proxies to the
+# existing one — fine for UI work.
 #
 # NOTE: the server reads SYNAPSE_PORT, never the bare PORT — preview tooling
-# injects PORT and must not hijack the bind (the launch.json gotcha).
+# injects PORT and must not hijack the bind (the oracle's launch.json gotcha;
+# here it is harmless by construction).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-if command -v cargo-watch >/dev/null 2>&1; then
-  exec cargo watch -x 'run -p synapse-server'
-else
-  echo "tip: cargo install cargo-watch  → hot-rebuild dev loop"
-  exec cargo run -p synapse-server
-fi
+(cd client && npm run wasm)
+
+cargo run -p synapse-server &
+SERVER_PID=$!
+trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+
+cd client && exec npx vite --port 5273

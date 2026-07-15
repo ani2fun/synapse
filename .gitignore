@@ -1,5 +1,8 @@
 # build output
 target/
+client/pkg/
+client/dist/
+node_modules/
 
 # local-only agent guide (durable design lives in docs/adr/)
 CLAUDE.md
