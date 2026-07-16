@@ -101,6 +101,24 @@ impl SubmissionRepository for PostgresSubmissionRepository {
         .map_err(store_failed)?;
         rows.iter().map(read).collect()
     }
+
+    async fn delete(&self, id: SubmissionId) -> Result<(), SubmissionError> {
+        sqlx::query("delete from submissions where id = $1")
+            .bind(id.0)
+            .execute(&self.pool)
+            .await
+            .map_err(store_failed)?;
+        Ok(())
+    }
+
+    async fn delete_all_for(&self, user_id: &str) -> Result<usize, SubmissionError> {
+        let result = sqlx::query("delete from submissions where user_id = $1")
+            .bind(user_id)
+            .execute(&self.pool)
+            .await
+            .map_err(store_failed)?;
+        Ok(usize::try_from(result.rows_affected()).unwrap_or(usize::MAX))
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

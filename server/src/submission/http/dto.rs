@@ -78,11 +78,12 @@ pub fn to_dto(submission: &Submission) -> SubmissionDto {
     }
 }
 
-/// `NotAProblem`/`UnknownSubmission`→404 · `InvalidSuite`/`StoreFailed`→500.
+/// `NotAProblem`/`UnknownSubmission`→404 · `NotYours`→403 · `InvalidSuite`/`StoreFailed`→500.
 pub fn to_error(error: &SubmissionError) -> (StatusCode, Json<ApiError>) {
     let (status, message) = match error {
         SubmissionError::NotAProblem(_) => (StatusCode::NOT_FOUND, "Not a problem"),
         SubmissionError::UnknownSubmission(_) => (StatusCode::NOT_FOUND, "Unknown submission"),
+        SubmissionError::NotYours(_) => (StatusCode::FORBIDDEN, "Not your submission"),
         SubmissionError::InvalidSuite { .. } => {
             (StatusCode::INTERNAL_SERVER_ERROR, "The authored suite is invalid")
         }

@@ -135,6 +135,66 @@
       "description": "Submissions for a lesson, newest first (identity later scopes it to the caller).",
       "method": "GET",
       "url": "{{ _.base_url }}/api/submissions?path=dsa/two-sum"
+    },
+    {
+      "_id": "fld_identity",
+      "_type": "request_group",
+      "parentId": "wrk_synapse_rs",
+      "name": "identity"
+    },
+    {
+      "_id": "req_auth_config",
+      "_type": "request",
+      "parentId": "fld_identity",
+      "name": "GET /api/auth/config",
+      "description": "The SPA's Keycloak coordinates, split from the issuer (step 16).",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/auth/config"
+    },
+    {
+      "_id": "req_me",
+      "_type": "request",
+      "parentId": "fld_identity",
+      "name": "GET /api/me",
+      "description": "Who am I — requires a bearer; 401 missing/invalid, 503 verifier down (step 16).",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/me",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ]
+    },
+    {
+      "_id": "req_submission_delete",
+      "_type": "request",
+      "parentId": "fld_submissions",
+      "name": "DELETE /api/submissions/{id}",
+      "description": "Owner-only delete — 401 anonymous, 403 someone else's (step 16).",
+      "method": "DELETE",
+      "url": "{{ _.base_url }}/api/submissions/00000000-0000-0000-0000-000000000000",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ]
+    },
+    {
+      "_id": "req_submission_erase",
+      "_type": "request",
+      "parentId": "fld_submissions",
+      "name": "DELETE /api/submissions",
+      "description": "Erase every submission of the caller — reset my data (step 16).",
+      "method": "DELETE",
+      "url": "{{ _.base_url }}/api/submissions",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ]
     }
   ]
 }

@@ -58,6 +58,16 @@ impl SubmissionRepository for FakeRepo {
         rows.sort_by_key(|s| std::cmp::Reverse(s.created_at));
         Ok(rows)
     }
+    async fn delete(&self, id: SubmissionId) -> Result<(), SubmissionError> {
+        self.rows.lock().unwrap().remove(&id.0);
+        Ok(())
+    }
+    async fn delete_all_for(&self, user_id: &str) -> Result<usize, SubmissionError> {
+        let mut rows = self.rows.lock().unwrap();
+        let before = rows.len();
+        rows.retain(|_, s| s.user_id.as_deref() != Some(user_id));
+        Ok(before - rows.len())
+    }
 }
 
 struct FakeTests(Option<TestSpec>);
@@ -158,7 +168,10 @@ fn path() -> Vec<String> {
 #[tokio::test]
 async fn a_lesson_without_a_suite_is_not_a_problem_and_stores_nothing() {
     let (svc, _) = service(None, vec![]);
-    let err = svc.submit(path(), "python".into(), "x".into()).await.unwrap_err();
+    let err = svc
+        .submit(path(), "python".into(), "x".into(), None)
+        .await
+        .unwrap_err();
     assert!(matches!(err, SubmissionError::NotAProblem(_)));
     assert!(svc.repo.rows.lock().unwrap().is_empty());
 }
@@ -167,7 +180,7 @@ async fn a_lesson_without_a_suite_is_not_a_problem_and_stores_nothing() {
 async fn submit_persists_pending_and_anonymous_and_returns_the_id() {
     let (svc, _) = service(Some(spec(&[Some("0")])), vec![ok_run("0")]);
     let id = svc
-        .submit(path(), "python".into(), "print(n)".into())
+        .submit(path(), "python".into(), "print(n)".into(), None)
         .await
         .unwrap();
     let stored = svc.repo.get(id).await.unwrap().unwrap();

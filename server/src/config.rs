@@ -26,6 +26,12 @@ pub struct AppConfig {
     /// verbatim) or `SYNAPSE_DATABASE_URL`. The server FAILS FAST when Postgres is down
     /// (oracle parity — Keycloak degrades, Postgres does not).
     pub database_url: String,
+    /// The OIDC issuer whose tokens we accept (step 16) — the Keycloak realm URL. Env:
+    /// `OIDC_ISSUER` (oracle name) or `SYNAPSE_IDENTITY_ISSUER`. Keycloak-down DEGRADES (503
+    /// on token paths) — it never blocks boot.
+    pub identity_issuer: String,
+    /// The client id expected in `aud`/`azp` (step 16). Env: `OIDC_AUDIENCE`.
+    pub identity_audience: String,
 }
 
 impl Default for AppConfig {
@@ -36,6 +42,8 @@ impl Default for AppConfig {
             auto_reload: true,
             executor_url: "http://localhost:5150".to_owned(),
             database_url: "postgres://synapse:synapse@localhost:5532/synapse_rs".to_owned(),
+            identity_issuer: "http://localhost:8181/realms/synapse".to_owned(),
+            identity_audience: "synapse-web".to_owned(),
         }
     }
 }
@@ -56,10 +64,18 @@ impl AppConfig {
         // `EXECUTOR_URL` is the oracle's deploy-manifest name (no prefix) — honored verbatim.
         let executor = Env::raw().only(&["EXECUTOR_URL"]).map(|_| "executor_url".into());
         let database = Env::raw().only(&["DATABASE_URL"]).map(|_| "database_url".into());
+        let oidc = Env::raw().only(&["OIDC_ISSUER", "OIDC_AUDIENCE"]).map(|key| {
+            if key == "OIDC_ISSUER" {
+                "identity_issuer".into()
+            } else {
+                "identity_audience".into()
+            }
+        });
         Figment::from(Serialized::defaults(Self::default()))
             .merge(env)
             .merge(executor)
             .merge(database)
+            .merge(oidc)
             .extract()
             .map_err(Box::new)
     }

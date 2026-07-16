@@ -9,6 +9,9 @@ use synapse_server::catalog::application::CatalogService;
 use synapse_server::catalog::infrastructure::FileSystemContentRepository;
 use synapse_server::execution::application::RunCodeService;
 use synapse_server::execution::infrastructure::GoJudgeRunner;
+use synapse_server::identity::application::IdentityService;
+use synapse_server::identity::http::IdentityRoutesState;
+use synapse_server::identity::infrastructure::JwksTokenVerifier;
 use synapse_server::submission::application::SubmitSolution;
 use synapse_server::submission::infrastructure::{FsProblemTests, PostgresSubmissionRepository};
 use tracing_subscriber::EnvFilter;
@@ -48,6 +51,15 @@ async fn main() -> anyhow::Result<()> {
         Arc::clone(&runner),
     ));
 
+    let identity = IdentityRoutesState {
+        identity: Arc::new(IdentityService::new(JwksTokenVerifier::new(
+            &cfg.identity_issuer,
+            &cfg.identity_audience,
+        ))),
+        issuer: cfg.identity_issuer.clone(),
+        audience: cfg.identity_audience.clone(),
+    };
+
     let addr = SocketAddr::from(([0, 0, 0, 0], cfg.port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!(
@@ -58,6 +70,6 @@ async fn main() -> anyhow::Result<()> {
         "synapse-rs server started"
     );
 
-    axum::serve(listener, synapse_server::app(catalog, runner, submit)).await?;
+    axum::serve(listener, synapse_server::app(catalog, runner, submit, identity)).await?;
     Ok(())
 }

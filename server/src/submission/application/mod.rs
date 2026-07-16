@@ -24,6 +24,16 @@ pub enum SubmissionError {
     UnknownSubmission(String),
     #[error("submission store failed: {0}")]
     StoreFailed(String),
+    #[error("submission '{0}' belongs to someone else")]
+    NotYours(String),
+}
+
+/// The verified caller, projected for submissions: `user_id` = the stored `sub`,
+/// `username` = the (lowercase) allowlist key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Submitter {
+    pub user_id: String,
+    pub username: String,
 }
 
 /// The submissions store (oracle: `SubmissionRepository`). Owner checks are the APPLICATION's
@@ -41,6 +51,9 @@ pub trait SubmissionRepository: Send + Sync {
         lesson_path: &[String],
         by_user: Option<&str>,
     ) -> impl Future<Output = Result<Vec<Submission>, SubmissionError>> + Send;
+    fn delete(&self, id: SubmissionId) -> impl Future<Output = Result<(), SubmissionError>> + Send;
+    /// "Reset my data" — returns the row count.
+    fn delete_all_for(&self, user_id: &str) -> impl Future<Output = Result<usize, SubmissionError>> + Send;
 }
 
 /// Where a problem's hidden suite comes from (oracle: `ProblemTests`) — `None` = not a problem.
@@ -85,6 +98,7 @@ where
         lesson_path: Vec<String>,
         language: String,
         source: String,
+        submitter: Option<Submitter>,
     ) -> Result<SubmissionId, SubmissionError> {
         let joined = lesson_path.join("/");
         let spec = self
@@ -97,7 +111,7 @@ where
             lesson_path,
             language,
             source,
-            user_id: None, // the anonymous seam — identity fills it
+            user_id: submitter.map(|s| s.user_id),
             created_at: Utc::now(),
             state: SubmissionState::Pending,
         };
@@ -122,6 +136,19 @@ where
         by_user: Option<&str>,
     ) -> Result<Vec<Submission>, SubmissionError> {
         self.repo.list_for(lesson_path, by_user).await
+    }
+
+    /// Owner-only: anonymous rows belong to nobody and cannot be deleted.
+    pub async fn delete(&self, id: SubmissionId, caller_id: &str) -> Result<(), SubmissionError> {
+        let submission = self.get(id).await?;
+        if submission.user_id.as_deref() != Some(caller_id) {
+            return Err(SubmissionError::NotYours(id.to_string()));
+        }
+        self.repo.delete(id).await
+    }
+
+    pub async fn erase_all_for(&self, user_id: &str) -> Result<usize, SubmissionError> {
+        self.repo.delete_all_for(user_id).await
     }
 
     /// Judging → outcome → completed. INFALLIBLE with a backstop: any pipeline failure records

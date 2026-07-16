@@ -6,6 +6,7 @@
 pub mod catalog;
 pub mod config;
 pub mod execution;
+pub mod identity;
 pub mod platform;
 pub mod submission;
 
@@ -14,11 +15,13 @@ use std::sync::Arc;
 use axum::Router;
 use catalog::http::LiveCatalogService;
 use execution::http::LiveRunService;
-use submission::http::LiveSubmitSolution;
+use identity::http::IdentityRoutesState;
+use submission::http::{LiveSubmitSolution, SubmissionRoutesState};
 use synapse_shared::api::{ApiError, HealthStatus};
 use synapse_shared::catalog::{ComponentDocDto, LessonPayloadDto, SynapseIndexDto};
 use synapse_shared::execution::{RunRequest, RunResult};
-use synapse_shared::submission::{SubmissionAcceptedDto, SubmissionDto, SubmitRequestDto};
+use synapse_shared::identity::{AuthConfigDto, MeDto};
+use synapse_shared::submission::{DeleteResultDto, SubmissionAcceptedDto, SubmissionDto, SubmitRequestDto};
 use utoipa::OpenApi;
 
 /// The assembled HTTP surface. Contexts contribute their routers here as they land; integration
@@ -28,12 +31,18 @@ pub fn app(
     catalog: Arc<LiveCatalogService>,
     run: Arc<LiveRunService>,
     submit: Arc<LiveSubmitSolution>,
+    ident: IdentityRoutesState,
 ) -> Router {
+    let submissions = SubmissionRoutesState {
+        submit,
+        identity: Arc::clone(&ident.identity),
+    };
     Router::new()
         .merge(platform::http::routes())
         .merge(catalog::http::routes(catalog))
         .merge(execution::http::routes(run))
-        .merge(submission::http::routes(submit))
+        .merge(submission::http::routes(submissions))
+        .merge(identity::http::routes(ident))
         .layer(axum::middleware::from_fn(platform::content_cache_control::stamp))
 }
 
@@ -52,7 +61,11 @@ pub fn app(
         execution::http::run_code,
         submission::http::submit_solution,
         submission::http::get_submission,
-        submission::http::list_submissions
+        submission::http::list_submissions,
+        submission::http::delete_submission,
+        submission::http::erase_all,
+        identity::http::get_me,
+        identity::http::get_auth_config
     ),
     components(schemas(
         HealthStatus,
@@ -64,7 +77,10 @@ pub fn app(
         RunResult,
         SubmitRequestDto,
         SubmissionAcceptedDto,
-        SubmissionDto
+        SubmissionDto,
+        DeleteResultDto,
+        MeDto,
+        AuthConfigDto
     ))
 )]
 pub struct ApiDoc;

@@ -60,3 +60,9 @@ pub struct SubmissionDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completed_at: Option<String>,
 }
+
+/// Delete/erase result — 0/1 for a single delete, N for erase-all.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct DeleteResultDto {
+    pub deleted: usize,
+}
