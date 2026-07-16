@@ -2,6 +2,10 @@
 //! `POST /api/run` speaks exactly these shapes; `RunStatus` crosses the wire as the CASE NAME
 //! string — never a Judge0-style magic int (the code-quality bar's canonical example).
 
+mod test_run;
+
+pub use test_run::{ArgSpec, TestCase, TestSpec, Verdict, judge, stdin_for};
+
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
