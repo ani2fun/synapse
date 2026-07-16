@@ -4,6 +4,7 @@
 //! (`markers`), and the one playback state machine (`playback`). The adapt pipeline and the
 //! geometry families join in their own steps, exactly as the oracle staged them.
 
+pub mod geometry;
 pub mod graph;
 pub mod markers;
 pub mod playback;

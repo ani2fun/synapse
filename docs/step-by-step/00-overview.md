@@ -51,3 +51,4 @@ introduced the feature, never as later afterthoughts.
 | 21 | `step-21` | [The admin allowlist panel](21-admin-allowlist-panel.md) | 2026-07-16 |
 | 22 | `step-22` | [The tutoring coach](22-the-tutoring-coach.md) | 2026-07-16 |
 | 23 | `step-23` | [The viz contract spine](23-the-viz-contract-spine.md) | 2026-07-16 |
+| 24 | `step-24` | [The geometry families](24-the-geometry-families.md) | 2026-07-16 |
