@@ -53,3 +53,4 @@ introduced the feature, never as later afterthoughts.
 | 23 | `step-23` | [The viz contract spine](23-the-viz-contract-spine.md) | 2026-07-16 |
 | 24 | `step-24` | [The geometry families](24-the-geometry-families.md) | 2026-07-16 |
 | 25 | `step-25` | [Design system + dark mode](25-design-system-dark-mode.md) | 2026-07-16 |
+| 26 | `step-26` | [The adapt pipeline](26-the-adapt-pipeline.md) | 2026-07-16 |
