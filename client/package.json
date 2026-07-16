@@ -12,8 +12,9 @@
   },
   "dependencies": {
     "@terrastruct/d2": "^0.1.33",
-    "monaco-editor": "^0.52.2",
+    "keycloak-js": "^26.2.4",
     "mdast-util-to-hast": "^13.2.0",
+    "monaco-editor": "^0.52.2",
     "rehype-pretty-code": "^0.14.3",
     "rehype-slug": "^6.0.0",
     "rehype-stringify": "^10.0.1",

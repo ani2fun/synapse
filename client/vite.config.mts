@@ -14,6 +14,7 @@ export default defineConfig({
     alias: {
       "@markdown": fileURLToPath(new URL("./islands/markdown", import.meta.url)),
       "@editor": fileURLToPath(new URL("./islands/editor", import.meta.url)),
+      "@auth": fileURLToPath(new URL("./islands/auth", import.meta.url)),
     },
   },
   server: {

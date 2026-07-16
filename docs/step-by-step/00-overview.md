@@ -44,3 +44,4 @@ introduced the feature, never as later afterthoughts.
 | 14 | `step-14` | [Submissions: Postgres + 202/poll](14-submissions-infrastructure-http.md) | 2026-07-16 |
 | 15 | `step-15` | [The workbench submit path](15-the-workbench-submit-path.md) | 2026-07-16 |
 | 16 | `step-16` | [Identity, server side](16-identity-server-side.md) | 2026-07-16 |
+| 17 | `step-17` | [Identity, client side](17-identity-client-side.md) | 2026-07-16 |

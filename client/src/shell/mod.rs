@@ -15,11 +15,14 @@ pub fn App() -> impl IntoView {
     // PrefsStore also reflects the stored reading prefs onto <html> BEFORE the first paint.
     crate::catalog::state::CatalogStore::provide();
     crate::catalog::state::PrefsStore::provide();
+    crate::identity::state::AuthStore::provide();
     view! {
         <Router>
             <header class="shell-header">
                 <a class="shell-brand" href="/">"synapse-rs"</a>
                 <span class="shell-tag">"the Rust rebuild"</span>
+                <span class="shell-spacer"></span>
+                <crate::identity::view::AccountChip />
             </header>
             <main class="shell-main">
                 <Routes fallback=|| view! { <p class="muted">"Not found."</p> }>

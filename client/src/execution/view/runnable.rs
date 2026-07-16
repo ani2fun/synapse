@@ -10,6 +10,7 @@ use synapse_shared::execution::{RunResult, TestSpec, Verdict, judge, stdin_for};
 use crate::execution::logic::{self, RunState, Variant};
 use crate::execution::state::{BlockStore, SubmitState, SubmitStore};
 use crate::execution::view::workbench::{TestsPanel, TestsState, VerdictPanel};
+use crate::identity::state::AuthStore;
 use crate::islands::editor::{self, MountedEditor};
 
 // Component props are moved by design (leptos owns them for the view's lifetime); the length
@@ -17,7 +18,14 @@ use crate::islands::editor::{self, MountedEditor};
 // would hide the flow (the oracle keeps `Workbench.apply` as one unit too).
 #[allow(clippy::needless_pass_by_value, clippy::too_many_lines)]
 #[component]
-pub fn RunnableBlock(variant: Variant, spec: Option<TestSpec>, lesson_path: Vec<String>) -> impl IntoView {
+pub fn RunnableBlock(
+    variant: Variant,
+    spec: Option<TestSpec>,
+    lesson_path: Vec<String>,
+    // Passed through hydration: blocks mount OUT-OF-TREE (`mount_to` starts a fresh root
+    // owner), so App's context is out of reach — the reader captures the store in-tree.
+    auth: AuthStore,
+) -> impl IntoView {
     let store = BlockStore::new(&variant.source);
     let submit = SubmitStore::new();
     let language = variant.language.clone();
@@ -65,6 +73,10 @@ pub fn RunnableBlock(variant: Variant, spec: Option<TestSpec>, lesson_path: Vec<
                 }),
                 on_run: Box::new(run),
                 on_toggle_edit: Box::new(move || {
+                    // The auth gate (oracle: canEditSignal = authed && unlocked).
+                    if !auth.authed() {
+                        return;
+                    }
                     store.toggle_edit(&authored.read_value());
                     sync_editor(mounted, store);
                 }),
@@ -94,7 +106,9 @@ pub fn RunnableBlock(variant: Variant, spec: Option<TestSpec>, lesson_path: Vec<
                 <span
                     class="wb__tip"
                     data-tip=move || {
-                        if unlocked.get() {
+                        if !auth.authed() {
+                            "Sign in to edit this code"
+                        } else if unlocked.get() {
                             "Editing — your changes stay on this page (⌘E toggles)"
                         } else {
                             "Edit this code — changes stay on this page (⌘E)"
@@ -104,6 +118,7 @@ pub fn RunnableBlock(variant: Variant, spec: Option<TestSpec>, lesson_path: Vec<
                     <button
                         class="wb__ghost"
                         class:wb__ghost--live=move || unlocked.get()
+                        prop:disabled=move || !auth.authed()
                         on:click=move |_| {
                             store.toggle_edit(&authored.read_value());
                             sync_editor(mounted, store);

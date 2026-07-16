@@ -119,6 +119,8 @@ fn LessonBody(lesson: RwSignal<AsyncResult<LessonPayloadDto>>, segments: Vec<Str
 }
 
 fn loaded_lesson(payload: &LessonPayloadDto, segments: &[String]) -> impl IntoView + use<> {
+    // Captured IN-TREE: hydrated blocks mount out-of-tree and cannot reach App's context.
+    let auth = crate::identity::state::AuthStore::from_context();
     // The body crosses the island bridge asynchronously; once the HTML lands, the interactive
     // placeholders hydrate (runnable blocks today; solutions/quizzes/diagrams with their
     // steps). The boxed unmount handles keep the mounts alive; clearing them (navigation /
@@ -138,7 +140,9 @@ fn loaded_lesson(payload: &LessonPayloadDto, segments: &[String]) -> impl IntoVi
                     return;
                 };
                 body.set_inner_html(&rendered);
-                mounts.set_value(crate::execution::view::hydrate_workbenches(&body, &segments));
+                mounts.set_value(crate::execution::view::hydrate_workbenches(
+                    &body, &segments, auth,
+                ));
             }
             Err(error) => html.set(format!("<p>markdown island failed: {error:?}</p>")),
         }

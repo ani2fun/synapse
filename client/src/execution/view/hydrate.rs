@@ -12,7 +12,11 @@ use wasm_bindgen::JsCast;
 use crate::execution::logic;
 use crate::execution::view::RunnableBlock;
 
-pub fn hydrate_workbenches(root: &web_sys::HtmlElement, lesson_path: &[String]) -> Vec<Box<dyn Any>> {
+pub fn hydrate_workbenches(
+    root: &web_sys::HtmlElement,
+    lesson_path: &[String],
+    auth: crate::identity::state::AuthStore,
+) -> Vec<Box<dyn Any>> {
     let mut handles: Vec<Box<dyn Any>> = Vec::new();
     let Ok(nodes) = root.query_selector_all("div.workbench") else {
         return handles;
@@ -42,7 +46,7 @@ pub fn hydrate_workbenches(root: &web_sys::HtmlElement, lesson_path: &[String]) 
             .and_then(|decoded| serde_json::from_str(&String::from(decoded)).ok());
         let path = lesson_path.to_vec();
         let handle = leptos::mount::mount_to(element, move || {
-            view! { <RunnableBlock variant=variant spec=spec lesson_path=path /> }
+            view! { <RunnableBlock variant=variant spec=spec lesson_path=path auth=auth /> }
         });
         handles.push(Box::new(handle));
     }

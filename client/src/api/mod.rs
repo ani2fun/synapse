@@ -7,7 +7,23 @@ use serde::de::DeserializeOwned;
 use synapse_shared::api::ApiError;
 use synapse_shared::catalog::{LessonPayloadDto, SynapseIndexDto};
 use synapse_shared::execution::{RunRequest, RunResult};
+use synapse_shared::identity::{AuthConfigDto, MeDto};
 use synapse_shared::submission::{SubmissionAcceptedDto, SubmissionDto, SubmitRequestDto};
+
+thread_local! {
+    /// The bearer seam (oracle: `ApiClient.installTokenProvider`): identity installs it, every
+    /// request reads it, the default stays anonymous — api remains feature-agnostic.
+    static TOKEN_PROVIDER: std::cell::RefCell<fn() -> Option<String>> =
+        const { std::cell::RefCell::new(|| None) };
+}
+
+pub fn set_token_provider(provider: fn() -> Option<String>) {
+    TOKEN_PROVIDER.with_borrow_mut(|p| *p = provider);
+}
+
+fn bearer() -> Option<String> {
+    TOKEN_PROVIDER.with_borrow(|p| p())
+}
 
 /// A fetch's reactive lifecycle (oracle: `AsyncResult`).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,8 +57,22 @@ pub async fn submission(id: &str) -> Result<SubmissionDto, String> {
     fetch_json(&format!("/api/submissions/{id}")).await
 }
 
+/// The SPA's Keycloak coordinates.
+pub async fn auth_config() -> Result<AuthConfigDto, String> {
+    fetch_json("/api/auth/config").await
+}
+
+/// The verified caller — the bearer seam supplies the token.
+pub async fn me() -> Result<MeDto, String> {
+    fetch_json("/api/me").await
+}
+
 async fn post_json<B: Serialize, T: DeserializeOwned>(url: &str, body: &B) -> Result<T, String> {
-    let response = gloo_net::http::Request::post(url)
+    let mut request = gloo_net::http::Request::post(url);
+    if let Some(token) = bearer() {
+        request = request.header("Authorization", &format!("Bearer {token}"));
+    }
+    let response = request
         .json(body)
         .map_err(|error| error.to_string())?
         .send()
@@ -52,10 +82,11 @@ async fn post_json<B: Serialize, T: DeserializeOwned>(url: &str, body: &B) -> Re
 }
 
 async fn fetch_json<T: DeserializeOwned>(url: &str) -> Result<T, String> {
-    let response = gloo_net::http::Request::get(url)
-        .send()
-        .await
-        .map_err(|error| error.to_string())?;
+    let mut request = gloo_net::http::Request::get(url);
+    if let Some(token) = bearer() {
+        request = request.header("Authorization", &format!("Bearer {token}"));
+    }
+    let response = request.send().await.map_err(|error| error.to_string())?;
     decode(response).await
 }
 
