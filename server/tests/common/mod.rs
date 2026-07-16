@@ -19,6 +19,9 @@ use synapse_server::submission::application::SubmitSolution;
 use synapse_server::submission::infrastructure::{
     FsProblemTests, PostgresSubmissionAllowlist, PostgresSubmissionRepository,
 };
+use synapse_server::tutoring::application::TutoringService;
+use synapse_server::tutoring::http::TutorRoutesState;
+use synapse_server::tutoring::infrastructure::OllamaTutorClient;
 
 /// A budget big enough that only the dedicated rate-limit ITs ever hit it.
 const TEST_BUCKET: RateLimitBucket = RateLimitBucket {
@@ -82,6 +85,15 @@ pub fn deps_with(
         submit,
         ident,
         allowlist,
+        // The dev default: coach OFF — chat is a structural 404 (the tutor ITs build their own).
+        tutor: TutorRoutesState {
+            service: Arc::new(TutoringService::new(OllamaTutorClient::new(
+                "http://127.0.0.1:9",
+                "llama3.1",
+            ))),
+            enabled: false,
+            model: "llama3.1".to_owned(),
+        },
         blog: Arc::new(BlogService::new(FileSystemBlogRepository::new(
             content_root,
             true,

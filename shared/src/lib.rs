@@ -9,3 +9,4 @@ pub mod catalog;
 pub mod execution;
 pub mod identity;
 pub mod submission;
+pub mod tutor;

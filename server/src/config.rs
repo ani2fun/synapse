@@ -58,6 +58,11 @@ pub struct AppConfig {
     /// Who may manage the allowlist (step 21) — comma-separated usernames, compared lowercase.
     /// A raw string (not a list) so the env override stays a plain value. Env: `ADMIN_USERS`.
     pub admin_users: String,
+    /// The local Socratic coach (step 22, ADR-S025) — OFF by default; when off, the chat
+    /// route is never mounted. Envs: `TUTOR_ENABLED` / `TUTOR_URL` / `TUTOR_MODEL`.
+    pub tutor_enabled: bool,
+    pub tutor_url: String,
+    pub tutor_model: String,
 }
 
 impl Default for AppConfig {
@@ -80,6 +85,9 @@ impl Default for AppConfig {
             keycloak_admin_client_id: "synapse-admin".to_owned(),
             keycloak_admin_client_secret: "dev-admin-secret".to_owned(),
             admin_users: "tester".to_owned(),
+            tutor_enabled: false,
+            tutor_url: "http://localhost:11434".to_owned(),
+            tutor_model: "llama3.1".to_owned(),
         }
     }
 }
@@ -136,6 +144,9 @@ impl AppConfig {
                 "KEYCLOAK_ADMIN_CLIENT_ID",
                 "KEYCLOAK_ADMIN_CLIENT_SECRET",
                 "ADMIN_USERS",
+                "TUTOR_ENABLED",
+                "TUTOR_URL",
+                "TUTOR_MODEL",
             ])
             .map(|key| key.as_str().to_lowercase().into());
         Figment::from(Serialized::defaults(Self::default()))

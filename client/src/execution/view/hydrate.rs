@@ -16,6 +16,7 @@ pub fn hydrate_workbenches(
     root: &web_sys::HtmlElement,
     lesson_path: &[String],
     auth: crate::identity::state::AuthStore,
+    code_sink: RwSignal<(String, String)>,
 ) -> Vec<Box<dyn Any>> {
     let mut handles: Vec<Box<dyn Any>> = Vec::new();
     let Ok(nodes) = root.query_selector_all("div.workbench") else {
@@ -46,7 +47,7 @@ pub fn hydrate_workbenches(
             .and_then(|decoded| serde_json::from_str(&String::from(decoded)).ok());
         let path = lesson_path.to_vec();
         let handle = leptos::mount::mount_to(element, move || {
-            view! { <RunnableBlock variant=variant spec=spec lesson_path=path auth=auth /> }
+            view! { <RunnableBlock variant=variant spec=spec lesson_path=path auth=auth code_sink=code_sink /> }
         });
         handles.push(Box::new(handle));
     }

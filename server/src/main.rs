@@ -19,6 +19,9 @@ use synapse_server::submission::application::SubmitSolution;
 use synapse_server::submission::infrastructure::{
     FsProblemTests, PostgresSubmissionAllowlist, PostgresSubmissionRepository,
 };
+use synapse_server::tutoring::application::TutoringService;
+use synapse_server::tutoring::http::TutorRoutesState;
+use synapse_server::tutoring::infrastructure::OllamaTutorClient;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
@@ -72,6 +75,14 @@ async fn main() -> anyhow::Result<()> {
         audience: cfg.identity_audience.clone(),
         admin_users: Arc::new(cfg.admin_user_set()),
     };
+    let tutor = TutorRoutesState {
+        service: Arc::new(TutoringService::new(OllamaTutorClient::new(
+            &cfg.tutor_url,
+            &cfg.tutor_model,
+        ))),
+        enabled: cfg.tutor_enabled,
+        model: cfg.tutor_model.clone(),
+    };
     let blog = Arc::new(BlogService::new(FileSystemBlogRepository::new(
         &cfg.content_root,
         cfg.auto_reload,
@@ -107,6 +118,7 @@ async fn main() -> anyhow::Result<()> {
         blog,
         limiter,
         allowlist,
+        tutor,
         static_root: cfg.static_root.clone(),
         likec4_url: cfg.likec4_url.clone(),
     });

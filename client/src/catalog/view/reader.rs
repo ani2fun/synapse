@@ -121,6 +121,8 @@ fn LessonBody(lesson: RwSignal<AsyncResult<LessonPayloadDto>>, segments: Vec<Str
 fn loaded_lesson(payload: &LessonPayloadDto, segments: &[String]) -> impl IntoView + use<> {
     // Captured IN-TREE: hydrated blocks mount out-of-tree and cannot reach App's context.
     let auth = crate::identity::state::AuthStore::from_context();
+    // The Coach's editor snapshot — filled by the hydrated workbench on mount + every edit.
+    let code_ctx = RwSignal::new((String::new(), String::new()));
     // The body crosses the island bridge asynchronously; once the HTML lands, the interactive
     // placeholders hydrate (runnable blocks today; solutions/quizzes/diagrams with their
     // steps). The boxed unmount handles keep the mounts alive; clearing them (navigation /
@@ -129,7 +131,8 @@ fn loaded_lesson(payload: &LessonPayloadDto, segments: &[String]) -> impl IntoVi
     let body_ref: NodeRef<leptos::html::Div> = NodeRef::new();
     let mounts: StoredValue<Vec<Box<dyn std::any::Any>>, LocalStorage> = StoredValue::new_local(Vec::new());
     let raw = payload.raw.clone();
-    let segments = segments.to_vec();
+    let owned_segments = segments.to_vec();
+    let problem_path_source = segments.join("/");
     spawn_local(async move {
         match islands::markdown::render(&raw).await {
             Ok(rendered) => {
@@ -141,7 +144,10 @@ fn loaded_lesson(payload: &LessonPayloadDto, segments: &[String]) -> impl IntoVi
                 };
                 body.set_inner_html(&rendered);
                 mounts.set_value(crate::execution::view::hydrate_workbenches(
-                    &body, &segments, auth,
+                    &body,
+                    &owned_segments,
+                    auth,
+                    code_ctx,
                 ));
             }
             Err(error) => html.set(format!("<p>markdown island failed: {error:?}</p>")),
@@ -156,6 +162,7 @@ fn loaded_lesson(payload: &LessonPayloadDto, segments: &[String]) -> impl IntoVi
     };
     // Problem pages go full width (post-33 `a95e3fb`) — the workbench needs the column.
     let is_problem = payload.frontmatter.kind.as_deref() == Some("problem");
+    let problem_path = is_problem.then_some(problem_path_source);
     view! {
         <div class="lesson" class:lesson--problem=is_problem>
             <header class="lesson-header">
@@ -164,6 +171,9 @@ fn loaded_lesson(payload: &LessonPayloadDto, segments: &[String]) -> impl IntoVi
                 {payload.frontmatter.summary.clone().map(|s| view! { <p class="lesson-summary">{s}</p> })}
             </header>
             <div class="lesson-body synapse-prose" node_ref=body_ref inner_html=move || html.get()></div>
+            {is_problem.then(|| view! {
+                <crate::tutoring::CoachPane problem=problem_path.clone() code_ctx=code_ctx />
+            })}
             <nav class="lesson-nav">
                 {nav_link(&payload.prev, "← Previous", "nav-prev")}
                 {nav_link(&payload.next, "Next →", "nav-next")}

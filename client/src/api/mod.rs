@@ -89,6 +89,18 @@ pub async fn delete_account() -> Result<serde_json::Value, String> {
     delete_json("/api/me").await
 }
 
+/// The coach's coordinates — always answers; `enabled: false` is the off state.
+pub async fn tutor_config() -> Result<synapse_shared::tutor::TutorConfigDto, String> {
+    fetch_json("/api/tutor/config").await
+}
+
+/// One coaching turn — the full transcript up, one reply back (a 404 means the coach is off).
+pub async fn tutor_chat(
+    request: &synapse_shared::tutor::TutorChatRequestDto,
+) -> Result<synapse_shared::tutor::TutorChatResponseDto, String> {
+    post_json("/api/tutor/chat", request).await
+}
+
 /// The admin allowlist (server re-checks admin per call — these 401/403 for everyone else).
 pub async fn allowlist() -> Result<Vec<synapse_shared::submission::AllowlistEntryDto>, String> {
     fetch_json("/api/admin/allowlist").await

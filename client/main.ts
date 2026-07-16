@@ -10,6 +10,7 @@ import "./styles/runnable.css";
 import "./styles/blog.css";
 import "./styles/search.css";
 import "./styles/account.css";
+import "./styles/coach.css";
 import init from "./pkg/synapse_client.js";
 
 await init({

@@ -10,6 +10,7 @@ pub mod execution;
 pub mod identity;
 pub mod platform;
 pub mod submission;
+pub mod tutoring;
 
 use std::sync::Arc;
 
@@ -47,6 +48,8 @@ pub struct AppDeps {
     /// The production dist dir; absent (dev) → no static routes, and `/` answers plain text.
     pub static_root: String,
     pub likec4_url: String,
+    /// The coach (step 22): when disabled the chat route is never mounted — a structural 404.
+    pub tutor: tutoring::http::TutorRoutesState<tutoring::infrastructure::OllamaTutorClient>,
 }
 
 /// The assembled HTTP surface. Contexts contribute their routers here as they land; integration
@@ -80,6 +83,7 @@ pub fn app(deps: AppDeps) -> Router {
         .merge(identity::http::routes(deps.ident))
         .merge(blog::http::routes(deps.blog))
         .merge(submission::http::admin::routes(admin))
+        .merge(tutoring::http::routes(deps.tutor))
         .layer(axum::middleware::from_fn(platform::content_cache_control::stamp))
         .merge(platform::likec4_proxy::routes(&deps.likec4_url));
     if statics.enabled() {
@@ -123,7 +127,9 @@ pub fn app(deps: AppDeps) -> Router {
         blog::http::get_post,
         submission::http::admin::list_allowlist,
         submission::http::admin::grant_allowlist,
-        submission::http::admin::revoke_allowlist
+        submission::http::admin::revoke_allowlist,
+        tutoring::http::tutor_config,
+        tutoring::http::tutor_chat
     ),
     components(schemas(
         HealthStatus,
@@ -142,7 +148,11 @@ pub fn app(deps: AppDeps) -> Router {
         BlogSummaryDto,
         BlogPostDto,
         AllowlistEntryDto,
-        GrantRequestDto
+        GrantRequestDto,
+        synapse_shared::tutor::ChatMessage,
+        synapse_shared::tutor::TutorConfigDto,
+        synapse_shared::tutor::TutorChatRequestDto,
+        synapse_shared::tutor::TutorChatResponseDto
     ))
 )]
 pub struct ApiDoc;

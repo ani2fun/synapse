@@ -16,6 +16,7 @@ pub mod islands;
 pub mod router;
 pub mod search;
 pub mod shell;
+pub mod tutoring;
 
 use wasm_bindgen::prelude::wasm_bindgen;
 

@@ -1,0 +1,37 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   COACH (step 22) — the Socratic chat pane on problem pages (oracle: coach.css
+   classes verbatim). Off by default: the off-note is what prod shows.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.coach { display: flex; flex-direction: column; min-height: 15rem; margin: 1.5rem 0;
+         border: 1px solid #e2e8f0; border-radius: 0.75rem; background: #fff; overflow: hidden; }
+.coach__checking { padding: 1rem; font-size: 0.85rem; color: #64748b; }
+
+.coach__off { display: flex; flex-direction: column; align-items: flex-start; gap: 0.5rem;
+              padding: 2rem 1.25rem; color: #64748b; }
+.coach__off-title { font-size: 0.9rem; font-weight: 600; color: #0f172a; }
+.coach__off-note { font-size: 0.85rem; line-height: 1.6; max-width: 46ch; }
+
+.coach__chat { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.coach__head { display: flex; align-items: center; justify-content: space-between;
+               padding: 0.75rem 1rem; border-bottom: 1px solid #e2e8f0; flex: 0 0 auto; }
+.coach__model { font-family: ui-monospace, monospace; border-radius: 9999px;
+                padding: 0.1rem 0.5rem; font-size: 0.62rem; font-weight: 600;
+                text-transform: uppercase; letter-spacing: 0.08em;
+                background: #f1f5f9; color: #64748b; }
+.coach__log { flex: 1; display: flex; flex-direction: column; gap: 0.5rem;
+              overflow-y: auto; padding: 0.75rem 1rem; min-height: 8rem; }
+.coach__bubble { max-width: 85%; border-radius: 0.6rem; padding: 0.5rem 0.75rem;
+                 font-size: 0.875rem; line-height: 1.6; border: 1px solid #e2e8f0; }
+.coach__bubble--user { align-self: flex-end; background: rgb(13 148 136 / 0.08);
+                       border-color: rgb(13 148 136 / 0.3); }
+.coach__bubble--assistant { align-self: flex-start; background: #f8fafc; }
+.coach__typing { color: #64748b; font-style: italic; }
+.coach__error { border-radius: 0.6rem; padding: 0.5rem 0.75rem; font-size: 0.85rem;
+                color: #b91c1c; background: rgb(185 28 28 / 0.08); }
+.coach__composer { display: flex; align-items: flex-end; gap: 0.5rem;
+                   padding: 0.75rem; border-top: 1px solid #e2e8f0; flex: 0 0 auto; }
+.coach__input { font-family: inherit; flex: 1; resize: none; border-radius: 0.5rem;
+                padding: 0.4rem 0.65rem; font-size: 0.875rem; border: 1px solid #e2e8f0;
+                background: #fff; color: #0f172a; }
+.coach__input:focus-visible { outline: 2px solid rgb(13 148 136 / 0.45); outline-offset: 1px; }

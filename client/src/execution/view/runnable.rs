@@ -25,8 +25,12 @@ pub fn RunnableBlock(
     // Passed through hydration: blocks mount OUT-OF-TREE (`mount_to` starts a fresh root
     // owner), so App's context is out of reach — the reader captures the store in-tree.
     auth: AuthStore,
+    // The Coach's snapshot of what the learner sees: (source, language), kept current on
+    // every edit; the pane reads it only at send time.
+    code_sink: RwSignal<(String, String)>,
 ) -> impl IntoView {
     let store = BlockStore::new(&variant.source);
+    code_sink.set((variant.source.clone(), variant.language.clone()));
     let submit = SubmitStore::new();
     let language = variant.language.clone();
     let authored = StoredValue::new(variant.source.clone());
@@ -74,6 +78,7 @@ pub fn RunnableBlock(
             let callbacks = editor::EditorCallbacks {
                 on_change: Box::new(move |code: String| {
                     store.state.update(|s| *s = s.set_code(&code));
+                    code_sink.update(|(source, _)| *source = code);
                 }),
                 on_run: Box::new(run),
                 on_toggle_edit: Box::new(move || {

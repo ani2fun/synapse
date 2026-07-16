@@ -303,6 +303,45 @@
       "headers": [],
       "parameters": [],
       "body": {}
+    },
+    {
+      "_id": "fld_tutoring",
+      "_type": "request_group",
+      "parentId": "wrk_synapse_rs",
+      "name": "tutoring",
+      "description": "The local Socratic coach (step 22, ADR-S025). OFF by default; when off, chat is a STRUCTURAL 404 (the route is never mounted). Enable locally: TUTOR_ENABLED=true (+ TUTOR_URL/TUTOR_MODEL; Ollama default http://localhost:11434, llama3.1)."
+    },
+    {
+      "_id": "req_tutor_config",
+      "_type": "request",
+      "parentId": "fld_tutoring",
+      "name": "GET /api/tutor/config",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/tutor/config",
+      "description": "Always answers: {enabled, model} \u2014 200 even when the coach is off.",
+      "headers": [],
+      "parameters": [],
+      "body": {}
+    },
+    {
+      "_id": "req_tutor_chat",
+      "_type": "request",
+      "parentId": "fld_tutoring",
+      "name": "POST /api/tutor/chat",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/tutor/chat",
+      "description": "One coaching turn: the FULL transcript up, one reply back. Backend down \u2192 503 + TUTOR_URL hint; backend error \u2192 502. 404 while disabled.",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"problemPath\": \"synapse-features/flip-characters/flip-characters\",\n  \"code\": \"def flip_characters(arr):\\n    pass\",\n  \"language\": \"python\",\n  \"messages\": [{\"role\": \"user\", \"content\": \"I'm stuck on where to start.\"}]\n}"
+      }
     }
   ]
 }

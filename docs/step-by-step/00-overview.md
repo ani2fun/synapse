@@ -49,3 +49,4 @@ introduced the feature, never as later afterthoughts.
 | 19 | `step-19` | [Security hardening](19-security-hardening.md) | 2026-07-16 |
 | 20 | `step-20` | [Least-privilege account admin](20-least-privilege-account-admin.md) | 2026-07-16 |
 | 21 | `step-21` | [The admin allowlist panel](21-admin-allowlist-panel.md) | 2026-07-16 |
+| 22 | `step-22` | [The tutoring coach](22-the-tutoring-coach.md) | 2026-07-16 |
