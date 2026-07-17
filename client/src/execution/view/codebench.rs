@@ -120,12 +120,12 @@ pub fn hydrate_codebench_pills(root: &web_sys::HtmlElement, store: CodebenchStor
             let request = CodebenchRequest { code, language };
             view! {
                 <button
-                    class="codebench-open modal-btn"
+                    class="codebench-open"
                     title="Open this code in the editor — run it, feed it input, make it yours"
                     on:click=move |_| store.open(request.clone())
                 >
                     {icon_play("codebench-open__ic")}
-                    <span>"Open editor to try"</span>
+                    <span>"Try in Editor"</span>
                 </button>
             }
             .into_any()

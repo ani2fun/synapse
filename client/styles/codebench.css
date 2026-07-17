@@ -1,16 +1,22 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    THE POPUP CODEBENCH (qna Q1, option A) — one near-fullscreen modal, ONE Monaco
-   reused across every open; plain shiki fences grow the hover "Open editor to
-   try" pill. The frame stays in the DOM while closed (display:none) so the
-   editor instance survives — that is the whole point.
+   reused across every open; plain shiki fences grow a "Try in Editor" button.
+   The frame stays in the DOM while closed (display:none) so the editor instance
+   survives — that is the whole point.
    ───────────────────────────────────────────────────────────────────────────── */
 
-/* The pill over a plain code block — the diagram-Enlarge family: top-LEFT, hover-revealed. */
+/* The "Try in Editor" button over a plain code block — ALWAYS visible, top-RIGHT (so it
+   never overlaps the start of the code lines), solid + bold like the Run button. */
 .codebench-host { position: relative; }
-.codebench-open { position: absolute; top: 6px; left: 6px; z-index: 2; opacity: 0;
-                  transition: opacity 140ms ease, color 0.12s, border-color 0.12s,
-                              background 0.12s; }
-.codebench-host:hover .codebench-open, .codebench-open:focus-visible { opacity: 1; }
+.codebench-open { position: absolute; top: 8px; right: 8px; z-index: 2;
+                  display: inline-flex; align-items: center; gap: 6px;
+                  border: none; border-radius: 0.4rem; padding: 0.3rem 0.7rem;
+                  font-size: 0.8rem; font-weight: 600; line-height: 1; cursor: pointer;
+                  color: hsl(var(--primary-foreground)); background: hsl(var(--primary));
+                  box-shadow: 0 2px 8px -2px hsl(var(--foreground) / 0.35);
+                  transition: background 0.12s; }
+.codebench-open:hover { background: hsl(var(--primary) / 0.88); }
+.codebench-open__ic { width: 14px; height: 14px; flex: none; }
 
 /* ── the modal ── */
 .codebench { display: none; }
