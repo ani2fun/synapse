@@ -199,6 +199,7 @@ pub fn ProblemWorkbench(payload: LessonPayloadDto, segments: Vec<String>) -> imp
                                     viz_modal=viz_modal
                                     load_code=load_code
                                     submitted=submitted
+                                    fill=true
                                 />
                             </div>
                         }

@@ -45,6 +45,10 @@ pub fn RunnableBlock(
     /// Bumped when a submit lifecycle completes — the Submissions tab refetches on it.
     #[prop(optional)]
     submitted: Option<RwSignal<u32>>,
+    /// The problem page's right pane: the editor FILLS the pane's free height by default
+    /// (the `--fill` class the CSS targets) until the resize strip pins an explicit height.
+    #[prop(optional)]
+    fill: bool,
 ) -> impl IntoView {
     let stores: Vec<BlockStore> = variants.iter().map(|v| BlockStore::new(&v.source)).collect();
     let active = RwSignal::new(0_usize);
@@ -274,7 +278,33 @@ pub fn RunnableBlock(
         let store_at = store_at.clone();
         Memo::new(move |_| store_at(active.get()).unlocked.get())
     };
-    let height = format!("height: {}px;", editor::default_height_px(&first.source));
+    // The editor's height story: a source-derived default; in `fill` mode the CSS stretches
+    // it into the pane's free height until the resize strip pins an explicit height (the
+    // pinned value drops the `--fill` class, so the inline style wins again).
+    let default_height = editor::default_height_px(&first.source);
+    let pinned_height: RwSignal<Option<f64>> = RwSignal::new(None);
+    let height = move || {
+        format!(
+            "height: {}px;",
+            pinned_height.get().unwrap_or(f64::from(default_height))
+        )
+    };
+    // The horizontal resize strip's drag (the wb-split pattern, turned 90°): document-level
+    // move/up so the pointer can outrun the 9px rail; the grab records the editor's live
+    // height so the drag is relative, never a jump.
+    let drag_from: StoredValue<Option<(f64, f64)>> = StoredValue::new(None);
+    let resize_moved = window_event_listener(leptos::ev::pointermove, move |event| {
+        let Some((start_y, start_h)) = drag_from.get_value() else {
+            return;
+        };
+        let next = (start_h + (f64::from(event.client_y()) - start_y)).clamp(140.0, 900.0);
+        pinned_height.set(Some(next));
+    });
+    let resize_released = window_event_listener(leptos::ev::pointerup, move |_| drag_from.set_value(None));
+    on_cleanup(move || {
+        resize_moved.remove();
+        resize_released.remove();
+    });
     let active_state: Signal<ExecutorState> = {
         let store_at = store_at.clone();
         Signal::derive(move || store_at(active.get()).state.get())
@@ -447,9 +477,39 @@ pub fn RunnableBlock(
     view! {
         <div class="runnable not-prose">
             {toolbar}
-            <div class="runnable__editor" node_ref=editor_ref style=height>
+            <div
+                class=move || {
+                    if fill && pinned_height.get().is_none() {
+                        "runnable__editor runnable__editor--fill"
+                    } else {
+                        "runnable__editor"
+                    }
+                }
+                node_ref=editor_ref
+                style=height
+            >
                 {copy_button(mounted)}
             </div>
+            // The horizontal resize strip — drag to grow/shrink the editor against the
+            // panels below (double-click restores the fill/default height).
+            {spec.is_some().then(|| view! {
+                <div
+                    class="wb-hsplit"
+                    title="Drag to resize the editor — double-click to reset"
+                    on:pointerdown=move |event| {
+                        event.prevent_default();
+                        let live = editor_ref
+                            .get_untracked()
+                            .map_or(f64::from(default_height), |node| {
+                                node.get_bounding_client_rect().height()
+                            });
+                        drag_from.set_value(Some((f64::from(event.client_y()), live)));
+                    }
+                    on:dblclick=move |_| pinned_height.set(None)
+                >
+                    <div class="wb-hsplit__grip"><span></span><span></span><span></span></div>
+                </div>
+            })}
             {match (spec, tests) {
                 (Some(spec), Some(tests)) => {
                     // Chip switch clears every variant's stale run output (oracle: switchCase

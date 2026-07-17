@@ -25,8 +25,20 @@
 .pwb:not(.pwb--embedded) .pwb__right .wb__tests,
 .pwb:not(.pwb--embedded) .pwb__right .runnable__out,
 .pwb:not(.pwb--embedded) .pwb__right .wb__verdict { flex: 0 0 auto; }
-.pwb:not(.pwb--embedded) .pwb__right .runnable__editor { flex: 1 1 auto; height: auto !important;
-                                                         min-height: 220px; }
+/* Fill mode (the component's --fill class, on until the resize strip pins a height): the
+   !important beats the block's inline source-derived height. */
+.runnable__editor--fill { flex: 1 1 auto; height: auto !important; min-height: 220px; }
+
+/* ── the horizontal resize strip: editor above, test cases below (the wb-split rail,
+      turned 90°) — drag to resize, double-click to reset ── */
+.wb-hsplit { flex: 0 0 9px; cursor: row-resize; display: flex; align-items: center;
+             justify-content: center; touch-action: none;
+             background: hsl(var(--border) / 0.25); }
+.wb-hsplit:hover, .wb-hsplit:active { background: hsl(var(--primary) / 0.15); }
+.wb-hsplit__grip { display: flex; gap: 3px; }
+.wb-hsplit__grip span { width: 3px; height: 3px; border-radius: 9999px;
+                        background: hsl(var(--muted-foreground)); }
+.wb-hsplit:hover .wb-hsplit__grip span { background: hsl(var(--primary)); }
 
 .pwb__head { padding: 16px 18px 0; flex: 0 0 auto; }
 .pwb__title { font-size: 22px; font-weight: 700; letter-spacing: -0.01em;
