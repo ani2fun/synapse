@@ -13,6 +13,10 @@ use synapse_shared::execution::{RunResult, TestSpec, Verdict, judge, stdin_for};
 
 use crate::execution::logic::{self, ExecutorState, RunHandle, RunState, Variant};
 use crate::execution::state::{BlockStore, SubmitState, SubmitStore};
+use crate::execution::view::icons::{
+    icon_chevron_down, icon_eye, icon_lock, icon_play, icon_reset, icon_rocket,
+};
+use crate::execution::view::lazy;
 use crate::execution::view::workbench::{TestsPanel, TestsState, VerdictPanel};
 use crate::identity::state::AuthStore;
 use crate::islands::editor::{self, MountedEditor};
@@ -62,6 +66,12 @@ pub fn RunnableBlock(
     let lesson_path = StoredValue::new(lesson_path);
     let mounted: StoredValue<Option<MountedEditor>, LocalStorage> = StoredValue::new_local(None);
     let editor_ref: NodeRef<leptos::html::Div> = NodeRef::new();
+    // Viewport-lazy state (qna Q1, option B): who's near, who asked for the editor, whether
+    // Monaco is actually up, and the shiki placeholder shown until it is.
+    let near = RwSignal::new(false);
+    let wants_editor = RwSignal::new(false);
+    let is_mounted = RwSignal::new(false);
+    let preview_html: RwSignal<Option<String>> = RwSignal::new(None);
 
     let store_at = {
         let stores = stores.clone();
@@ -135,6 +145,7 @@ pub fn RunnableBlock(
             if i == active.get_untracked() {
                 return;
             }
+            wants_editor.set(true); // picking a language is an interaction — mount for real
             active.set(i);
             let store = store_at(i);
             let variant = variant_at(i);
@@ -174,17 +185,76 @@ pub fn RunnableBlock(
 
     // Mount monaco once the container exists; the handle + closures live in `mounted` and are
     // dropped (→ disposed) when the block unmounts.
+    //
+    // VIEWPORT-LAZY (qna Q1, option B): Monaco mounts only when the block is NEAR the
+    // viewport (or on first interaction) — until then the container shows the shiki
+    // placeholder. A page-level cap evicts the oldest FAR editor; the store keeps all state,
+    // so re-approaching re-mounts losslessly over the ACTIVE variant's live buffer.
+    let root_ref: NodeRef<leptos::html::Div> = NodeRef::new();
+    let watch: StoredValue<Option<lazy::NearWatch>, LocalStorage> = StoredValue::new_local(None);
+    let registry_id: StoredValue<Option<u64>> = StoredValue::new(None);
+    {
+        let source = first.source.clone();
+        let language = first.language.clone();
+        spawn_local(async move {
+            if let Ok(html) = crate::islands::markdown::highlight(&source, &language).await {
+                preview_html.set(Some(html));
+            }
+        });
+    }
+    Effect::new(move |_| {
+        let Some(node) = root_ref.get() else { return };
+        if watch.read_value().is_none() {
+            watch.set_value(lazy::watch_near(&node, near));
+        }
+    });
+    Effect::new(move |_| {
+        if near.get() && !is_mounted.get() {
+            wants_editor.set(true);
+        }
+    });
+    on_cleanup(move || {
+        if let Some(id) = registry_id.get_value() {
+            lazy::deregister(id);
+        }
+        watch.set_value(None);
+    });
     {
         let run = run.clone();
         let do_submit = do_submit.clone();
         let store_at = store_at.clone();
+        let evict_store_at = store_at.clone();
+        // Eviction: drop the editor (Drop disposes monaco), refresh the placeholder from the
+        // LIVE buffer, and re-arm the lazy mount for the next approach.
+        let evict = Callback::new(move |()| {
+            mounted.set_value(None);
+            is_mounted.set(false);
+            wants_editor.set(false);
+            registry_id.set_value(None);
+            let i = active.get_untracked();
+            let code = evict_store_at(i).state.get_untracked().code;
+            let lang = variants.read_value()[i].language.clone();
+            spawn_local(async move {
+                if let Ok(html) = crate::islands::markdown::highlight(&code, &lang).await {
+                    preview_html.set(Some(html));
+                }
+            });
+        });
         Effect::new(move |_| {
+            if !wants_editor.get() {
+                return;
+            }
             let Some(node) = editor_ref.get() else { return };
             if mounted.read_value().is_some() {
                 return;
             }
-            let value = store_at(0).state.get_untracked().code;
-            let lang = variant_at(0).language;
+            // The ACTIVE variant, not variant 0 — a re-mount after tab switch + eviction
+            // must restore what the reader was on.
+            let i = active.get_untracked();
+            let store = store_at(i);
+            let value = store.state.get_untracked().code;
+            let lang = variant_at(i).language;
+            let read_only = !store.unlocked.get_untracked();
             let run = run.clone();
             let do_submit = do_submit.clone();
             let store_at = store_at.clone();
@@ -212,8 +282,12 @@ pub fn RunnableBlock(
                     on_submit: has_submit.then(move || Box::new(do_submit) as Box<dyn FnMut()>),
                 };
                 let dark = theme.is_dark();
-                match editor::mount(&node, &value, &lang, true, dark, callbacks).await {
-                    Ok(handle) => mounted.set_value(Some(handle)),
+                match editor::mount(&node, &value, &lang, read_only, dark, callbacks).await {
+                    Ok(handle) => {
+                        mounted.set_value(Some(handle));
+                        is_mounted.set(true);
+                        registry_id.set_value(Some(lazy::register(near, evict)));
+                    }
                     Err(error) => leptos::logging::error!("monaco island failed: {error:?}"),
                 }
             });
@@ -389,6 +463,7 @@ pub fn RunnableBlock(
                         class:wb__ghost--live=move || unlocked.get()
                         prop:disabled=move || !auth.authed()
                         on:click=move |_| {
+                            wants_editor.set(true); // editing needs the real editor
                             let i = active.get_untracked();
                             let store = toggle_store(i);
                             store.toggle_edit(&variants.read_value()[i].source);
@@ -465,7 +540,10 @@ pub fn RunnableBlock(
                     class="runnable__run"
                     title="Run (⌘⏎)"
                     prop:disabled=move || running.get()
-                    on:click=move |_| run_click()
+                    on:click=move |_| {
+                        wants_editor.set(true); // running is an interaction — bring the editor up
+                        run_click();
+                    }
                 >
                     {icon_play("runnable__run-ic")}
                     <span>{move || if running.get() { "Running…" } else { "Run" }}</span>
@@ -475,7 +553,7 @@ pub fn RunnableBlock(
     };
 
     view! {
-        <div class="runnable not-prose">
+        <div class="runnable not-prose" node_ref=root_ref>
             {toolbar}
             <div
                 class=move || {
@@ -488,7 +566,16 @@ pub fn RunnableBlock(
                 node_ref=editor_ref
                 style=height
             >
-                {copy_button(mounted)}
+                // The shiki placeholder — shown until Monaco is up (near-viewport or first
+                // interaction); clicking into the code IS an interaction.
+                {move || (!is_mounted.get()).then(|| view! {
+                    <div
+                        class="runnable__preview"
+                        on:click=move |_| wants_editor.set(true)
+                        inner_html=preview_html.get().unwrap_or_default()
+                    ></div>
+                })}
+                {copy_button(mounted, code_sink)}
             </div>
             // The horizontal resize strip — drag to grow/shrink the editor against the
             // panels below (double-click restores the fill/default height).
@@ -532,7 +619,10 @@ pub fn RunnableBlock(
 
 /// The floating copy-code button (oracle: `MonacoEditor.copyButton`): reads the LIVE
 /// buffer, swaps to a check for 1.4 s.
-fn copy_button(mounted: StoredValue<Option<MountedEditor>, LocalStorage>) -> impl IntoView {
+fn copy_button(
+    mounted: StoredValue<Option<MountedEditor>, LocalStorage>,
+    code_sink: RwSignal<(String, String)>,
+) -> impl IntoView {
     let copied = RwSignal::new(false);
     view! {
         <button
@@ -541,7 +631,11 @@ fn copy_button(mounted: StoredValue<Option<MountedEditor>, LocalStorage>) -> imp
             aria-label="Copy code"
             title="Copy code"
             on:click=move |_| {
-                let code = mounted.with_value(|e| e.as_ref().map(MountedEditor::get_value));
+                // Live Monaco buffer when mounted; the store's code (same text) before the
+                // lazy mount — the placeholder's copy must work too.
+                let code = mounted
+                    .with_value(|e| e.as_ref().map(MountedEditor::get_value))
+                    .or_else(|| Some(code_sink.get_untracked().0));
                 if let Some(code) = code {
                     if let Some(window) = web_sys::window() {
                         let _ = window.navigator().clipboard().write_text(&code);
@@ -680,67 +774,4 @@ fn stream_block(label: &'static str, content: &str) -> Option<impl IntoView + us
             <pre class="runnable__stream">{content}</pre>
         </details>
     })
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TOOLBAR ICONS (oracle: Icons.scala, lucide strokes)
-// ─────────────────────────────────────────────────────────────────────────────
-
-pub(crate) fn icon_play(class: &'static str) -> impl IntoView {
-    view! {
-        <svg class=class viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M6 3v18l14-9z" fill="currentColor"></path>
-        </svg>
-    }
-}
-
-pub(crate) fn icon_chevron_down() -> impl IntoView {
-    view! {
-        <svg class="wb__lang-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="m6 9 6 6 6-6"></path>
-        </svg>
-    }
-}
-
-fn icon_lock() -> impl IntoView {
-    view! {
-        <svg class="wb__ghost-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="3" y="11" width="18" height="11" rx="2"></rect>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-        </svg>
-    }
-}
-
-fn icon_eye() -> impl IntoView {
-    view! {
-        <svg class="wb__ghost-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"></path>
-            <circle cx="12" cy="12" r="3"></circle>
-        </svg>
-    }
-}
-
-fn icon_rocket() -> impl IntoView {
-    view! {
-        <svg class="wb__submit-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path>
-            <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path>
-            <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path>
-            <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"></path>
-        </svg>
-    }
-}
-
-fn icon_reset() -> impl IntoView {
-    view! {
-        <svg class="wb__ghost-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-            <path d="M3 3v5h5"></path>
-        </svg>
-    }
 }

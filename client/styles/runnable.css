@@ -73,6 +73,12 @@
 .runnable__run:disabled { opacity: 0.6; cursor: default; }
 
 .runnable__editor { position: relative; }
+/* The pre-mount shiki placeholder (qna Q1/B): fills the editor box, scrolls like it, and
+   reads as code — clicking it mounts the real Monaco. */
+.runnable__preview { position: absolute; inset: 0; overflow: auto; cursor: text; }
+.runnable__preview pre { margin: 0; padding: 10px 16px; min-height: 100%;
+                         font-family: var(--font-mono, ui-monospace, monospace);
+                         font-size: 13px; line-height: 20px; }
 
 .runnable__out { padding: 0.6rem 0.9rem; border-top: 1px solid hsl(var(--border)); }
 .runnable__out--running { color: hsl(var(--muted-foreground)); font-size: 0.85rem; }

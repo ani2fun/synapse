@@ -502,3 +502,16 @@ describe("end-to-end: a complete realistic lesson", () => {
     expect(html).toContain("<summary>Proof</summary>");
   });
 });
+
+describe("highlightCode — the lazy-workbench placeholder (qna Q1/B)", () => {
+  it("tokenizes a known language with the css-variables theme", async () => {
+    const html = await (await import("./render")).highlightCode("print('hi')", "python");
+    expect(html).toContain("<pre");
+    expect(html).toContain("--shiki-");
+  });
+
+  it("falls back to plaintext for an unknown language instead of throwing", async () => {
+    const html = await (await import("./render")).highlightCode("whatever", "not-a-language");
+    expect(html).toContain("<pre");
+  });
+});

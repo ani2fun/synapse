@@ -22,3 +22,13 @@ export async function renderMarkdown(src: string): Promise<string> {
   if (!cached) cached = import("./render").then((m) => m.renderLesson);
   return (await cached)(src);
 }
+
+type HighlightFn = (code: string, lang: string) => Promise<string>;
+
+let cachedHighlight: Promise<HighlightFn> | null = null;
+
+/** Highlight one snippet with the pipeline's shiki theme (lazy-workbench placeholders). */
+export async function highlightCode(code: string, lang: string): Promise<string> {
+  if (!cachedHighlight) cachedHighlight = import("./render").then((m) => m.highlightCode);
+  return (await cachedHighlight)(code, lang);
+}

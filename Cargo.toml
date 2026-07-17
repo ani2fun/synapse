@@ -34,7 +34,7 @@ leptos_router = { version = "0.8" }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-web-sys = { version = "0.3", features = ["Window", "Document", "console", "DomRect", "Element", "HtmlElement", "HtmlIFrameElement", "MutationObserver", "MutationObserverInit", "Node", "NodeList", "Storage", "CssStyleDeclaration", "AddEventListenerOptions", "Clipboard", "Navigator"] }
+web-sys = { version = "0.3", features = ["Window", "Document", "console", "DomRect", "Element", "HtmlElement", "HtmlIFrameElement", "MutationObserver", "MutationObserverInit", "IntersectionObserver", "IntersectionObserverInit", "IntersectionObserverEntry", "Node", "NodeList", "Storage", "CssStyleDeclaration", "AddEventListenerOptions", "Clipboard", "Navigator"] }
 gloo-net = { version = "0.6", features = ["http"] }
 gloo-timers = { version = "0.3", features = ["futures"] }
 console_error_panic_hook = "0.1"

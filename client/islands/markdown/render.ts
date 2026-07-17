@@ -456,3 +456,22 @@ export async function renderLesson(raw: string): Promise<string> {
     .process(raw);
   return String(file);
 }
+
+// ── Standalone highlight (the lazy-workbench placeholder, qna Q1/B) ──
+// One fence's code → shiki HTML with the SAME css-variables theme the lesson
+// pipeline uses, so a pre-mount workbench placeholder recolors with the
+// palette exactly like every static block. Unknown languages fall back to
+// plaintext rather than throwing — a placeholder must never break a lesson.
+
+let highlighterPromise: Promise<typeof import("shiki")> | null = null;
+
+export async function highlightCode(code: string, lang: string): Promise<string> {
+  if (!highlighterPromise) highlighterPromise = import("shiki");
+  const shiki = await highlighterPromise;
+  const theme = synapseTheme as ThemeRegistrationRaw;
+  try {
+    return await shiki.codeToHtml(code, { lang, theme });
+  } catch {
+    return shiki.codeToHtml(code, { lang: "plaintext", theme });
+  }
+}

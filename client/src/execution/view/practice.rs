@@ -405,7 +405,7 @@ fn SolutionViewer(
                     on:click=move |_| menu_open.update(|o| *o = !*o)
                 >
                     <span>{move || logic::display_lang(&variant_at(active.get()).language)}</span>
-                    {super::runnable::icon_chevron_down()}
+                    {super::icons::icon_chevron_down()}
                 </button>
                 {move || {
                     menu_open.get().then(|| {

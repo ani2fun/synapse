@@ -1,6 +1,8 @@
 //! The runnable-block views (oracle: `Workbench` + `WorkbenchOutput`, step-11 scope).
 
 mod hydrate;
+mod icons;
+mod lazy;
 mod practice;
 mod runnable;
 mod workbench;
