@@ -88,6 +88,7 @@ pub fn force(session: &Session) {
 fn run(session: &Session) {
     let key = session.key.clone();
     let state = session.state;
+    crate::log::info(&format!("tracing {} ({})", key.language, key.structure.token()));
     spawn_local(async move {
         let wrapped = match key.language.to_lowercase().as_str() {
             "java" => tracer::wrap_java(&key.source).await,
@@ -105,13 +106,23 @@ fn run(session: &Session) {
             stdin: Some(key.stdin.clone()).filter(|s| !s.is_empty()),
         };
         match api::run(&request).await {
-            Err(message) => state.set(TraceState::Failed(message)),
-            Ok(result) => state.set(outcome(
-                &key,
-                &result.stdout,
-                &result.stderr,
-                &result.compile_output,
-            )),
+            Err(message) => {
+                crate::log::error(&format!("trace failed: {message}"));
+                state.set(TraceState::Failed(message));
+            }
+            Ok(result) => {
+                let next = outcome(&key, &result.stdout, &result.stderr, &result.compile_output);
+                match &next {
+                    TraceState::Ready(cases, _) => {
+                        crate::log::debug(&format!("trace ready: {} case(s)", cases.cases.len()));
+                    }
+                    TraceState::Failed(message) => {
+                        crate::log::warn(&format!("trace produced no playable run: {message}"));
+                    }
+                    TraceState::Tracing => {}
+                }
+                state.set(next);
+            }
         }
     });
 }

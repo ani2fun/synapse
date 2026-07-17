@@ -185,6 +185,7 @@ fn loaded_lesson(payload: &LessonPayloadDto, segments: &[String]) -> AnyView {
     let owned_segments = segments.to_vec();
     let panel_segments = segments.to_vec();
     let problem_path_source = segments.join("/");
+    crate::log::debug(&format!("rendering markdown ({} chars)", raw.len()));
     spawn_local(async move {
         match islands::markdown::render(&raw).await {
             Ok(rendered) => {
@@ -232,9 +233,16 @@ fn loaded_lesson(payload: &LessonPayloadDto, segments: &[String]) -> AnyView {
                     });
                     handles.push(Box::new(handle));
                 }
+                crate::log::debug(&format!(
+                    "markdown rendered; mounted {} interactive block(s)",
+                    handles.len()
+                ));
                 mounts.set_value(handles);
             }
-            Err(error) => html.set(format!("<p>markdown island failed: {error:?}</p>")),
+            Err(error) => {
+                crate::log::error(&format!("markdown render failed: {error:?}"));
+                html.set(format!("<p>markdown island failed: {error:?}</p>"));
+            }
         }
     });
     on_cleanup(move || mounts.set_value(Vec::new()));

@@ -37,10 +37,18 @@ impl CatalogStore {
         if !self.index_started.get_value() {
             self.index_started.set_value(true);
             self.index.set(AsyncResult::Loading);
+            crate::log::info("loading catalog index");
             spawn_local(async move {
                 match api::index().await {
-                    Ok(idx) => self.index.set(AsyncResult::Loaded(idx)),
+                    Ok(idx) => {
+                        crate::log::debug(&format!(
+                            "catalog index loaded: {} top-level entries",
+                            idx.entries.len()
+                        ));
+                        self.index.set(AsyncResult::Loaded(idx));
+                    }
                     Err(message) => {
+                        crate::log::error(&format!("index: {message}"));
                         self.index_started.set_value(false);
                         self.index.set(AsyncResult::Failed(message));
                     }
@@ -54,10 +62,17 @@ impl CatalogStore {
 /// One lesson fetch, spawned per navigation.
 pub fn load_lesson(path: Vec<String>) -> RwSignal<AsyncResult<LessonPayloadDto>> {
     let state = RwSignal::new(AsyncResult::Loading);
+    crate::log::info(&format!("loading lesson: {}", path.join("/")));
     spawn_local(async move {
         match api::lesson(&path).await {
-            Ok(payload) => state.set(AsyncResult::Loaded(payload)),
-            Err(message) => state.set(AsyncResult::Failed(message)),
+            Ok(payload) => {
+                crate::log::debug(&format!("lesson loaded: {}", payload.frontmatter.title));
+                state.set(AsyncResult::Loaded(payload));
+            }
+            Err(message) => {
+                crate::log::error(&format!("lesson: {message}"));
+                state.set(AsyncResult::Failed(message));
+            }
         }
     });
     state

@@ -27,6 +27,7 @@ pub fn App() -> impl IntoView {
     crate::viz::modal::VizModalStore::provide();
     view! {
         <Router>
+            <RouteTrace />
             <header class="header">
                 <nav class="header__nav">
                     <a class="header__brand" href="/">
@@ -57,6 +58,16 @@ pub fn App() -> impl IntoView {
             <crate::viz::modal::VisualiseModal />
         </Router>
     }
+}
+
+/// Every navigation logs its destination (oracle: `AppRouter`'s `route → …` INFO) — the
+/// first line of the dev-flow trace for each page.
+#[component]
+fn RouteTrace() -> impl IntoView {
+    let location = leptos_router::hooks::use_location();
+    Effect::new(move |_| {
+        crate::log::info(&format!("route → {}", location.pathname.get()));
+    });
 }
 
 /// The brand mark (oracle: `Icons.brandChip`) — a 3-node graph on a primary chip; recolors

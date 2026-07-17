@@ -39,6 +39,10 @@
 .header__icon-btn svg { width: 18px; height: 18px; }
 
 .shell-main { padding: 4.75rem 1.25rem 1.25rem; max-width: 72rem; margin: 0 auto; }
+/* Problem pages escape the shell's 72rem column — the reader-layout override alone was
+   fighting a capped PARENT (the real culprit behind "still not full width" on wide
+   monitors). Reader pages keep the column; the two-pane workbench takes the viewport. */
+.shell-main:has(.reader-layout--problem) { max-width: none; padding-inline: 0.5rem; }
 
 /* ── library ── the landing's own rules live in library.css/tour.css (step 32) ── */
 .badge { font-size: 0.75rem; color: hsl(var(--primary)); }

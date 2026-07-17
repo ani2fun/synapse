@@ -239,6 +239,10 @@ pub fn RunnableBlock(
                 .iter()
                 .position(|v| v.language.eq_ignore_ascii_case(&lang))
                 .unwrap_or_else(|| active.get_untracked());
+            crate::log::debug(&format!(
+                "solution copied into the {} tab",
+                variants.read_value()[target].language
+            ));
             switch_to(target);
             store_at(target).state.update(|s| *s = s.set_code(&code));
             mounted.with_value(|editor| {

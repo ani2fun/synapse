@@ -147,7 +147,10 @@ pub async fn allowlist_revoke(username: &str) -> Result<(), String> {
     }
 }
 
+// The transport chokepoint carries the per-request DEBUG trace (oracle: ApiClient logs each
+// endpoint) — one line per wire call, localhost-only, so a dev session reads as a flow.
 async fn delete_json<T: DeserializeOwned>(url: &str) -> Result<T, String> {
+    crate::log::debug(&format!("DELETE {url}"));
     let mut request = gloo_net::http::Request::delete(url);
     if let Some(token) = bearer() {
         request = request.header("Authorization", &format!("Bearer {token}"));
@@ -157,6 +160,7 @@ async fn delete_json<T: DeserializeOwned>(url: &str) -> Result<T, String> {
 }
 
 async fn post_json<B: Serialize, T: DeserializeOwned>(url: &str, body: &B) -> Result<T, String> {
+    crate::log::debug(&format!("POST {url}"));
     let mut request = gloo_net::http::Request::post(url);
     if let Some(token) = bearer() {
         request = request.header("Authorization", &format!("Bearer {token}"));
@@ -171,6 +175,7 @@ async fn post_json<B: Serialize, T: DeserializeOwned>(url: &str, body: &B) -> Re
 }
 
 async fn fetch_json<T: DeserializeOwned>(url: &str) -> Result<T, String> {
+    crate::log::debug(&format!("GET {url}"));
     let mut request = gloo_net::http::Request::get(url);
     if let Some(token) = bearer() {
         request = request.header("Authorization", &format!("Bearer {token}"));

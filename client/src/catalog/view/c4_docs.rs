@@ -28,6 +28,7 @@ pub fn C4DocsPanel(selected: RwSignal<Option<String>>, lesson: Vec<String>) -> i
         let Some(id) = selected.get() else { return };
         state.set(DocState::Loading);
         let path = lesson.read_value().clone();
+        crate::log::debug(&format!("c4 docs: open {id} (lesson {})", path.join("/")));
         let current = id.clone();
         spawn_local(async move {
             let result = api::c4_doc(&current, &path).await;

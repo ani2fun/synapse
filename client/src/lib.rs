@@ -13,6 +13,7 @@ pub mod catalog;
 pub mod execution;
 pub mod identity;
 pub mod islands;
+pub mod log;
 pub mod quiz;
 pub mod router;
 pub mod search;
@@ -26,5 +27,6 @@ use wasm_bindgen::prelude::wasm_bindgen;
 #[wasm_bindgen(start)]
 pub fn start() {
     console_error_panic_hook::set_once();
+    log::info("booting Synapse client");
     leptos::mount::mount_to_body(shell::App);
 }

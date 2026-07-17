@@ -35,6 +35,10 @@ impl BlockStore {
         let started = current.started();
         let handle = started.run_id;
         let source = started.code.clone();
+        crate::log::info(&format!(
+            "running {language} block{}",
+            if stdin.is_some() { " (with case stdin)" } else { "" }
+        ));
         self.state.set(started);
         spawn_local(async move {
             let request = RunRequest {
@@ -43,8 +47,14 @@ impl BlockStore {
                 stdin,
             };
             match api::run(&request).await {
-                Ok(result) => self.state.update(|s| *s = s.completed(handle, result)),
-                Err(message) => self.state.update(|s| *s = s.failed(handle, &message)),
+                Ok(result) => {
+                    crate::log::debug(&format!("run done: {}", result.status.label()));
+                    self.state.update(|s| *s = s.completed(handle, result));
+                }
+                Err(message) => {
+                    crate::log::error(&format!("run failed: {message}"));
+                    self.state.update(|s| *s = s.failed(handle, &message));
+                }
             }
         });
     }
@@ -100,6 +110,7 @@ impl SubmitStore {
         if matches!(self.state.get_untracked(), SubmitState::Judging(_)) {
             return;
         }
+        crate::log::info(&format!("submitting {language} solution for {}", path.join("/")));
         spawn_local(async move {
             let request = SubmitRequestDto {
                 path,
@@ -108,22 +119,36 @@ impl SubmitStore {
             };
             let id = match crate::api::submit(&request).await {
                 Ok(accepted) => accepted.id,
-                Err(message) => return self.state.set(SubmitState::Failed(message)),
+                Err(message) => {
+                    crate::log::error(&format!("submit failed: {message}"));
+                    return self.state.set(SubmitState::Failed(message));
+                }
             };
             self.state.set(SubmitState::Judging(id.clone()));
             for _ in 0..100 {
                 gloo_timers::future::TimeoutFuture::new(1_200).await;
                 if !self.alive.get_untracked() {
-                    return; // the block unmounted — stop polling
+                    crate::log::debug(&format!("submission {id}: poll cancelled (block unmounted)"));
+                    return;
                 }
                 match crate::api::submission(&id).await {
                     Ok(dto) if dto.status == "completed" => {
+                        crate::log::info(&format!(
+                            "submission {id}: {} — {}/{}",
+                            dto.verdict.as_deref().unwrap_or("?"),
+                            dto.passed.unwrap_or(0),
+                            dto.total.unwrap_or(0)
+                        ));
                         return self.state.set(SubmitState::Done(Box::new(dto)));
                     }
                     Ok(_) => {} // still pending/judging — keep polling
-                    Err(message) => return self.state.set(SubmitState::Failed(message)),
+                    Err(message) => {
+                        crate::log::error(&format!("submit failed: {message}"));
+                        return self.state.set(SubmitState::Failed(message));
+                    }
                 }
             }
+            crate::log::error("judging timed out");
             self.state
                 .set(SubmitState::Failed("judging timed out".to_owned()));
         });

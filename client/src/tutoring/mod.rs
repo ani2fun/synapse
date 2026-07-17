@@ -60,9 +60,14 @@ pub fn CoachPane(problem: Option<String>, code_ctx: RwSignal<(String, String)>) 
             language: Some(language).filter(|l| !l.is_empty()),
             messages: messages.get_untracked(),
         };
+        crate::log::info(&format!(
+            "tutor: sending turn ({} message(s))",
+            request.messages.len()
+        ));
         spawn_local(async move {
             match api::tutor_chat(&request).await {
                 Ok(reply) => {
+                    crate::log::debug("tutor: reply received");
                     messages.update(|m| {
                         m.push(ChatMessage {
                             role: "assistant".to_owned(),
@@ -71,7 +76,10 @@ pub fn CoachPane(problem: Option<String>, code_ctx: RwSignal<(String, String)>) 
                     });
                     send_state.set(SendState::Idle);
                 }
-                Err(message) => send_state.set(SendState::Failed(message)),
+                Err(message) => {
+                    crate::log::error(&format!("tutor: chat failed — {message}"));
+                    send_state.set(SendState::Failed(message));
+                }
             }
         });
     };

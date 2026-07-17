@@ -11,6 +11,22 @@
               background: hsl(var(--card) / 0.4); overflow: hidden; }
 .pwb__left { display: flex; flex-direction: column; min-width: 0; flex: 0 0 auto; }
 .pwb__right { flex: 1 1 auto; min-width: 0; overflow-y: auto; padding: 12px; }
+/* The standalone problem page: the editor EXPANDS into the pane's free height instead of
+   sitting at its source-derived pixel height over a dead strip (the toolbar, tests, output
+   and verdict keep natural height). min-height (not height) on the column: shorter content
+   stretches to fill and the editor absorbs the slack; taller content simply overflows into
+   .pwb__right's own scroll. The !important is required — the block ships an inline height. */
+.pwb:not(.pwb--embedded) .pwb__right > div { display: flex; flex-direction: column;
+                                             min-height: 100%; }
+.pwb:not(.pwb--embedded) .pwb__right .wb__edit-bar { flex: 0 0 auto; }
+.pwb:not(.pwb--embedded) .pwb__right .runnable { display: flex; flex-direction: column;
+                                                 flex: 1 1 auto; min-height: 0; }
+.pwb:not(.pwb--embedded) .pwb__right .runnable__bar,
+.pwb:not(.pwb--embedded) .pwb__right .wb__tests,
+.pwb:not(.pwb--embedded) .pwb__right .runnable__out,
+.pwb:not(.pwb--embedded) .pwb__right .wb__verdict { flex: 0 0 auto; }
+.pwb:not(.pwb--embedded) .pwb__right .runnable__editor { flex: 1 1 auto; height: auto !important;
+                                                         min-height: 220px; }
 
 .pwb__head { padding: 16px 18px 0; flex: 0 0 auto; }
 .pwb__title { font-size: 22px; font-weight: 700; letter-spacing: -0.01em;

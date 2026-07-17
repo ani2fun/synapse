@@ -79,18 +79,24 @@ impl AuthStore {
 /// `/api/me` → the refresh loop. Every failure lands on `Anonymous`, never an error page.
 async fn boot(store: AuthStore) {
     let Ok(config) = api::auth_config().await else {
+        crate::log::warn("auth config unavailable — staying anonymous");
         return store.status.set(AuthStatus::Anonymous);
     };
+    crate::log::debug(&format!(
+        "auth config: realm '{}' at {} (client {})",
+        config.realm, config.url, config.client_id
+    ));
     let handle = match auth::boot(&config.url, &config.realm, &config.client_id).await {
         Ok(handle) => Rc::new(handle),
         Err(error) => {
-            leptos::logging::log!("auth boot failed: {error:?}");
+            crate::log::warn(&format!("auth boot failed — staying anonymous ({error:?})"));
             return store.status.set(AuthStatus::Anonymous);
         }
     };
     HANDLE.with_borrow_mut(|h| *h = Some(Rc::clone(&handle)));
 
     if !handle.authenticated() {
+        crate::log::debug("no Keycloak session — anonymous");
         return store.status.set(AuthStatus::Anonymous);
     }
     adopt(store).await;
@@ -100,7 +106,10 @@ async fn boot(store: AuthStore) {
 /// The session is adopted only when OUR server verifies the token (`/api/me`).
 async fn adopt(store: AuthStore) {
     match api::me().await {
-        Ok(me) => store.status.set(AuthStatus::Authed(me)),
+        Ok(me) => {
+            crate::log::info(&format!("signed in as '{}'", me.username));
+            store.status.set(AuthStatus::Authed(me));
+        }
         Err(_) => store.status.set(AuthStatus::Anonymous),
     }
 }
@@ -114,6 +123,7 @@ async fn refresh_loop(store: AuthStore, handle: Rc<AuthHandle>) {
             return;
         }
         if handle.update_token(60).await.is_err() {
+            crate::log::warn("session refresh failed — signed out");
             store.status.set(AuthStatus::Anonymous);
             return;
         }
