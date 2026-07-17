@@ -14,7 +14,6 @@ import remarkRehype from "remark-rehype";
 import { defaultHandlers } from "mdast-util-to-hast";
 import type { Code, Root, RootContent } from "mdast";
 import type { Element, ElementContent, Properties } from "hast";
-import { renderD2 } from "./d2";
 import rehypeSlug from "rehype-slug";
 import rehypePrettyCode from "rehype-pretty-code";
 import { createCssVariablesTheme, type ThemeRegistrationRaw } from "shiki";
@@ -146,22 +145,17 @@ function parseQuiz(raw: string): { quiz?: QuizJson; error?: string } {
   return { quiz: data as unknown as QuizJson };
 }
 
-// ── D2 diagrams (step 25) ───────────────────────────────────────────
-// d2 is rendered at PARSE time (WASM), unlike the client-side mermaid
-// island. An async remark transformer rewrites the mdast BEFORE
-// remark-rehype: it renders each ```d2 fence to an SVG and replaces it (or
-// a run of *consecutive* d2 fences) with a raw-HTML placeholder the client
-// mounts — a lone fence → `.d2-block`, a run of ≥2 → a `.d2-slides`
-// step-through slideshow. The SVG rides URI-encoded on a data attribute
-// (the workbench/quiz pattern), so discovery decodes it purely. A failed
-// diagram breaks the run → a visible `.diagram-error` card + the raw fence.
-//
-// The multi-MB d2 WASM is dynamic-imported inside renderD2, reached only
-// when a fence is actually rendered, so diagram-free pages never load it.
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
+// ── D2 diagrams (step 25 · prose-first refactor 2026-07-17) ──────────
+// d2 now renders on the CLIENT at mount, exactly like mermaid — NOT at
+// parse time. This transformer is a SYNCHRONOUS grouping pass: it emits a
+// placeholder carrying the RAW d2 SOURCE (URI-encoded), never the SVG, and
+// imports no WASM. A lone fence → `.d2-block[data-source]`; a run of
+// *consecutive* fences → a `.d2-slideshow[data-slides]` (JSON array of
+// sources) step-through. The client's D2Card/D2Slideshow (diagrams.rs)
+// load the multi-MB d2 WASM lazily, only when a diagram nears the viewport,
+// and surface a malformed diagram as an error card at mount — so the whole
+// lesson's prose paints immediately instead of waiting on N sequential
+// parse-time layouts.
 
 /** A raw-HTML mdast node (passes through remark-rehype under allowDangerousHtml). */
 function html(value: string): RootContent {
@@ -169,17 +163,16 @@ function html(value: string): RootContent {
 }
 
 /**
- * The d2 parse-time pre-pass. Returns a unified transformer that renders + groups d2 fences. It touches
- * nothing (and imports no WASM) when a document has no d2 fence.
+ * The d2 grouping pre-pass. Returns a synchronous transformer that groups adjacent d2 fences into
+ * source-carrying placeholders. It touches nothing (and imports no WASM) when a document has no d2 fence.
  */
 function d2Transform() {
-  return async (tree: Root): Promise<void> => {
+  return (tree: Root): void => {
     const kids = tree.children;
     if (!kids.some((n) => n.type === "code" && (n as Code).lang === "d2")) return;
 
     const out: RootContent[] = [];
-    let pending: string[] = []; // consecutive successfully-rendered d2 SVGs
-    let salt = 0;
+    let pending: string[] = []; // consecutive d2 SOURCES awaiting grouping
 
     const flush = () => {
       if (pending.length === 0) return;
@@ -187,7 +180,7 @@ function d2Transform() {
       // content puts around a slide run — that wrapper is neutralized in CSS (display: contents).
       const value =
         pending.length === 1
-          ? `<div class="d2-block" data-svg="${encodeURIComponent(pending[0])}"></div>`
+          ? `<div class="d2-block" data-source="${encodeURIComponent(pending[0])}"></div>`
           : `<div class="d2-slideshow" data-slides="${encodeURIComponent(JSON.stringify(pending))}"></div>`;
       out.push(html(value));
       pending = [];
@@ -195,14 +188,7 @@ function d2Transform() {
 
     for (const node of kids) {
       if (node.type === "code" && (node as Code).lang === "d2") {
-        try {
-          salt += 1;
-          pending.push(await renderD2((node as Code).value, `d2-${salt}`));
-        } catch (e) {
-          flush(); // an error breaks the current run
-          out.push(html(`<div class="diagram-error">D2 diagram failed — ${escapeHtml(String((e as Error)?.message ?? e))}.</div>`));
-          out.push(node); // the raw fence stays visible for the author
-        }
+        pending.push((node as Code).value);
       } else {
         flush();
         out.push(node);

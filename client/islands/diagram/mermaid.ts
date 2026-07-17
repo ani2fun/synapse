@@ -30,15 +30,23 @@ let idSeq = 0;
  * Rejects (rather than swallowing) on a malformed diagram so MermaidView
  * can show a visible error card with the raw source — never a blank figure.
  */
+// mermaid.initialize is GLOBAL config — run it once per session, not per diagram
+// (each call re-parses the config + resets the registry). A module-level latch keeps
+// the 2nd..Nth render from repeating it.
+let initialized = false;
+
 export async function renderMermaidInto(target: HTMLElement, src: string): Promise<void> {
   const mermaid = (await import("mermaid")).default;
-  const config: MermaidConfig = {
-    startOnLoad: false,
-    securityLevel: "strict",
-    theme: "default",
-    fontFamily: "inherit",
-  };
-  mermaid.initialize(config);
+  if (!initialized) {
+    const config: MermaidConfig = {
+      startOnLoad: false,
+      securityLevel: "strict",
+      theme: "default",
+      fontFamily: "inherit",
+    };
+    mermaid.initialize(config);
+    initialized = true;
+  }
   idSeq += 1;
   const { svg } = await mermaid.render(`synapse-mermaid-${idSeq}`, src);
   target.innerHTML = svg;

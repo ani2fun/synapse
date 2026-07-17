@@ -80,3 +80,38 @@ editor to try" pill; the modal runs `BlockStore.launch` with an editable stdin b
 shared `Output` panel, Esc closes, editing gates on sign-in (read-only + the `wb__edit-bar`
 banner) while Run stays anonymous. A and B now coexist: authored `run` fences get the
 inline lazy workbench, plain fences get the on-demand popup.
+
+## Q2 — A diagram-heavy lesson renders very slowly. Why, and how to fix it? (2026-07-17)
+
+**Question.** The multithreading-concurrency basics lesson renders very slowly — the whole
+page stays blank, then everything appears at once. How to improve rendering performance?
+
+**Diagnosis (traced through the render path).** The page has 5 d2 diagrams (2 standalone + a
+3-slide slideshow) that rendered **at parse time, sequentially**: `render.ts`'s `d2Transform`
+did `await renderD2(...)` in a `for` loop, INSIDE the single `renderLesson` promise. The
+client's `set_inner_html` only fired after that promise resolved — so **all prose stayed
+invisible until the last d2 diagram's WASM (dagre) layout finished**, and the first diagram
+also paid the one-time multi-MB d2 WASM download. It re-ran on every navigation (no cache).
+Secondary: mermaid re-ran `mermaid.initialize` per diagram; nothing memoized rendered HTML.
+
+**Fix — prose-first (chosen scope: full).** Three changes:
+
+1. **d2 off the parse-time path.** `d2Transform` is now a SYNCHRONOUS grouping pass that emits
+   source-carrying placeholders (`.d2-block[data-source]` / `.d2-slideshow[data-slides]`), no
+   WASM. d2 renders on the CLIENT at mount via a new `@diagram` island (`renderD2Source`,
+   reusing one `D2()` instance), gated by an IntersectionObserver (`lazy::watch_near`, reused
+   from option B) so a diagram renders only when it nears the viewport — each in its own
+   `spawn_local` (concurrent). The pipeline now returns as soon as markdown + shiki finish, so
+   **prose paints immediately** and the multi-MB d2 WASM loads lazily. Malformed diagrams
+   surface an error card at mount (like mermaid), not at parse time.
+2. **mermaid.initialize once** — a module-level latch; the config re-parse no longer repeats
+   per diagram.
+3. **Rendered-HTML cache** — memoized by a hash of the raw markdown at the `markdown::render`
+   bridge, so back/forward + sidebar re-clicks skip the whole pipeline. Small strings now (d2
+   is client-rendered, not baked in).
+
+Verified live: prose (14 headings) + mermaid render immediately while d2 stays lazy; the d2
+island produces a valid SVG from raw source; re-navigation renders identically. The
+scroll→render trigger couldn't be driven in the headless browser pane (its IntersectionObserver
+is frozen — the same limitation as option B), but the render path + the proven `watch_near`
+wiring cover it in a real browser. 363 rust + 45 vitest; bundle 629/700.

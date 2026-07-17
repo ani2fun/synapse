@@ -11,15 +11,14 @@ import { describe, expect, it, vi } from "vitest";
 
 import { renderLesson } from "./render";
 
-// Mock the multi-MB d2 WASM (step 25): the real thing is verified in-browser. The stub echoes the source
-// (so grouping/counts are assertable) and throws on "BROKEN" (so the error path is testable). `compileCalls`
-// lets us prove d2 is never imported/invoked on a diagram-free document.
+// d2 no longer renders at parse time (prose-first refactor 2026-07-17): the pipeline emits a
+// SOURCE-carrying placeholder and the client renders it at mount. This mock proves the pipeline
+// never touches the d2 WASM — `compileCalls` must stay 0 on every render, including d2 pages.
 const d2Spy = vi.hoisted(() => ({ compileCalls: 0 }));
 vi.mock("@terrastruct/d2", () => ({
   D2: class {
     async compile(src: string) {
       d2Spy.compileCalls += 1;
-      if (src.includes("BROKEN")) throw new Error("parse error near BROKEN");
       return { diagram: { src } };
     }
     async render(d: { src: string }, opts: { salt: string }) {
@@ -367,24 +366,23 @@ describe("mermaid fences → diagram placeholder (step 24)", () => {
   });
 });
 
-describe("d2 fences → parse-time SVG placeholders (step 25)", () => {
-  it("a lone ```d2 fence becomes a d2-block carrying the rendered SVG", async () => {
+describe("d2 fences → source-carrying placeholders (prose-first; step 25 refactor)", () => {
+  it("a lone ```d2 fence becomes a d2-block carrying the RAW SOURCE (no parse-time render)", async () => {
     const html = await renderLesson("```d2\nx -> y\n```");
     expect(html).toContain('class="d2-block"');
-    expect(decodeAttr(html, "data-svg")).toContain("<svg"); // the stubbed SVG rode along
-    expect(decodeAttr(html, "data-svg")).toContain("x -> y"); // ...echoing the source
+    expect(decodeAttr(html, "data-source")).toBe("x -> y"); // the raw source, not an SVG
+    expect(html).not.toContain("data-svg"); // nothing was rendered at parse time
     expect(html).not.toContain("<pre"); // the fence is replaced, not also highlighted
     expect(html).not.toContain("d2-slides");
+    expect(d2Spy.compileCalls).toBe(0); // the pipeline never touched the d2 WASM
   });
 
-  it("consecutive ```d2 fences group into ONE d2-slideshow with each rendered SVG", async () => {
+  it("consecutive ```d2 fences group into ONE d2-slideshow carrying each source", async () => {
     const html = await renderLesson("```d2\na -> b\n```\n\n```d2\nc -> d\n```");
     expect(html).toContain('class="d2-slideshow"');
     expect(html).not.toContain("d2-block");
     const slides = JSON.parse(decodeAttr(html, "data-slides")!) as string[];
-    expect(slides).toHaveLength(2);
-    expect(slides[0]).toContain("a -> b");
-    expect(slides[1]).toContain("c -> d");
+    expect(slides).toEqual(["a -> b", "c -> d"]);
   });
 
   it("a paragraph between two d2 fences breaks the group into two d2-blocks", async () => {
@@ -393,18 +391,10 @@ describe("d2 fences → parse-time SVG placeholders (step 25)", () => {
     expect(html.match(/class="d2-block"/g) ?? []).toHaveLength(2);
   });
 
-  it("a broken d2 fence earns a visible error card and keeps the raw fence", async () => {
-    const html = await renderLesson("```d2\nBROKEN garbage\n```");
-    expect(html).toContain("diagram-error");
-    expect(html).toContain("D2 diagram failed");
-    expect(html).toContain("<pre"); // the raw fence stays for the author
-    expect(html).not.toContain("d2-block");
-  });
-
-  it("never imports/invokes d2 on a diagram-free document", async () => {
+  it("never imports/invokes d2 at parse time — not even on a d2-heavy document", async () => {
     const before = d2Spy.compileCalls;
-    await renderLesson("# Just prose\n\n```python\nprint(1)\n```\n\n```mermaid\nflowchart LR\n A-->B\n```");
-    expect(d2Spy.compileCalls).toBe(before);
+    await renderLesson("```d2\nx -> y\n```\n\n```mermaid\nflowchart LR\n A-->B\n```");
+    expect(d2Spy.compileCalls).toBe(before); // client-side render only; parse-time stays clean
   });
 });
 

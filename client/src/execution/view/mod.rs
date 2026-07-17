@@ -3,7 +3,7 @@
 mod codebench;
 mod hydrate;
 mod icons;
-mod lazy;
+pub(crate) mod lazy;
 mod practice;
 mod runnable;
 mod workbench;

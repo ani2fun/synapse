@@ -89,6 +89,11 @@
    Positioning only; .modal-btn owns the look. */
 .diagram-zoom__close { position: absolute; top: 12px; left: 14px; z-index: 3; }
 
+/* d2 (and mermaid) now render on the CLIENT when the card nears the viewport (prose-first,
+   2026-07-17). Reserve a minimum figure height so the empty card holds its place — the SVG
+   fills in without shifting the prose below it. (The slideshow has its own fixed box.) */
+.d2-block .diagram__figure, .mermaid-block .diagram__figure { min-height: 8rem; }
+
 /* ── the d2 slideshow: the authored legacy wrapper passes through; the transport rides
       under the figure (classes shared with the viz transport bar in viz.css) ── */
 .d2-slides { display: contents; }
