@@ -4,16 +4,17 @@
 //! inside a book. Options serialize as nulls (circe parity).
 
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum CatalogEntryDto {
     Category(CategoryDto),
     Book(BookDto),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct CategoryDto {
     pub slug: String,
@@ -21,11 +22,12 @@ pub struct CategoryDto {
     pub description: Option<String>,
     pub icon: Option<String>,
     pub order: Option<i32>,
-    #[schema(no_recursion)]
+    #[cfg_attr(feature = "openapi", schema(no_recursion))]
     pub entries: Vec<CatalogEntryDto>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct BookDto {
     pub slug: String,
@@ -35,28 +37,31 @@ pub struct BookDto {
     pub estimated_reading_minutes: Option<i32>,
     pub order: Option<i32>,
     pub category_path: Vec<String>,
-    #[schema(no_recursion)]
+    #[cfg_attr(feature = "openapi", schema(no_recursion))]
     pub entries: Vec<BookEntryDto>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum BookEntryDto {
     Chapter(ChapterDto),
     Lesson(LessonDto),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct ChapterDto {
     pub slug: String,
     pub title: String,
     pub order: Option<i32>,
-    #[schema(no_recursion)]
+    #[cfg_attr(feature = "openapi", schema(no_recursion))]
     pub entries: Vec<BookEntryDto>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct LessonDto {
     pub slug: String,
@@ -65,13 +70,15 @@ pub struct LessonDto {
     pub essential: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SynapseIndexDto {
     pub entries: Vec<CatalogEntryDto>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct BookRefDto {
     pub slug: String,
@@ -79,7 +86,8 @@ pub struct BookRefDto {
     pub category_path: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct LessonFrontmatterDto {
     pub title: String,
@@ -92,7 +100,8 @@ pub struct LessonFrontmatterDto {
 
 /// The lesson the reader renders. `raw` = the markdown body, fence stripped; `prev`/`next` are
 /// ready-to-navigate FULL paths (`category…/book/chapter…/lesson`), null at book ends.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct LessonPayloadDto {
     pub book: BookRefDto,
@@ -104,7 +113,8 @@ pub struct LessonPayloadDto {
     pub editorial: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct ComponentDocDto {
     pub title: Option<String>,

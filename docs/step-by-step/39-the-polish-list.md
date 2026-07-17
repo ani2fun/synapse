@@ -84,3 +84,20 @@ green. Verified live at :5373 — the sticky drop, the teal pills at (6,6), quiz
 data-foundations pages, per-case badges + output clearing on flip-characters, the 8-pill
 editorial, the Java/Python solution dropdown with language-exact copy, and two consecutive
 stdin re-traces (`[x, y, z]` → array 0 1 2, `[p, q]` → array 0 1) with no panic.
+
+## Postscript — the bundle gate (same day)
+
+CI's in-pipeline budget gate rejected the step: 712/700 KiB gz. The step's own cost was
+honest (~23 KiB for quiz + pills + the modal work) — the real story was that steps 36–38
+had quietly spent the headroom (606 → 689). Two fixes landed as the follow-up commit:
+
+- **`--cfg erase_components`** in the release wasm build: Leptos's statically-typed view
+  tree monomorphizes a copy of the render machinery per view shape, and that was ~15% of
+  the ENTIRE gzipped wasm. Type-erased views trade it for dynamic dispatch — invisible
+  next to DOM cost. 686 → 584 KiB gz; the critical path landed at **609/700**. The
+  release-vs-dev split was smoke-tested end to end on the built dist (problem page, Run +
+  case badge, editorial pills, solution dropdown, Visualise trace — zero console errors).
+- **`synapse-shared`'s `openapi` feature**: utoipa becomes optional, the `ToSchema`
+  derives compile only for the server (`features = ["openapi"]`). LTO was already
+  eliminating most of it (~1 KiB), but the wasm client no longer *compiles* the OpenAPI
+  half of the wire contract at all — the schema story is a server concern.

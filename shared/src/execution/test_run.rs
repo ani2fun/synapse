@@ -4,13 +4,13 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
 use crate::execution::RunResult;
 
 /// One declared stdin argument. The authored JSON writes `type`; the field is `tpe` here
 /// (mapped at the codec), mirroring the oracle's Scala-keyword dodge.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ArgSpec {
     pub id: String,
     pub label: String,
@@ -21,7 +21,8 @@ pub struct ArgSpec {
 }
 
 /// One authored case: values per declared arg + the optional expected stdout.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct TestCase {
     pub args: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -29,7 +30,8 @@ pub struct TestCase {
 }
 
 /// The whole authored suite (a testcases fence or a `.tests.json` sidecar).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct TestSpec {
     pub args: Vec<ArgSpec>,
     pub cases: Vec<TestCase>,

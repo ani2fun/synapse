@@ -3,9 +3,9 @@
 //! oracle's deliberate non-Option; the card renders "" as nothing).
 
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct BlogSummaryDto {
     pub slug: String,
@@ -19,7 +19,8 @@ pub struct BlogSummaryDto {
 
 /// One post: the summary fields + the markdown body + publish-order neighbours
 /// (`prev` = older, `next` = newer; null at the ends).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct BlogPostDto {
     pub slug: String,

@@ -1,11 +1,11 @@
 //! The identity wire contract (oracle: `shared/identity/IdentityApi.scala`).
 
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
 /// The verified caller (`GET /api/me`). `admin` is UX-only — the server re-checks per call
 /// (it joins with the admin step; false until then).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct MeDto {
     pub id: String,
     pub username: String,
@@ -16,7 +16,8 @@ pub struct MeDto {
 
 /// The SPA's Keycloak coordinates (`GET /api/auth/config`) — exactly
 /// `new Keycloak({url, realm, clientId})`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct AuthConfigDto {
     pub url: String,

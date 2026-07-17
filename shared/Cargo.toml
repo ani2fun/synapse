@@ -7,7 +7,12 @@ publish.workspace = true
 [dependencies]
 serde = { workspace = true }
 thiserror = { workspace = true }
-utoipa = { workspace = true }
+utoipa = { workspace = true, optional = true }
+
+[features]
+# The OpenAPI half of the wire contract is a SERVER concern: the schema derives
+# compile only where the spec is rendered — the wasm client never pays for them.
+openapi = ["dep:utoipa"]
 
 [dev-dependencies]
 serde_json = { workspace = true }

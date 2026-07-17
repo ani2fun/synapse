@@ -27,7 +27,11 @@ fi
 if [[ "$profile" == "release" ]]; then
   # Size-first profile (opt-level z · fat LTO · one codegen unit · panic=abort) — see
   # [profile.wasm-release] in Cargo.toml. The plain `release` profile stays the server's.
-  cargo build -p synapse-client --target wasm32-unknown-unknown --profile wasm-release
+  # `--cfg erase_components` switches Leptos to TYPE-ERASED views: the statically-typed
+  # view tree's monomorphization was ~15% of the whole gzipped wasm (686→584 KiB gz,
+  # measured at step 39) — dynamic dispatch is invisible next to DOM cost; the bytes are not.
+  RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }--cfg erase_components" \
+    cargo build -p synapse-client --target wasm32-unknown-unknown --profile wasm-release
   wasm_file="target/wasm32-unknown-unknown/wasm-release/synapse_client.wasm"
 else
   cargo build -p synapse-client --target wasm32-unknown-unknown

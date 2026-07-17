@@ -6,7 +6,7 @@ publish.workspace = true
 
 [dependencies]
 tower-http = { version = "0.6", features = ["compression-gzip", "compression-deflate"] }
-synapse-shared = { path = "../shared" }
+synapse-shared = { path = "../shared", features = ["openapi"] }
 axum = { workspace = true }
 thiserror = { workspace = true }
 reqwest = { workspace = true }

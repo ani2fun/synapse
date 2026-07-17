@@ -5,10 +5,10 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
 /// `POST /api/submissions` body.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct SubmitRequestDto {
     pub path: Vec<String>,
     pub language: String,
@@ -16,12 +16,14 @@ pub struct SubmitRequestDto {
 }
 
 /// The 202 body — poll `GET /api/submissions/{id}` until `status == "completed"`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct SubmissionAcceptedDto {
     pub id: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct FailedCaseDto {
     pub index: usize,
@@ -33,7 +35,8 @@ pub struct FailedCaseDto {
     pub run_status: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SubmissionDto {
     pub id: String,
@@ -62,13 +65,15 @@ pub struct SubmissionDto {
 }
 
 /// Delete/erase result — 0/1 for a single delete, N for erase-all.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct DeleteResultDto {
     pub deleted: usize,
 }
 
 /// One allowlist grant (`/api/admin/allowlist`, step 21).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct AllowlistEntryDto {
     pub username: String,
@@ -80,7 +85,8 @@ pub struct AllowlistEntryDto {
 
 /// The grant request — username is trimmed + lowercased server-side (canonical, matching the
 /// verifier); blank is a 400.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct GrantRequestDto {
     pub username: String,

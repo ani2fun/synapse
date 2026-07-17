@@ -7,11 +7,11 @@ mod test_run;
 pub use test_run::{ArgSpec, TestCase, TestSpec, Verdict, judge, stdin_for};
 
 use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
 
 /// What a run produced, as vocabulary. A badly-running program is still a 200 with a
 /// non-`Accepted` status — only backend machinery failures use the error channel.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub enum RunStatus {
     Accepted,
     CompileError,
@@ -37,7 +37,8 @@ impl RunStatus {
 }
 
 /// The run request. `language` is a fence alias (`py`, `cpp`, …), resolved server-side.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct RunRequest {
     pub language: String,
     pub source: String,
@@ -46,7 +47,8 @@ pub struct RunRequest {
 }
 
 /// The run's outcome. `time_seconds`/`memory_kb` are absent when the backend didn't measure.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct RunResult {
     pub status: RunStatus,
