@@ -124,7 +124,8 @@ pub fn hydrate_codebench_pills(root: &web_sys::HtmlElement, store: CodebenchStor
                     title="Open this code in the editor — run it, feed it input, make it yours"
                     on:click=move |_| store.open(request.clone())
                 >
-                    "⤢ Open editor to try"
+                    {icon_play("codebench-open__ic")}
+                    <span>"Open editor to try"</span>
                 </button>
             }
             .into_any()
