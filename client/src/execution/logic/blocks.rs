@@ -51,6 +51,10 @@ pub fn display_lang(alias: &str) -> String {
     match alias.to_lowercase().as_str() {
         "cpp" | "c++" => "C++".to_owned(),
         "csharp" => "C#".to_owned(),
+        "rs" => "Rust".to_owned(),
+        "kt" => "Kotlin".to_owned(),
+        "js" => "JavaScript".to_owned(),
+        "ts" => "TypeScript".to_owned(),
         other => {
             let mut chars = other.chars();
             match chars.next() {
@@ -111,6 +115,8 @@ mod tests {
     fn display_names_read_well() {
         assert_eq!(display_lang("cpp"), "C++");
         assert_eq!(display_lang("python"), "Python");
-        assert_eq!(display_lang("js"), "Js");
+        assert_eq!(display_lang("rs"), "Rust");
+        assert_eq!(display_lang("kt"), "Kotlin");
+        assert_eq!(display_lang("js"), "JavaScript");
     }
 }
