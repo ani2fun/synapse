@@ -65,3 +65,4 @@ introduced the feature, never as later afterthoughts.
 | 35 | `step-35` | [The production build](35-the-production-build.md) | 2026-07-17 |
 | 36 | `step-36` | [The reader chrome](36-the-reader-chrome.md) | 2026-07-17 |
 | 37 | `step-37` | [The problem page](37-the-problem-page.md) | 2026-07-17 |
+| 38 | `step-38` | [Toolbar + modal parity](38-toolbar-and-modal-parity.md) | 2026-07-17 |

@@ -23,6 +23,12 @@ pub fn WidgetHost(
     /// The modal shows the data-driven legend; inline widgets never do.
     #[prop(optional)]
     legend: bool,
+    /// The modal's zoom (CSS `zoom` on the scale layer — layout-aware, unlike transform).
+    #[prop(optional)]
+    zoom: Option<RwSignal<f64>>,
+    /// Diff-mode stops for the transport's step buttons (the modal's ◧ Diff).
+    #[prop(optional)]
+    stops: Option<Signal<Vec<usize>>>,
 ) -> impl IntoView {
     match (structure, cases) {
         (Some(structure), Some(cases)) => {
@@ -43,9 +49,17 @@ pub fn WidgetHost(
                 <div class="viz-widget-host not-prose">
                     {title.map(|t| view! { <div class="viz-widget-host__title">{t}</div> })}
                     <div class="viz-widget-host__canvas">
-                        <div class="viz-widget-host__scale">{canvas}</div>
+                        <div
+                            class="viz-widget-host__scale"
+                            style=move || zoom.map_or_else(String::new, |z| format!("zoom: {:.2}", z.get()))
+                        >
+                            {canvas}
+                        </div>
                     </div>
-                    {multi_step.then(|| view! { <TransportBar state=state /> })}
+                    {multi_step.then(|| match stops {
+                        Some(stops) => view! { <TransportBar state=state stops=stops /> }.into_any(),
+                        None => view! { <TransportBar state=state /> }.into_any(),
+                    })}
                     <div class="viz-widget-host__caption">
                         {move || {
                             let i = state.get().index.min(caption_graph.steps.len() - 1);

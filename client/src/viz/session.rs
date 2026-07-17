@@ -59,6 +59,17 @@ pub fn obtain(key: Key) -> Session {
     session
 }
 
+/// A FRESH trace for a (possibly new) key — replaces any cached session and re-runs.
+pub fn obtain_fresh(key: Key) -> Session {
+    let session = Session {
+        key: key.clone(),
+        state: RwSignal::new(TraceState::Tracing),
+    };
+    CACHE.with_borrow_mut(|c| c.insert(key, session.clone()));
+    run(&session);
+    session
+}
+
 pub fn force(session: &Session) {
     session.state.set(TraceState::Tracing);
     run(session);

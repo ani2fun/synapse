@@ -290,3 +290,128 @@
 
 /* ── frame line chips (the → next chip) ── */
 .viz-frame__line--next { background: transparent; color: hsl(var(--muted-foreground)); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MODAL PARITY (step 38) — zoom/diff controls, the numbered timeline, the
+   output+stdin panel, the guide overlay, the taller centered canvas, toolbar
+   icon sizes and the language dropdown, the floating editor copy button.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.viz-modal__controls { display: flex; align-items: center; justify-content: space-between;
+                       margin-bottom: 8px; }
+.viz-modal__zoom { display: flex; gap: 4px; align-items: center; }
+.viz-modal__zoom-btn { width: 24px; height: 24px; display: inline-flex; align-items: center;
+                       justify-content: center; border: 1px solid hsl(var(--border));
+                       border-radius: 6px; background: hsl(var(--card));
+                       color: hsl(var(--foreground)); cursor: pointer; font-size: 14px; }
+.viz-modal__zoom-btn:hover { border-color: hsl(var(--primary) / 0.5); color: hsl(var(--primary)); }
+.viz-modal__zoom-pct { min-width: 46px; padding: 2px 6px; border: 0; background: none;
+                       font-family: var(--font-mono); font-size: 12px; cursor: pointer;
+                       color: hsl(var(--muted-foreground)); }
+.viz-modal__diff { border: 1px solid hsl(var(--border)); border-radius: 6px; background: none;
+                   color: hsl(var(--muted-foreground)); font-size: 12px; padding: 3px 10px;
+                   cursor: pointer; }
+.viz-modal__diff--on { color: hsl(var(--primary)); border-color: hsl(var(--primary) / 0.5);
+                       background: hsl(var(--primary) / 0.08); }
+
+/* the taller centered canvas — natural size, only scaling DOWN */
+.viz-modal__canvas-col .viz-widget-host__canvas { overflow: auto; min-height: 40vh;
+                                                  max-height: 64vh; align-items: center;
+                                                  justify-content: center; }
+.viz-modal__canvas-col .viz-svg { width: auto; max-width: 100%; max-height: 60vh; }
+
+/* the numbered timeline chips */
+.viz-timeline { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+.viz-timeline__tick { min-width: 24px; height: 22px; padding: 0 4px;
+                      border: 1px solid hsl(var(--border)); border-radius: 5px;
+                      background: none; color: hsl(var(--foreground)); font-size: 11px;
+                      font-family: var(--font-mono); cursor: pointer; }
+.viz-timeline__tick--unchanged { color: hsl(var(--muted-foreground) / 0.55);
+                                 border-color: hsl(var(--border) / 0.5); }
+.viz-timeline__tick--active { border-color: hsl(var(--primary)); color: hsl(var(--primary));
+                              background: hsl(var(--primary) / 0.12); font-weight: 600; }
+
+/* program output + stdin */
+.viz-modal__output { margin-top: 16px; padding-top: 12px;
+                     border-top: 1px solid hsl(var(--border)); display: flex;
+                     flex-direction: column; gap: 10px; }
+.viz-output__summary { cursor: pointer; font-size: 0.85rem;
+                       color: hsl(var(--muted-foreground)); }
+.viz-output__pre { border-radius: 8px; background: hsl(var(--secondary) / 0.5);
+                   font-family: var(--font-mono); font-size: 12px; max-height: 140px;
+                   overflow: auto; padding: 8px 10px; margin: 6px 0 0; white-space: pre-wrap; }
+.viz-stdin { display: flex; flex-direction: column; gap: 6px; }
+.viz-stdin__label { font-family: var(--font-mono); font-size: 10.5px;
+                    text-transform: uppercase; letter-spacing: 0.1em;
+                    color: hsl(var(--muted-foreground)); }
+.viz-stdin__input { border: 1px solid hsl(var(--border)); border-radius: 8px;
+                    background: hsl(var(--secondary) / 0.4); font-family: var(--font-mono);
+                    font-size: 12.5px; color: hsl(var(--foreground)); padding: 8px 10px;
+                    resize: vertical; }
+.viz-stdin__retrace { align-self: flex-start; border: 1px solid hsl(var(--border));
+                      border-radius: 8px; background: hsl(var(--card));
+                      color: hsl(var(--foreground)); font-size: 12.5px; padding: 5px 10px;
+                      cursor: pointer; }
+.viz-stdin__retrace:hover { border-color: hsl(var(--primary)); color: hsl(var(--primary)); }
+
+/* the (i) guide */
+.viz-modal__guide-wrap { position: relative; }
+.viz-modal__info { width: 32px; height: 32px; display: inline-flex; align-items: center;
+                   justify-content: center; border: 1px solid hsl(var(--border));
+                   border-radius: 8px; background: none; color: hsl(var(--muted-foreground));
+                   cursor: pointer; }
+.viz-modal__info--on { color: hsl(var(--primary-foreground)); background: hsl(var(--primary));
+                       border-color: transparent; }
+.viz-modal__info-ic { width: 17px; height: 17px; }
+.viz-modal__guide-scrim { position: fixed; inset: 0; z-index: 60; }
+.viz-modal__guide { position: absolute; top: calc(100% + 10px); right: 0; z-index: 61;
+                    width: 300px; padding: 16px 16px 14px; border-radius: 14px;
+                    background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+                    box-shadow: 0 18px 44px -16px hsl(var(--foreground) / 0.4);
+                    display: flex; flex-direction: column; gap: 13px; }
+.viz-modal__guide-title { margin: 0; font-size: 15.5px; font-weight: 700; }
+.viz-modal__guide-eyebrow { font-family: var(--font-mono); font-size: 10px;
+                            letter-spacing: 0.13em; text-transform: uppercase;
+                            color: hsl(var(--muted-foreground)); margin-bottom: 2px; }
+.viz-modal__guide-body { font-size: 12.5px; line-height: 1.5;
+                         color: hsl(var(--foreground)); }
+
+/* ── toolbar icon chrome (oracle B) ── */
+.wb__lang { position: relative; }
+.wb__lang-pill { display: inline-flex; align-items: center; gap: 6px; height: 28px;
+                 padding: 0 9px; border: 1px solid hsl(var(--border)); border-radius: 8px;
+                 background: hsl(var(--card)); font-family: var(--font-mono);
+                 font-size: 12.5px; color: hsl(var(--foreground)); }
+.wb__lang-pill--btn { cursor: pointer; }
+.wb__lang-play { width: 12px; height: 12px; color: hsl(var(--primary)); flex: none; }
+.wb__lang-chev { width: 13px; height: 13px; opacity: 0.6; }
+.wb__lang-scrim { position: fixed; inset: 0; z-index: 30; }
+.wb__lang-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 31;
+                 min-width: 150px; display: flex; flex-direction: column; padding: 4px;
+                 border: 1px solid hsl(var(--border)); border-radius: 10px;
+                 background: hsl(var(--card));
+                 box-shadow: 0 10px 30px -10px hsl(var(--foreground) / 0.4); }
+.wb__lang-opt { display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+                border: 0; border-radius: 6px; background: none; text-align: left;
+                font-family: var(--font-mono); font-size: 12.5px;
+                color: hsl(var(--foreground)); cursor: pointer; }
+.wb__lang-opt:hover { background: hsl(var(--secondary) / 0.5); }
+.wb__lang-opt--active { color: hsl(var(--primary)); }
+.wb__ghost-ic { width: 12px; height: 12px; flex: none; }
+.wb__ghost--icon { padding: 0.25rem 0.4rem; }
+.wb__ghost--icon .wb__ghost-ic { width: 14px; height: 14px; }
+.wb__submit-ic { width: 13px; height: 13px; flex: none; }
+.runnable__run-ic { width: 12px; height: 12px; flex: none; }
+.runnable__run, .wb__submit, .wb__ghost { display: inline-flex; align-items: center;
+                                          gap: 0.35rem; }
+
+/* the floating copy button over the editor */
+.editor-copy { position: absolute; top: 8px; right: 12px; z-index: 4; width: 30px;
+               height: 30px; display: inline-flex; align-items: center; justify-content: center;
+               border-radius: 8px; border: 1px solid hsl(var(--border));
+               background: hsl(var(--card) / 0.85); color: hsl(var(--muted-foreground));
+               opacity: 0.55; cursor: pointer; backdrop-filter: blur(4px); }
+.runnable__editor:hover .editor-copy { opacity: 1; }
+.editor-copy--done { color: hsl(var(--status-ok)); border-color: hsl(var(--status-ok) / 0.5);
+                     opacity: 1; }
+.editor-copy__ic { width: 15px; height: 15px; }

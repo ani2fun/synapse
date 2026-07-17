@@ -249,32 +249,63 @@ pub fn RunnableBlock(
         Signal::derive(move || store_at(active.get()).state.get())
     };
 
-    // One static pill for a single language; TABS when the fence group carried variants.
+    // The language pill (oracle B.1): ▶ name (+ chevron dropdown when multi-variant).
     let lang_count = variants.read_value().len();
     let lang_chrome = if lang_count > 1 {
-        let switch_to = switch_to.clone();
-        let tabs: Vec<_> = (0..lang_count)
-            .map(|i| {
-                let label = logic::display_lang(&variants.read_value()[i].language);
-                let switch_to = switch_to.clone();
-                view! {
-                    <button
-                        class="wb__lang-tab"
-                        class:wb__lang-tab--active=move || active.get() == i
-                        on:click=move |_| switch_to(i)
-                    >
-                        {label}
-                    </button>
-                }
-            })
-            .collect();
-        view! { <span class="wb__lang-tabs">{tabs}</span> }.into_any()
+        let menu_open = RwSignal::new(false);
+        let menu_switch = switch_to.clone();
+        view! {
+            <div class="wb__lang">
+                <button
+                    class="wb__lang-pill wb__lang-pill--btn"
+                    aria-label="Language"
+                    on:click=move |_| menu_open.update(|o| *o = !*o)
+                >
+                    {icon_play("wb__lang-play")}
+                    <span>{move || logic::display_lang(&variants.read_value()[active.get()].language)}</span>
+                    {icon_chevron_down()}
+                </button>
+                {move || {
+                    let menu_switch = menu_switch.clone();
+                    menu_open.get().then(|| {
+                        let options: Vec<_> = (0..lang_count)
+                            .map(|i| {
+                                let label = logic::display_lang(&variants.read_value()[i].language);
+                                let menu_switch = menu_switch.clone();
+                                view! {
+                                    <button
+                                        class="wb__lang-opt"
+                                        class:wb__lang-opt--active=move || active.get() == i
+                                        on:click=move |_| {
+                                            menu_switch(i);
+                                            menu_open.set(false);
+                                        }
+                                    >
+                                        {icon_play("wb__lang-play")}
+                                        {label}
+                                    </button>
+                                }
+                            })
+                            .collect();
+                        view! {
+                            <div>
+                                <div class="wb__lang-scrim" on:click=move |_| menu_open.set(false)></div>
+                                <div class="wb__lang-menu">{options}</div>
+                            </div>
+                        }
+                    })
+                }}
+            </div>
+        }
+        .into_any()
     } else {
         let pill = logic::display_lang(&first.language);
-        view! { <span class="wb__lang-pill">{pill}</span> }.into_any()
+        view! { <span class="wb__lang-pill">{icon_play("wb__lang-play")}<span>{pill}</span></span> }
+            .into_any()
     };
 
     let toggle_store = store_at.clone();
+    let reset_store = store_at.clone();
     let toolbar = view! {
         <div class="runnable__bar">
             <span class="wb__eyebrow"><span class="wb__prompt">">_"</span>" CODE"</span>
@@ -303,9 +334,37 @@ pub fn RunnableBlock(
                             sync_editor(mounted, store);
                         }
                     >
-                        {move || if unlocked.get() { "Editing" } else { "Edit" }}
+                        {move || if unlocked.get() {
+                            view! { <span>"Editing"</span> }.into_any()
+                        } else {
+                            view! { {icon_lock()}<span>"Edit"</span> }.into_any()
+                        }}
                     </button>
                 </span>
+                // ↺ Reset — restores the starter, only meaningful while editing.
+                {move || (unlocked.get() && auth.authed()).then(|| {
+                    let reset_store = reset_store.clone();
+                    view! {
+                        <button
+                            class="wb__ghost wb__ghost--live wb__ghost--icon"
+                            title="Restore the starter code"
+                            aria-label="Reset"
+                            on:click=move |_| {
+                                let i = active.get_untracked();
+                                let store = reset_store(i);
+                                let authored = variants.read_value()[i].source.clone();
+                                store.state.update(|s| *s = s.set_code(&authored));
+                                mounted.with_value(|editor| {
+                                    if let Some(editor) = editor {
+                                        editor.set_value(&authored);
+                                    }
+                                });
+                            }
+                        >
+                            {icon_reset()}
+                        </button>
+                    }
+                })}
                 {has_submit.then(|| view! {
                     // Anonymous readers see WHY it's off (the step-20 allowlist hint); the
                     // server re-enforces regardless — this is UX, not the gate.
@@ -326,7 +385,8 @@ pub fn RunnableBlock(
                             prop:disabled=move || !auth.authed() || judging.get()
                             on:click=move |_| submit_click()
                         >
-                            {move || if judging.get() { "Judging…" } else { "Submit" }}
+                            {icon_rocket()}
+                            <span>{move || if judging.get() { "Judging…" } else { "Submit" }}</span>
                         </button>
                     </span>
                 })}
@@ -336,7 +396,8 @@ pub fn RunnableBlock(
                         title="Trace this code and watch the structure animate"
                         on:click=open_visualise.clone()
                     >
-                        "Visualise"
+                        {icon_eye()}
+                        <span>"Visualise"</span>
                     </button>
                 })}
                 <button
@@ -345,7 +406,8 @@ pub fn RunnableBlock(
                     prop:disabled=move || running.get()
                     on:click=move |_| run_click()
                 >
-                    {move || if running.get() { "Running…" } else { "▶ Run" }}
+                    {icon_play("runnable__run-ic")}
+                    <span>{move || if running.get() { "Running…" } else { "Run" }}</span>
                 </button>
             </span>
         </div>
@@ -354,7 +416,9 @@ pub fn RunnableBlock(
     view! {
         <div class="runnable not-prose">
             {toolbar}
-            <div class="runnable__editor" node_ref=editor_ref style=height></div>
+            <div class="runnable__editor" node_ref=editor_ref style=height>
+                {copy_button(mounted)}
+            </div>
             {match (spec, tests) {
                 (Some(spec), Some(tests)) => Some(view! { <TestsPanel spec=spec tests=tests /> }),
                 _ => None,
@@ -362,6 +426,49 @@ pub fn RunnableBlock(
             <Output state=active_state spec=spec tests=tests />
             <VerdictPanel submit=submit />
         </div>
+    }
+}
+
+/// The floating copy-code button (oracle: `MonacoEditor.copyButton`): reads the LIVE
+/// buffer, swaps to a check for 1.4 s.
+fn copy_button(mounted: StoredValue<Option<MountedEditor>, LocalStorage>) -> impl IntoView {
+    let copied = RwSignal::new(false);
+    view! {
+        <button
+            class="editor-copy"
+            class:editor-copy--done=move || copied.get()
+            aria-label="Copy code"
+            title="Copy code"
+            on:click=move |_| {
+                let code = mounted.with_value(|e| e.as_ref().map(MountedEditor::get_value));
+                if let Some(code) = code {
+                    if let Some(window) = web_sys::window() {
+                        let _ = window.navigator().clipboard().write_text(&code);
+                    }
+                    copied.set(true);
+                    gloo_timers::callback::Timeout::new(1_400, move || copied.set(false)).forget();
+                }
+            }
+        >
+            {move || if copied.get() {
+                view! {
+                    <svg class="editor-copy__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M20 6 9 17l-5-5"></path>
+                    </svg>
+                }
+                .into_any()
+            } else {
+                view! {
+                    <svg class="editor-copy__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="8" y="8" width="14" height="14" rx="2" ry="2"></rect>
+                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+                    </svg>
+                }
+                .into_any()
+            }}
+        </button>
     }
 }
 
@@ -469,4 +576,67 @@ fn stream_block(label: &'static str, content: &str) -> Option<impl IntoView + us
             <pre class="runnable__stream">{content}</pre>
         </details>
     })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOOLBAR ICONS (oracle: Icons.scala, lucide strokes)
+// ─────────────────────────────────────────────────────────────────────────────
+
+pub(crate) fn icon_play(class: &'static str) -> impl IntoView {
+    view! {
+        <svg class=class viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 3v18l14-9z" fill="currentColor"></path>
+        </svg>
+    }
+}
+
+fn icon_chevron_down() -> impl IntoView {
+    view! {
+        <svg class="wb__lang-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m6 9 6 6 6-6"></path>
+        </svg>
+    }
+}
+
+fn icon_lock() -> impl IntoView {
+    view! {
+        <svg class="wb__ghost-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="11" width="18" height="11" rx="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+    }
+}
+
+fn icon_eye() -> impl IntoView {
+    view! {
+        <svg class="wb__ghost-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+    }
+}
+
+fn icon_rocket() -> impl IntoView {
+    view! {
+        <svg class="wb__submit-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path>
+            <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path>
+            <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path>
+            <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"></path>
+        </svg>
+    }
+}
+
+fn icon_reset() -> impl IntoView {
+    view! {
+        <svg class="wb__ghost-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+            <path d="M3 3v5h5"></path>
+        </svg>
+    }
 }

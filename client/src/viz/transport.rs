@@ -8,7 +8,24 @@ use synapse_shared::viz::playback::State;
 const STEP_DELAY_MS: u32 = 900;
 
 #[component]
-pub fn TransportBar(state: RwSignal<State>) -> impl IntoView {
+pub fn TransportBar(
+    state: RwSignal<State>,
+    /// Diff mode (oracle: `StepTimeline.stops`): when non-empty, the STEP buttons hop only
+    /// between these indices; the scrubber, label, and autoplay still cover every step.
+    #[prop(optional)]
+    stops: Option<Signal<Vec<usize>>>,
+) -> impl IntoView {
+    let hop = move |current: usize, forward: bool| -> Option<usize> {
+        let stops = stops?.get_untracked();
+        if stops.is_empty() {
+            return None;
+        }
+        if forward {
+            stops.iter().copied().find(|&i| i > current)
+        } else {
+            stops.iter().rev().copied().find(|&i| i < current)
+        }
+    };
     let timer: StoredValue<Option<gloo_timers::callback::Interval>, LocalStorage> =
         StoredValue::new_local(None);
 
@@ -32,18 +49,38 @@ pub fn TransportBar(state: RwSignal<State>) -> impl IntoView {
     view! {
         <div class="transport">
             <button class="transport__btn" title="First step"
-                    on:click=move |_| state.update(|s| *s = s.jump_to(0))>"⏮"</button>
+                    on:click=move |_| state.update(|s| {
+                        let target = stops
+                            .and_then(|st| st.get_untracked().first().copied())
+                            .unwrap_or(0);
+                        *s = s.jump_to(i64::try_from(target).unwrap_or(0));
+                    })>"⏮"</button>
             <button class="transport__btn" title="Previous step"
-                    on:click=move |_| state.update(|s| *s = s.previous())>"‹"</button>
+                    on:click=move |_| state.update(|s| {
+                        *s = match hop(s.index, false) {
+                            Some(i) => s.jump_to(i64::try_from(i).unwrap_or(0)),
+                            None => s.previous(),
+                        };
+                    })>"‹"</button>
             <button class="transport__btn transport__btn--play"
                     title="Play / pause"
                     on:click=move |_| state.update(|s| *s = s.toggle_play())>
                 {move || if state.get().playing { "⏸" } else { "▶" }}
             </button>
             <button class="transport__btn" title="Next step"
-                    on:click=move |_| state.update(|s| *s = s.next())>"›"</button>
+                    on:click=move |_| state.update(|s| {
+                        *s = match hop(s.index, true) {
+                            Some(i) => s.jump_to(i64::try_from(i).unwrap_or(0)),
+                            None => s.next(),
+                        };
+                    })>"›"</button>
             <button class="transport__btn" title="Last step"
-                    on:click=move |_| state.update(|s| *s = s.jump_to(i64::MAX))>"⏭"</button>
+                    on:click=move |_| state.update(|s| {
+                        let target = stops
+                            .and_then(|st| st.get_untracked().last().copied())
+                            .map_or(i64::MAX, |i| i64::try_from(i).unwrap_or(i64::MAX));
+                        *s = s.jump_to(target);
+                    })>"⏭"</button>
             <input
                 class="transport__scrubber"
                 type="range"
