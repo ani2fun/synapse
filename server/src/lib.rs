@@ -47,6 +47,8 @@ pub struct AppDeps {
     pub allowlist: Arc<submission::infrastructure::PostgresSubmissionAllowlist>,
     /// The production dist dir; absent (dev) → no static routes, and `/` answers plain text.
     pub static_root: String,
+    /// The content checkout — `/media` serves its `_media/` tree (one shared cache hour).
+    pub content_root: String,
     pub likec4_url: String,
     /// The coach (step 22): when disabled the chat route is never mounted — a structural 404.
     pub tutor: tutoring::http::TutorRoutesState<tutoring::infrastructure::OllamaTutorClient>,
@@ -69,6 +71,7 @@ pub fn app(deps: AppDeps) -> Router {
         limiter: deps.limiter,
     };
     let statics = StaticRoutes::new(&deps.static_root);
+    let media = platform::media_routes::MediaRoutes::new(&deps.content_root);
     let security = platform::security_headers::SecurityHeaders::new(&deps.ident.issuer);
     let admin = submission::http::admin::AdminRoutesState {
         allowlist: deps.allowlist,
@@ -85,6 +88,7 @@ pub fn app(deps: AppDeps) -> Router {
         .merge(submission::http::admin::routes(admin))
         .merge(tutoring::http::routes(deps.tutor))
         .layer(axum::middleware::from_fn(platform::content_cache_control::stamp))
+        .merge(media.routes())
         .merge(platform::likec4_proxy::routes(&deps.likec4_url));
     if statics.enabled() {
         router = router.merge(statics.routes());
@@ -95,11 +99,20 @@ pub fn app(deps: AppDeps) -> Router {
         );
     }
     // OUTERMOST (step 19): the security stamp covers every sub-tree — API, proxy, static,
-    // and error responses alike.
-    router.layer(axum::middleware::from_fn_with_state(
-        security,
-        platform::security_headers::stamp,
-    ))
+    // and error responses alike. Compression sits outside even that (orthogonal to the
+    // header layers, oracle parity): gzip/deflate at the ORIGIN — a CDN edge-compressing
+    // still pulls fat bytes across the tunnel — with sub-KiB responses left alone.
+    router
+        .layer(axum::middleware::from_fn_with_state(
+            security,
+            platform::security_headers::stamp,
+        ))
+        .layer(
+            tower_http::compression::CompressionLayer::new()
+                .gzip(true)
+                .deflate(true)
+                .compress_when(tower_http::compression::predicate::SizeAbove::new(1024)),
+        )
 }
 
 /// The code-first OpenAPI document (utoipa). The contract-lock test diffs this rendered

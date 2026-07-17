@@ -342,6 +342,15 @@
         "mimeType": "application/json",
         "text": "{\n  \"problemPath\": \"synapse-features/flip-characters/flip-characters\",\n  \"code\": \"def flip_characters(arr):\\n    pass\",\n  \"language\": \"python\",\n  \"messages\": [{\"role\": \"user\", \"content\": \"I'm stuck on where to start.\"}]\n}"
       }
+    },
+    {
+      "_id": "req_media_asset",
+      "_type": "request",
+      "parentId": "fld_catalog",
+      "name": "GET /media/{path} (lesson media, cache 1h, range-aware)",
+      "description": "Serves content_root/_media; public,max-age=3600 on 200 AND 206; single bytes= range honoured.",
+      "method": "GET",
+      "url": "{{ _.base_url }}/media/dsa-notes/example.png"
     }
   ]
 }

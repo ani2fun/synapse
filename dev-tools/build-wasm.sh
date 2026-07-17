@@ -25,8 +25,10 @@ if [[ "$locked" != "$have" ]]; then
 fi
 
 if [[ "$profile" == "release" ]]; then
-  cargo build -p synapse-client --target wasm32-unknown-unknown --release
-  wasm_file="target/wasm32-unknown-unknown/release/synapse_client.wasm"
+  # Size-first profile (opt-level z · fat LTO · one codegen unit · panic=abort) — see
+  # [profile.wasm-release] in Cargo.toml. The plain `release` profile stays the server's.
+  cargo build -p synapse-client --target wasm32-unknown-unknown --profile wasm-release
+  wasm_file="target/wasm32-unknown-unknown/wasm-release/synapse_client.wasm"
 else
   cargo build -p synapse-client --target wasm32-unknown-unknown
   wasm_file="target/wasm32-unknown-unknown/debug/synapse_client.wasm"

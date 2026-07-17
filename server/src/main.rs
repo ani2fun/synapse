@@ -120,6 +120,7 @@ async fn main() -> anyhow::Result<()> {
         allowlist,
         tutor,
         static_root: cfg.static_root.clone(),
+        content_root: cfg.content_root.clone(),
         likec4_url: cfg.likec4_url.clone(),
     });
     // Connect info feeds the anonymous rate-limit key's socket-peer fallback.

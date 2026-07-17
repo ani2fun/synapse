@@ -100,6 +100,7 @@ pub fn deps_with(
         ))),
         limiter: Arc::new(RateLimiter::new(TEST_BUCKET, TEST_BUCKET)),
         static_root: content_root.join("__no_dist__").to_string_lossy().into_owned(),
+        content_root: content_root.to_string_lossy().into_owned(),
         likec4_url: "http://127.0.0.1:9".to_owned(),
     }
 }

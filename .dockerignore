@@ -1,0 +1,13 @@
+.git
+.github
+.claude
+CLAUDE.md
+docs
+target
+**/target
+client/dist
+client/pkg
+client/node_modules
+**/node_modules
+*.md
+!README.md

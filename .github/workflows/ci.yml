@@ -56,3 +56,13 @@ jobs:
         run: npm run build
       - name: bundle budget (700 KiB gz critical path)
         run: dev-tools/check-bundle-budget.sh
+
+  # The image must always BUILD (the budget gate runs inside it); pushing is main-only.
+  docker:
+    needs: [conventions, build-test, client-build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: docker smoke build
+        run: docker buildx build --file Dockerfile --tag synapse-rs:ci .

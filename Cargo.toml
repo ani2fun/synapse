@@ -66,3 +66,15 @@ module_name_repetitions = "allow"
 must_use_candidate = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
+
+# The CLIENT's release profile (build-wasm.sh --profile wasm-release): size-first codegen
+# for the wasm module. Deliberately NOT the workspace release profile — `panic = "abort"`
+# is right for a browser app (the hook prints, the app is dead anyway) and wrong for the
+# server (a handler panic must not kill the process).
+[profile.wasm-release]
+inherits = "release"
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "debuginfo"

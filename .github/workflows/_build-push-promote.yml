@@ -1,0 +1,116 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# THE REUSABLE ENGINE (oracle parity): buildx → ghcr (:sha + :latest) → patch the
+# image tag in the infra repo's kustomization → ArgoCD rolls it out. If the infra
+# file doesn't exist yet, warn and exit 0 — CI can go live before the infra PR.
+# ──────────────────────────────────────────────────────────────────────────────
+name: _build-push-promote
+
+on:
+  workflow_call:
+    inputs:
+      image_repo:
+        required: true
+        type: string
+      dockerfile:
+        required: false
+        type: string
+        default: Dockerfile
+      context:
+        required: false
+        type: string
+        default: .
+      buildx_cache_scope:
+        required: false
+        type: string
+        default: ""
+      infra_repo:
+        required: false
+        type: string
+        default: ani2fun/infra
+      infra_kustomization_file:
+        required: true
+        type: string
+      commit_message:
+        required: true
+        type: string
+
+jobs:
+  build-push-promote:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        run: |
+          scope_args=""
+          if [ -n "${{ inputs.buildx_cache_scope }}" ]; then
+            scope_args=",scope=${{ inputs.buildx_cache_scope }}"
+          fi
+          docker buildx build \
+            --platform linux/amd64 \
+            --file "${{ inputs.dockerfile }}" \
+            --push \
+            --tag "${{ inputs.image_repo }}:${{ github.sha }}" \
+            --tag "${{ inputs.image_repo }}:latest" \
+            --cache-from "type=gha${scope_args}" \
+            --cache-to "type=gha,mode=max${scope_args}" \
+            "${{ inputs.context }}"
+
+      - name: Check out infra
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.infra_repo }}
+          ref: main
+          token: ${{ secrets.INFRA_REPO_TOKEN }}
+          path: infra
+
+      - name: Promote image tag
+        run: |
+          pip install pyyaml
+          python3 - <<'PY'
+          import os, sys, yaml
+          path = os.path.join("infra", "${{ inputs.infra_kustomization_file }}")
+          if not os.path.exists(path):
+              print(f"::warning::{path} does not exist yet — skipping promote")
+              sys.exit(0)
+          with open(path) as f:
+              doc = yaml.safe_load(f) or {}
+          images = doc.setdefault("images", [])
+          repo = "${{ inputs.image_repo }}"
+          sha = "${{ github.sha }}"
+          for image in images:
+              if image.get("name") == repo or image.get("newName") == repo:
+                  image["name"] = repo
+                  image["newName"] = repo
+                  image["newTag"] = sha
+                  break
+          else:
+              images.append({"name": repo, "newName": repo, "newTag": sha})
+          with open(path, "w") as f:
+              yaml.safe_dump(doc, f, sort_keys=False)
+          PY
+
+      - name: Push promote commit
+        run: |
+          cd infra
+          git config user.name "${{ secrets.INFRA_GIT_USER_NAME }}"
+          git config user.email "${{ secrets.INFRA_GIT_USER_EMAIL }}"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "nothing to promote"
+            exit 0
+          fi
+          git pull --rebase --autostash
+          git commit -m "${{ inputs.commit_message }} ${{ github.sha }}"
+          git push origin HEAD:main

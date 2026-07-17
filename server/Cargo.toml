@@ -5,6 +5,7 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+tower-http = { version = "0.6", features = ["compression-gzip", "compression-deflate"] }
 synapse-shared = { path = "../shared" }
 axum = { workspace = true }
 thiserror = { workspace = true }

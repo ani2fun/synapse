@@ -1,0 +1,23 @@
+# The release pipeline: build the production image → ghcr → promote in the infra repo.
+# MANUAL-ONLY for now (user decision 2026-07-17: do NOT deploy to k3s yet — bug fixes
+# first). The push-to-main trigger joins at cutover:
+#   on:
+#     push:
+#       branches: [main]
+name: build-push-promote
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: synapse-rs-main
+  cancel-in-progress: true
+
+jobs:
+  release:
+    uses: ./.github/workflows/_build-push-promote.yml
+    with:
+      image_repo: ghcr.io/ani2fun/synapse-rs
+      infra_kustomization_file: deploy/apps/synapse-rs/overlays/prod/kustomization.yaml
+      commit_message: "chore(synapse-rs): promote image to"
+    secrets: inherit

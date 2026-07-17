@@ -62,3 +62,4 @@ introduced the feature, never as later afterthoughts.
 | 32 | `step-32` | [The landing tour](32-the-landing-tour.md) | 2026-07-17 |
 | 33 | `step-33` | [The mobile drawer + LikeC4 chrome](33-mobile-drawer-and-c4-chrome.md) | 2026-07-17 |
 | 34 | `step-34` | [C4 click-to-guide](34-c4-click-to-guide.md) | 2026-07-17 |
+| 35 | `step-35` | [The production build](35-the-production-build.md) | 2026-07-17 |

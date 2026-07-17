@@ -25,6 +25,7 @@ export default defineConfig({
       "/api": "http://localhost:8180",
       // LikeC4 lesson embeds (<iframe src="/c4/view/…">) ride the server's proxy.
       "/c4": "http://localhost:8180",
+      "/media": "http://localhost:8180",
     },
   },
   build: {
