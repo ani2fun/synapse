@@ -31,6 +31,10 @@ pub fn routes(upstream_base: &str) -> Router {
     };
     Router::new()
         .route("/c4", get(proxy_root))
+        // `/c4/` needs its OWN route: axum's `{*rest}` wildcard does not match an empty
+        // remainder, so the trailing-slash form 404'd while both `/c4` and `/c4/view/…` served.
+        // It is the natural index URL, and the one a browser lands on after a redirect.
+        .route("/c4/", get(proxy_root))
         .route("/c4/{*rest}", get(proxy))
         .with_state(state)
 }

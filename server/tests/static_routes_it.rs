@@ -117,18 +117,32 @@ async fn an_absent_dist_keeps_the_api_only_root() {
 
 /// A stub LikeC4 upstream that echoes what it was asked for.
 async fn stub_upstream() -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
-    let router = axum::Router::new().route(
-        "/{*rest}",
-        axum::routing::get(
-            |axum::extract::Path(rest): axum::extract::Path<String>,
-             axum::extract::RawQuery(query): axum::extract::RawQuery| async move {
-                (
-                    [(header::CONTENT_TYPE, "text/x-c4")],
-                    format!("upstream saw /{rest}?{}", query.unwrap_or_default()),
-                )
-            },
-        ),
-    );
+    // The real nginx upstream serves its index at `/`; the wildcard alone would 404 there, so the
+    // stub answers both or the trailing-slash test would fail on the STUB rather than the proxy.
+    let router = axum::Router::new()
+        .route(
+            "/",
+            axum::routing::get(
+                |axum::extract::RawQuery(query): axum::extract::RawQuery| async move {
+                    (
+                        [(header::CONTENT_TYPE, "text/x-c4")],
+                        format!("upstream saw /?{}", query.unwrap_or_default()),
+                    )
+                },
+            ),
+        )
+        .route(
+            "/{*rest}",
+            axum::routing::get(
+                |axum::extract::Path(rest): axum::extract::Path<String>,
+                 axum::extract::RawQuery(query): axum::extract::RawQuery| async move {
+                    (
+                        [(header::CONTENT_TYPE, "text/x-c4")],
+                        format!("upstream saw /{rest}?{}", query.unwrap_or_default()),
+                    )
+                },
+            ),
+        );
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let handle = tokio::spawn(async move {
@@ -148,6 +162,22 @@ async fn the_proxy_strips_the_c4_prefix_and_forwards_the_query() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body, "upstream saw /view/system?theme=dark", "prefix stripped");
     assert_eq!(content_type.as_deref(), Some("text/x-c4"), "content-type copied");
+    server.abort();
+}
+
+/// Both index forms must serve. `/c4/` needs its own route because axum's `{*rest}` wildcard does
+/// not match an empty remainder — it 404'd in production while `/c4` and `/c4/view/…` both worked.
+#[tokio::test]
+async fn the_proxy_serves_the_index_with_and_without_a_trailing_slash() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (addr, server) = stub_upstream().await;
+
+    for path in ["/c4", "/c4/"] {
+        let mut deps = common::deps(tmp.path());
+        deps.likec4_url = format!("http://{addr}");
+        let (status, _, _, _) = get(synapse_server::app(deps), path).await;
+        assert_eq!(status, StatusCode::OK, "{path} should reach the upstream");
+    }
     server.abort();
 }
 
