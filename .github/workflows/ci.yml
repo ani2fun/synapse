@@ -15,6 +15,23 @@ jobs:
       - uses: actions/checkout@v4
       - run: dev-tools/check-conventions.sh
 
+  # ── Supply chain (step 45) ────────────────────────────────────────────────────
+  # `cargo test` proves the code we wrote; this proves the 407 crates we did not.
+  # It runs in parallel with the toolchain jobs (it needs no rustc) and gates the
+  # release, because since step 44 a green push ships to the cluster unattended.
+  supply-chain:
+    needs: conventions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          # All four: advisories (RustSec + yanked) · bans (no openssl, no
+          # third-party wildcards) · licenses (the permissive allow-list) ·
+          # sources (crates.io only). Targets and `all-features` are set in
+          # deny.toml's [graph] — they are not CLI arguments.
+          command: check
+
   build-test:
     needs: conventions
     runs-on: ubuntu-latest
@@ -85,7 +102,7 @@ jobs:
   # already shipped, and releasing again would rebuild the same tree under a second SHA.
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [conventions, build-test, client-build]
+    needs: [conventions, supply-chain, build-test, client-build]
     permissions:
       contents: read
       packages: write

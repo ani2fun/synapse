@@ -1,0 +1,44 @@
+# Dependency updates for all three ecosystems this repo actually ships from:
+# cargo (server + client + shared), npm (the TS islands and the vite build), and
+# the GitHub Actions themselves — the last one matters because a compromised or
+# abandoned action runs with `packages: write` in the release job.
+#
+# Weekly, not daily: every merged bump now builds an image and promotes it to the
+# cluster (step 44), so the cadence is a deploy cadence.
+version: 2
+
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for the noisy, low-risk patch traffic; anything minor/major stays
+      # its own PR so it gets read.
+      patch-updates:
+        update-types: [patch]
+
+  - package-ecosystem: npm
+    directory: /client
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      patch-updates:
+        update-types: [patch]
+    ignore:
+      # Pinned deliberately and verified against the toolchain in
+      # dev-tools/build-wasm.sh + the Dockerfile's wasm-bindgen-cli 0.2.126 —
+      # these must move together or the wasm build breaks, so they are a manual
+      # decision rather than a bot's.
+      - dependency-name: monaco-editor
+      - dependency-name: "@terrastruct/d2"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday

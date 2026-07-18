@@ -1,0 +1,109 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# SUPPLY-CHAIN POLICY (step 45)
+# ──────────────────────────────────────────────────────────────────────────────
+# The repo is public and, since step 44, every green push to main builds an image
+# and promotes it into the cluster. That makes the dependency tree — 407 crates —
+# a production surface with no human in the loop, so it needs a gate of its own:
+# `cargo test` proves our code, this proves the code we did not write.
+#
+# Run locally exactly as CI does:  cargo deny check
+# ──────────────────────────────────────────────────────────────────────────────
+
+[graph]
+# Only the platforms we actually ship: the server image (linux/amd64, Dockerfile)
+# and the browser bundle. Without this, advisories for targets we never build
+# (windows, ios, wasi) would fail the gate on findings that cannot reach us.
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "wasm32-unknown-unknown",
+    "aarch64-apple-darwin", # the dev machine — keeps local runs matching CI
+]
+all-features = true
+
+# ── advisories ────────────────────────────────────────────────────────────────
+# The half that matters most. `deny` on both is the point of the exercise; an
+# advisory gate that warns is an advisory gate nobody reads.
+[advisories]
+version = 2
+yanked = "deny"
+# Vulnerabilities always deny, for every crate in the graph — that is not
+# configurable here and should not be.
+#
+# `unmaintained` is scoped to workspace dependencies on purpose. The two hits in
+# today's tree — proc-macro-error2 and paste — are BUILD-TIME proc-macro crates
+# pulled in transitively by leptos_macro, both carrying "no safe upgrade is
+# available". Neither ships in the server binary or the wasm bundle. Denying them
+# would mean a permanently red gate we cannot clear by any action of our own,
+# and a gate that is always red is a gate nobody reads. Scoped to `workspace`, it
+# still fails loudly the moment WE take a direct dependency on something
+# abandoned — which is the case we can actually act on.
+unmaintained = "workspace"
+ignore = []
+
+# ── licences ──────────────────────────────────────────────────────────────────
+# Every crate in the current tree is permissive (MIT / Apache-2.0 dominate, with
+# Unicode-3.0, Zlib, ISC, BSL-1.0, BSD-3-Clause and Unlicense in the tail). The
+# allow-list is deliberately exhaustive rather than broad: a new copyleft
+# dependency should stop CI and be a decision, not slip in under a wildcard.
+[licenses]
+version = 2
+confidence-threshold = 0.9
+# Our own three crates carry no `license` field and should not: they are
+# `publish = false` — a binary and two internal libraries, never distributed as
+# packages. This exempts exactly those, not third-party crates.
+private = { ignore = true }
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    # webpki-roots: the Mozilla CA bundle rustls ships. A DATA licence on a
+    # certificate store rather than a code licence, and permissive in substance —
+    # no copyleft, no obligation beyond keeping the notice. This is the crate that
+    # fixed the production sign-in 503 (rustls-tls carries its own roots), so it
+    # is load-bearing rather than incidental.
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+# Note: MPL-2.0 is deliberately NOT allowed. Nothing in the tree uses it, and
+# pre-allowing a weak-copyleft licence nothing needs is permission granted in
+# advance for a decision no one has made. If an MPL crate ever arrives, the gate
+# should stop and someone should look at it.
+
+# ── bans ──────────────────────────────────────────────────────────────────────
+# `multiple-versions = "warn"`, not deny, and that is a considered choice: the
+# four duplicate pairs in this tree (thiserror 1/2, getrandom 0.2/0.4,
+# hashbrown 0.15/0.17, convert_case 0.6/0.11) are ALL transitive — no workspace
+# manifest asks for them, so denying would fail the build over something we
+# cannot fix without waiting on upstream. Warn keeps them visible.
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"          # no `version = "*"` in our own manifests
+# …but `{ path = "../shared" }` is not that. cargo-deny reads a version-less path
+# dependency as a wildcard; within one workspace it is the normal spelling, and
+# there is no registry version to pin against. Third-party wildcards still deny.
+allow-wildcard-paths = true
+highlight = "all"
+deny = [
+    # We compile with `forbid(unsafe_code)` and drive TLS through rustls, which
+    # bundles its own roots (the fix for the production sign-in 503). openssl
+    # would quietly reintroduce a system-library dependency the image does not
+    # carry — see server/tests/outbound_tls_it.rs.
+    { name = "openssl" },
+    { name = "openssl-sys" },
+]
+
+# ── sources ───────────────────────────────────────────────────────────────────
+# crates.io only. No git dependencies, no alternative registries: a git dep is a
+# moving target that `cargo deny` cannot audit and `Cargo.lock` pins only by
+# commit.
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
