@@ -57,8 +57,11 @@ jobs:
       - name: bundle budget (700 KiB gz critical path)
         run: dev-tools/check-bundle-budget.sh
 
-  # The image must always BUILD (the budget gate runs inside it); pushing is main-only.
+  # The image must always BUILD (the budget gate runs inside it). On PRs that is a smoke
+  # build and nothing more; on main the `release` job below does the same build for real, so
+  # this one steps aside rather than building the image twice.
   docker:
+    if: github.event_name != 'push' || github.ref != 'refs/heads/main'
     needs: [conventions, build-test, client-build]
     runs-on: ubuntu-latest
     steps:
@@ -66,3 +69,37 @@ jobs:
       - uses: docker/setup-buildx-action@v3
       - name: docker smoke build
         run: docker buildx build --file Dockerfile --tag synapse-rs:ci .
+
+  # ── RELEASE (automatic since 2026-07-18) ──────────────────────────────────────
+  # Every push to main that clears the gates above ships: build → ghcr → patch the image tag
+  # in ani2fun/infra → ArgoCD rolls it out. No dispatch, no button.
+  #
+  # It lives HERE, as a job, rather than in a workflow of its own precisely so it can say
+  # `needs:` — the gates and the release have to be one dependency graph or they race, and a
+  # release that starts before clippy finishes is not gated at all. `workflow_run` would have
+  # given the ordering but not the SHA: in that context `github.sha` is the default branch's
+  # tip, not the commit that triggered it, so the image tag and the promoted tag could
+  # disagree under two quick pushes.
+  #
+  # Tags are excluded (`refs/heads/main` only): `step-*` tags point at a commit main has
+  # already shipped, and releasing again would rebuild the same tree under a second SHA.
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [conventions, build-test, client-build]
+    permissions:
+      contents: read
+      packages: write
+    # Never cancel a run mid-promote: it can push the image and die before patching infra,
+    # leaving the cluster on the previous tag with no signal that anything was missed.
+    concurrency:
+      group: synapse-rs-release
+      cancel-in-progress: false
+    uses: ./.github/workflows/_build-push-promote.yml
+    with:
+      image_repo: ghcr.io/ani2fun/synapse-rs
+      # The in-place cutover (2026-07-18): the Rust app owns the EXISTING
+      # `deploy/apps/synapse/` unit — same ArgoCD app, Service, Ingress, TLS and hostname —
+      # so promotes patch that overlay rather than a synapse-rs one that would duplicate them.
+      infra_kustomization_file: deploy/apps/synapse/overlays/prod/kustomization.yaml
+      commit_message: "chore(synapse): promote image to"
+    secrets: inherit

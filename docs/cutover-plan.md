@@ -19,7 +19,9 @@
 > 2. **The release workflow had never once run.** It failed at startup with no jobs and no logs:
 >    the repo's default workflow permission is `read`, and a called workflow can only narrow the
 >    caller's token, so the engine's `packages: write` was an escalation. A `workflow_dispatch`-only
->    pipeline is an untested pipeline.
+>    pipeline is an untested pipeline. *(Closed 2026-07-18, step 44: the release is now a job in
+>    `ci.yml` that runs on every push to main behind the gates — a pipeline that runs on every
+>    commit cannot rot unnoticed.)*
 > 3. **No TLS backend was compiled in**, so sign-in 503'd on the live site while every test stayed
 >    green — in dev every outbound call is plain http, which makes the production JWKS fetch the
 >    system's only https caller. See `server/tests/outbound_tls_it.rs`.

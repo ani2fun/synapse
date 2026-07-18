@@ -157,7 +157,19 @@ fn kind_label(kind: Kind) -> &'static str {
 pub fn SearchButton() -> impl IntoView {
     let store = SearchStore::from_context();
     view! {
-        <button class="header__search" title="Search the library (⌘K)" on:click=move |_| store.open()>
+        <button
+            class="header__search"
+            aria-label="Search the library"
+            title="Search the library (⌘K)"
+            on:click=move |_| store.open()
+        >
+            // The glyph carries the button on narrow screens, where the label and the ⌘K hint
+            // both stand down (there is no ⌘ on a phone to hint at).
+            <svg class="header__search-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.3-4.3"></path>
+            </svg>
             <span class="header__search-text">"Search the library…"</span>
             <kbd class="header__search-kbd">"⌘K"</kbd>
         </button>
