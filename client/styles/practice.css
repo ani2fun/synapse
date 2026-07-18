@@ -209,5 +209,9 @@ a.pwb__crumb:hover { color: hsl(var(--primary)); }
                     color: hsl(var(--muted-foreground)); }
 .subs__code-close { border: 0; background: none; font-size: 16px; cursor: pointer;
                     color: hsl(var(--muted-foreground)); }
-.subs__pre { margin: 0; padding: 12px; font-family: var(--font-mono); font-size: 12.5px;
-             line-height: 1.6; overflow-x: auto; background: #0e1116; color: #d7dce2; }
+.subs__code-actions { display: inline-flex; align-items: center; gap: 8px; }
+/* The card holds shiki's OWN <pre> (step 41 — a submission reads like every other code block
+   on the site), so this is a plain host: the slab colours ride on the shiki output itself. */
+.subs__pre { margin: 0; overflow-x: auto; background: #0e1116; }
+.subs__pre pre { margin: 0; padding: 12px; font-family: var(--font-mono); font-size: 12.5px;
+                 line-height: 1.6; background: transparent; }

@@ -124,3 +124,48 @@ reused `D2()` instance DEADLOCKS on concurrent compiles (3 diagrams rendering at
 task, concurrent), with a FRESH `new D2()` per render (only the multi-MB WASM import is cached).
 Prose-first is preserved — it comes from d2 being off the PARSE path, not from the laziness.
 Verified: all 3 d2 diagrams render with real viewBoxes (879×391, 192×208, 459×869), no hangs.
+
+## Q3 — The editorial's widget and solution code don't show up. Why? (2026-07-18)
+
+Two unrelated failures behind one symptom ("the block is missing"), both worth naming because
+each is a *class* of bug rather than a one-off.
+
+**(a) The editorial pane never hydrated what the pipeline planted.** Rendered markdown is inert
+HTML plus placeholders; something has to walk it and mount the interactive parts. Three surfaces
+render authored markdown — the reader lesson, the problem *description*, and the problem
+*editorial* — and each carried its own hand-written list of hydration calls. The editorial's
+list was short two entries: `hydrate_diagrams` and the viz-widget mount loop. So every `viz`
+fence in an editorial rendered as an empty box under its caption, which reads exactly like "the
+diagram is missing, only its title shows".
+
+The d2 half was a *regression I introduced* in Q2. Before prose-first, d2 was compiled to SVG at
+parse time and baked into the HTML, so it appeared on every surface without anyone hydrating
+anything. Moving d2 to client-side rendering silently made it depend on a hydration call the
+editorial didn't make. Mermaid had been broken there all along; nobody had noticed because no
+editorial used one.
+
+Fix: the widget mount loop, duplicated at two call sites and missing at the third, became
+`viz::blocks::mount_widgets` — one function all three surfaces call. The duplication *was* the
+bug: three hand-maintained lists drift, and the shortest one loses silently.
+
+**(b) Monaco mounted inside a collapsed section and never recovered.** The editorial's `##`
+sections become pills, and all but the first are `display: none` at mount. A solution viewer
+mounted inside one measures its container as 0×0. `automaticLayout: true` is supposed to cover
+this via a ResizeObserver, and it does not reliably fire in a way monaco acts on when the
+element is revealed later — the editor stays collapsed and renders **zero lines**. Clicking
+"Brute Force" gave you the prose and an empty space where the code should be.
+
+Measured before the fix: revealed section, monaco present, `width: 5px; height: 5px`,
+`.view-line` count **0**. After: `height: 520px`, `.view-line` count **20**.
+
+Fix: an explicit `relayout()` (monaco's `editor.layout()`) exposed through the handle, and the
+section switcher broadcasts `synapse:relayout` on `window` after toggling. The viewers listen
+rather than being reached into, so the switcher stays ignorant of what it revealed and any
+future editor in a collapsed container gets the same rescue for free. `layout()` is idempotent,
+so an already-sized listener pays nothing.
+
+**Verification note.** The automated browser pane renders at `window 0×0` with
+`visibilityState: hidden`, so every width it reports is meaningless — an early control
+experiment using widths pointed the wrong way. The `.view-line` count is a *structural* signal
+that survives the frozen renderer, and that is what actually settled it. Prefer counting DOM
+that must exist over measuring geometry that must be laid out.

@@ -102,6 +102,13 @@ export interface EditorHandle {
   setLineHighlights: (current: number, next: number | null) => void;
   /** Re-tokenize the buffer as another fence language — the workbench language tabs (step 30). */
   setLanguage: (fenceLang: string) => void;
+  /**
+   * Force a re-measure. `automaticLayout` observes the container, but a container inside a
+   * `display: none` ancestor measures 0×0 and renders no lines; revealing it does not reliably
+   * produce an observation monaco acts on. The editorial mounts its solution viewers inside
+   * collapsed section wrappers, so the reveal calls this (step 41).
+   */
+  relayout: () => void;
 }
 
 export interface EditorOptions {
@@ -225,6 +232,7 @@ export function createEditor(container: HTMLElement, opts: EditorOptions): Edito
       const model = editor.getModel();
       if (model) monaco.editor.setModelLanguage(model, monacoLanguage(fenceLang));
     },
+    relayout: () => editor.layout(),
     setLineHighlights: (current: number, next: number | null) => {
       const decos: monaco.editor.IModelDeltaDecoration[] = [
         {

@@ -228,18 +228,7 @@ fn loaded_lesson(payload: &LessonPayloadDto, segments: &[String]) -> AnyView {
                     codebench,
                 ));
                 // The viz widgets (step 27): every planted `div.viz-widget` mounts a host.
-                for (element, spec) in crate::viz::blocks::discover(&body) {
-                    let handle = leptos::mount::mount_to(element, move || {
-                        view! {
-                            <crate::viz::host::WidgetHost
-                                name=spec.name
-                                structure=spec.structure
-                                cases=spec.cases
-                            />
-                        }
-                    });
-                    handles.push(Box::new(handle));
-                }
+                handles.extend(crate::viz::blocks::mount_widgets(&body));
                 crate::log::debug(&format!(
                     "markdown rendered; mounted {} interactive block(s)",
                     handles.len()

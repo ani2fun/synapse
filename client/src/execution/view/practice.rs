@@ -383,6 +383,16 @@ fn SolutionViewer(
             }
         });
     });
+    // A viewer inside a collapsed editorial section mounts 0×0 and renders no lines. The
+    // section pills broadcast on reveal; re-measuring here is what makes the code appear.
+    let relayout = window_event_listener_untyped(editor::RELAYOUT_EVENT, move |_| {
+        mounted.with_value(|editor| {
+            if let Some(editor) = editor {
+                editor.relayout();
+            }
+        });
+    });
+    on_cleanup(move || relayout.remove());
     on_cleanup(move || mounted.set_value(None));
 
     // Switching languages swaps the ONE read-only Monaco in place (the editor pane's

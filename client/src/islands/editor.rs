@@ -5,6 +5,11 @@
 
 use wasm_bindgen::prelude::*;
 
+/// Broadcast on `window` when something revealed an editor that may have mounted collapsed
+/// (the editorial's section pills). Every mounted viewer re-measures; `layout()` is idempotent,
+/// so a listener that was already sized pays nothing.
+pub const RELAYOUT_EVENT: &str = "synapse:relayout";
+
 #[wasm_bindgen(module = "@editor/loader")]
 extern "C" {
     #[wasm_bindgen(js_name = mountEditor)]
@@ -33,6 +38,8 @@ extern "C" {
     fn set_line_highlights_js(this: &EditorHandle, current: u32, next: Option<u32>);
     #[wasm_bindgen(method, js_name = setLanguage)]
     fn set_language_js(this: &EditorHandle, fence_lang: &str);
+    #[wasm_bindgen(method, js_name = relayout)]
+    fn relayout_js(this: &EditorHandle);
     #[wasm_bindgen(method, js_name = dispose)]
     fn dispose_js(this: &EditorHandle);
 }
@@ -71,6 +78,13 @@ impl MountedEditor {
     /// Re-tokenize the buffer as another fence language (the workbench language tabs).
     pub fn set_language(&self, fence_lang: &str) {
         self.handle.set_language_js(fence_lang);
+    }
+
+    /// Force a re-measure after the editor's container changes size for a reason monaco's own
+    /// observer can miss — chiefly a reveal out of `display: none`, where it mounted 0×0 and
+    /// rendered no lines. Idempotent and cheap.
+    pub fn relayout(&self) {
+        self.handle.relayout_js();
     }
 }
 

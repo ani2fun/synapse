@@ -3,6 +3,9 @@
 //! resolution and payload decode are INDEPENDENT, so the host can tell "unknown structure"
 //! from "unreadable payload" — honest cards, never a blank box.
 
+use std::any::Any;
+
+use leptos::prelude::*;
 use synapse_shared::viz::graph::VizCases;
 use synapse_shared::viz::vocabulary::VizStructure;
 use wasm_bindgen::JsCast;
@@ -29,6 +32,31 @@ pub fn discover(root: &web_sys::HtmlElement) -> Vec<(web_sys::HtmlElement, Widge
         out.push((element, decode(&name, &payload)));
     }
     out
+}
+
+/// Discover AND mount every planted widget, returning the mount handles.
+///
+/// Three surfaces render authored markdown — the reader lesson, the problem description, and
+/// the problem editorial — and each must mount what the pipeline plants. Keeping the loop here
+/// rather than inline at each call site is deliberate: the editorial shipped without it and
+/// every `viz` fence in an editorial rendered as an empty box under its caption.
+#[must_use]
+pub fn mount_widgets(root: &web_sys::HtmlElement) -> Vec<Box<dyn Any>> {
+    discover(root)
+        .into_iter()
+        .map(|(element, spec)| {
+            let handle = leptos::mount::mount_to(element, move || {
+                view! {
+                    <crate::viz::host::WidgetHost
+                        name=spec.name
+                        structure=spec.structure
+                        cases=spec.cases
+                    />
+                }
+            });
+            Box::new(handle) as Box<dyn Any>
+        })
+        .collect()
 }
 
 #[must_use]

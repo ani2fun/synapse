@@ -19,6 +19,7 @@ use crate::api;
 use crate::catalog::logic;
 use crate::execution::logic::Variant;
 use crate::execution::view::RunnableBlock;
+use crate::islands::editor::RELAYOUT_EVENT;
 use crate::islands::markdown;
 
 fn humanize(slug: &str) -> String {
@@ -163,7 +164,11 @@ pub fn ProblemWorkbench(payload: LessonPayloadDto, segments: Vec<String>) -> imp
                         </div>
                         <div class="pwb__pane" class:hidden=move || tab.get() != Tab::Submissions>
                             {move || subs_seen.get().then(|| view! {
-                                <SubmissionsFeed path=segments.read_value().clone() refetch=submitted />
+                                <SubmissionsFeed
+                                    path=segments.read_value().clone()
+                                    refetch=submitted
+                                    load_code=load_code
+                                />
                             })}
                         </div>
                     </div>
@@ -263,18 +268,7 @@ fn description_pane(
             );
             handles.extend(crate::catalog::view::diagrams::hydrate_diagrams(&node));
             handles.extend(crate::execution::view::hydrate_codebench_pills(&node, codebench));
-            for (element, spec) in crate::viz::blocks::discover(&node) {
-                let handle = leptos::mount::mount_to(element, move || {
-                    view! {
-                        <crate::viz::host::WidgetHost
-                            name=spec.name
-                            structure=spec.structure
-                            cases=spec.cases
-                        />
-                    }
-                });
-                handles.push(Box::new(handle));
-            }
+            handles.extend(crate::viz::blocks::mount_widgets(&node));
             mounts.set_value(handles);
         });
         true
@@ -322,6 +316,10 @@ fn editorial_pane(
                     mounts.update_value(|m| {
                         m.extend(crate::execution::view::mount_solutions(&node, load_code, theme));
                         m.extend(crate::execution::view::hydrate_codebench_pills(&node, codebench));
+                        // An editorial is authored markdown like any lesson: its diagrams and
+                        // widgets need the same hydration the reader and description panes do.
+                        m.extend(crate::catalog::view::diagrams::hydrate_diagrams(&node));
+                        m.extend(crate::viz::blocks::mount_widgets(&node));
                     });
                 }
                 Err(_) => node.set_text_content(Some(&md)),
@@ -351,6 +349,12 @@ fn editorial_pane(
                     list.add_1("hidden")
                 };
             }
+        }
+        // A revealed section's monaco mounted inside `display: none` and measured 0×0 — it
+        // renders no lines until told to re-measure. The viewers listen for this rather than
+        // being reached into, so the switcher stays ignorant of what it just revealed.
+        if let (Some(window), Ok(event)) = (web_sys::window(), web_sys::Event::new(RELAYOUT_EVENT)) {
+            let _ = window.dispatch_event(&event);
         }
     });
     on_cleanup(move || mounts.set_value(Vec::new()));
@@ -438,7 +442,11 @@ fn sectionize_editorial(node: &web_sys::HtmlElement) -> Vec<String> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[component]
-fn SubmissionsFeed(path: Vec<String>, refetch: RwSignal<u32>) -> impl IntoView {
+fn SubmissionsFeed(
+    path: Vec<String>,
+    refetch: RwSignal<u32>,
+    load_code: RwSignal<(u32, String, String)>,
+) -> impl IntoView {
     let auth = crate::identity::state::AuthStore::from_context();
     let rows: RwSignal<Option<Result<Vec<SubmissionDto>, String>>> = RwSignal::new(None);
     let selected: RwSignal<Option<String>> = RwSignal::new(None);
@@ -484,7 +492,7 @@ fn SubmissionsFeed(path: Vec<String>, refetch: RwSignal<u32>) -> impl IntoView {
                             <h3 class="psub__section">"All submissions"</h3>
                             {subs_table(&list, selected)}
                             <p class="psub__note psub__count">{format!("Showing {count} submission(s)")}</p>
-                            {code.map(|dto| code_card(&dto, selected))}
+                            {code.map(|dto| view! { <CodeCard dto=dto selected=selected load_code=load_code /> })}
                         }
                         .into_any()
                     }
@@ -555,18 +563,62 @@ fn subs_table(list: &[SubmissionDto], selected: RwSignal<Option<String>>) -> imp
     }
 }
 
-fn code_card(dto: &SubmissionDto, selected: RwSignal<Option<String>>) -> impl IntoView + use<> {
+/// A revealed submission's source: shiki-highlighted like every other code block on the site,
+/// and loadable straight into the right pane's matching language tab so a past attempt can be
+/// re-run without a copy-paste round trip.
+#[component]
+fn CodeCard(
+    dto: SubmissionDto,
+    selected: RwSignal<Option<String>>,
+    load_code: RwSignal<(u32, String, String)>,
+) -> impl IntoView {
     let title = format!("Submission {} · {}", &dto.id[..8.min(dto.id.len())], dto.language);
-    let source = dto.source.clone();
+    let source = StoredValue::new(dto.source.clone());
+    let language = StoredValue::new(dto.language.clone());
+    let node_ref: NodeRef<leptos::html::Div> = NodeRef::new();
+    // Highlight through the same island the markdown pipeline uses, so a submission reads
+    // exactly like the editorial's code. A failure falls back to the plain text it replaced.
+    Effect::new(move |ran: Option<bool>| {
+        if ran == Some(true) {
+            return true;
+        }
+        let Some(node) = node_ref.get() else { return false };
+        let (code, lang) = (source.read_value().clone(), language.read_value().clone());
+        spawn_local(async move {
+            match markdown::highlight(&code, &lang).await {
+                Ok(html) => node.set_inner_html(&html),
+                Err(error) => {
+                    crate::log::warn(&format!("submission highlight failed: {error:?}"));
+                    node.set_text_content(Some(&code));
+                }
+            }
+        });
+        true
+    });
     view! {
         <div class="subs__code">
             <div class="subs__code-head">
                 <span class="subs__code-title">{title}</span>
-                <button class="subs__code-close" aria-label="Close" on:click=move |_| selected.set(None)>
-                    "×"
-                </button>
+                <span class="subs__code-actions">
+                    <button
+                        class="wb__ghost"
+                        title="Load this submission into its language tab on the right"
+                        on:click=move |_| {
+                            load_code.update(|(tick, slot_lang, slot)| {
+                                *tick += 1;
+                                slot_lang.clone_from(&language.read_value());
+                                slot.clone_from(&source.read_value());
+                            });
+                        }
+                    >
+                        "Copy to editor"
+                    </button>
+                    <button class="subs__code-close" aria-label="Close" on:click=move |_| selected.set(None)>
+                        "×"
+                    </button>
+                </span>
             </div>
-            <pre class="subs__pre">{source}</pre>
+            <div class="subs__pre" node_ref=node_ref></div>
         </div>
     }
 }
