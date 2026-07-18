@@ -73,7 +73,8 @@ crumbs wrapped, prev/next fully visible, Contents stood down, the FAB opened the
 its ✕ was reachable for the first time. On a prose lesson at 1280px: 280px sidebar, no FAB,
 pager cards intact — untouched.
 
-379 rust + 74 vitest.
+379 rust + 74 vitest. (Step 41's 371 was correct for step 41 — the extra eight arrived with
+`fix(submission)`, which landed between the two steps and is unrelated to either.)
 
 ## The lesson
 

@@ -132,7 +132,7 @@ with the 3 workbenches and 5 mermaid diagrams untouched. On a `python run` lesso
 workbenches, 0 cards, and 11 bare `plaintext` output figures with no bar — the guard that
 matters most. `bash` and `toml` blocks took the bar and copy without a Run affordance.
 
-Critical path 634/700 KiB gz (+6). 379 rust + 74 vitest.
+Critical path 634/700 KiB gz (+6). 371 rust + 74 vitest.
 
 ## The two lessons worth keeping
 
