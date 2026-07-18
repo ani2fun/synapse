@@ -169,3 +169,53 @@ so an already-sized listener pays nothing.
 experiment using widths pointed the wrong way. The `.view-line` count is a *structural* signal
 that survives the frozen renderer, and that is what actually settled it. Prefer counting DOM
 that must exist over measuring geometry that must be laid out.
+
+## Q4 — Java Visualise shows the array unflipped, though the program output is flipped. Why? (2026-07-18)
+
+Reported on the flip-characters Java optimal solution: the trace ran, `System.out.println` showed
+`[u, o, i, e, a]`, and the widget sat at 5/5 still showing `[a, e, i, o, u]`.
+
+**The tracer was innocent.** Running the harness by hand through `/api/run` produced a complete
+29-step trace that steps into `parseCharArray` AND `flipCharacters` and contains every swap. The
+loss happened downstream, in the adapt pipeline: it split that single run into **three test
+cases** — a 5-step `main` prologue, the 15-step algorithm, and a 1-step tail — and the modal
+opens on Case 1, which is precisely the array before anything touched it.
+
+**Why it split.** `TraceSegmentation` starts a new case when the root variable rebinds to a heap
+object *disconnected* from the current one. That rule is right, and the input to it was wrong:
+
+```
+main            arr → id "1"
+flipCharacters  arr → id "2"      ← same array, passed by reference
+```
+
+The Java harness minted heap ids **per step, by walk order** — `emitStep` created a fresh
+`IdentityHashMap` and a fresh `nextId` counter each time. Entering `flipCharacters` put
+`Solution`'s `this` at the head of the walk, which shifted every subsequent ordinal by one, so the
+array's id moved from `1` to `2` and the segmenter concluded the root had become a different
+object.
+
+The shared pipeline's contract is that **a heap id identifies an object for the whole trace** —
+it compares ids *between* steps both to detect a rebound root and to diff new/changed nodes. The
+Python harness satisfies this for free with `oid = str(id(v))`. Java had no equivalent and was
+numbering instead of identifying.
+
+**The fix.** Identity→id now lives in a trace-lifetime `IdentityHashMap` (`Tracer.objectIds` +
+`idFor`), so an object keeps one id from first sight to the end. The per-step `seen` map is gone:
+the step's `heap` already serves as the visited set, because an entry is inserted *before* its
+contents are walked, so cycles find it there. A capped object (`MAX_OBJECTS`/`MAX_DEPTH`) still
+gets its stable id, it just isn't expanded.
+
+After: **one case, 20 steps**, `[a,e,i,o,u]` → `[u,e,i,o,u]` → `[u,e,i,o,a]` → `[u,o,i,o,a]` →
+`[u,o,i,e,a]`. It also now shows the array being *built* in `parseCharArray`, which is honest —
+that genuinely is the same object.
+
+**The guard.** `server/tests/java_tracer_it.rs` (gated `GOJUDGE_IT`) runs a two-method Java
+program on real go-judge and asserts the array keeps one id across `main` and the callee. Only a
+real JVM run can catch this class of regression, so a committed fixture would have been theatre;
+the test was confirmed to fail against the pre-fix harness with `main (1)` vs `flip (2)`.
+
+**Method note.** The decisive step was reproducing the trace outside the browser and feeding it
+through the real `decode` + `adapt` in a throwaway test, printing the per-step root id. The
+symptom said "visualisation"; the evidence said "segmentation"; the cause was in the tracer. Each
+layer had to be measured rather than assumed.

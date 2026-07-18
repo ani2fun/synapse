@@ -44,6 +44,34 @@ class Tracer {
     static boolean truncated = false;
     static boolean stopped = false;
 
+    /**
+     * Identity → heap id, for the WHOLE trace. Heap ids must be stable across steps: the adapt
+     * pipeline compares the root's id BETWEEN steps to decide whether the root rebound to an
+     * unrelated structure (a new test case), and diffs ids to mark new/changed nodes. Python's
+     * harness gets this free from `id(obj)`; the JVM has no comparable stable handle, so identity
+     * is remembered here instead.
+     *
+     * Numbering per step (the original) renumbers by walk order, so the SAME array changes id the
+     * moment the walk order shifts — e.g. entering a method whose `this` is walked first. That
+     * reads downstream as "the root became a different object" and split one plain run into three
+     * phantom test cases, whose first case showed the array before the algorithm had touched it.
+     *
+     * This holds strong references for the run's duration, which is bounded by MAX_STEPS in a
+     * short-lived sandbox process; an id is never recycled, which is the point.
+     */
+    static final IdentityHashMap<Object, String> objectIds = new IdentityHashMap<>();
+    static int idSequence = 0;
+
+    /** The stable id for `v`, minted on first sight anywhere in the trace. */
+    static String idFor(Object v) {
+        String id = objectIds.get(v);
+        if (id == null) {
+            id = String.valueOf(++idSequence);
+            objectIds.put(v, id);
+        }
+        return id;
+    }
+
     /** Dedup state — collapses duplicate "line" events at the same (line, fn) pair. */
     static int lastLineEmitted = Integer.MIN_VALUE;
     static String lastFnEmitted = null;
@@ -118,17 +146,18 @@ class Tracer {
      */
     static void emitStep(int line, String event) {
         if (steps.size() >= MAX_STEPS) { truncated = true; stopped = true; return; }
+        // The heap is per step (only what this step reaches); the IDS inside it are not — see
+        // `objectIds`. `heap` doubles as the per-step visited set: an entry is inserted BEFORE
+        // its contents are walked, so cycles find it and return a plain Ref.
         Map<String, HeapObj> heap = new LinkedHashMap<>();
-        IdentityHashMap<Object, String> seen = new IdentityHashMap<>();
-        int[] nextId = { 0 };
         List<FrameSnap> snaps = new ArrayList<>();
         for (Frame fr : frameStack) {
             LinkedHashMap<String, Object> locals = new LinkedHashMap<>();
             if (fr.thisRef != null) {
-                locals.put("this", visit(fr.thisRef, heap, seen, nextId, 0));
+                locals.put("this", visit(fr.thisRef, heap, 0));
             }
             for (Map.Entry<String, Object> e : fr.locals.entrySet()) {
-                locals.put(e.getKey(), visit(e.getValue(), heap, seen, nextId, 0));
+                locals.put(e.getKey(), visit(e.getValue(), heap, 0));
             }
             snaps.add(new FrameSnap(fr.fn, locals));
         }
@@ -143,14 +172,12 @@ class Tracer {
      * become `{type: "array", items}`; all other objects become `{type: "object", cls, fields}` with
      * declared instance fields expanded via reflection. Synthetic fields (the implicit `this$0` on
      * inner classes) and static fields are skipped — neither is part of the instance state being
-     * shown. Cycles are caught by the `seen` IdentityHashMap; `MAX_OBJECTS` / `MAX_DEPTH` cap walks
-     * over pathological graphs.
+     * shown. Ids come from `idFor` and are stable for the whole trace; a cycle (or a second path
+     * to the same object) is caught by `heap` already holding the id, since the entry is inserted
+     * before its contents are walked. `MAX_OBJECTS` / `MAX_DEPTH` cap walks over pathological
+     * graphs — a capped object still gets its stable id, it just isn't expanded.
      */
-    static Object visit(Object v,
-                        Map<String, HeapObj> heap,
-                        IdentityHashMap<Object, String> seen,
-                        int[] nextId,
-                        int depth) {
+    static Object visit(Object v, Map<String, HeapObj> heap, int depth) {
         if (v == null) return JNull.INSTANCE;
         if (v instanceof Boolean) return v;
         if (v instanceof Character) return String.valueOf(((Character) v).charValue());
@@ -159,16 +186,12 @@ class Tracer {
             String s = (String) v;
             return s.length() <= MAX_STRING ? s : s.substring(0, MAX_STRING) + "…";
         }
-        String id = seen.get(v);
-        if (id != null) return new Ref(id);
+        String id = idFor(v);
+        if (heap.containsKey(id)) return new Ref(id);
         if (heap.size() >= MAX_OBJECTS || depth >= MAX_DEPTH) {
             truncated = true;
-            id = String.valueOf(++nextId[0]);
-            seen.put(v, id);
             return new Ref(id);
         }
-        id = String.valueOf(++nextId[0]);
-        seen.put(v, id);
         HeapObj obj = new HeapObj();
         heap.put(id, obj);
         Class<?> cls = v.getClass();
@@ -179,7 +202,7 @@ class Tracer {
             int cap = Math.min(len, MAX_OBJECTS);
             for (int i = 0; i < cap; i++) {
                 Object elt = java.lang.reflect.Array.get(v, i);
-                obj.items.add(visit(elt, heap, seen, nextId, depth + 1));
+                obj.items.add(visit(elt, heap, depth + 1));
             }
             if (len > cap) truncated = true;
         } else {
@@ -192,7 +215,7 @@ class Tracer {
                 try {
                     f.setAccessible(true);
                     Object fv = f.get(v);
-                    fields.put(f.getName(), visit(fv, heap, seen, nextId, depth + 1));
+                    fields.put(f.getName(), visit(fv, heap, depth + 1));
                 } catch (Throwable ignored) { }
             }
             obj.fields = fields;
