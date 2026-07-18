@@ -23,6 +23,26 @@ concurrency:
   group: synapse-go-judge-main
   cancel-in-progress: true
 
+# ⚠️ BROKEN — needs a one-time settings change, not a code change (found 2026-07-19).
+#
+# The only run this workflow has ever had (29636981917, 2026-07-18) failed at push with:
+#
+#   denied: permission_denied: write_package
+#     → ghcr.io/ani2fun/synapse-go-judge
+#
+# It is NOT the `packages: write` escalation that broke the app release — that block is
+# present below and correct, and the app image pushes to ghcr.io/ani2fun/synapse-rs from this
+# same repo with this same token. The difference is package-level: `synapse-rs` was created BY
+# this repository so this repository can write it, while `synapse-go-judge` was created by the
+# SCALA repo and its GHCR access list did not follow the move in aaf8e06.
+#
+# FIX (GitHub UI, package owner only):
+#   Packages → synapse-go-judge → Package settings → Manage Actions access
+#     → Add repository → ani2fun/synapse → role: Write
+#
+# Until then the production code-execution sandbox cannot be rebuilt — which is precisely the
+# scenario moving it here was meant to prevent. This is also why the GOJUDGE_IT suites are not
+# yet wired into ci.yml: there is no publishable image for CI to pull.
 permissions:
   contents: read
   packages: write

@@ -1,6 +1,11 @@
 //! Gated Postgres ITs (oracle: `PostgresSubmissionRepositoryIT`) — real database via
 //! `docker compose up -d db` (:5532), migrations applied, rows cleaned after. Run:
-//! `POSTGRES_IT=1 cargo test --test postgres_it -- --test-threads=1`
+//! `POSTGRES_IT=1 cargo test --test postgres_it`
+//!
+//! These run in CI on every push since step 45 (a `services: postgres` block), which is why
+//! `--test-threads=1` is no longer in that command: each test now owns a namespace instead of
+//! sharing one prefix, so the suite is safe under default parallelism.
+//!
 //! The crown piece: the FULL 202 → background judge → poll flow through the real router, the
 //! real Postgres, and a local go-judge stub.
 
@@ -30,6 +35,34 @@ use uuid::Uuid;
 
 const IT_PREFIX: &str = "it-rs";
 
+/// Each test gets its OWN namespace under `it-rs`, and cleans only that.
+///
+/// This used to be a single shared `it-rs` prefix wiped by every `gated_pool()` call, which
+/// meant two tests running concurrently deleted each other's fixtures —
+/// `listing_is_newest_first_and_narrows_by_user` would see 2 rows where it inserted 3. It
+/// never surfaced because the suite was env-gated and only ever run by hand, usually with
+/// `--test-threads=1`. Wiring it into CI (step 45) is what exposed it: shared mutable state
+/// under default parallelism is a flake waiting for a faster machine.
+///
+/// Callers pass a name unique to the test; `scoped_pool` derives the namespace from it.
+async fn scoped_pool(scope: &str) -> Option<(PgPool, String)> {
+    let pool = gated_pool().await?;
+    let namespace = format!("{IT_PREFIX}-{scope}");
+    // `lesson_path` is TEXT — the repository stores `path.join("/")`, not an array — so this
+    // is a prefix match on the namespace rather than the old `like 'it-rs%'` that reached
+    // into every other test's rows. Namespaces are distinct by construction
+    // (`it-rs-roundtrip`, `it-rs-listing`, `it-rs-flow`), so no run can touch another's.
+    sqlx::query("delete from submissions where lesson_path like $1")
+        .bind(format!("{namespace}/%"))
+        .execute(&pool)
+        .await
+        .unwrap();
+    Some((pool, namespace))
+}
+
+/// The pool alone, for tests that own their rows by primary key rather than by lesson path —
+/// the allowlist pair, which is keyed on a username it picks itself. They need no namespace
+/// and must NOT wipe submissions.
 async fn gated_pool() -> Option<PgPool> {
     if std::env::var("POSTGRES_IT").is_err() {
         eprintln!("skipped (set POSTGRES_IT=1 with docker compose db on :5532)");
@@ -43,18 +76,13 @@ async fn gated_pool() -> Option<PgPool> {
         .await
         .unwrap();
     sqlx::migrate!("../migrations").run(&pool).await.unwrap();
-    sqlx::query("delete from submissions where lesson_path like $1")
-        .bind(format!("{IT_PREFIX}%"))
-        .execute(&pool)
-        .await
-        .unwrap();
     Some(pool)
 }
 
-fn submission(path_tail: &str, state: SubmissionState) -> Submission {
+fn submission_in(namespace: &str, path_tail: &str, state: SubmissionState) -> Submission {
     Submission {
         id: SubmissionId(Uuid::new_v4()),
-        lesson_path: vec![IT_PREFIX.to_owned(), path_tail.to_owned()],
+        lesson_path: vec![namespace.to_owned(), path_tail.to_owned()],
         language: "python".to_owned(),
         source: "print(1)".to_owned(),
         user_id: None,
@@ -65,10 +93,12 @@ fn submission(path_tail: &str, state: SubmissionState) -> Submission {
 
 #[tokio::test]
 async fn the_state_adt_flattens_and_reassembles_through_jsonb() {
-    let Some(pool) = gated_pool().await else { return };
+    let Some((pool, ns)) = scoped_pool("roundtrip").await else {
+        return;
+    };
     let repo = PostgresSubmissionRepository::new(pool);
 
-    let pending = submission("roundtrip", SubmissionState::Pending);
+    let pending = submission_in(&ns, "roundtrip", SubmissionState::Pending);
     repo.save(&pending).await.unwrap();
     let stored = repo.get(pending.id).await.unwrap().unwrap();
     assert_eq!(stored.state, SubmissionState::Pending);
@@ -100,20 +130,22 @@ async fn the_state_adt_flattens_and_reassembles_through_jsonb() {
 
 #[tokio::test]
 async fn listing_is_newest_first_and_narrows_by_user() {
-    let Some(pool) = gated_pool().await else { return };
+    let Some((pool, ns)) = scoped_pool("listing").await else {
+        return;
+    };
     let repo = PostgresSubmissionRepository::new(pool);
 
-    let mut older = submission("list", SubmissionState::Pending);
+    let mut older = submission_in(&ns, "list", SubmissionState::Pending);
     older.created_at = Utc::now() - chrono::Duration::minutes(5);
-    let newer = submission("list", SubmissionState::Pending);
-    let mut theirs = submission("list", SubmissionState::Pending);
+    let newer = submission_in(&ns, "list", SubmissionState::Pending);
+    let mut theirs = submission_in(&ns, "list", SubmissionState::Pending);
     theirs.user_id = Some("someone".to_owned());
     theirs.created_at = Utc::now() - chrono::Duration::minutes(1); // deterministic ordering
     for s in [&older, &newer, &theirs] {
         repo.save(s).await.unwrap();
     }
 
-    let path = vec![IT_PREFIX.to_owned(), "list".to_owned()];
+    let path = vec![ns.clone(), "list".to_owned()];
     let all = repo.list_for(&path, None).await.unwrap();
     assert_eq!(all.len(), 3);
     assert_eq!(all[0].id, newer.id, "newest first");
@@ -131,7 +163,9 @@ async fn listing_is_newest_first_and_narrows_by_user() {
 /// pending/judging → completed accepted. Real router, real Postgres, real adapter chain.
 #[tokio::test]
 async fn the_full_submit_judge_poll_flow() {
-    let Some(pool) = gated_pool().await else { return };
+    let Some((pool, ns)) = scoped_pool("flow").await else {
+        return;
+    };
 
     // A go-judge lookalike that always accepts with stdout "6\n" (both cases expect 6).
     let stub = Router::new().route(
@@ -151,7 +185,7 @@ async fn the_full_submit_judge_poll_flow() {
 
     // A real problem lesson: prose + a testcases fence (tier 2).
     let tmp = tempfile::tempdir().unwrap();
-    let lesson_dir = tmp.path().join(format!("01-{IT_PREFIX}"));
+    let lesson_dir = tmp.path().join(format!("01-{ns}"));
     fs::create_dir_all(&lesson_dir).unwrap();
     fs::write(lesson_dir.join("book.json"), "{}").unwrap();
     fs::write(
@@ -171,8 +205,7 @@ async fn the_full_submit_judge_poll_flow() {
                 .uri("/api/submissions")
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
-                    json!({ "path": [IT_PREFIX, "flow"], "language": "py", "source": "print(6)" })
-                        .to_string(),
+                    json!({ "path": [&ns, "flow"], "language": "py", "source": "print(6)" }).to_string(),
                 ))
                 .unwrap(),
         )

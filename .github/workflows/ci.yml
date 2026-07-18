@@ -35,6 +35,32 @@ jobs:
   build-test:
     needs: conventions
     runs-on: ubuntu-latest
+    # The Postgres IT was env-gated and therefore ran nowhere: RS001 promised
+    # testcontainers, the reality was "hope someone remembers locally". That matters more
+    # here than in most codebases because sqlx is used through runtime `query()` rather than
+    # the compile-time-checked `query!` macros — so with the IT skipped, NOTHING validated
+    # the SQL. A schema-breaking change would have reached production green.
+    #
+    # 17-alpine matches docker-compose and prod. `synapse_rs` is the DEDICATED database, never
+    # the oracle's Liquibase-managed `synapse` — the ITs create and delete rows.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: synapse
+          POSTGRES_PASSWORD: synapse
+          POSTGRES_DB: synapse_rs
+        ports: ["5432:5432"]
+        # Without the health gate the suite races the server's first accept and fails
+        # intermittently — the worst kind of CI, the kind people learn to re-run.
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      POSTGRES_IT: 1
+      DATABASE_URL: postgres://synapse:synapse@localhost:5432/synapse_rs
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -45,8 +71,21 @@ jobs:
         run: cargo fmt --all --check
       - name: clippy (the anti-pattern gate — warnings are errors)
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-      - name: tests (unit + integration + contract lock)
+      - name: tests (unit + integration + contract lock + the Postgres IT)
         run: cargo test --workspace
+      - name: prove the Postgres IT actually RAN (a skip reports green)
+        # The gated ITs print "skipped (set POSTGRES_IT=1 …)" and still pass, which is the
+        # standard Rust workaround for having no native skip — and the reason this gap went
+        # unnoticed for so long. Assert on a test that only exists behind the gate, so a
+        # broken service block fails loudly instead of silently reverting to the old state.
+        run: |
+          cargo test --workspace --test postgres_it -- --nocapture 2>&1 | tee /tmp/pg.log
+          if grep -q "skipped (set POSTGRES_IT" /tmp/pg.log; then
+            echo "::error::the Postgres IT SKIPPED — the service or DATABASE_URL is wrong"
+            exit 1
+          fi
+          grep -qE "test result: ok\. [1-9]" /tmp/pg.log \
+            || { echo "::error::the Postgres IT ran no tests"; exit 1; }
 
   client-build:
     needs: conventions
