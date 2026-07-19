@@ -83,6 +83,7 @@ introduced the feature, never as later afterthoughts.
 | 53 | `step-53` | [The dev loop's ports](53-dev-loop-ports.md) | 2026-07-19 |
 | 54 | `step-54` | [The books that were never meant to ship](54-unpublishable-content.md) | 2026-07-19 |
 | 55 | `step-55` | [The tracer wrap, and a comment in the wrong file](55-tracer-wrap-tests.md) | 2026-07-19 |
+| 56 | `step-56` | [The ADR index](56-the-adr-index.md) | 2026-07-19 |
 
 > **Step 40's shape.** Every step through 39 is one squashed commit. Step 40 is eleven
 > (`c9b302f..HEAD`): its work was interactive — a design question, two answers built and kept,
