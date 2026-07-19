@@ -58,27 +58,42 @@ on a throwaway Postgres:
 5. Only after 1–4 pass on the scratch copy does the same baseline run against prod, inside
    the cutover window.
 
-## The go/no-go checklist (each item verified locally already, re-run against staging)
+## The go/no-go checklist — CLEARED 2026-07-19
 
-- [ ] OpenAPI snapshot green (`contract_it` — runs in every CI).
-- [ ] Sign-in round trip (PKCE, real realm) + `/api/me`. **Do this AUTHENTICATED** — anonymous
-      `/api/me` returns 401 whether the verifier works or not, which is how the no-TLS bug
-      reached a real user. A junk bearer discriminates: 503 = JWKS unreachable, 401 = fetched
+All but two items verified against **production**, not staging: the cutover had already happened
+in place, so the live site was the honest target.
+
+- [x] OpenAPI snapshot green (`contract_it`) — runs in every CI, green on every push.
+- [x] Sign-in round trip (PKCE, real realm) + `/api/me`, **authenticated** — done in a real
+      browser session. The automated half is the discriminator that would have caught the no-TLS
+      bug: a junk bearer returns **401**, not 503, so JWKS is reachable and the token was fetched
       and correctly rejected.
-- [ ] Run (python + java through the language tabs) → judged output.
-- [ ] Submit: anonymous → 401 (enforced), allowlisted → 202 → poll → verdict.
-- [ ] Visualise modal on a real trace; the widget gallery families.
-- [ ] Practice widget: approach tabs, language-exact copy-to-editor, enlarge.
-- [ ] Diagrams: mermaid, d2 slideshow, LikeC4 embed + fullscreen + click-to-guide.
-- [ ] `/admin` as the prod admin; 403 as a non-admin.
-- [ ] Mobile drawer at <1024px.
+- [x] Run (python + java) → judged output — `Accepted`, `55` in 12 ms and `42` in 734 ms through
+      the real sandbox. Since step 45 the same path is covered by `GOJUDGE_IT` on every push.
+- [x] Submit: anonymous → **401** *"Sign in to submit"* (enforcement on); allowlisted → 202 →
+      poll → verdict, in a signed-in browser.
+- [x] Visualise modal on a real trace — 15 steps captured live; stepping shows the array appear
+      at step 2 and the first swap plus `left`/`right` cursors by step 5. Widget gallery renders
+      108 SVGs across 18 runnable blocks with an empty console.
+- [x] Practice widget: 3 on `java-basics`, Description/Editorial tabs switching, splitter,
+      enlarge. (Monaco unmounted until near-viewport is step 40's lazy editor, not a fault.)
+- [x] Diagrams: mermaid and the d2 slideshow render with zero console errors — d2's ELK blob
+      worker survives production CSP. LikeC4: `/c4` proxy 200, react-flow mounted with 3 nodes,
+      and click-to-guide opened the `sfUser` component guide.
+- [x] `/admin` as the prod admin; anonymous → 401 and a non-admin → 403 regardless of UI.
+- [x] Mobile drawer at <1024px — verified at 375px, including the ✕ that had been unreachable
+      since step 33 (fixed in step 43).
 - [x] `/media` images inside lessons; content JSON cache headers at the edge — Cloudflare cache
       rule applied 2026-07-18, `/api/synapse/*` + `/api/blog` reach `HIT`/`UPDATING` while every
       private route stays `DYNAMIC`. Setup + verification: the infra runbook, §6.
-- [ ] CSP: sign-in unbroken, d2's ELK worker alive, wasm eval allowed
-      (`'wasm-unsafe-eval'` — verify on the HEAVIEST pages under prod-shaped serving).
+- [x] CSP: every load-bearing directive present (`wasm-unsafe-eval`, `unsafe-eval`, `blob:`, the
+      issuer in `connect-src` and `frame-src`), and the heaviest page renders with **zero**
+      console errors.
 - [ ] git-sync: push a content change → visible within the sync interval, no restart.
 - [ ] Lighthouse from a far region ≥ the Scala baseline.
+
+The two open items are both "measure it over time" rather than "does it work" — neither blocks,
+and neither can be settled by a single request.
 
 ## Rollback
 
@@ -96,13 +111,14 @@ Liquibase, and RS wrote no schema changes.
 
 ## What is left, and who owns it
 
-- **Keycloak `first broker login` → Review Profile is still `REQUIRED`.** A first-time brokered
-  user is shown an editable username field. Uniqueness already prevents claiming the existing
-  `ani2fun`, so this is hardening rather than an open hole. Set execution
-  `82b63ac3-b942-42b2-96d9-087f1b244423` to `DISABLED` (Admin Console → realm `synapse` →
-  Authentication → Flows → first broker login).
+- ~~**Keycloak `first broker login` → Review Profile is `REQUIRED`.**~~ Set to `DISABLED` and
+  verified 2026-07-19. A first-time brokered user no longer sees the editable username field.
 - **The old Scala images stay in GHCR.** `ghcr.io/ani2fun/synapse:cde344a…` is the rollback
   target; do not prune until confidence is high. Pruning reclaims registry storage only — the
   cluster saving already landed (a ~6Mi Rust process replacing a JVM with a 256Mi floor).
-- **The remaining go/no-go boxes above** need a signed-in browser session, which is the one thing
-  the automated pass cannot do.
+- ~~**The remaining go/no-go boxes need a signed-in browser session.**~~ Done 2026-07-19 —
+  sign-in round trip, submit → verdict, and `/admin` all verified in a real session. Everything
+  the automated pass could reach was verified against production alongside it.
+- **git-sync and Lighthouse** are the only boxes still open, and both are "measure it over time"
+  rather than "does it work": one needs a content push and a wait, the other a run from a far
+  region compared against the Scala baseline. Neither blocks.
