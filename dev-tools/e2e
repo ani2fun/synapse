@@ -55,4 +55,25 @@ curl -sf "http://localhost:$SYNAPSE_PORT/api/health" >/dev/null || {
 
 cd e2e
 [[ -d node_modules ]] || npm ci
-exec npx playwright test "$@"
+
+# Not `exec`: on failure we want to describe what the server was actually serving, and after
+# `exec` the EXIT trap has already killed it. A CI-only boot failure otherwise shows up as
+# "element(s) not found" with nothing to explain why.
+set +e
+npx playwright test "$@"
+PW_STATUS=$?
+set -e
+
+if [[ $PW_STATUS -ne 0 ]]; then
+  echo
+  echo "── the server was serving this ──"
+  echo "  index.html referenced assets:"
+  for a in $(curl -s "http://localhost:$SYNAPSE_PORT/" | grep -oE 'assets/[A-Za-z0-9_.-]+' | sort -u); do
+    echo "    $a -> $(curl -s -o /dev/null -w '%{http_code} %{content_type} %{size_download}B' \
+      "http://localhost:$SYNAPSE_PORT/$a")"
+  done
+  echo "  server log (tail):"
+  tail -30 /tmp/e2e-server.log | sed 's/^/    /' || true
+fi
+
+exit $PW_STATUS

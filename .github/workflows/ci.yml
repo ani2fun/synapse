@@ -278,14 +278,28 @@ jobs:
         working-directory: e2e
         run: npm ci && npx playwright install --with-deps chromium
       - name: smoke
-        run: dev-tools/e2e 2>&1 | tee /tmp/e2e.log
+        # `set -o pipefail` is LOAD-BEARING. A pipeline's exit status is its LAST command's, and
+        # `tee` always succeeds — so without this, a failing Playwright run reports success and
+        # the job that gates the release cannot fail. That is not hypothetical: the first run of
+        # this job went green with "4 failed, 3 passed" in its own log.
+        run: |
+          set -o pipefail
+          dev-tools/e2e 2>&1 | tee /tmp/e2e.log
       - name: prove the suite actually RAN (an empty run reports green)
         # Same trap as the Postgres and go-judge gates: zero tests executed is a pass. Assert a
-        # positive count, so a bad testDir or a filter typo fails loudly instead of quietly
-        # protecting nothing.
+        # positive count, so a bad testDir or a filter typo fails loudly instead of protecting
+        # nothing.
+        #
+        # The failure check is NOT redundant with pipefail above. This guard originally matched
+        # only "N passed" and was perfectly happy with "4 failed, 3 passed" — a guard that reads
+        # the right line and asks the wrong question. Both halves now have to hold.
         run: |
           grep -qE "[1-9][0-9]* passed" /tmp/e2e.log \
             || { echo "::error::the e2e suite ran no tests"; exit 1; }
+          if grep -qE "[0-9]+ failed" /tmp/e2e.log; then
+            echo "::error::the e2e suite reported failures"
+            exit 1
+          fi
       - if: failure()
         uses: actions/upload-artifact@v4
         with:

@@ -1,4 +1,6 @@
-import { expect, test } from "@playwright/test";
+// `test` comes from ./fixtures: it fails a spec on any uncaught page error, so a boot
+// failure names itself instead of surfacing as "element(s) not found".
+import { expect, test } from "./fixtures";
 
 /**
  * Phone width. Four separate steps shipped mobile-layout bugs that desktop checks could not
