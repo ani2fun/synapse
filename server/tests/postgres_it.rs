@@ -317,7 +317,12 @@ async fn readership_counts_and_orders_by_views() {
     store.record(&quiet, false).await.unwrap();
 
     let top = store.top(50).await.unwrap();
-    let mine: Vec<_> = top.iter().filter(|c| c.lesson_path.starts_with(&ns)).collect();
+    // Match on the namespace BOUNDARY, not the bare prefix. `it-rs-views-limit` starts with
+    // `it-rs-views`, so a plain `starts_with(&ns)` pulls the sibling test's rows in whenever the
+    // two run concurrently — which is the step-45 lesson repeating, one level down: the cleanup
+    // was already boundary-aware (`{namespace}/%`) and only the assertion filter was not.
+    let owned = format!("{ns}/");
+    let mine: Vec<_> = top.iter().filter(|c| c.lesson_path.starts_with(&owned)).collect();
 
     assert_eq!(mine.len(), 2, "one row per distinct path, not per view");
     assert_eq!(mine[0].lesson_path, popular, "most-read first");

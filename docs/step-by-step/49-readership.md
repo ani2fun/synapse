@@ -139,9 +139,48 @@ shared prefixes under parallel test execution.
 
 409 rust (+6) + 74 vitest. Conventions, fmt and clippy clean. Insomnia grew the request.
 
+## The flake this step shipped, and the fix
+
+The first push of this step went green locally and **failed in CI**, which is the correct way
+round and still embarrassing, because the bug is the step-45 lesson repeating one level down.
+
+The two Postgres tests take namespaces `it-rs-views` and `it-rs-views-limit`. The cleanup was
+boundary-aware — `delete … where lesson_path like '{namespace}/%'` — but the *assertion filter*
+was not:
+
+```rust
+top.iter().filter(|c| c.lesson_path.starts_with(&ns))   // ns = "it-rs-views"
+```
+
+`it-rs-views-limit` starts with `it-rs-views`. Under CI's default parallelism the sibling test's
+three rows landed inside the first test's filter, and the "one row per distinct path" assertion
+saw 5 where it expected 2. Locally the two happened to interleave the other way, so it passed —
+which is what a race is.
+
+Measured against the real database afterwards, which is what turned a plausible story into a
+confirmed one:
+
+```
+like 'it-rs-views%'   → 5 distinct paths   ← the old filter, and the failing assertion
+like 'it-rs-views/%'  → 2 distinct paths   ← the fix
+```
+
+The filter now matches on the namespace boundary, like the cleanup always did. Renaming one of
+the namespaces would also have made the symptom go away, and would have left the next
+prefix-shaped pair to find it again.
+
+`step-49` was re-tagged onto the fixed commit rather than left marking a red tree — the build
+book's invariant is that every tag compiles and its tests pass, and a tag whose CI never went
+green has no history worth preserving.
+
 ## The lesson
 
 **Instrumentation is not measurement.** The lesson path had been recorded on a span for four
 steps, and the honest answer to "which lessons do people read" was still "no idea" — because a
 span is a thing you can watch, not a thing you can ask. The gap between those two verbs was the
 entire feature, and it cost one table and one route.
+
+And a second, cheaper one: **the cleanup and the assertion have to agree about what a namespace
+is.** Step 45 fixed shared-prefix bleed in the *deletes* and stopped there. Every place that
+partitions test data by a string prefix is the same bug waiting — including the ones that only
+read.
