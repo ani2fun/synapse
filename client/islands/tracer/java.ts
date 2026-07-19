@@ -23,5 +23,10 @@ function utf8ToBase64(s: string): string {
 
 /** The traced program to send to /api/run: the harness with the user Java source embedded. */
 export function wrapJava(source: string): string {
+  // replaceAll, not replace — and HERE it is load-bearing. java-harness.java names the
+  // placeholder twice: once in its header comment (line 3) and once in the `USER_SOURCE_B64`
+  // constant that actually matters (line 80). `replace` would substitute the COMMENT and leave
+  // the constant holding the literal string, so the harness would compile, run, and decode a
+  // placeholder as though it were the user's program. Pinned by tracer.test.ts.
   return harness.replaceAll(PLACEHOLDER, utf8ToBase64(source));
 }

@@ -21,7 +21,9 @@ function utf8ToBase64(s: string): string {
 
 /** The traced program to send to /api/run: the harness with the user source embedded. */
 export function wrapPython(source: string): string {
-  // replaceAll, not replace: the placeholder appears in a harness comment too, and replace would only
-  // substitute the first (comment) occurrence, leaving the real b64decode call with the literal placeholder.
+  // replaceAll, not replace. Today python-harness.py mentions the placeholder exactly once, so
+  // the two are equivalent here — but its Java sibling does not (see java.ts), and a harness
+  // that grows a second mention must not quietly start embedding the payload in the wrong
+  // place. Pinned by tracer.test.ts rather than left to the comment.
   return harness.replaceAll(PLACEHOLDER, utf8ToBase64(source));
 }
