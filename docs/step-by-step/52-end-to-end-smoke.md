@@ -156,18 +156,41 @@ With the gate honest, the diagnostics named the cause in one line:
 pageerror: WebAssembly.Table.grow(): failed to grow table by 4
 ```
 
-Memory, not code. A GitHub runner has ~4 GB shared with the Postgres service container, and two
-workers across two projects meant several Chromium instances each instantiating a multi-megabyte
-wasm module simultaneously. The asset table printed alongside it ruled out the theory I would
-otherwise have chased first — every asset served `200` with the right content type, so nothing
-was 404ing; the wasm loaded and then failed to allocate. CI now runs one worker, with
-`--disable-dev-shm-usage`.
+That reads like memory pressure, and I treated it as such: a runner has ~4 GB shared with the
+Postgres service container, and two workers across two projects meant several Chromium instances
+each instantiating a multi-megabyte wasm module at once. I set `workers: 1`.
 
-There is an uncomfortable coincidence worth recording: `workers: 1` had been set earlier in this
-step and then *reverted*, because the reason given for it — CPU contention — was disproved when
-serialising made things worse. The setting was right and the reasoning was wrong, and reverting
-it was still correct: a config line justified by a false explanation is a trap for whoever reads
-it next. It is back now for a reason that has evidence behind it.
+**It failed again, identically, on one worker.** `Running 7 tests using 1 worker`, a single
+browser, same error. The hypothesis was wrong, and the run that disproved it is what forced the
+right question: production is Linux and works, CI is Linux and does not — so look at how the
+wasm is *built*, not at what runs it.
+
+| | binaryen | wasm runs? |
+|---|---|---|
+| Production (Docker) | **123**, pinned upstream | yes |
+| Local (macOS) | 130 | yes |
+| CI (`client-build` and `e2e`) | **108-1, from apt** | **no** |
+
+`apt-get install binaryen` on an Ubuntu runner gives **binaryen 108, released in 2022**, and its
+`wasm-opt -Oz` MISCOMPILES a module built by the 2026 toolchain. The output loads and then dies
+growing its function table.
+
+The Dockerfile has pinned upstream binaryen since step 35, and its comment gives the reason as
+*size* — 108 leaves ~270 KiB gz on the table. Correctness turns out to be the larger reason, and
+nobody knew, because **CI built that broken artifact from step 35 onward and never executed it**.
+`client-build` compiles the wasm, measures the bundle budget against it, and throws it away. The
+budget was being measured on a binary that could not run. The e2e suite is simply the first thing
+that ever loaded CI's own output in a browser — which is, precisely, the gap it was added to
+close.
+
+Both CI jobs now install upstream binaryen, reading the version **from the Dockerfile** so prod
+and CI cannot drift onto different optimisers.
+
+There is an uncomfortable coincidence in the middle of this: `workers: 1` had been set earlier in
+this step and then *reverted*, because the reason given for it — CPU contention — was disproved
+when serialising made things worse. It was reinstated here for a memory theory that was also
+wrong. The setting is harmless and stays, but it never fixed anything, and pretending otherwise
+would leave a third false explanation attached to the same line.
 
 The CI job gates the release: a broken reader now stops a deploy. It carries the same
 prove-it-RAN guard as the Postgres and sandbox gates — an empty run reports green, and that is

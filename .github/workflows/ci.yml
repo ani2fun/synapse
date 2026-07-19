@@ -204,8 +204,24 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: wasm-bindgen@0.2.126
-      - name: wasm-opt (binaryen)
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq binaryen
+      - name: wasm-opt (binaryen, upstream — NOT apt)
+        # apt ships binaryen 108, from 2022. Its `wasm-opt -Oz` MISCOMPILES a module built by
+        # the current toolchain: the result loads and then dies with
+        # `WebAssembly.Table.grow(): failed to grow table by 4`, so the app never mounts. CI
+        # built that artifact from step 35 onward and nothing ever executed it — the bundle
+        # budget measured a binary that could not run. The e2e suite is what finally ran it.
+        #
+        # The Dockerfile has pinned upstream binaryen since step 35 for a size reason (108
+        # leaves ~270 KiB gz on the table); correctness turns out to be the bigger one. The
+        # version is READ FROM the Dockerfile so the two can never drift — prod and CI must
+        # optimise with the same compiler.
+        run: |
+          set -euo pipefail
+          version=$(grep -oP 'ARG BINARYEN_VERSION=\K[0-9]+' Dockerfile)
+          echo "binaryen $version (from Dockerfile)"
+          curl -fsSL "https://github.com/WebAssembly/binaryen/releases/download/version_${version}/binaryen-version_${version}-x86_64-linux.tar.gz" \
+            | sudo tar -xz -C /usr/local --strip-components=1
+          wasm-opt --version
       - name: npm ci
         working-directory: client
         run: npm ci
@@ -262,8 +278,24 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: wasm-bindgen@0.2.126
-      - name: wasm-opt (binaryen)
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq binaryen
+      - name: wasm-opt (binaryen, upstream — NOT apt)
+        # apt ships binaryen 108, from 2022. Its `wasm-opt -Oz` MISCOMPILES a module built by
+        # the current toolchain: the result loads and then dies with
+        # `WebAssembly.Table.grow(): failed to grow table by 4`, so the app never mounts. CI
+        # built that artifact from step 35 onward and nothing ever executed it — the bundle
+        # budget measured a binary that could not run. The e2e suite is what finally ran it.
+        #
+        # The Dockerfile has pinned upstream binaryen since step 35 for a size reason (108
+        # leaves ~270 KiB gz on the table); correctness turns out to be the bigger one. The
+        # version is READ FROM the Dockerfile so the two can never drift — prod and CI must
+        # optimise with the same compiler.
+        run: |
+          set -euo pipefail
+          version=$(grep -oP 'ARG BINARYEN_VERSION=\K[0-9]+' Dockerfile)
+          echo "binaryen $version (from Dockerfile)"
+          curl -fsSL "https://github.com/WebAssembly/binaryen/releases/download/version_${version}/binaryen-version_${version}-x86_64-linux.tar.gz" \
+            | sudo tar -xz -C /usr/local --strip-components=1
+          wasm-opt --version
       - name: build the client
         working-directory: client
         run: npm ci && npm run build
