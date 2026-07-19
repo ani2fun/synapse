@@ -10,6 +10,8 @@ tower-http = { version = "0.6", features = [
     "compression-deflate",
     "trace",
     "request-id",
+    "limit",
+    "timeout",
     "util",
 ] }
 synapse-shared = { path = "../shared", features = ["openapi"] }

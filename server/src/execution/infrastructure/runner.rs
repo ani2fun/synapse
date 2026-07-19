@@ -20,7 +20,10 @@ use crate::execution::infrastructure::wire;
 
 const MAX_CONCURRENT_RUNS: usize = 8;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(100);
+/// Public so the router's global timeout can be checked against it: the edge must outlast the
+/// longest legitimate outbound call, or a slow-but-valid run is cut off at the door and the
+/// user sees a timeout instead of a clean TLE. Locked by a test in `platform::limits`.
+pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(100);
 
 pub struct GoJudgeRunner {
     client: reqwest::Client,

@@ -116,10 +116,14 @@ pub fn app(deps: AppDeps) -> Router {
                 .deflate(true)
                 .compress_when(tower_http::compression::predicate::SizeAbove::new(1024)),
         );
+    // Edge limits sit INSIDE tracing and outside everything else: a request killed by the
+    // timeout should still produce a span saying so, but nothing below should get the chance
+    // to read an unbounded body first.
+    let bounded = platform::limits::apply(stamped);
     // Tracing wraps everything (step 45), outside even compression: a span that starts
     // inside the header layers cannot report on them, and a request rejected at the edge is
     // exactly the one worth having a trace for.
-    platform::telemetry::apply(stamped)
+    platform::telemetry::apply(bounded)
 }
 
 /// The code-first OpenAPI document (utoipa). The contract-lock test diffs this rendered

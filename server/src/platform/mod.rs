@@ -8,6 +8,7 @@ pub mod content_cache_control;
 pub mod health;
 pub mod http;
 pub mod likec4_proxy;
+pub mod limits;
 pub mod media_routes;
 pub mod rate_limiter;
 pub mod readiness;

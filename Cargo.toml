@@ -77,6 +77,22 @@ missing_panics_doc = "allow"
 # for the wasm module. Deliberately NOT the workspace release profile — `panic = "abort"`
 # is right for a browser app (the hook prints, the app is dead anyway) and wrong for the
 # server (a handler panic must not kill the process).
+# The SERVER binary (step 45). The wasm bundle got a hand-tuned profile in step 35 while the
+# thing that actually serves production shipped on cargo's defaults — codegen-units = 16 and no
+# LTO, chosen for compile speed, which is the wrong trade for an artifact built once in CI and
+# then run for weeks.
+#
+# thin LTO rather than fat: it captures most of the cross-crate inlining at a fraction of the
+# link time, and the server is not size-constrained the way the wasm bundle is (where fat LTO
+# and opt-level = "z" earn their minutes against a 700 KiB budget).
+#
+# Debug symbols are KEPT — `strip = "none"` is the default and stays that way deliberately. A
+# panic backtrace from production is worth more than the megabytes, and the image is not on a
+# diet: the runtime layer is debian-slim plus one binary.
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
 [profile.wasm-release]
 inherits = "release"
 opt-level = "z"

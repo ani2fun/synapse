@@ -1,4 +1,13 @@
+# Pinned to an EXACT version, not "stable" (step 45).
+#
+# CI runs `cargo clippy -- -D warnings` with the pedantic set enabled. On a floating channel a
+# new stable every six weeks can add a lint and turn CI red on code nobody touched — the build
+# breaking for a reason that is not in the diff, which is the worst kind of red because the
+# first instinct is to look for what you changed.
+#
+# Bumping is now a deliberate commit: raise this, run the gates, fix whatever the new lints
+# find, and ship that as its own change with the failures visible in one place.
 [toolchain]
-channel = "stable"
+channel = "1.97.0"
 components = ["rustfmt", "clippy"]
 targets = ["wasm32-unknown-unknown"]
