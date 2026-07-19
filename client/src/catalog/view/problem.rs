@@ -74,6 +74,46 @@ fn contents_button() -> Option<impl IntoView> {
     })
 }
 
+/// The tab bar's glyphs (Lucide `file-text` · `book-open` · `graduation-cap` · `history`).
+/// `stroke="currentColor"` is the point: each icon inherits its tab's `--tab-hue` for free,
+/// so the colour lives entirely in CSS and this fn never learns about theming.
+fn tab_icon(tab: Tab) -> AnyView {
+    match tab {
+        Tab::Description => view! {
+            <svg class="problem-tab__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"></path>
+                <path d="M14 2v5h5 M16 13H8 M16 17H8 M10 9H8"></path>
+            </svg>
+        }
+        .into_any(),
+        Tab::Editorial => view! {
+            <svg class="problem-tab__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 7v14 M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4"></path>
+                <path d="M21 18a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4"></path>
+            </svg>
+        }
+        .into_any(),
+        Tab::Coach => view! {
+            <svg class="problem-tab__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M22 10v6 M2 10l10-5 10 5-10 5z"></path>
+                <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+            </svg>
+        }
+        .into_any(),
+        Tab::Submissions => view! {
+            <svg class="problem-tab__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 3v5h5"></path>
+                <path d="M3.05 13A9 9 0 1 0 6 5.3L3 8 M12 7v5l4 2"></path>
+            </svg>
+        }
+        .into_any(),
+    }
+}
+
 /// One step through the book's reading order. `prev`/`next` already ride on the payload — the
 /// prose reader spends them on its pager cards, and a problem page has no room for those.
 fn step_link(target: Option<&str>, step: Step) -> Option<impl IntoView + use<>> {
@@ -103,11 +143,14 @@ enum Tab {
     Submissions,
 }
 
-const TABS: [(Tab, &str); 4] = [
-    (Tab::Description, "Description"),
-    (Tab::Editorial, "Editorial"),
-    (Tab::Coach, "Coach"),
-    (Tab::Submissions, "Submissions"),
+/// `(tab, label, slug)` — the slug keys the `problem-tab--<slug>` modifier, which is what
+/// hands each tab its own `--tab-hue`. The practice widget reuses `.problem-tab` WITHOUT a
+/// modifier, so it keeps the default teal.
+const TABS: [(Tab, &str, &str); 4] = [
+    (Tab::Description, "Description", "description"),
+    (Tab::Editorial, "Editorial", "editorial"),
+    (Tab::Coach, "Coach", "coach"),
+    (Tab::Submissions, "Submissions", "submissions"),
 ];
 
 #[allow(clippy::needless_pass_by_value, clippy::too_many_lines)]
@@ -171,11 +214,11 @@ pub fn ProblemWorkbench(payload: LessonPayloadDto, segments: Vec<String>) -> imp
 
     let tab_buttons: Vec<_> = TABS
         .iter()
-        .map(|(t, label)| {
+        .map(|(t, label, slug)| {
             let t = *t;
             view! {
                 <button
-                    class="problem-tab"
+                    class=format!("problem-tab problem-tab--{slug}")
                     class:problem-tab--active=move || tab.get() == t
                     on:click=move |_| {
                         tab.set(t);
@@ -184,6 +227,7 @@ pub fn ProblemWorkbench(payload: LessonPayloadDto, segments: Vec<String>) -> imp
                         }
                     }
                 >
+                    {tab_icon(t)}
                     {*label}
                 </button>
             }
