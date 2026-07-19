@@ -14,3 +14,7 @@ CLAUDE.md
 .DS_Store
 .idea/
 .vscode/
+
+# playwright artefacts (traces/screenshots from failed runs)
+e2e/test-results/
+e2e/playwright-report/

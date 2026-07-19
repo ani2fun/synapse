@@ -212,6 +212,80 @@ jobs:
       - name: bundle budget (700 KiB gz critical path)
         run: dev-tools/check-bundle-budget.sh
 
+  # ── End-to-end smoke (step 52) ────────────────────────────────────────────────
+  # Every "Verified" section in 51 chapters was a human in a browser tab, and the classes of
+  # bug that survived that — a drawer under the fixed header for nine steps, a palette rendering
+  # at the page's bottom-left for a release — are exactly the ones a machine notices instantly.
+  #
+  # It runs against the PRODUCTION-SHAPED serve (the real server over a built dist), not Vite:
+  # per-page meta, cache headers and the security-header stack only exist on that path, and
+  # step 19's chapter records that dev never reproduces CSP breakage.
+  #
+  # Content comes from e2e/fixture-content, never ../synapse-content — CI has no content
+  # checkout, and pinning a smoke suite to another repository means an edit there can turn this
+  # one red.
+  e2e:
+    needs: conventions
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: synapse
+          POSTGRES_PASSWORD: synapse
+          POSTGRES_DB: synapse_rs
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      SYNAPSE_DATABASE_URL: postgres://synapse:synapse@localhost:5432/synapse_rs
+      SYNAPSE_ROOT: e2e/fixture-content
+      STATIC_ROOT: client/dist
+      SYNAPSE_PORT: 8280
+      E2E_BASE_URL: http://localhost:8280
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@0.2.126
+      - name: wasm-opt (binaryen)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq binaryen
+      - name: build the client
+        working-directory: client
+        run: npm ci && npm run build
+      # Chromium is ~130 MB and rust-cache does not cover it — without this the browser is
+      # re-downloaded on every run.
+      - name: cache the browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package-lock.json') }}
+      - name: install playwright
+        working-directory: e2e
+        run: npm ci && npx playwright install --with-deps chromium
+      - name: smoke
+        run: dev-tools/e2e 2>&1 | tee /tmp/e2e.log
+      - name: prove the suite actually RAN (an empty run reports green)
+        # Same trap as the Postgres and go-judge gates: zero tests executed is a pass. Assert a
+        # positive count, so a bad testDir or a filter typo fails loudly instead of quietly
+        # protecting nothing.
+        run: |
+          grep -qE "[1-9][0-9]* passed" /tmp/e2e.log \
+            || { echo "::error::the e2e suite ran no tests"; exit 1; }
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: e2e/test-results/
+          retention-days: 7
+
   # The image must always BUILD (the budget gate runs inside it). On PRs that is a smoke
   # build and nothing more; on main the `release` job below does the same build for real, so
   # this one steps aside rather than building the image twice.
@@ -250,7 +324,7 @@ jobs:
     if: >-
       github.event_name == 'push' && github.ref == 'refs/heads/main'
       && needs.changes.outputs.code != 'false'
-    needs: [changes, conventions, supply-chain, build-test, client-build, gojudge-it]
+    needs: [changes, conventions, supply-chain, build-test, client-build, gojudge-it, e2e]
     permissions:
       contents: read
       packages: write

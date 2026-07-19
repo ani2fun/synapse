@@ -208,7 +208,17 @@ fn loaded_lesson(payload: &LessonPayloadDto, segments: &[String]) -> AnyView {
                 // The oracle's pattern (`el.innerHTML = html` then mount blocks): write the DOM
                 // directly and hydrate in the same breath — no render-effect race. The signal
                 // stays for the placeholder/error states only.
-                let Some(body) = body_ref.get_untracked() else {
+                // `try_`, not `get_untracked()`. This async block routinely OUTLIVES the render
+                // that spawned it — navigating away, or any re-render of the lesson, disposes
+                // this owner while the markdown island is still working. `get_untracked()`
+                // PANICS on a disposed reactive value rather than returning `None`, and a panic
+                // in wasm is a dead app: the body stays on "rendering…" forever and every
+                // island on the page stops responding.
+                //
+                // The `else { return }` was always the intent — "this render is stale, do
+                // nothing". `try_get_untracked` is what makes that true instead of aspirational.
+                let Some(Some(body)) = body_ref.try_get_untracked() else {
+                    crate::log::debug("markdown landed after the lesson was disposed — dropping it");
                     return;
                 };
                 body.set_inner_html(&rendered);
@@ -244,15 +254,21 @@ fn loaded_lesson(payload: &LessonPayloadDto, segments: &[String]) -> AnyView {
                     "markdown rendered; mounted {} interactive block(s)",
                     handles.len()
                 ));
-                mounts.set_value(handles);
+                // Same hazard: a disposed `StoredValue` panics on write. Reaching here means
+                // the body WAS still alive a moment ago, but disposal can land between the two.
+                let _ = mounts.try_set_value(handles);
             }
             Err(error) => {
                 crate::log::error(&format!("markdown render failed: {error:?}"));
-                html.set(format!("<p>markdown island failed: {error:?}</p>"));
+                // ...and again on the error path, which never went through the guard above.
+                let _ = html.try_set(format!("<p>markdown island failed: {error:?}</p>"));
             }
         }
     });
-    on_cleanup(move || mounts.set_value(Vec::new()));
+    // `try_`: cleanup runs DURING disposal, so the value it is clearing may already be gone.
+    on_cleanup(move || {
+        let _ = mounts.try_set_value(Vec::new());
+    });
 
     // Problem pages render the TWO-PANE workbench instead of the prose column (oracle:
     // ProblemWorkbench; the parity list's item 2) — full width, no TOC/prefs chrome.

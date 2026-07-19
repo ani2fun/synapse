@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Run the e2e smoke suite against a PRODUCTION-SHAPED serve — the real server over a built
+# `client/dist`, not Vite. See e2e/playwright.config.ts for why that distinction matters.
+#
+# Needs the oracle's backing services (synapse-rs has no compose of its own):
+#   cd ~/Development/homelab/synapse && docker compose up -d db
+# and the DEDICATED database, never the oracle's Liquibase-managed `synapse`.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+export SYNAPSE_DATABASE_URL="${SYNAPSE_DATABASE_URL:-postgres://synapse:synapse@localhost:5532/synapse_rs}"
+# The FIXTURE content by default, not ../synapse-content: CI has no content checkout, and a
+# smoke suite pinned to real content means an unrelated edit in another repository can turn
+# this one red. Point SYNAPSE_ROOT at the real tree to spot-check against it.
+export SYNAPSE_ROOT="${SYNAPSE_ROOT:-e2e/fixture-content}"
+export STATIC_ROOT="${STATIC_ROOT:-client/dist}"
+export SYNAPSE_PORT="${SYNAPSE_PORT:-8280}"
+
+if [[ ! -d "$STATIC_ROOT" ]]; then
+  echo "→ no dist at $STATIC_ROOT — building the client"
+  (cd client && npm run build)
+fi
+
+echo "→ starting the server on :$SYNAPSE_PORT over $STATIC_ROOT"
+cargo run -p synapse-server --quiet &
+SERVER_PID=$!
+trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+
+for _ in $(seq 1 60); do
+  curl -sf "http://localhost:$SYNAPSE_PORT/api/health" >/dev/null && break
+  sleep 1
+done
+curl -sf "http://localhost:$SYNAPSE_PORT/api/health" >/dev/null \
+  || { echo "✗ the server never became ready"; exit 1; }
+
+cd e2e
+[[ -d node_modules ]] || npm ci
+exec npx playwright test "$@"

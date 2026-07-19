@@ -79,6 +79,7 @@ introduced the feature, never as later afterthoughts.
 | 49 | `step-49` | [Readership](49-readership.md) | 2026-07-19 |
 | 50 | `step-50` | [Discoverability](50-discoverability.md) | 2026-07-19 |
 | 51 | `step-51` | [Reading progress](51-reading-progress.md) | 2026-07-19 |
+| 52 | `step-52` | [The end-to-end smoke suite](52-end-to-end-smoke.md) | 2026-07-19 |
 
 > **Step 40's shape.** Every step through 39 is one squashed commit. Step 40 is eleven
 > (`c9b302f..HEAD`): its work was interactive — a design question, two answers built and kept,
