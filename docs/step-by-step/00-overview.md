@@ -73,6 +73,7 @@ introduced the feature, never as later afterthoughts.
 | 43 | `step-43` | [Floating problem-page navigation](43-floating-problem-navigation.md) | 2026-07-18 |
 | 44 | `step-44` | [Automatic releases](44-automatic-releases.md) | 2026-07-18 |
 | 45 | `step-45` | [Production readiness](45-production-readiness.md) | 2026-07-19 |
+| 46 | `step-46` | [The mobile reader](46-the-mobile-reader.md) | 2026-07-19 |
 
 > **Step 40's shape.** Every step through 39 is one squashed commit. Step 40 is eleven
 > (`c9b302f..HEAD`): its work was interactive — a design question, two answers built and kept,

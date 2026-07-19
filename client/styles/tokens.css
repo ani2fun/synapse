@@ -121,9 +121,22 @@
 
 /* ── base (the oracle's @layer base) ── */
 /* Tailwind v4 defaults borders to currentColor — this universal reset is load-bearing. */
+/* `border-color` here has been load-bearing since step 25 (the universal border reset the
+   oracle's palette depends on). `box-sizing` joins it in step 46, and it is the fix for a
+   whole CLASS of bug rather than one instance: without it every `width: 100%` rule that also
+   carries padding or a border overflows its parent by exactly that much. Measured on a phone
+   before this line existed — a `width: 100%` element with `padding: 0 1rem` came out 347px
+   inside a 313px column, and three shipped rules were doing precisely that
+   (`.diagram__figure`, `.diagram-error`, `.cmdk__input`).
+
+   That overflow is what made the reader's document 554px wide in a 393px viewport, which in
+   turn threw the fixed FAB rail 141px off-screen — `position: fixed; right: 20px` resolves
+   against the LAYOUT viewport, and the overflow had stretched it. One missing line, two
+   apparently unrelated symptoms. */
 *,
 ::after,
 ::before {
+  box-sizing: border-box;
   border-color: hsl(var(--border));
 }
 html {

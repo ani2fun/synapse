@@ -8,6 +8,11 @@
 .synapse-prose {
   line-height: 1.7;
   color: hsl(var(--foreground) / 0.9);
+  /* Prose had NO wrapping assistance of any kind before step 46 — `overflow-wrap`,
+     `word-break` and `hyphens` appeared zero times in the whole styles directory. At a 313px
+     column on a phone, one bare URL or one long inline `code` identifier was enough to widen
+     the document and take the fixed button rail off-screen with it. */
+  overflow-wrap: break-word;
 }
 .synapse-prose h1, .synapse-prose h2, .synapse-prose h3, .synapse-prose h4 {
   color: hsl(var(--foreground));
@@ -27,7 +32,16 @@
   color: hsl(var(--muted-foreground));
   background: hsl(var(--primary) / 0.06);
 }
-.synapse-prose table { border-collapse: collapse; margin: 1em 0; }
+/* A markdown table sizes to its content, and nothing here constrained it: a four-column table
+   measured 514px inside a 313px phone column and pushed the whole DOCUMENT to 554px. Removing
+   tables from that page dropped it to exactly 393px, which is how the diagnosis landed.
+
+   `display: block` + `width: max-content` + `max-width: 100%` + `overflow-x: auto` is the
+   standard idiom: the table keeps its natural column widths and scrolls INSIDE the prose
+   column instead of widening the page. Done in CSS rather than by wrapping tables in a div in
+   render.ts — that would need a pipeline change and a vitest for no extra benefit. */
+.synapse-prose table { border-collapse: collapse; margin: 1em 0;
+                       display: block; width: max-content; max-width: 100%; overflow-x: auto; }
 .synapse-prose th, .synapse-prose td { border: 1px solid hsl(var(--border)); padding: 0.4em 0.75em; }
 .synapse-prose th { background: hsl(var(--muted) / 0.5); }
 .synapse-prose img { max-width: 100%; }

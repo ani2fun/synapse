@@ -103,9 +103,14 @@
 .diagram--slides .diagram__figure { height: clamp(16rem, 70vh, 32rem); align-items: center; }
 .diagram--slides .diagram__figure svg { max-height: 100%; }
 
-/* ── the LikeC4 lesson embed: the authored <iframe> on a rounded dark frame ── */
-.reader-prose iframe[src^="/c4/"] { width: 100%; border: 1px solid hsl(var(--border));
-                                    border-radius: 12px; background: #101014; }
+/* ── the LikeC4 lesson embed: the authored <iframe> on a rounded dark frame ──
+   Targeted `.reader-prose iframe[…]` until step 46, which matched NOTHING: the prose container
+   is `lesson-body synapse-prose`, and the only `reader-prose*` classes in the app are the BEM
+   children `__back` / `__title` / `__lede`. So the width cap never applied and an authored
+   `width="800"` iframe ran straight off a phone. `.c4-embed` is the wrapper c4.rs actually
+   creates around every `iframe[src^='/c4/']`, so this now binds. */
+.c4-embed iframe { width: 100%; max-width: 100%; border: 1px solid hsl(var(--border));
+                   border-radius: 12px; background: #101014; }
 
 /* ── the LikeC4 embed chrome (step 33): Enlarge top-LEFT; guard steps it aside ── */
 .c4-embed { position: relative; }

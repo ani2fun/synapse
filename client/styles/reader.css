@@ -17,6 +17,12 @@ html[data-reader-family="serif"] .synapse-prose { font-family: Georgia, "Times N
 html[data-reader-family="sans"] .synapse-prose { font-family: system-ui, -apple-system, sans-serif; }
 html[data-reader-family="mono"] .synapse-prose { font-family: "JetBrains Mono", ui-monospace, monospace; }
 
+/* `margin-inline: auto` joined these in step 46. The width preference had always set a
+   max-width and nothing had ever centred the result, so at any viewport where the cap
+   actually binds (≈872px up) the column sat flush LEFT and every pixel of slack piled onto
+   the right. That is a second, independent source of the reported "space on the right" — the
+   one that shows on a tablet or desktop rather than a phone. */
+.lesson { margin-inline: auto; }
 html[data-reader-width="narrow"] .lesson { max-width: 38rem; }
 html[data-reader-width="standard"] .lesson { max-width: 46rem; }
 html[data-reader-width="wide"] .lesson { max-width: 60rem; }
@@ -107,7 +113,11 @@ html[data-reader-width] .lesson.lesson--problem,
    both hiding the desktop sidebar and showing the mobile affordances.
    ───────────────────────────────────────────────────────────────────────────── */
 
-.reader-nav-fab { position: fixed; left: 20px; bottom: 20px; z-index: 40;
+/* TOP of the right-hand rail (step 46), not alone at bottom-left. One 44px button on the left
+   facing a 44×232px column of four on the right was much of what read as "wasted width" — and
+   split the reader's controls across two corners for no reason. 244px continues the rail's
+   existing 56px rhythm (toc 20 · focus 76 · prefs 132 · scroll-top 188). */
+.reader-nav-fab { position: fixed; right: 20px; bottom: 244px; z-index: 40;
                   width: 44px; height: 44px; display: inline-flex; align-items: center;
                   justify-content: center; border-radius: 9999px; border: 0; cursor: pointer;
                   background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
@@ -188,8 +198,10 @@ html[data-reader-width] .lesson.lesson--problem,
     .reader-layout--problem[data-sidebar] { grid-template-columns: minmax(0, 1fr); }
 }
 .reader-layout--problem .reader-sidebar { display: none; }
+/* One symmetric rule. This was two identical selectors back to back, the second existing only
+   to add 8px on the right — a literal asymmetry that put a problem page at 24px left / 32px
+   right on a phone. */
 .reader-layout--problem .reader-layout__main { padding: 1.25rem 1rem 3rem; }
-.reader-layout--problem .reader-layout__main { padding-left: 1rem; padding-right: 1.5rem; }
 
 /* ── prose header ── */
 .reader-prose__back { display: inline-block; font-family: var(--font-mono); font-size: 11px;
@@ -468,4 +480,55 @@ body:has(.reader-sticky[data-on="true"]) .reader-expand { top: 120px; }
     .reader-progress, .reader-scrolltop, .reader-toc-fab, .reader-toc-pop,
     .reader-pager__card, .reader-sticky, .reader-focus-hint, .reader-minimap__fill {
         transition: none; }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   THE PHONE (step 46). reader.css had NO rule below 768px — it inherited desktop
+   gutters all the way down to a 313px column on an iPhone. 640px because that is
+   already the de-facto mobile breakpoint here (shell.css, practice.css,
+   library.css all use it); reader.css was the outlier with none.
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+    /* 20px + 20px of gutter on each side was 40px of a 393px screen. 14px each
+       gives back ~24px of line length — about 8% more text per line. */
+    .shell-main { padding-left: 0.875rem; padding-right: 0.875rem; }
+    .reader-layout__main { padding: 1.75rem 0.875rem 5rem; }
+    .reader-layout--problem .reader-layout__main { padding: 1rem 0.75rem 3rem; }
+
+    /* Justify + hyphenate, together or not at all: at this column width justify ALONE
+       opens rivers of white space through words like "Composition" and "aggregation".
+       <html lang="en"> is set, so the browser has a dictionary and `auto` engages.
+       Scoped to the phone deliberately — a wide column justifies fine unhyphenated, and
+       hyphenating technical prose on a desktop splits identifiers awkwardly. */
+    .synapse-prose { text-align: justify; hyphens: auto; }
+    /* Never justify things that are not sentences: a hyphenated heading or a broken-up
+       table cell reads as damage. */
+    .synapse-prose :is(h1, h2, h3, h4, th, td, pre, code) { text-align: initial; hyphens: manual; }
+
+    /* The rail turns 90° on a phone: a ROW along the bottom edge, not a column up the side.
+       A vertical rail of five 44px buttons is 288px of an 852px screen, and once the prose
+       reclaims the full width it runs straight underneath them — words genuinely obscured
+       mid-sentence, which is worse than the gutter it was meant to save.
+
+       Reserving a right gutter instead would cost 44+12px — about 14% of a 393px screen, more
+       than the width this step just won back. Horizontal costs 0 width and ~50px of height at
+       the very bottom, which is where phone controls belong anyway.
+
+       Ordered right-to-left by how often a thumb wants them: Contents · TOC · Aa · top · focus.
+       38px + an 8px gap = the 46px pitch. */
+    .reader-nav-fab, .reader-toc-fab, .reader-scrolltop,
+    .reader-focus-fab, .reader-prefs-fab {
+        bottom: 12px; width: 38px; height: 38px; }
+    .reader-nav-fab   { right: 12px; }
+    .reader-toc-fab   { right: 58px; }
+    .reader-prefs-fab { right: 104px; }
+    .reader-scrolltop { right: 150px; }
+    .reader-focus-fab { right: 196px; }
+
+    /* Both popovers open ABOVE the row now, and neither may exceed the screen. */
+    .reader-toc-pop { right: 12px; bottom: 58px; max-width: calc(100vw - 24px); }
+    .reader-prefs-pop { right: 12px; bottom: 58px; max-width: calc(100vw - 24px); }
+
+    /* Two pager cards sharing ~150px each, with an 18px serif title, is not a target. */
+    .reader-pager { grid-template-columns: minmax(0, 1fr); }
 }
