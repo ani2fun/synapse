@@ -15,6 +15,55 @@ jobs:
       - uses: actions/checkout@v4
       - run: dev-tools/check-conventions.sh
 
+  # ── What changed (step 48) ────────────────────────────────────────────────────
+  # Since step 44 a green push to main ships to the cluster unattended, and there was no
+  # paths filter anywhere — so a commit that only edited a chapter still built an image,
+  # pushed it to ghcr, patched ani2fun/infra and rolled production. Harmless per commit;
+  # wasteful as a habit, and it makes the deploy history lie about what actually changed.
+  #
+  # This job answers one question for `release` below. It deliberately does NOT gate any
+  # test job: a docs commit must still clear conventions, clippy, the suites and the bundle
+  # budget. Only the SHIPPING is skipped.
+  #
+  # Plain git rather than a paths-filter action, for the same reason check-conventions.sh is
+  # grep/find/wc: the question is one `git diff | grep -v`, and the glob route is a trap. A
+  # filter of ['**', '!docs/**'] reads like set subtraction but picomatch ORs its patterns —
+  # '**' matches the doc, '!docs/**' matches everything else, so the filter is true for every
+  # file and the gate silently never fires. (Verified against picomatch before writing this.)
+  # The inverse — a positive allow-list of code paths — fails CLOSED: one forgotten directory
+  # and a real change stops shipping with nothing to say so. Subtraction is the safe direction.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: filter
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          # Anything that is not a push, and any base we cannot resolve (a new branch, a force
+          # push, a shallow fetch), answers "code changed" — see the fail-open note on release.
+          if [ "${{ github.event_name }}" != "push" ] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "base unresolvable or not a push — assuming code changed"
+            exit 0
+          fi
+          changed=$(git diff --name-only "$BEFORE" "${{ github.sha }}")
+          echo "changed files:"; printf '%s\n' "$changed" | sed 's/^/  /'
+          rest=$(printf '%s\n' "$changed" \
+            | grep -vE '^docs/|\.md$|^dev-tools/synapse-rs\.insomnia\.json$' || true)
+          if [ -n "$rest" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "shipping — non-docs changes:"; printf '%s\n' "$rest" | sed 's/^/  /'
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+            echo "docs-only — the release job will stand down"
+          fi
+
   # ── Supply chain (step 45) ────────────────────────────────────────────────────
   # `cargo test` proves the code we wrote; this proves the 407 crates we did not.
   # It runs in parallel with the toolchain jobs (it needs no rustc) and gates the
@@ -189,9 +238,19 @@ jobs:
   #
   # Tags are excluded (`refs/heads/main` only): `step-*` tags point at a commit main has
   # already shipped, and releasing again would rebuild the same tree under a second SHA.
+  #
+  # Docs-only commits are excluded too (step 48), and the condition is written to FAIL OPEN on
+  # the OUTPUT: `!= 'false'` rather than `== 'true'`, so an empty or unexpected value from the
+  # filter still ships. This gate is an optimisation, not a safety control — shipping an
+  # identical tree costs five minutes, whereas silently NOT shipping a code change would leave
+  # main and production disagreeing with nothing to say so. (A `changes` job that outright
+  # FAILS still blocks the release, like every other entry in `needs` — that is a red run, and
+  # a red run should not deploy.)
   release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [conventions, supply-chain, build-test, client-build, gojudge-it]
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+      && needs.changes.outputs.code != 'false'
+    needs: [changes, conventions, supply-chain, build-test, client-build, gojudge-it]
     permissions:
       contents: read
       packages: write
