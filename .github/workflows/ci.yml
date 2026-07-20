@@ -302,7 +302,7 @@ jobs:
       # Chromium is ~130 MB and rust-cache does not cover it — without this the browser is
       # re-downloaded on every run.
       - name: cache the browser
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package-lock.json') }}
