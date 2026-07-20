@@ -45,6 +45,33 @@ inherits from. There is one known remainder: d2 sizes the `foreignObject` for a 
 title clips. `overflow: visible` is not the fix — it needs 39px against 20px of headroom and
 would collide with the first shape; growing the `foreignObject` during hydration is.
 
+## The error path, and the orphan it used to leave
+
+The error card is only half the story, because mermaid renders an error of its own. `render()` is
+called without a container, so mermaid appends its working node — `#d<id>` — to `document.body`
+to measure in. On failure it draws its "Syntax error in text" bomb graphic into that node and
+then throws **before** reaching its own `removeTempElements()`. The node stays in `<body>`.
+
+Nothing full-page-reloads in a CSR app, so that orphan outlives every client-side navigation: one
+failed diagram, anywhere, pins a bomb to the bottom of every page for the rest of the session —
+including the landing page, which has no diagrams at all. It also *accumulates*, because our ids
+are monotonic (`synapse-mermaid-N`) and mermaid's own `removeExistingElements` only clears the
+id it is about to reuse. Measured in the real renderer: three failures → three bombs (`1, 2, 3`),
+each one the last child of `<body>`.
+
+`suppressErrorRendering: true` fixes it, and it is the right flag rather than a workaround: it
+routes mermaid's error branch through cleanup-then-throw instead of draw-then-throw. We still get
+the rejection that drives `MermaidCard`'s error card, mermaid stops drawing a second, worse error
+we never asked for, and `<body>` is left as it was found. A defensive `#d<id>` removal in the
+island's `catch` covers any future internal path that throws before cleanup.
+
+Worth knowing when reading a bug report: **that bomb does not mean the diagram has a syntax
+error.** `errorRenderer` is what mermaid draws for *any* failure inside `renderer.draw`, so a
+lazily-loaded diagram-type chunk that 404s — which is exactly what a deploy does to a tab holding
+the previous build — produces the identical "Syntax error in text" graphic over perfectly valid
+source. All 196 authored diagrams parse *and* fully render clean, so a bomb in the wild is a
+runtime failure, not an authoring one.
+
 ## The zoom overlay — chrome on the LEFT
 
 A rendered figure grows the ⤢ Enlarge pill (top-LEFT, hover-revealed); it opens the

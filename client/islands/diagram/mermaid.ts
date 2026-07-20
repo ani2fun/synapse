@@ -43,11 +43,31 @@ export async function renderMermaidInto(target: HTMLElement, src: string): Promi
       securityLevel: "strict",
       theme: "default",
       fontFamily: "inherit",
+      // We render our OWN error card (MermaidCard, with the raw source to fix), so mermaid's
+      // "Syntax error in text" bomb graphic is duplicate output — and it is emitted in the
+      // wrong place. render() is called without a container, so mermaid appends its working
+      // node to document.body; on a parse error it draws the bomb there and then throws
+      // BEFORE its own removeTempElements() cleanup, orphaning the node in <body>. Nothing
+      // full-page-reloads in a CSR app, so one malformed diagram leaves a bomb pinned to the
+      // bottom of every page for the rest of the session. This flag takes mermaid's error
+      // branch through the cleanup-then-throw path instead: we still get the rejection that
+      // drives the error card, and body is left as it was found.
+      suppressErrorRendering: true,
     };
     mermaid.initialize(config);
     initialized = true;
   }
   idSeq += 1;
-  const { svg } = await mermaid.render(`synapse-mermaid-${idSeq}`, src);
-  target.innerHTML = svg;
+  const id = `synapse-mermaid-${idSeq}`;
+  try {
+    const { svg } = await mermaid.render(id, src);
+    target.innerHTML = svg;
+  } catch (error) {
+    // A guard, not the fix — `suppressErrorRendering` above is. mermaid builds its working
+    // node as `#d<id>` under <body>; any throw on a path that skips its own cleanup strands
+    // that node for the life of the session. We know the id we asked for, so removing it
+    // costs nothing and makes the orphan impossible whichever internal path failed.
+    document.getElementById(`d${id}`)?.remove();
+    throw error;
+  }
 }
