@@ -4,13 +4,13 @@
 
 use crate::execution::domain::Language;
 
-pub struct Recipe {
-    pub source_file: &'static str,
-    pub compile: Option<&'static str>,
-    pub run: &'static str,
-    pub cpu_seconds: u64,
-    pub clock_seconds: u64,
-    pub memory_mib: u64,
+pub(crate) struct Recipe {
+    pub(crate) source_file: &'static str,
+    pub(crate) compile: Option<&'static str>,
+    pub(crate) run: &'static str,
+    pub(crate) cpu_seconds: u64,
+    pub(crate) clock_seconds: u64,
+    pub(crate) memory_mib: u64,
 }
 
 const DEFAULT_CPU: u64 = 15;
@@ -40,7 +40,7 @@ impl Recipe {
         }
     }
 
-    pub fn for_language(language: Language) -> Recipe {
+    pub(crate) fn for_language(language: Language) -> Recipe {
         match language {
             Language::Python => Self::interpreted("main.py", "python3 main.py"),
             Language::Java => Self::compiled("Main.java", "javac Main.java", "java -cp . Main"),

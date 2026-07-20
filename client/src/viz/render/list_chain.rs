@@ -23,7 +23,7 @@ pub fn list(graph: &VizGraph, step_index: Signal<usize>) -> AnyView {
 }
 
 fn frame(step: &VizStep) -> AnyView {
-    let info = crate::viz::shapes::chain(step);
+    let info = crate::viz::engine::shapes::chain(step);
     if info.nodes.is_empty() {
         return view! {
             <div class="viz-list__row">{dom::null_glyph()}<span>" empty"</span></div>

@@ -4,8 +4,8 @@
 use crate::viz::engine::graph::{VizGraph, VizStep};
 use leptos::prelude::*;
 
+use crate::viz::engine::shapes;
 use crate::viz::render::dom;
-use crate::viz::shapes;
 
 #[must_use]
 pub fn table(graph: &VizGraph, step_index: Signal<usize>) -> AnyView {

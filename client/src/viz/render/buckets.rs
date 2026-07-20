@@ -5,7 +5,7 @@ use crate::viz::engine::graph::{VizGraph, VizStep};
 use leptos::prelude::*;
 
 use super::dom;
-use crate::viz::shapes::{self, BucketEntry};
+use crate::viz::engine::shapes::{self, BucketEntry};
 
 #[must_use]
 pub fn hashmap(graph: &VizGraph, step_index: Signal<usize>) -> AnyView {

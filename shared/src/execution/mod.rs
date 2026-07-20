@@ -59,22 +59,9 @@ pub struct RunResult {
     pub memory_kb: Option<i64>,
 }
 
-/// The sandbox's hard edges (oracle: `BackendLimits.goJudge` — hardcoded, no runner-info
-/// endpoint). Byte caps are UTF-8 byte counts, INCLUSIVE (`> limit` fails).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Limits {
-    pub max_stdout_bytes: usize,
-    pub max_source_bytes: usize,
-    pub max_stdin_bytes: usize,
-    pub default_run_timeout_ms: u64,
-}
-
-pub const GO_JUDGE_LIMITS: Limits = Limits {
-    max_stdout_bytes: 1024 * 1024,
-    max_source_bytes: 64 * 1024,
-    max_stdin_bytes: 16 * 1024,
-    default_run_timeout_ms: 10_000,
-};
+// NOTE: the sandbox `Limits` + `GO_JUDGE_LIMITS` lived here until step 59. They carry no
+// serde and never cross the wire — server-only validation facts — so they moved to
+// `server::execution::domain`, keeping this crate a pure wire kernel.
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]

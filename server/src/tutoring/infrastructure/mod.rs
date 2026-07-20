@@ -32,7 +32,11 @@ impl OllamaTutorClient {
 
 /// `{"model", "messages": [system, ...history]}` — no stream, no options; the system turn
 /// always leads.
-pub fn build_request_body(model: &str, system_prompt: &str, history: &[ChatMessage]) -> serde_json::Value {
+pub(crate) fn build_request_body(
+    model: &str,
+    system_prompt: &str,
+    history: &[ChatMessage],
+) -> serde_json::Value {
     let mut messages = vec![serde_json::json!({ "role": "system", "content": system_prompt })];
     messages.extend(
         history
@@ -43,7 +47,7 @@ pub fn build_request_body(model: &str, system_prompt: &str, history: &[ChatMessa
 }
 
 /// `choices[0].message.content` of an OpenAI-shaped completion; anything else fails loudly.
-pub fn parse_reply(body: &str) -> Result<String, String> {
+pub(crate) fn parse_reply(body: &str) -> Result<String, String> {
     let value: serde_json::Value =
         serde_json::from_str(body).map_err(|e| format!("tutor reply is not JSON: {e}"))?;
     value

@@ -40,9 +40,13 @@ if [[ -d server/src ]]; then
 fi
 
 # ── 2 · Client logic purity ──────────────────────────────────────────────────
-echo "→ client logic purity (no leptos/web-sys/wasm-bindgen/js-sys/gloo under logic/)"
+# viz/engine/ joined in step 59: the whole engine is pure by design (it moved out of
+# synapse-shared for exactly that property) but only logic/ was ever gated — shapes.rs and
+# decoder.rs sat at viz/ root, clean yet unprotected. They moved under engine/ and the gate
+# now covers the folder, so the discipline is structural rather than observed.
+echo "→ client logic purity (no leptos/web-sys/wasm-bindgen/js-sys/gloo under logic/ + viz/engine/)"
 if [[ -d client/src ]]; then
-  impure=$(find client/src -path "*/logic/*" -name "*.rs" -print0 2>/dev/null |
+  impure=$(find client/src \( -path "*/logic/*" -o -path "*/viz/engine/*" \) -name "*.rs" -print0 2>/dev/null |
     xargs -0 grep -l -E '^\s*use (leptos|web_sys|wasm_bindgen|js_sys|gloo)' 2>/dev/null || true)
   if [[ -n "$impure" ]]; then
     echo "✗ logic files using the web layer:"

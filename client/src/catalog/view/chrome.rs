@@ -136,7 +136,8 @@ pub fn harvest_headings(body: &web_sys::HtmlElement) -> Vec<Heading> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[component]
-pub fn ReadingProgress(chrome: ChromeState) -> impl IntoView {
+pub fn ReadingProgress() -> impl IntoView {
+    let chrome = expect_context::<ChromeState>();
     view! {
         <div
             class="reader-progress"
@@ -147,7 +148,8 @@ pub fn ReadingProgress(chrome: ChromeState) -> impl IntoView {
 
 /// "Lesson title / active section" — appears past 160px of scroll.
 #[component]
-pub fn StickyBar(chrome: ChromeState) -> impl IntoView {
+pub fn StickyBar() -> impl IntoView {
+    let chrome = expect_context::<ChromeState>();
     let section = Memo::new(move |_| {
         chrome.active_id.get().and_then(|id| {
             chrome
@@ -176,7 +178,8 @@ pub fn StickyBar(chrome: ChromeState) -> impl IntoView {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[component]
-pub fn MiniMap(chrome: ChromeState) -> impl IntoView {
+pub fn MiniMap() -> impl IntoView {
+    let chrome = expect_context::<ChromeState>();
     // (heading, document fraction) — measured on heading changes and window resize.
     let positions: RwSignal<Vec<(Heading, f64)>> = RwSignal::new(Vec::new());
     let measure = move || {
@@ -262,7 +265,8 @@ pub fn MiniMap(chrome: ChromeState) -> impl IntoView {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[component]
-pub fn TocFab(chrome: ChromeState) -> impl IntoView {
+pub fn TocFab() -> impl IntoView {
+    let chrome = expect_context::<ChromeState>();
     let open = chrome.toc_open;
     view! {
         {move || (!chrome.headings.get().is_empty() && !chrome.is_problem.get()).then(|| view! {
@@ -330,7 +334,8 @@ pub fn TocFab(chrome: ChromeState) -> impl IntoView {
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[component]
-pub fn ScrollTop(chrome: ChromeState) -> impl IntoView {
+pub fn ScrollTop() -> impl IntoView {
+    let chrome = expect_context::<ChromeState>();
     view! {
         <button
             class="reader-scrolltop"

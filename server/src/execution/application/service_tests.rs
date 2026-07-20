@@ -4,7 +4,9 @@
 
 use std::sync::Mutex;
 
-use synapse_shared::execution::{GO_JUDGE_LIMITS, RunStatus};
+use synapse_shared::execution::RunStatus;
+
+use crate::execution::domain::GO_JUDGE_LIMITS;
 
 use super::*;
 

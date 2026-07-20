@@ -5,8 +5,8 @@
 use crate::viz::engine::graph::VizGraph;
 use leptos::prelude::*;
 
+use crate::viz::engine::shapes;
 use crate::viz::render::{cells, tree};
-use crate::viz::shapes;
 
 /// Heap: the slot-tree (`i → 2i+1 · 2i+2`) over the backing array.
 #[must_use]

@@ -2,8 +2,8 @@
 //! relationship is easy to break by editing either one in isolation.
 
 use super::{MAX_BODY_BYTES, REQUEST_TIMEOUT};
+use crate::execution::domain::GO_JUDGE_LIMITS;
 use crate::execution::infrastructure::GO_JUDGE_REQUEST_TIMEOUT;
-use synapse_shared::execution::GO_JUDGE_LIMITS;
 
 /// The one that actually matters.
 ///

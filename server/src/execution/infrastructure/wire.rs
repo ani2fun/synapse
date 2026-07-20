@@ -5,19 +5,21 @@
 //! file) — never via HTTP status.
 
 use serde_json::{Value, json};
-use synapse_shared::execution::{GO_JUDGE_LIMITS, RunResult, RunStatus};
+use synapse_shared::execution::{RunResult, RunStatus};
+
+use crate::execution::domain::GO_JUDGE_LIMITS;
 
 use crate::execution::domain::Language;
 use crate::execution::infrastructure::java_rewriter;
 use crate::execution::infrastructure::recipe::Recipe;
 
-pub const RUN_PATH: &str = "/run";
+pub(crate) const RUN_PATH: &str = "/run";
 const COMPILE_RC_FILE: &str = "__cf_crc";
 const COMPILE_ERR_FILE: &str = "__cf_cerr";
 const PROC_LIMIT: u32 = 256;
 
 /// Build the `POST /run` body for one run. Output streams are RAW (not base64).
-pub fn build_request_body(language: Language, source: &str, stdin: Option<&str>) -> String {
+pub(crate) fn build_request_body(language: Language, source: &str, stdin: Option<&str>) -> String {
     let recipe = Recipe::for_language(language);
     let effective = java_rewriter::effective_source(language, source);
     let compiled = recipe.compile.is_some();
@@ -65,7 +67,7 @@ fn shell_body(recipe: &Recipe) -> String {
 
 /// Map go-judge's response (an array; take `[0]`) back to the shared `RunResult`.
 /// `time` is nanoseconds, `memory` is bytes; both optional (absent → `None`, not 0).
-pub fn parse_run_result(compiled: bool, body: &str) -> Result<RunResult, String> {
+pub(crate) fn parse_run_result(compiled: bool, body: &str) -> Result<RunResult, String> {
     let parsed: Value =
         serde_json::from_str(body).map_err(|e| format!("go-judge returned invalid JSON: {e}"))?;
     let result = parsed

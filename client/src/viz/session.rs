@@ -16,7 +16,7 @@ use synapse_shared::execution::RunRequest;
 
 use crate::api;
 use crate::islands::tracer;
-use crate::viz::decoder::{self, Decoded};
+use crate::viz::engine::decoder::{self, Decoded};
 
 #[derive(Clone, PartialEq)]
 pub enum TraceState {

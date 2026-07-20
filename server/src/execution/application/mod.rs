@@ -2,7 +2,9 @@
 //! thin: validate → resolve → run. No go-judge knowledge, no concurrency gate — the adapter
 //! owns those.
 
-use synapse_shared::execution::{GO_JUDGE_LIMITS, RunRequest, RunResult};
+use synapse_shared::execution::{RunRequest, RunResult};
+
+use crate::execution::domain::GO_JUDGE_LIMITS;
 
 use crate::execution::domain::Language;
 

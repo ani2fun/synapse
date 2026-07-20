@@ -117,10 +117,11 @@ pub fn app(deps: AppDeps) -> Router {
             get(|| async { "synapse-rs server — see /api/health or /api/synapse/index" }),
         );
     }
-    // OUTERMOST (step 19): the security stamp covers every sub-tree — API, proxy, static,
-    // and error responses alike. Compression sits outside even that (orthogonal to the
-    // header layers, oracle parity): gzip/deflate at the ORIGIN — a CDN edge-compressing
-    // still pulls fat bytes across the tunnel — with sub-KiB responses left alone.
+    // Outermost OF THE APPLICATION SUB-TREES (step 19; comment honesty from step 59): the
+    // security stamp covers every route class — API, proxy, static, and error responses
+    // alike. The TRANSPORT layers wrap further out still: compression (gzip/deflate at the
+    // ORIGIN — a CDN edge-compressing still pulls fat bytes across the tunnel — with
+    // sub-KiB responses left alone), then limits, then telemetry as the true outermost.
     let stamped = router
         .layer(axum::middleware::from_fn_with_state(
             security,

@@ -11,7 +11,7 @@ use crate::execution::domain::Language;
 
 /// The tracer harness's first line (oracle: `TracerMarks.JavaSentinel`) — traced Java already
 /// defines `Main`, so it must pass through untouched.
-pub const JAVA_TRACER_SENTINEL: &str = "// __SYNAPSE_TRACER__";
+pub(crate) const JAVA_TRACER_SENTINEL: &str = "// __SYNAPSE_TRACER__";
 
 static HAS_MAIN: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\bclass\s+Main\b").unwrap_or_else(|e| unreachable!("static regex: {e}")));
@@ -24,7 +24,7 @@ static TOP_LEVEL_CLASS: LazyLock<Regex> = LazyLock::new(|| {
 
 /// The source the sandbox should compile: Java gets normalised, everything else (and traced
 /// Java) passes through.
-pub fn effective_source(language: Language, source: &str) -> String {
+pub(crate) fn effective_source(language: Language, source: &str) -> String {
     if language == Language::Java && !source.starts_with(JAVA_TRACER_SENTINEL) {
         normalize_entrypoint(source)
     } else {

@@ -32,8 +32,8 @@ pub fn LessonPage() -> impl IntoView {
     let mode = RwSignal::new(super::sidebar::SidebarMode::load());
 
     view! {
-        <super::chrome::ReadingProgress chrome=chrome />
-        <super::chrome::StickyBar chrome=chrome />
+        <super::chrome::ReadingProgress />
+        <super::chrome::StickyBar />
         <div
             class="reader-layout"
             class:reader-layout--problem=move || chrome.is_problem.get()
@@ -56,8 +56,8 @@ pub fn LessonPage() -> impl IntoView {
         // already gated itself. They own the bottom corners the problem page now puts its
         // own navigation in.
         {move || (!chrome.is_problem.get()).then(|| view! {
-            <super::chrome::MiniMap chrome=chrome />
-            <super::chrome::ScrollTop chrome=chrome />
+            <super::chrome::MiniMap />
+            <super::chrome::ScrollTop />
             // The floating expand affordance for the Hidden sidebar.
             <button
                 class=move || {
@@ -80,10 +80,10 @@ pub fn LessonPage() -> impl IntoView {
                 </svg>
             </button>
         })}
-        <super::chrome::TocFab chrome=chrome />
+        <super::chrome::TocFab />
         // OUTSIDE the grid on purpose (oracle step-38 prod bug): the drawer's in-flow
         // wrapper would otherwise become a phantom third grid item at desktop width.
-        <ReaderNavDrawer path=path chrome=chrome />
+        <ReaderNavDrawer path=path />
     }
 }
 
@@ -95,7 +95,8 @@ pub fn LessonPage() -> impl IntoView {
 /// pages hide the sidebar column at every width, so their Contents button drives this same
 /// singleton. `--pinned` keeps it reachable above the 1024px breakpoint for them.
 #[component]
-fn ReaderNavDrawer(path: Memo<Vec<String>>, chrome: super::chrome::ChromeState) -> impl IntoView {
+fn ReaderNavDrawer(path: Memo<Vec<String>>) -> impl IntoView {
+    let chrome = expect_context::<super::chrome::ChromeState>();
     let open = chrome.nav_open;
     let chrome_progress = chrome.progress;
     let drawer_mode = RwSignal::new(super::sidebar::SidebarMode::Expanded);

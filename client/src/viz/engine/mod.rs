@@ -5,10 +5,12 @@
 //! geometry families join in their own steps, exactly as the oracle staged them.
 
 pub mod adapt;
+pub mod decoder;
 pub mod geometry;
 pub mod graph;
 pub mod markers;
 pub mod playback;
 pub mod render_family;
+pub mod shapes;
 pub mod trace;
 pub mod vocabulary;
