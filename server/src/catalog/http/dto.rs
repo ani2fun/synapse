@@ -63,6 +63,7 @@ fn lesson_dto(lesson: &Lesson) -> LessonDto {
         title: lesson.title.clone(),
         order: lesson.order,
         essential: lesson.essential,
+        lesson_kind: lesson.kind.clone(),
     }
 }
 

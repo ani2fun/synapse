@@ -74,6 +74,14 @@ async fn index_returns_the_kind_discriminated_tree_with_the_cache_header() {
     assert_eq!(book["categoryPath"], serde_json::json!(["learn"]));
     assert_eq!(book["entries"][0]["kind"], "lesson");
     assert_eq!(book["entries"][1]["kind"], "chapter");
+
+    // The index tells problems from prose, so the reader can count a chapter's problems without
+    // fetching all of them. `lessonKind` and not `kind`: the enum tag owns that key, and the
+    // second assertion is what proves it survived. Prose pays nothing — absent, not null.
+    let problem = &book["entries"][1]["entries"][0];
+    assert_eq!(problem["lessonKind"], "problem");
+    assert_eq!(problem["kind"], "lesson");
+    assert!(book["entries"][0].get("lessonKind").is_none());
 }
 
 #[tokio::test]

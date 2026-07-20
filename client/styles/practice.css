@@ -289,7 +289,12 @@
    the page-level pwb frame, crumbs, difficulty badge, and the submissions feed.
    ───────────────────────────────────────────────────────────────────────────── */
 
-.pwb:not(.pwb--embedded) { height: calc(100vh - 92px); min-height: 480px; padding: 0 14px 14px; }
+/* `min-height` went 480 → 544 in step 64: the nav bar became a real flex child and takes ~64px
+   out of `.pwb__panes`, so the floor rises by the same amount to preserve the pane budget on
+   short desktop viewports. NOTE: do not give `.pwb` an `overflow` — the bar's ≤1023px
+   `position: sticky` needs this element as its scrolling container, and would stop pinning
+   silently. */
+.pwb:not(.pwb--embedded) { height: calc(100vh - 92px); min-height: 544px; padding: 0 14px 14px; }
 .pwb__crumbs { display: flex; align-items: center; gap: 8px; padding: 10px 6px 12px;
                font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em;
                text-transform: uppercase; color: hsl(var(--muted-foreground)); flex: 0 0 auto; }
@@ -300,42 +305,79 @@ a.pwb__crumb:hover { color: hsl(var(--primary)); }
                        font-family: var(--font-sans, inherit); }
 .pwb__crumb-sep { opacity: 0.5; }
 
-/* ── the floating navigation (step 43) ────────────────────────────────────────
-   A problem page has no sidebar column and no page scroll, so the reader's Contents
-   tree and its bottom pager cards have nowhere to live. These carry both jobs.
+/* ── the navigation bar (step 64, replacing step 43's floating pills) ─────────
+   A problem page has no sidebar column and no pager cards, so Contents and the two steps
+   carry both jobs. They spent step 43 as fixed pills in the bottom corners, which put them
+   permanently ON TOP of the panes they exist to help you leave.
 
-   In the BOTTOM CORNERS rather than the crumb row they started in: you work this page
-   top-to-bottom, and the top-right is the furthest point from both the reader's eye and
-   the mouse. The prose reader's own FABs are suppressed on problem pages (reader.rs), so
-   these corners are free — nothing to collide with.
+   Now they are a docked row: the LAST flex child of `.pwb`, so its height comes out of
+   `.pwb__panes` (which is `flex: 1 1 auto; min-height: 0`) and no arithmetic is needed.
+   The crumb row above is its symmetric counterpart.
 
-   Solid teal like the workbench Run button: they are the page's primary way out, and an
-   outlined version reads as disabled chrome beside a live Run button. */
-.pwb-fab { position: fixed; bottom: 20px; z-index: 40;
-           display: inline-flex; align-items: center; gap: 6px;
-           height: 40px; padding: 0 16px; border-radius: 9999px; border: none;
-           font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em;
-           text-transform: uppercase; font-weight: 600;
-           color: hsl(var(--primary-foreground)); background: hsl(var(--primary));
-           text-decoration: none; cursor: pointer;
-           box-shadow: 0 6px 18px -4px rgb(0 0 0 / 0.25), 0 2px 4px -1px rgb(0 0 0 / 0.1);
-           transition: filter 0.12s, transform 180ms ease; }
-.pwb-fab:hover { filter: brightness(1.08); transform: translateY(-1px); }
-.pwb-fab:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 3px; }
-.pwb-fab__ic { width: 15px; height: 15px; flex: none; }
+   Three cells at `flex: 1 1 0` so the counter sits at TRUE centre — sized off the leftover
+   space it would drift, because Contents and the two step buttons are different widths. */
+.pwb__nav { flex: 0 0 auto; display: flex; align-items: center; gap: 14px;
+            padding: 10px 6px 2px; }
+.pwb__nav-left  { flex: 1 1 0; display: flex; justify-content: flex-start; }
+.pwb__nav-mid   { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;
+                  align-items: center; gap: 6px; }
+.pwb__nav-right { flex: 1 1 0; display: flex; justify-content: flex-end; gap: 8px; }
 
-/* Contents stacks ABOVE Prev on the left; Next takes the right corner. 56px apart — the
-   same rhythm the prose reader's right-edge FAB stack uses. */
-.pwb-fab--contents { left: 20px; bottom: 76px; }
-.pwb-fab--prev { left: 20px; }
-.pwb-fab--next { right: 20px; }
+.pwb__contents { display: inline-flex; align-items: center; gap: 7px;
+                 height: 38px; padding: 0 14px; border-radius: 9px;
+                 border: 1px solid hsl(var(--border)); background: hsl(var(--card));
+                 color: hsl(var(--foreground)); font-size: 13px; font-weight: 600;
+                 cursor: pointer; transition: border-color 0.12s, color 0.12s; }
+.pwb__contents:hover { border-color: hsl(var(--primary) / 0.5); color: hsl(var(--primary)); }
+.pwb__contents-ic { width: 16px; height: 16px; flex: none; }
 
-/* On a phone three pills would cover the panes they exist to help you leave, so the step
-   labels drop to their arrows. Contents keeps its word — a lone icon there reads as a
-   menu of unknown contents. */
+.pwb__nav-count { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em;
+                  text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.pwb__nav-dots { display: flex; align-items: center; gap: 5px; }
+/* Each dot is a link, so the row is a map you can travel, not a readout. The current one
+   stretches rather than recolouring alone — position survives a squint. */
+.pwb__dot { width: 6px; height: 6px; border-radius: 9999px; flex: none;
+            background: hsl(var(--muted-foreground) / 0.45);
+            transition: width 180ms ease, background 180ms ease; }
+.pwb__dot:hover { background: hsl(var(--primary) / 0.7); }
+.pwb__dot--current { width: 18px; background: hsl(var(--primary)); }
+
+/* Two lines: the step's name in mono over the target's title, mirroring the prose reader's
+   pager cards. Next is solid — it is the page's forward motion; Previous is outlined. */
+.pwb__step { display: flex; align-items: center; gap: 9px; min-width: 0;
+             padding: 6px 14px; border-radius: 9px; text-decoration: none;
+             border: 1px solid hsl(var(--border)); background: hsl(var(--card));
+             transition: border-color 0.12s, filter 0.12s; }
+.pwb__step:hover { border-color: hsl(var(--primary) / 0.5); }
+.pwb__step-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.pwb__step-chev { flex: none; font-size: 17px; line-height: 1;
+                  color: hsl(var(--muted-foreground)); }
+.pwb__step-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em;
+                   text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+.pwb__step-title { font-size: 13px; font-weight: 600; color: hsl(var(--foreground));
+                   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+                   max-width: 13rem; }
+.pwb__step--prev .pwb__step-text { text-align: left; }
+.pwb__step--next { border-color: transparent; background: hsl(var(--primary)); }
+.pwb__step--next .pwb__step-text { text-align: right; }
+.pwb__step--next:hover { filter: brightness(1.08); border-color: transparent; }
+.pwb__step--next .pwb__step-chev,
+.pwb__step--next .pwb__step-label { color: hsl(var(--primary-foreground) / 0.8); }
+.pwb__step--next .pwb__step-title { color: hsl(var(--primary-foreground)); }
+
+/* On a phone the titles are what has to go — the eyebrow plus position is enough to act on,
+   and the counter earns its own row rather than squeezing the buttons. Contents drops to its
+   icon: the ambiguity that kept its word in step 43 came from floating over the panes with
+   nothing around it, and inside a labelled bar beside a counter that ambiguity is gone.
+
+   These properties are deliberately DISJOINT from the ≤1023px block's — that block is later
+   in source and would win at equal specificity. */
 @media (max-width: 640px) {
-    .pwb-fab { height: 36px; padding: 0 13px; }
-    .pwb-fab--prev span, .pwb-fab--next span { display: none; }
+    .pwb__nav { flex-wrap: wrap; gap: 8px; }
+    .pwb__nav-mid { order: 3; flex: 1 0 100%; }
+    .pwb__step-title { display: none; }
+    .pwb__contents span { display: none; }
+    .pwb__contents { padding: 0 11px; }
 }
 
 .pwb__lede { font-size: 13.5px; color: hsl(var(--muted-foreground)); margin: 4px 0 0; }
@@ -417,4 +459,15 @@ a.pwb__crumb:hover { color: hsl(var(--primary)); }
     /* The per-pane hosts stop constraining height: the page scrolls, the panes grow, and
        the editorial's scroll-spy (which reads the pane's own scroll) simply stays put. */
     .pwb__pane-host, .pwb__pane-host > .pwb__pane, .pwb-epane { min-height: auto; }
+
+    /* The page window-scrolls here (height went auto just above), so an in-flow bar would sit
+       below the fold for the whole scroll — the one thing the old fixed pills got right. Sticky
+       pins it to the viewport bottom and RELEASES it at the true end of the page, which a fixed
+       bar never does. The negative side margins escape `.pwb`'s 14px padding so the blurred
+       strip spans full width — the same trick `.pwb-ejump` uses. */
+    .pwb__nav { position: sticky; bottom: 0; z-index: 20;
+                margin: 0 -14px; padding: 8px 14px;
+                background: hsl(var(--background) / 0.92);
+                backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
+                border-top: 1px solid hsl(var(--border) / 0.6); }
 }

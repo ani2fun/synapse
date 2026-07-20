@@ -332,6 +332,7 @@ fn build_book_entries(
                         order: order_prefix(name),
                         essential: frontmatter::extract_essential(content).unwrap_or(DEFAULT_ESSENTIAL),
                         description: frontmatter::extract_summary(content),
+                        kind: frontmatter::extract_kind(content),
                     }),
                 ));
             }

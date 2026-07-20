@@ -12,6 +12,7 @@ fn lesson(slug: &str, title: &str) -> BookEntryDto {
         title: title.to_owned(),
         order: None,
         essential: false,
+        lesson_kind: None,
     })
 }
 

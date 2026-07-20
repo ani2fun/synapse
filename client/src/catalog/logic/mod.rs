@@ -39,6 +39,42 @@ pub fn reading_order(book: &BookDto) -> Vec<(String, LessonDto)> {
     out
 }
 
+/// The chapter a lesson belongs to FOR COUNTING purposes — its path minus the last segment,
+/// except when that chapter exists only to hold it.
+///
+/// Most problems are authored as `…/problems/<slug>/<slug>.md`, giving each one a chapter of its
+/// own (36 of this content's 61 chapters have that shape). Scoping on the raw parent would make
+/// every problem read "1 / 1". The sidebar already flattens a chapter whose only child is a
+/// lesson of the SAME slug, and the counter has to agree with it — so when the parent segment
+/// and the lesson slug match, the real chapter is one level up.
+fn counting_chapter(path: &str) -> Option<String> {
+    let (parent, slug) = path.rsplit_once('/')?;
+    match parent.rsplit_once('/') {
+        Some((grandparent, chapter)) if chapter == slug => Some(grandparent.to_owned()),
+        _ => Some(parent.to_owned()),
+    }
+}
+
+/// The problems of `lesson_path`'s own chapter in reading order, and where that path sits among
+/// them. `None` when the path isn't in the book, or isn't itself a problem.
+///
+/// Scoping comes from the paths rather than the tree, because `reading_order` flattens chapters
+/// away. Book-root lessons fall out of the same rule — their parent is the book prefix — so a
+/// book with no chapters still counts correctly.
+pub fn chapter_problems(book: &BookDto, lesson_path: &str) -> Option<(Vec<String>, usize)> {
+    let here = counting_chapter(lesson_path)?;
+    let problems: Vec<String> = reading_order(book)
+        .into_iter()
+        .filter(|(path, lesson)| {
+            lesson.lesson_kind.as_deref() == Some("problem")
+                && counting_chapter(path).as_deref() == Some(&here)
+        })
+        .map(|(path, _)| path)
+        .collect();
+    let at = problems.iter().position(|path| path == lesson_path)?;
+    Some((problems, at))
+}
+
 /// Where a book's cover card points: its first lesson in reading order.
 pub fn first_lesson_path(book: &BookDto) -> Option<String> {
     reading_order(book).into_iter().next().map(|(path, _)| path)

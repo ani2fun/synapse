@@ -27,6 +27,17 @@ pub fn extract_summary(content: &str) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
+/// Frontmatter `kind:` — the lesson's shape (`problem` today, prose when absent). Index-side so
+/// the reader can count the problems of a chapter without fetching every payload; blank degrades
+/// to `None`, since an empty discriminator discriminates nothing.
+pub fn extract_kind(content: &str) -> Option<String> {
+    fields_and_body(content)
+        .0
+        .get("kind")
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty())
+}
+
 /// `Some` only when the fence carries a literal `essential: true|false`.
 pub fn extract_essential(content: &str) -> Option<bool> {
     match fields_and_body(content).0.get("essential").map(String::as_str) {

@@ -91,6 +91,7 @@ introduced the feature, never as later afterthoughts.
 | 61 | `step-61` | [The bearer skeleton, stated once](61-bearer-gate.md) | 2026-07-20 |
 | 62 | `step-62` | [Mechanism and vocabulary part ways](62-frontmatter-mechanism.md) | 2026-07-20 |
 | 63 | `step-63` | [The test-case sink](63-the-test-case-sink.md) | 2026-07-20 |
+| 64 | `step-64` | [The problem navigation, docked](64-the-problem-nav-bar.md) | 2026-07-20 |
 
 > **Step 40's shape.** Every step through 39 is one squashed commit. Step 40 is eleven
 > (`c9b302f..HEAD`): its work was interactive — a design question, two answers built and kept,

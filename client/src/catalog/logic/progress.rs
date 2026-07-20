@@ -89,6 +89,7 @@ mod tests {
             title: slug.to_owned(),
             order: None,
             essential: true,
+            lesson_kind: None,
         })
     }
 

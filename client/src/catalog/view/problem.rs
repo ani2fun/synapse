@@ -34,7 +34,7 @@ fn humanize(slug: &str) -> String {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CRUMB-ROW NAVIGATION
+// THE NAVIGATION BAR — a docked row, not three pills over the panes
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -46,7 +46,7 @@ enum Step {
 impl Step {
     const fn label(self) -> &'static str {
         match self {
-            Self::Prev => "Prev",
+            Self::Prev => "Previous",
             Self::Next => "Next",
         }
     }
@@ -59,11 +59,11 @@ fn contents_button() -> Option<impl IntoView> {
     let chrome = use_context::<super::chrome::ChromeState>()?;
     Some(view! {
         <button
-            class="pwb-fab pwb-fab--contents"
+            class="pwb__contents"
             aria-label="Contents — the book's lessons and problems"
             on:click=move |_| chrome.nav_open.set(true)
         >
-            <svg class="pwb-fab__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            <svg class="pwb__contents-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <rect width="18" height="18" x="3" y="3" rx="2"></rect>
                 <path d="M9 3v18 M14 9l3 3-3 3"></path>
@@ -71,6 +71,36 @@ fn contents_button() -> Option<impl IntoView> {
             <span>"Contents"</span>
         </button>
     })
+}
+
+/// "PROBLEM 5 / 6" over a dot per problem in this chapter — each dot a link, so the row is a
+/// map you can travel rather than a readout.
+///
+/// The dots and the arrows deliberately answer DIFFERENT questions. The dots say where you are
+/// in this problem set; the arrows say where you go next in the BOOK, which is why they keep the
+/// server's reading order and may cross into prose at a chapter edge. Scoping the arrows to
+/// problems instead would dead-end the learner at every boundary.
+fn problem_counter(problems: &[String], at: usize) -> impl IntoView + use<> {
+    let dots: Vec<_> = problems
+        .iter()
+        .enumerate()
+        .map(|(i, path)| {
+            let title = humanize(path.rsplit('/').next().unwrap_or(path));
+            view! {
+                <a
+                    class="pwb__dot"
+                    class:pwb__dot--current=i == at
+                    href=format!("/synapse/{path}")
+                    title=title
+                    aria-label=format!("Problem {}", i + 1)
+                ></a>
+            }
+        })
+        .collect();
+    view! {
+        <span class="pwb__nav-count">{format!("Problem {} / {}", at + 1, problems.len())}</span>
+        <div class="pwb__nav-dots">{dots}</div>
+    }
 }
 
 /// The tab bar's glyphs (Lucide `file-text` · `book-open` · `graduation-cap` · `history`).
@@ -118,20 +148,42 @@ fn tab_icon(tab: Tab) -> AnyView {
 fn step_link(target: Option<&str>, step: Step) -> Option<impl IntoView + use<>> {
     let path = target?.to_owned();
     let title = humanize(path.rsplit('/').next().unwrap_or(&path));
-    let arrow = if step == Step::Next { "›" } else { "‹" };
     Some(view! {
         <a
-            class="pwb-fab"
-            class:pwb-fab--prev=step == Step::Prev
-            class:pwb-fab--next=step == Step::Next
+            class="pwb__step"
+            class:pwb__step--prev=step == Step::Prev
+            class:pwb__step--next=step == Step::Next
             href=format!("/synapse/{path}")
-            title=title
         >
-            {(step == Step::Prev).then_some(arrow)}
-            <span>{step.label()}</span>
-            {(step == Step::Next).then_some(arrow)}
+            {(step == Step::Prev).then(|| view! { <span class="pwb__step-chev">"‹"</span> })}
+            <span class="pwb__step-text">
+                <span class="pwb__step-label">{step.label()}</span>
+                <span class="pwb__step-title">{title}</span>
+            </span>
+            {(step == Step::Next).then(|| view! { <span class="pwb__step-chev">"›"</span> })}
         </a>
     })
+}
+
+/// The bar itself: Contents left, the counter centred, the two steps right. Mounts as the LAST
+/// flex child of `.pwb`, so it takes its height from the panes instead of floating over them.
+fn nav_bar(
+    prev: Option<&str>,
+    next: Option<&str>,
+    counter: Option<(Vec<String>, usize)>,
+) -> impl IntoView + use<> {
+    view! {
+        <nav class="pwb__nav" aria-label="Problem navigation">
+            <div class="pwb__nav-left">{contents_button()}</div>
+            <div class="pwb__nav-mid">
+                {counter.map(|(problems, at)| problem_counter(&problems, at))}
+            </div>
+            <div class="pwb__nav-right">
+                {step_link(prev, Step::Prev)}
+                {step_link(next, Step::Next)}
+            </div>
+        </nav>
+    }
 }
 
 #[allow(clippy::needless_pass_by_value, clippy::too_many_lines)]
@@ -212,6 +264,18 @@ pub fn ProblemWorkbench(payload: LessonPayloadDto, segments: Vec<String>) -> imp
     let next_path = payload.next.clone();
     let segments = StoredValue::new(segments);
 
+    // "Problem N / M" for this chapter. Read REACTIVELY: the index may still be loading when the
+    // page mounts, and the bar simply has no centre until it lands. `ProblemWorkbench` renders
+    // in-tree, so app context is reachable here — the same reason `contents_button` works.
+    let counter = move || {
+        let path = segments.read_value().join("/");
+        match crate::catalog::state::CatalogStore::from_context().index().get() {
+            crate::api::AsyncResult::Loaded(index) => logic::book_of(&index, &segments.read_value())
+                .and_then(|book| logic::chapter_problems(book, &path)),
+            _ => None,
+        }
+    };
+
     let tab_buttons: Vec<_> = TABS
         .into_iter()
         .map(|t| {
@@ -243,13 +307,6 @@ pub fn ProblemWorkbench(payload: LessonPayloadDto, segments: Vec<String>) -> imp
                 <span class="pwb__crumb-sep">"›"</span>
                 <span class="pwb__crumb pwb__crumb--current">{lesson_title}</span>
             </nav>
-            // Navigation floats in the bottom corners rather than riding the crumb row: on a
-            // page you work top-to-bottom in, the top-right is the furthest point from both
-            // the reader's eye and the mouse. Contents + Prev stack bottom-left, Next sits
-            // bottom-right — the corners the prose reader's own FABs vacate here.
-            {contents_button()}
-            {step_link(prev_path.as_deref(), Step::Prev)}
-            {step_link(next_path.as_deref(), Step::Next)}
             <div class="pwb__panes" node_ref=panes_ref>
                 <div class="pwb__left" style=move || format!("width: {:.2}%", left_pct.get())>
                     <div class="pwb__head">
@@ -339,6 +396,7 @@ pub fn ProblemWorkbench(payload: LessonPayloadDto, segments: Vec<String>) -> imp
                     }}
                 </div>
             </div>
+            {move || nav_bar(prev_path.as_deref(), next_path.as_deref(), counter())}
         </div>
     }
 }

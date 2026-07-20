@@ -68,6 +68,14 @@ pub struct Lesson {
     /// putting it on the index too would add 442 strings to a document every visitor downloads
     /// to buy nothing.
     pub description: Option<String>,
+    /// Frontmatter `kind:` — `problem` or, for prose, absent.
+    ///
+    /// This one DOES cross to `LessonDto`, where `description` deliberately doesn't, and the
+    /// difference is what the client can derive without it. A summary it already holds on the
+    /// payload; "is this lesson a problem" it cannot know at all without asking for all 442.
+    /// The counter on a problem page needs the whole chapter's shape at once, so the answer
+    /// rides the index — and costs nothing on prose, which is most of them.
+    pub kind: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

@@ -12,6 +12,7 @@ fn lesson(slug: &str) -> Lesson {
         order: None,
         essential: true,
         description: None,
+        kind: None,
     }
 }
 

@@ -6,11 +6,30 @@ use super::*;
 use synapse_shared::catalog::{CategoryDto, ChapterDto};
 
 fn lesson(slug: &str) -> BookEntryDto {
+    entry(slug, None)
+}
+
+/// A `kind: problem` lesson — what `chapter_problems` counts.
+fn problem(slug: &str) -> BookEntryDto {
+    entry(slug, Some("problem"))
+}
+
+fn entry(slug: &str, kind: Option<&str>) -> BookEntryDto {
     BookEntryDto::Lesson(LessonDto {
         slug: slug.to_owned(),
         title: slug.to_owned(),
         order: None,
         essential: true,
+        lesson_kind: kind.map(str::to_owned),
+    })
+}
+
+fn chapter(slug: &str, entries: Vec<BookEntryDto>) -> BookEntryDto {
+    BookEntryDto::Chapter(ChapterDto {
+        slug: slug.to_owned(),
+        title: slug.to_owned(),
+        order: None,
+        entries,
     })
 }
 
@@ -160,4 +179,103 @@ fn problem_split_divides_at_the_first_top_level_details() {
     let (all, none) = problem_content_split("No editorial here.");
     assert_eq!(all, "No editorial here.");
     assert!(none.is_empty());
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHAPTER PROBLEMS — the problem-page counter's source of truth
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Two problem chapters plus prose, so sibling bleed and prose contamination both have a
+/// chance to show up.
+fn problem_book() -> BookDto {
+    BookDto {
+        slug: "dsa".to_owned(),
+        title: "DSA".to_owned(),
+        description: String::new(),
+        tags: vec![],
+        estimated_reading_minutes: None,
+        order: None,
+        category_path: vec!["learn".to_owned()],
+        entries: vec![
+            problem("root-problem"),
+            chapter(
+                "basics",
+                vec![
+                    lesson("notes"),
+                    problem("p1"),
+                    problem("p2"),
+                    problem("p3"),
+                    problem("p4"),
+                    problem("p5"),
+                    problem("p6"),
+                ],
+            ),
+            chapter("arrays", vec![problem("a1"), problem("a2"), problem("a3")]),
+        ],
+    }
+}
+
+#[test]
+fn counts_the_problems_of_the_current_chapter_and_locates_the_path() {
+    let (problems, at) = chapter_problems(&problem_book(), "learn/dsa/basics/p5").unwrap();
+    assert_eq!(problems.len(), 6, "six problems, the prose note excluded");
+    assert_eq!(at, 4, "p5 is the fifth — PROBLEM 5 / 6");
+}
+
+#[test]
+fn a_prose_lesson_is_neither_counted_nor_located() {
+    let (problems, _) = chapter_problems(&problem_book(), "learn/dsa/basics/p1").unwrap();
+    assert!(!problems.iter().any(|p| p.ends_with("/notes")));
+    assert!(chapter_problems(&problem_book(), "learn/dsa/basics/notes").is_none());
+}
+
+#[test]
+fn a_sibling_chapters_problems_do_not_bleed_in() {
+    let (problems, at) = chapter_problems(&problem_book(), "learn/dsa/arrays/a2").unwrap();
+    assert_eq!(problems.len(), 3, "arrays has three, not nine");
+    assert_eq!(at, 1);
+}
+
+/// A book that never introduced chapters still counts: the book prefix IS the parent.
+#[test]
+fn book_root_problems_count_against_each_other() {
+    let (problems, at) = chapter_problems(&problem_book(), "learn/dsa/root-problem").unwrap();
+    assert_eq!(problems, vec!["learn/dsa/root-problem".to_owned()]);
+    assert_eq!(at, 0);
+}
+
+#[test]
+fn an_unknown_path_has_no_position() {
+    assert!(chapter_problems(&problem_book(), "learn/dsa/basics/nope").is_none());
+    assert!(chapter_problems(&problem_book(), "bare").is_none());
+}
+
+#[test]
+fn a_chapter_with_no_problems_yields_nothing() {
+    let prose_only = BookDto {
+        entries: vec![chapter("reading", vec![lesson("one"), lesson("two")])],
+        ..problem_book()
+    };
+    assert!(chapter_problems(&prose_only, "learn/dsa/reading/one").is_none());
+}
+
+/// The shape the real content uses: `problems/<slug>/<slug>.md`, one chapter per problem. Scoping
+/// on the raw parent would read "1 / 1" on every page; the counter has to flatten these the way
+/// the sidebar already does.
+#[test]
+fn problems_in_a_chapter_of_their_own_still_count_together() {
+    let own_dirs = BookDto {
+        entries: vec![chapter(
+            "problems",
+            vec![
+                chapter("input-output", vec![problem("input-output")]),
+                chapter("if-else-if", vec![problem("if-else-if")]),
+                chapter("switch-case", vec![problem("switch-case")]),
+            ],
+        )],
+        ..problem_book()
+    };
+    let (problems, at) = chapter_problems(&own_dirs, "learn/dsa/problems/if-else-if/if-else-if").unwrap();
+    assert_eq!(problems.len(), 3, "the three siblings, not one apiece");
+    assert_eq!(at, 1);
 }
