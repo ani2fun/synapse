@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# ── DEV LOOP, Astro edition (migration step A01) ──────────────────────────────
+# axum API on :8280 (background) + Astro dev on :5373 (foreground, HMR, proxies
+# /api /media /c4). Ctrl-C stops both. :5373 is pinned by the Keycloak dev realm
+# origin allowlist — a silent port bump 403s the silent-SSO iframe (step-39 scar).
+# The old client's loop lives on as dev-tools/dev until A14.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+# shellcheck source=lib-ports.sh
+source "$(dirname "$0")/lib-ports.sh"
+reclaim "${SYNAPSE_PORT:-8280}" "synapse-server"
+reclaim 5373 "astro-dev"
+
+cargo build -p synapse-server --quiet
+./target/debug/synapse-server &
+SERVER_PID=$!
+trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+
+cd web && exec npx astro dev

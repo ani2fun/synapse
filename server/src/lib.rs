@@ -67,6 +67,10 @@ pub struct AppDeps<
     pub views: Arc<V>,
     /// The production dist dir; absent (dev) → no static routes, and `/` answers plain text.
     pub static_root: String,
+    /// The Astro SSR sidecar (migration step A01). `Some` switches the page front end from
+    /// `StaticRoutes` to `astro_proxy` as the router FALLBACK; `None` is exactly yesterday's
+    /// behaviour. Rollback at any point in the migration = unset `SYNAPSE_ASTRO_URL`.
+    pub astro_url: Option<String>,
     /// Public origin for canonical + Open Graph URLs (step 50).
     pub site_url: String,
     /// The content checkout — `/media` serves its `_media/` tree (one shared cache hour).
@@ -101,6 +105,13 @@ where
         limiter: deps.limiter,
     };
     let statics = StaticRoutes::new(&deps.static_root, Arc::clone(&deps.catalog), &deps.site_url);
+    // Crawler plumbing mounts UNCONDITIONALLY, before either front end: robots + sitemap are
+    // generated from the in-memory catalog, which lives in THIS process whichever side serves
+    // the pages.
+    let seo = platform::seo_routes::SeoRoutesState {
+        catalog: Arc::clone(&deps.catalog),
+        site_url: deps.site_url.clone(),
+    };
     let media = platform::media_routes::MediaRoutes::new(&deps.content_root);
     let security = platform::security_headers::SecurityHeaders::new(&deps.ident.issuer);
     let admin = submission::http::admin::AdminRoutesState {
@@ -129,8 +140,14 @@ where
         .merge(tutoring::http::routes(deps.tutor))
         .layer(axum::middleware::from_fn(platform::content_cache_control::stamp))
         .merge(media.routes())
-        .merge(platform::likec4_proxy::routes(&deps.likec4_url));
-    if statics.enabled() {
+        .merge(platform::likec4_proxy::routes(&deps.likec4_url))
+        .merge(platform::seo_routes::routes(seo));
+    if let Some(astro_url) = deps.astro_url.as_deref() {
+        // The Astro front door: a FALLBACK, so every registered route above keeps winning and
+        // the sidecar's 404 page becomes the site 404.
+        let proxy = platform::astro_proxy::AstroProxy::new(astro_url);
+        router = router.fallback(axum::routing::any(platform::astro_proxy::handle).with_state(proxy));
+    } else if statics.enabled() {
         router = router.merge(statics.routes());
     } else {
         router = router.route(

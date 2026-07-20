@@ -1,0 +1,68 @@
+---
+// A01's placeholder landing page. Its one job is to prove the WHOLE path — Astro SSR → axum
+// API over localhost → rendered HTML through the astro_proxy — before any real porting starts.
+// A04 replaces this with the actual library (cards, categories, hero, progress chrome).
+import Base from "../layouts/Base.astro";
+
+// The index wire shape is KIND-DISCRIMINATED (step 06's design): every entry carries the same
+// fields plus `kind: "book" | "category"`. A01's first draft guessed the shape from field
+// presence and silently dropped six of seven books — exactly the class of error A02's
+// generated-from-OpenAPI types exist to make impossible.
+interface CatalogEntry {
+  kind: "book" | "category";
+  slug: string;
+  title: string;
+  entries?: CatalogEntry[];
+  categoryPath?: string[] | null;
+}
+
+// SSR fetch: in the browser the API is same-origin; here it is a localhost hop to the axum
+// server. Configured, defaulting to the dev port — A02 centralises this in the API client.
+const apiBase = import.meta.env.SYNAPSE_API_URL ?? "http://localhost:8280";
+
+let books: { title: string; path: string }[] = [];
+let loadError: string | null = null;
+try {
+  const response = await fetch(`${apiBase}/api/synapse/index`);
+  if (!response.ok) throw new Error(`index fetch: ${response.status}`);
+  const index = (await response.json()) as { entries: CatalogEntry[] };
+  const walk = (entries: CatalogEntry[], prefix: string[]) => {
+    for (const entry of entries) {
+      if (entry.kind === "book") {
+        books.push({
+          title: entry.title,
+          path: [...(entry.categoryPath ?? prefix), entry.slug].join("/"),
+        });
+      } else if (entry.entries) {
+        walk(entry.entries, [...prefix, entry.slug]);
+      }
+    }
+  };
+  walk(index.entries, []);
+} catch (error) {
+  loadError = error instanceof Error ? error.message : String(error);
+}
+---
+
+<Base title="Synapse">
+  <main class="library">
+    <h1>Synapse</h1>
+    <p class="muted">
+      Astro front end — migration step A01. This placeholder proves SSR → API → proxy;
+      the real library lands in A04.
+    </p>
+    {
+      loadError ? (
+        <p class="error">The catalog failed to load: {loadError}</p>
+      ) : (
+        <ul>
+          {books.map((book) => (
+            <li>
+              <a href={`/synapse/${book.path}`}>{book.title}</a>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </main>
+</Base>

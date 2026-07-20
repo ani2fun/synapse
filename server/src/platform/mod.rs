@@ -4,6 +4,7 @@
 //! in `catalog`.
 
 pub mod admin_gate;
+pub mod astro_proxy;
 pub(crate) mod blocking;
 pub mod client_ip;
 pub mod content_cache_control;
@@ -16,5 +17,6 @@ pub mod media_routes;
 pub mod rate_limiter;
 pub mod readiness;
 pub mod security_headers;
+pub mod seo_routes;
 pub mod static_routes;
 pub mod telemetry;

@@ -37,6 +37,10 @@ pub struct AppConfig {
     /// The production SPA dist dir (step 18). Absent (the dev default) → no static routes;
     /// Vite serves the client. Env: `STATIC_ROOT`.
     pub static_root: String,
+    /// The Astro SSR sidecar's origin (migration step A01). `Some` switches page serving from
+    /// the built-in `StaticRoutes` to the `astro_proxy` fallback; `None` (the default) keeps
+    /// today's behaviour exactly. Env: `SYNAPSE_ASTRO_URL` (or the bare `ASTRO_URL`).
+    pub astro_url: Option<String>,
     /// The site's public origin, used for `<link rel="canonical">` and the Open Graph URLs the
     /// server injects (step 50). OG requires ABSOLUTE urls, and the `Host` header is
     /// caller-controlled — a configured value cannot be poisoned by a request.
@@ -83,6 +87,7 @@ impl Default for AppConfig {
             identity_issuer: "http://localhost:8181/realms/synapse".to_owned(),
             identity_audience: "synapse-web".to_owned(),
             static_root: "client/dist".to_owned(),
+            astro_url: None,
             site_url: "https://synapse.kakde.eu".to_owned(),
             likec4_url: "http://localhost:8190".to_owned(),
             rate_limit_anon_window_seconds: 60,
@@ -136,7 +141,7 @@ impl AppConfig {
         });
         // The step-18 platform names (the oracle's deploy-manifest spellings, no prefix).
         let platform = Env::raw()
-            .only(&["STATIC_ROOT", "LIKEC4_URL", "SITE_URL"])
+            .only(&["STATIC_ROOT", "LIKEC4_URL", "SITE_URL", "ASTRO_URL"])
             .map(|key| key.as_str().to_lowercase().into());
         let rate = Env::raw()
             .only(&[

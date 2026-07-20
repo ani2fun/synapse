@@ -2,6 +2,8 @@
 target/
 client/pkg/
 client/dist/
+web/dist/
+web/.astro/
 node_modules/
 
 # derived code index (CodeGraph rebuilds it per machine; the .db is 8 MB of binary)

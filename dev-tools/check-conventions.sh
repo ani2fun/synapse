@@ -78,7 +78,7 @@ check_caps() {
   return $over
 }
 
-echo "→ file-size caps (server/shared ≤ 500 · client ≤ 800)"
+echo "→ file-size caps (server/shared ≤ 500 · client/web ≤ 800)"
 server_ok=0
 check_caps 500 find server shared -name "*.rs" -not -path "*/target/*" || server_ok=1
 client_ok=0
@@ -87,7 +87,12 @@ if [[ -d client ]]; then
     -not -path "*/node_modules/*" -not -path "*/target/*" -not -path "*/dist/*" \
     -not -path "*/pkg/*" || client_ok=1
 fi
-if ((server_ok == 0 && client_ok == 0)); then
+web_ok=0
+if [[ -d web ]]; then
+  check_caps 800 find web \( -name "*.ts" -o -name "*.tsx" -o -name "*.astro" \) \
+    -not -path "*/node_modules/*" -not -path "*/dist/*" -not -path "*/.astro/*" || web_ok=1
+fi
+if ((server_ok == 0 && client_ok == 0 && web_ok == 0)); then
   echo "  ok"
 else
   echo "✗ files over their cap (listed above) — split along the layer seams"

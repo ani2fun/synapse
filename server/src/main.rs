@@ -137,6 +137,7 @@ async fn main() -> anyhow::Result<()> {
         allowlist,
         views,
         tutor,
+        astro_url: cfg.astro_url,
         site_url: cfg.site_url,
         static_root: cfg.static_root.clone(),
         content_root: cfg.content_root.clone(),

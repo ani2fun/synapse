@@ -1,0 +1,68 @@
+---
+// The document frame every page shares (step A01). The head is NATIVE here — no server-side
+// string surgery: the per-page title/description/canonical/OG machinery that step 50 bolted
+// onto StaticRoutes becomes ordinary props.
+//
+// The stylesheets are the OLD CLIENT'S, imported verbatim from client/styles/ — zero framework
+// selectors in them (verified by inventory), and single-sourced until A14 moves them here.
+import "../../../client/styles/tokens.css";
+import "../../../client/styles/shell.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+  /** Site-relative path for canonical + og:url; omitted = no canonical tag. */
+  canonicalPath?: string;
+}
+
+const SITE_NAME = "Synapse";
+const DEFAULT_DESCRIPTION =
+  "Read, run and understand — interactive lessons on system design, data structures and " +
+  "algorithms, with code you can execute and visualise in the page.";
+
+const { title = SITE_NAME, description = DEFAULT_DESCRIPTION, canonicalPath } = Astro.props;
+// Absolute origin for OG/canonical — configured, never sniffed from Host (caller-controlled),
+// same rule as the axum side.
+const siteUrl = (import.meta.env.SYNAPSE_SITE_URL ?? "https://synapse.kakde.eu").replace(/\/+$/, "");
+const canonical = canonicalPath ? `${siteUrl}${canonicalPath}` : undefined;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    {canonical && <link rel="canonical" href={canonical} />}
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE_NAME} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    {canonical && <meta property="og:url" content={canonical} />}
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&family=Literata:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    />
+    <!-- The theme bootstrap (oracle verbatim, carried from client/index.html): .dark on <html>
+         BEFORE first paint — stored choice wins, else the OS preference. The CSP allows this
+         inline script by design. -->
+    <script is:inline>
+      (function () {
+        try {
+          var t = localStorage.getItem("theme");
+          var dark = t === "dark" || (!t && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.classList.toggle("dark", dark);
+        } catch (_) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

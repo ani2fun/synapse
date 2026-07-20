@@ -1,0 +1,21 @@
+{
+  "name": "synapse-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@astrojs/node": "^9.2.0",
+    "@astrojs/preact": "^4.0.0",
+    "astro": "^5.7.0",
+    "preact": "^10.26.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.7"
+  }
+}

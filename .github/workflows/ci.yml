@@ -234,6 +234,32 @@ jobs:
       - name: bundle budget (700 KiB gz critical path)
         run: dev-tools/check-bundle-budget.sh
 
+  # ── The Astro app (migration step A01) ───────────────────────────────────────
+  # Builds and type-checks web/ so the branch cannot rot the new front end while the old one
+  # still serves. vitest runs with --passWithNoTests until A02 lands the first ported suite.
+  # `astro build` needs no running API: output is "server", so pages fetch at REQUEST time
+  # and the build only bundles.
+  web:
+    timeout-minutes: 15
+    needs: conventions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: npm ci
+        working-directory: web
+        run: npm ci
+      - name: vitest
+        working-directory: web
+        run: npm test
+      - name: astro build
+        working-directory: web
+        run: npm run build
+
   # ── End-to-end smoke (step 52) ────────────────────────────────────────────────
   # Every "Verified" section in 51 chapters was a human in a browser tab, and the classes of
   # bug that survived that — a drawer under the fixed header for nine steps, a palette rendering

@@ -15,7 +15,6 @@
 //! rewritten from the in-memory catalog index, and served — which the `no-cache` header on the
 //! index already made free.
 
-use std::fmt::Write as _;
 use std::path::{Path as FsPath, PathBuf};
 use std::sync::Arc;
 
@@ -34,8 +33,6 @@ const SPA_SEGMENTS: [&str; 4] = ["synapse", "blog", "account", "admin"];
 
 const INDEX_CACHE: &str = "no-cache";
 const ASSET_CACHE: &str = "public, max-age=31536000, immutable";
-/// Generated, cheap to rebuild, and crawlers re-fetch on their own schedule.
-const SITEMAP_CACHE: &str = "public, max-age=3600";
 
 const SITE_NAME: &str = "Synapse";
 const DEFAULT_TITLE: &str = "Synapse";
@@ -79,8 +76,6 @@ impl StaticRoutes {
             .route("/", get(index_root))
             .route("/index.html", get(index_root))
             .route("/silent-check-sso.html", get(silent_sso))
-            .route("/robots.txt", get(robots))
-            .route("/sitemap.xml", get(sitemap))
             .route("/assets/{*rest}", get(asset));
         for segment in SPA_SEGMENTS {
             router = router.route(&format!("/{segment}"), get(index_root));
@@ -213,39 +208,6 @@ async fn silent_sso(State(state): State<StaticRoutesState>) -> Response {
 
 /// Everything is crawlable except the API and the authenticated surfaces, which have nothing
 /// to index and would only burn crawl budget.
-async fn robots(State(state): State<StaticRoutesState>) -> Response {
-    let body = format!(
-        "User-agent: *\n\
-         Allow: /\n\
-         Disallow: /api/\n\
-         Disallow: /account\n\
-         Disallow: /admin\n\
-         Disallow: /c4/\n\
-         \n\
-         Sitemap: {}/sitemap.xml\n",
-        state.site_url
-    );
-    text_response(body, "text/plain; charset=utf-8", SITEMAP_CACHE)
-}
-
-async fn sitemap(State(state): State<StaticRoutesState>) -> Response {
-    let Ok(paths) = state.catalog.all_lesson_paths().await else {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    };
-    let mut body = String::from(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
-         <urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n",
-    );
-    let origin = &state.site_url;
-    let _ = writeln!(body, "  <url><loc>{origin}/</loc></url>");
-    let _ = writeln!(body, "  <url><loc>{origin}/blog</loc></url>");
-    for path in paths {
-        let _ = writeln!(body, "  <url><loc>{origin}/synapse/{}</loc></url>", escape(&path));
-    }
-    body.push_str("</urlset>\n");
-    text_response(body, "application/xml; charset=utf-8", SITEMAP_CACHE)
-}
-
 async fn asset(State(state): State<StaticRoutesState>, Path(rest): Path<String>) -> Response {
     let rel = format!("assets/{rest}");
     serve(&state.root, &rel, content_type_of(&rel), ASSET_CACHE).await
@@ -255,10 +217,6 @@ async fn asset(State(state): State<StaticRoutesState>, Path(rest): Path<String>)
 
 fn html_response(bytes: Vec<u8>, cache: &'static str) -> Response {
     build(bytes, "text/html; charset=utf-8", cache)
-}
-
-fn text_response(body: String, content_type: &'static str, cache: &'static str) -> Response {
-    build(body.into_bytes(), content_type, cache)
 }
 
 fn build(bytes: Vec<u8>, content_type: &'static str, cache: &'static str) -> Response {
