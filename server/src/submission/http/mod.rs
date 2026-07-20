@@ -1,7 +1,8 @@
 //! The submission HTTP surface (oracle: `SubmissionRoutes` at the identity stage): POST → 202
 //! (bearer optional — anonymous submits, a BAD token 401s, never silently anonymous), public
 //! GET poll, PRIVATE list (anonymous → `[]`, store untouched), owner-only delete + erase-all.
-//! DTO↔domain mapping lives ONLY here; the auth-error mapping is re-stated locally (qna Q27).
+//! DTO↔domain mapping lives ONLY here; the bearer skeleton is `identity::http::optional_user`
+//! (step 61) — only the anonymous POLICY and the per-verb 401 copy stay local.
 
 pub mod admin;
 mod dto;
@@ -20,7 +21,7 @@ use uuid::Uuid;
 use crate::catalog::infrastructure::FileSystemContentRepository;
 use crate::execution::http::over_budget;
 use crate::execution::infrastructure::GoJudgeRunner;
-use crate::identity::http::{LiveIdentityService, bearer, to_auth_error};
+use crate::identity::http::LiveIdentityService;
 use crate::platform::client_ip::{Peer, client_ip};
 use crate::platform::rate_limiter::RateLimiter;
 use crate::submission::application::{SubmitSolution, Submitter};
@@ -60,19 +61,13 @@ pub fn routes(state: SubmissionRoutesState) -> Router {
         .with_state(state)
 }
 
-/// Absent bearer = anonymous; a PRESENT bearer must verify — bad tokens 401, never silently
-/// anonymous (the rule every context enforces).
+/// The submission-local name for the shared skeleton (`identity::http::optional_user`, step
+/// 61 — the never-silently-anonymous rule lives THERE now); this keeps the call sites short.
 async fn caller_user(
     state: &SubmissionRoutesState,
     headers: &HeaderMap,
 ) -> Result<Option<crate::identity::domain::AuthenticatedUser>, (StatusCode, Json<ApiError>)> {
-    match bearer(headers) {
-        None => Ok(None),
-        Some(token) => match state.identity.authenticate(&token).await {
-            Ok(user) => Ok(Some(user)),
-            Err(error) => Err(to_auth_error(&error)),
-        },
-    }
+    crate::identity::http::optional_user(&state.identity, headers).await
 }
 
 fn needs_token(verb: &str) -> (StatusCode, Json<ApiError>) {

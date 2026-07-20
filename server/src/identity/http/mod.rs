@@ -59,6 +59,23 @@ pub fn to_auth_error(error: &AuthError) -> (StatusCode, Json<ApiError>) {
     )
 }
 
+/// Resolve the caller when the bearer is OPTIONAL: absent = anonymous (`Ok(None)`); a
+/// PRESENT bearer must verify — bad tokens 401, never silently anonymous (the rule every
+/// context enforces, stated once as of step 61). Callers keep their own anonymous POLICY
+/// (allow / 401 / empty list) and their own missing-token copy on top of this skeleton.
+pub async fn optional_user(
+    identity: &LiveIdentityService,
+    headers: &HeaderMap,
+) -> Result<Option<crate::identity::domain::AuthenticatedUser>, (StatusCode, Json<ApiError>)> {
+    match bearer(headers) {
+        None => Ok(None),
+        Some(token) => match identity.authenticate(&token).await {
+            Ok(user) => Ok(Some(user)),
+            Err(error) => Err(to_auth_error(&error)),
+        },
+    }
+}
+
 fn missing_token() -> (StatusCode, Json<ApiError>) {
     (
         StatusCode::UNAUTHORIZED,
@@ -82,21 +99,16 @@ fn missing_token() -> (StatusCode, Json<ApiError>) {
     )
 )]
 pub(crate) async fn get_me(State(state): State<IdentityRoutesState>, headers: HeaderMap) -> ApiResult<MeDto> {
-    let Some(token) = bearer(&headers) else {
+    let Some(user) = optional_user(&state.identity, &headers).await? else {
         return Err(missing_token());
     };
-    match state.identity.authenticate(&token).await {
-        Ok(user) => {
-            let admin = state.admin_users.contains(&user.username);
-            Ok(Json(MeDto {
-                id: user.id.0,
-                username: user.username,
-                email: user.email,
-                admin, // UX flag only — the admin routes re-check per call
-            }))
-        }
-        Err(error) => Err(to_auth_error(&error)),
-    }
+    let admin = state.admin_users.contains(&user.username);
+    Ok(Json(MeDto {
+        id: user.id.0,
+        username: user.username,
+        email: user.email,
+        admin, // UX flag only — the admin routes re-check per call
+    }))
 }
 
 /// Delete the caller's sign-in (oracle steps 21/37): verified bearer required; the Keycloak
@@ -116,12 +128,8 @@ pub(crate) async fn delete_me(
     State(state): State<IdentityRoutesState>,
     headers: HeaderMap,
 ) -> ApiResult<serde_json::Value> {
-    let Some(token) = bearer(&headers) else {
+    let Some(user) = optional_user(&state.identity, &headers).await? else {
         return Err(missing_token());
-    };
-    let user = match state.identity.authenticate(&token).await {
-        Ok(user) => user,
-        Err(error) => return Err(to_auth_error(&error)),
     };
     match state.identity.delete_account(&user.id.0).await {
         Ok(()) => Ok(Json(serde_json::json!({ "deleted": true }))),

@@ -12,7 +12,7 @@ use axum::Json;
 use axum::http::{HeaderMap, StatusCode};
 use synapse_shared::api::ApiError;
 
-use crate::identity::http::{LiveIdentityService, bearer, to_auth_error};
+use crate::identity::http::{LiveIdentityService, optional_user};
 
 pub type Reject = (StatusCode, Json<ApiError>);
 
@@ -31,7 +31,8 @@ pub async fn require_admin<S: std::hash::BuildHasher + Sync>(
     headers: &HeaderMap,
     what: &str,
 ) -> Result<String, Reject> {
-    let Some(token) = bearer(headers) else {
+    // The shared skeleton resolves the caller; only the POLICY (admin required) lives here.
+    let Some(user) = optional_user(identity, headers).await? else {
         return Err((
             StatusCode::UNAUTHORIZED,
             Json(ApiError {
@@ -41,10 +42,6 @@ pub async fn require_admin<S: std::hash::BuildHasher + Sync>(
             }),
         ));
     };
-    let user = identity
-        .authenticate(&token)
-        .await
-        .map_err(|error| to_auth_error(&error))?;
     if admin_users.contains(&user.username) {
         tracing::info!(admin = user.username, what, "admin call");
         Ok(user.username)

@@ -16,7 +16,7 @@ use synapse_shared::execution::{RunRequest, RunResult};
 
 use crate::execution::application::{ExecutionError, RunCodeService};
 use crate::execution::infrastructure::GoJudgeRunner;
-use crate::identity::http::{LiveIdentityService, bearer, to_auth_error};
+use crate::identity::http::{LiveIdentityService, optional_user};
 use crate::platform::client_ip::{Peer, client_ip};
 use crate::platform::rate_limiter::{RateLimiter, Throttled};
 
@@ -56,13 +56,9 @@ pub(crate) async fn run_code(
     Json(request): Json<RunRequest>,
 ) -> Result<Json<RunResult>, (StatusCode, Json<ApiError>)> {
     // The gate first: resolve the caller (bad token → 401), then meter the right ledger.
-    let subject = match bearer(&headers) {
-        None => None,
-        Some(token) => match state.identity.authenticate(&token).await {
-            Ok(user) => Some(user.id.0),
-            Err(error) => return Err(to_auth_error(&error)),
-        },
-    };
+    let subject = optional_user(&state.identity, &headers)
+        .await?
+        .map(|user| user.id.0);
     let consumed = match &subject {
         Some(sub) => state.limiter.consume_authenticated(sub),
         None => state.limiter.consume_anonymous(&client_ip(&headers, peer.0)),
