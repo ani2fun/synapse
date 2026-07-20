@@ -4,8 +4,10 @@
 //! in `catalog`.
 
 pub mod admin_gate;
+pub(crate) mod blocking;
 pub mod client_ip;
 pub mod content_cache_control;
+pub(crate) mod frontmatter;
 pub mod health;
 pub mod http;
 pub mod likec4_proxy;

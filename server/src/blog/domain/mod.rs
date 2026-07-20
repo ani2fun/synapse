@@ -1,12 +1,12 @@
 //! The blog domain (oracle: `BlogPost` + `BlogFrontmatter`): one post per markdown file, a
 //! lenient frontmatter fence, and graceful degradation — a malformed date or read-minutes value
-//! becomes `None`, never an error. The fence parser is a deliberate TWIN of the catalog's, not
-//! an import: bounded contexts own their vocabulary (the oracle duplicated it for the same
-//! reason).
-
-use std::collections::BTreeMap;
+//! becomes `None`, never an error. The fence MECHANISM was a deliberate byte-identical twin of
+//! the catalog's until step 62; it is `platform::frontmatter` now, and what this module owns
+//! is blog's VOCABULARY — which fields a post has and how they degrade.
 
 use chrono::NaiveDate;
+
+use crate::platform::frontmatter::{fields_and_body, parse_inline_list};
 
 /// One published post.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,7 +46,10 @@ impl BlogPost {
             published_at: fields
                 .get("publishedAt")
                 .and_then(|d| NaiveDate::parse_from_str(d.trim(), "%Y-%m-%d").ok()),
-            tags: fields.get("tags").map(|v| inline_list(v)).unwrap_or_default(),
+            tags: fields
+                .get("tags")
+                .map(|v| parse_inline_list(v))
+                .unwrap_or_default(),
             read_minutes: fields.get("readMinutes").and_then(|m| m.trim().parse().ok()),
             eyebrow: fields.get("eyebrow").cloned(),
             body,
@@ -67,61 +70,8 @@ impl BlogPost {
     }
 }
 
-/// A fence exists only when the FIRST line is `---` and a closing `---` follows; anything
-/// malformed degrades to "no fence" (empty fields, the whole content as body).
-fn fields_and_body(content: &str) -> (BTreeMap<String, String>, String) {
-    let lines: Vec<&str> = content
-        .split('\n')
-        .map(|l| l.strip_suffix('\r').unwrap_or(l))
-        .collect();
-    if lines.first().map(|l| l.trim_end()) != Some("---") {
-        return (BTreeMap::new(), content.to_owned());
-    }
-    let Some(end) = lines
-        .iter()
-        .skip(1)
-        .position(|l| l.trim_end() == "---")
-        .map(|i| i + 1)
-    else {
-        return (BTreeMap::new(), content.to_owned());
-    };
-    let mut fields = BTreeMap::new();
-    for line in &lines[1..end] {
-        let Some(idx) = line.find(':') else { continue };
-        if idx == 0 {
-            continue;
-        }
-        let key = line[..idx].trim().to_owned();
-        let value = unquote(line[idx + 1..].trim()).to_owned();
-        if !value.is_empty() {
-            fields.insert(key, value);
-        }
-    }
-    (fields, lines[end + 1..].join("\n"))
-}
-
-/// Inline flow-style lists only: `[a, b, "c d"]`.
-fn inline_list(value: &str) -> Vec<String> {
-    let inner = value
-        .trim()
-        .strip_prefix('[')
-        .and_then(|v| v.strip_suffix(']'))
-        .unwrap_or(value);
-    inner
-        .split(',')
-        .map(|item| unquote(item.trim()).to_owned())
-        .filter(|item| !item.is_empty())
-        .collect()
-}
-
-fn unquote(s: &str) -> &str {
-    for quote in ['"', '\''] {
-        if s.len() >= 2 && s.starts_with(quote) && s.ends_with(quote) {
-            return &s[1..s.len() - 1];
-        }
-    }
-    s
-}
+// The fence splitter and inline-list parser are `platform::frontmatter` since step 62 —
+// this module keeps blog's VOCABULARY (title/summary/publishedAt/tags/readMinutes/eyebrow).
 
 #[cfg(test)]
 #[path = "blog_tests.rs"]

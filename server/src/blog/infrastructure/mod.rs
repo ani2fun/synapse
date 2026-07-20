@@ -6,6 +6,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::blog::application::{BlogError, BlogRepository};
+use crate::platform::blocking::run_blocking;
 
 pub struct FileSystemBlogRepository {
     root: PathBuf,
@@ -130,14 +131,6 @@ fn watermark(root: &Path) -> String {
         .max()
         .unwrap_or(0);
     format!("{newest}:{}", files.len())
-}
-
-async fn run_blocking<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
-    match tokio::task::spawn_blocking(work).await {
-        Ok(value) => value,
-        // A panicked blocking task is a bug upstream; propagate by resuming the unwind.
-        Err(join_error) => std::panic::resume_unwind(join_error.into_panic()),
-    }
 }
 
 #[cfg(test)]

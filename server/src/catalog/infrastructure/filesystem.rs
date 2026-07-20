@@ -12,6 +12,7 @@ use serde::de::DeserializeOwned;
 use crate::catalog::application::{ContentError, ContentRepository};
 use crate::catalog::domain::content_tree::{BookMeta, CategoryMeta, ContentEntry};
 use crate::catalog::infrastructure::commit_sha::read_commit_sha;
+use crate::platform::blocking::run_blocking;
 
 pub struct FileSystemContentRepository {
     content_root: PathBuf,
@@ -69,16 +70,6 @@ impl ContentRepository for FileSystemContentRepository {
             fs::read_to_string(target).map_err(|e| ContentError::Io(e.to_string()))
         })
         .await
-    }
-}
-
-/// The adapter's blocking filesystem work stays off the async workers.
-async fn run_blocking<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {
-    match tokio::task::spawn_blocking(work).await {
-        Ok(value) => value,
-        // A panicked blocking task is a bug upstream; surfacing it as a panic here would just
-        // hide the original. Propagate by resuming the unwind.
-        Err(join_error) => std::panic::resume_unwind(join_error.into_panic()),
     }
 }
 

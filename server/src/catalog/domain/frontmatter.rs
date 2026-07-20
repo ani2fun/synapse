@@ -1,43 +1,10 @@
-//! Lenient YAML-ish frontmatter (oracle: `Frontmatter.scala`, ADR-0001): a fence exists only if
-//! the FIRST line is `---` and a terminating `---` follows; anything malformed degrades to "no
-//! fence" — missing metadata never fails a lesson.
-
-use std::collections::BTreeMap;
+//! Lenient YAML-ish frontmatter (oracle: `Frontmatter.scala`, ADR-0001). The MECHANISM —
+//! fence split, quote strip, inline list — is `platform::frontmatter` since step 62 (it was
+//! a byte-identical twin of blog's); this module keeps the catalog's VOCABULARY: which
+//! fields a lesson has and how they degrade.
 
 use crate::catalog::domain::lesson::{LessonFrontmatter, Parsed};
-
-/// Split content into (fence fields, body). No valid fence → empty map + the whole content.
-pub fn fields_and_body(content: &str) -> (BTreeMap<String, String>, String) {
-    let lines: Vec<&str> = content
-        .split(['\n'])
-        .map(|l| l.strip_suffix('\r').unwrap_or(l))
-        .collect();
-    if lines.first().map(|l| l.trim_end()) != Some("---") {
-        return (BTreeMap::new(), content.to_owned());
-    }
-    let Some(end) = lines
-        .iter()
-        .skip(1)
-        .position(|l| l.trim_end() == "---")
-        .map(|i| i + 1)
-    else {
-        return (BTreeMap::new(), content.to_owned());
-    };
-
-    let mut fields = BTreeMap::new();
-    for line in &lines[1..end] {
-        let Some(idx) = line.find(':') else { continue };
-        if idx == 0 {
-            continue;
-        }
-        let key = line[..idx].trim().to_owned();
-        let value = strip_matching_quotes(line[idx + 1..].trim()).to_owned();
-        if !value.is_empty() {
-            fields.insert(key, value);
-        }
-    }
-    (fields, lines[end + 1..].join("\n"))
-}
+pub(crate) use crate::platform::frontmatter::{fields_and_body, parse_inline_list};
 
 /// Frontmatter `title:` → first body `# ` heading → the caller's fallback.
 pub fn extract_title(content: &str, fallback: &str) -> String {
@@ -93,29 +60,6 @@ pub fn parse(content: &str, fallback_title: &str) -> Parsed {
         },
         body,
     }
-}
-
-/// Inline flow-style lists only: `[a, b, "c d"]` → `["a", "b", "c d"]`.
-pub fn parse_inline_list(value: &str) -> Vec<String> {
-    let inner = value
-        .trim()
-        .strip_prefix('[')
-        .and_then(|v| v.strip_suffix(']'))
-        .unwrap_or(value);
-    inner
-        .split(',')
-        .map(|item| strip_matching_quotes(item.trim()).to_owned())
-        .filter(|item| !item.is_empty())
-        .collect()
-}
-
-fn strip_matching_quotes(s: &str) -> &str {
-    for quote in ['"', '\''] {
-        if s.len() >= 2 && s.starts_with(quote) && s.ends_with(quote) {
-            return &s[1..s.len() - 1];
-        }
-    }
-    s
 }
 
 fn first_h1(body: &str) -> Option<String> {
