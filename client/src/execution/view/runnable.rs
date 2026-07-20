@@ -9,7 +9,7 @@
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use synapse_shared::execution::{RunResult, TestSpec, Verdict, judge, stdin_for};
+use synapse_shared::execution::{TestSpec, judge, stdin_for};
 
 use crate::execution::logic::{self, ExecutorState, RunHandle, RunState, Variant};
 use crate::execution::state::{BlockStore, SubmitState, SubmitStore, lang_pref};
@@ -17,7 +17,8 @@ use crate::execution::view::icons::{
     icon_chevron_down, icon_eye, icon_lock, icon_play, icon_reset, icon_rocket,
 };
 use crate::execution::view::lazy;
-use crate::execution::view::workbench::{TestsPanel, TestsState, VerdictPanel};
+use crate::execution::view::output::Output;
+use crate::execution::view::workbench::{CaseRequest, TestsPanel, TestsState, VerdictPanel, no_case_yet};
 use crate::hydration::IslandStores;
 use crate::islands::editor::{self, MountedEditor};
 
@@ -45,6 +46,10 @@ pub fn RunnableBlock(
     /// Bumped when a submit lifecycle completes — the Submissions tab refetches on it.
     #[prop(optional)]
     submitted: Option<RwSignal<u32>>,
+    /// The problem page's Submissions rows push failing inputs here. Absent on lesson pages,
+    /// where the verdict panel's own button is the only producer, so the block mints its own.
+    #[prop(optional)]
+    use_case: Option<RwSignal<CaseRequest>>,
     /// The problem page's right pane: the editor FILLS the pane's free height by default
     /// (the `--fill` class the CSS targets) until the resize strip pins an explicit height.
     #[prop(optional)]
@@ -65,8 +70,11 @@ pub fn RunnableBlock(
     let submit = SubmitStore::new();
     let first = variants[start].clone();
     let variants = StoredValue::new(variants);
-    let spec = spec.map(StoredValue::new);
-    let tests = spec.map(|s| TestsState::new(&s.read_value()));
+    // A SIGNAL, not a StoredValue: the panel's suite is the authored cases PLUS any the learner
+    // appends from a failed submission (step 63), so the chip row has to react to its length.
+    let spec = spec.map(RwSignal::new);
+    let tests = spec.map(|s| s.with_untracked(TestsState::new));
+    let use_case = use_case.unwrap_or_else(|| RwSignal::new(no_case_yet()));
     let has_submit = spec.is_some() && !practice;
     let lesson_path = StoredValue::new(lesson_path);
     let mounted: StoredValue<Option<MountedEditor>, LocalStorage> = StoredValue::new_local(None);
@@ -90,7 +98,10 @@ pub fn RunnableBlock(
 
     // The Run seam: with a suite, stdin is the active case's values through the SHARED shape.
     let stdin = move || match (spec, tests) {
-        (Some(spec), Some(tests)) => Some(stdin_for(&spec.read_value().args, &tests.values.get_untracked())),
+        (Some(spec), Some(tests)) => Some(stdin_for(
+            &spec.read_untracked().args,
+            &tests.values.get_untracked(),
+        )),
         _ => None,
     };
     let run = {
@@ -115,7 +126,9 @@ pub fn RunnableBlock(
                 return seen;
             }
             if let (Some(result), Some(case)) = (&state.result, tests.ran_case.get_untracked()) {
-                let expected = logic::expected_for(&spec.read_value(), case);
+                // UNTRACKED — a tracked read would make this Effect a dependent of the spec and
+                // re-run it on every appended case.
+                let expected = logic::expected_for(&spec.read_untracked(), case);
                 let verdict = judge(result, expected.as_deref());
                 tests.verdicts.update(|map| {
                     map.insert(case, verdict);
@@ -616,12 +629,14 @@ pub fn RunnableBlock(
                             store.state.update(|s| *s = s.clear_outcome());
                         }
                     });
-                    Some(view! { <TestsPanel spec=spec tests=tests on_switch=on_switch /> })
+                    Some(
+                        view! { <TestsPanel spec=spec tests=tests on_switch=on_switch use_case=use_case /> },
+                    )
                 }
                 _ => None,
             }}
             <Output state=active_state spec=spec tests=tests />
-            <VerdictPanel submit=submit />
+            <VerdictPanel submit=submit spec=spec use_case=use_case />
         </div>
     }
 }
@@ -688,99 +703,4 @@ fn sync_editor(mounted: StoredValue<Option<MountedEditor>, LocalStorage>, store:
             }
         }
     });
-}
-
-#[component]
-pub(crate) fn Output(
-    state: Signal<ExecutorState>,
-    spec: Option<StoredValue<TestSpec>>,
-    tests: Option<TestsState>,
-) -> impl IntoView {
-    view! {
-        {move || {
-            let state = state.get();
-            if let Some(error) = &state.error {
-                return error_panel(error).into_any();
-            }
-            if let Some(result) = &state.result {
-                // Judged against the case the run was LAUNCHED for — switching chips must
-                // never re-label an old run's output under a different case's expected.
-                let expected = match (spec, tests) {
-                    (Some(spec), Some(tests)) => tests
-                        .ran_case
-                        .get()
-                        .and_then(|case| logic::expected_for(&spec.read_value(), case)),
-                    _ => None,
-                };
-                return result_panel(result, expected.as_deref()).into_any();
-            }
-            if state.run_state == RunState::Running {
-                return view! { <div class="runnable__out runnable__out--running">"Running…"</div> }
-                    .into_any();
-            }
-            ().into_any()
-        }}
-    }
-}
-
-fn error_panel(error: &str) -> impl IntoView + use<> {
-    view! {
-        <div class="runnable__out runnable__out--error">
-            <div class="runnable__status"><span class="runnable__badge runnable__badge--fail">"Error"</span></div>
-            <pre class="runnable__stream">{error.to_owned()}</pre>
-        </div>
-    }
-}
-
-/// With an expected output the stdout is JUDGED (the wb-legend tint); without one it renders
-/// plain — exactly the oracle's split.
-fn result_panel(result: &RunResult, expected: Option<&str>) -> impl IntoView + use<> {
-    let verdict = expected.map(|e| judge(result, Some(e)));
-    let (badge_label, badge_ok) = match verdict {
-        Some(Verdict::Accepted) => ("Accepted ✓".to_owned(), true),
-        Some(Verdict::WrongAnswer) => ("Wrong answer ✗".to_owned(), false),
-        _ => (result.status.label().to_owned(), result.status.is_success()),
-    };
-    let badge_class = if badge_ok {
-        "runnable__badge runnable__badge--ok"
-    } else {
-        "runnable__badge runnable__badge--fail"
-    };
-    let stdout_class = match verdict {
-        Some(Verdict::Accepted) => "runnable__stdout wb-legend--ok",
-        Some(Verdict::WrongAnswer) => "runnable__stdout wb-legend--err",
-        _ => "runnable__stdout",
-    };
-    let time = result.time_seconds.map(|s| format!("{s:.3} s"));
-    let memory = result.memory_kb.map(|kb| format!("{} MB", kb / 1024));
-    let stdout = result.stdout.clone();
-    view! {
-        <div class="runnable__out">
-            <div class="runnable__status">
-                <span class=badge_class>{badge_label}</span>
-                {time.map(|t| view! { <span class="runnable__meta">{t}</span> })}
-                {memory.map(|m| view! { <span class="runnable__meta">{m}</span> })}
-            </div>
-            {stream_block("compile output", &result.compile_output)}
-            {stream_block("stderr", &result.stderr)}
-            {if stdout.is_empty() {
-                view! { <p class="runnable__empty">"(no output)"</p> }.into_any()
-            } else {
-                view! { <pre class=stdout_class>{stdout}</pre> }.into_any()
-            }}
-        </div>
-    }
-}
-
-fn stream_block(label: &'static str, content: &str) -> Option<impl IntoView + use<>> {
-    if content.is_empty() {
-        return None;
-    }
-    let content = content.to_owned();
-    Some(view! {
-        <details class="runnable__details" open>
-            <summary class="runnable__details-label">{label}</summary>
-            <pre class="runnable__stream">{content}</pre>
-        </details>
-    })
 }

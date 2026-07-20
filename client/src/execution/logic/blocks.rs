@@ -81,10 +81,90 @@ pub fn expected_for(spec: &synapse_shared::execution::TestSpec, case_index: usiz
     spec.cases.get(case_index).and_then(|case| case.expected.clone())
 }
 
+/// Can a judged failure's input be reproduced in the VISIBLE tests panel? Only when every
+/// declared arg has a value in the failure.
+///
+/// A problem may be judged against a `<stem>.tests.json` sidecar the learner never sees, whose
+/// arg ids need not match the authored fence's. Copying misaligned args would leave values under
+/// keys with no input field, and `stdin_for` — which iterates the VISIBLE args — would then feed
+/// the program something the judge never fed it. Extra keys are harmless: `stdin_for` ignores
+/// them.
+pub fn can_reproduce(
+    spec: &synapse_shared::execution::TestSpec,
+    args: &std::collections::BTreeMap<String, String>,
+) -> bool {
+    spec.args.iter().all(|arg| args.contains_key(&arg.id))
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
+    use std::collections::BTreeMap;
+
+    use synapse_shared::execution::{ArgSpec, TestSpec};
+
     use super::*;
+
+    fn spec_with(ids: &[&str]) -> TestSpec {
+        TestSpec {
+            args: ids
+                .iter()
+                .map(|id| ArgSpec {
+                    id: (*id).to_owned(),
+                    label: (*id).to_owned(),
+                    tpe: "text".to_owned(),
+                    placeholder: None,
+                })
+                .collect(),
+            cases: Vec::new(),
+        }
+    }
+
+    fn args_with(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
+        pairs
+            .iter()
+            .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+            .collect()
+    }
+
+    #[test]
+    fn a_failure_covering_every_declared_arg_is_reproducible() {
+        let spec = spec_with(&["nums", "target"]);
+        assert!(can_reproduce(
+            &spec,
+            &args_with(&[("nums", "[1,2]"), ("target", "3")])
+        ));
+    }
+
+    /// Extra keys are fine — `stdin_for` iterates the DECLARED args and ignores the rest.
+    #[test]
+    fn extra_keys_in_the_failure_do_not_block_it() {
+        let spec = spec_with(&["nums"]);
+        assert!(can_reproduce(&spec, &args_with(&[("nums", "[1]"), ("k", "9")])));
+    }
+
+    /// The case the guard exists for: a hidden sidecar suite declaring args the fence doesn't.
+    #[test]
+    fn a_missing_declared_arg_blocks_reproduction() {
+        let spec = spec_with(&["nums", "target"]);
+        assert!(!can_reproduce(&spec, &args_with(&[("nums", "[1,2]")])));
+        assert!(!can_reproduce(
+            &spec,
+            &args_with(&[("numbers", "[1,2]"), ("target", "3")])
+        ));
+    }
+
+    #[test]
+    fn an_empty_failure_cannot_cover_a_declared_arg() {
+        assert!(!can_reproduce(&spec_with(&["nums"]), &BTreeMap::new()));
+    }
+
+    /// A stdin-free problem declares nothing, so there is nothing to misalign.
+    #[test]
+    fn a_spec_with_no_args_is_vacuously_reproducible() {
+        assert!(can_reproduce(&spec_with(&[]), &BTreeMap::new()));
+        assert!(can_reproduce(&spec_with(&[]), &args_with(&[("stray", "1")])));
+    }
 
     #[test]
     fn decodes_single_and_adjacent_variants_in_order() {

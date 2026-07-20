@@ -147,6 +147,9 @@ pub fn ProblemWorkbench(payload: LessonPayloadDto, segments: Vec<String>) -> imp
     let wb_spec: RwSignal<Option<(Vec<Variant>, Option<TestSpec>)>> = RwSignal::new(None);
     // Copy-to-editor from the editorial's solutions: (tick, language, code).
     let load_code = RwSignal::new((0_u32, String::new(), String::new()));
+    // Use-this-test-case from a rejected submission: the same tick trick, so pulling the SAME
+    // failing input twice fires twice. The right pane's tests panel is the only consumer.
+    let use_case = RwSignal::new(crate::execution::view::no_case_yet());
     // Bumped by the workbench when a submit completes → the feed refetches.
     let submitted = RwSignal::new(0_u32);
     let code_ctx = RwSignal::new((String::new(), String::new()));
@@ -288,6 +291,8 @@ pub fn ProblemWorkbench(payload: LessonPayloadDto, segments: Vec<String>) -> imp
                                         path=segments.read_value().clone()
                                         refetch=submitted
                                         load_code=load_code
+                                        use_case=use_case
+                                        wb_spec=wb_spec
                                     />
                                 })}
                             </div>
@@ -324,6 +329,7 @@ pub fn ProblemWorkbench(payload: LessonPayloadDto, segments: Vec<String>) -> imp
                                     stores=stores
                                     load_code=load_code
                                     submitted=submitted
+                                    use_case=use_case
                                     fill=true
                                 />
                             </div>
@@ -402,6 +408,11 @@ fn SubmissionsFeed(
     path: Vec<String>,
     refetch: RwSignal<u32>,
     load_code: RwSignal<(u32, String, String)>,
+    /// Where a rejected row's "Use this test case" pushes the failing input — the right pane's
+    /// tests panel consumes it.
+    use_case: RwSignal<crate::execution::view::CaseRequest>,
+    /// The extracted workbench's suite, read only for the reproducibility guard.
+    wb_spec: RwSignal<Option<(Vec<Variant>, Option<TestSpec>)>>,
 ) -> impl IntoView {
     let auth = crate::identity::state::AuthStore::from_context();
     let rows: RwSignal<Option<Result<Vec<SubmissionDto>, String>>> = RwSignal::new(None);
@@ -438,15 +449,16 @@ fn SubmissionsFeed(
                     .into_any(),
                     Some(Ok(list)) => {
                         let count = list.len();
+                        let visible = wb_spec.get().and_then(|(_, spec)| spec);
                         let current: Vec<_> = list.iter().take(1).cloned().collect();
                         let code = selected
                             .get()
                             .and_then(|id| list.iter().find(|d| d.id == id).cloned());
                         view! {
                             <h3 class="psub__section">"Current submission"</h3>
-                            {subs_table(&current, selected)}
+                            {subs_table(&current, selected, use_case, visible.as_ref())}
                             <h3 class="psub__section">"All submissions"</h3>
-                            {subs_table(&list, selected)}
+                            {subs_table(&list, selected, use_case, visible.as_ref())}
                             <p class="psub__note psub__count">{format!("Showing {count} submission(s)")}</p>
                             {code.map(|dto| view! { <CodeCard dto=dto selected=selected load_code=load_code /> })}
                         }
@@ -458,11 +470,21 @@ fn SubmissionsFeed(
     }
 }
 
-fn subs_table(list: &[SubmissionDto], selected: RwSignal<Option<String>>) -> impl IntoView + use<> {
+fn subs_table(
+    list: &[SubmissionDto],
+    selected: RwSignal<Option<String>>,
+    use_case: RwSignal<crate::execution::view::CaseRequest>,
+    visible: Option<&TestSpec>,
+) -> impl IntoView + use<> {
     let rows: Vec<_> = list
         .iter()
         .enumerate()
         .map(|(i, dto)| {
+            // Only a rejection has a revealed failing case to pull forward.
+            let pull = dto
+                .first_failure
+                .as_ref()
+                .map(|f| crate::execution::view::use_case_button(f, visible, use_case));
             let (badge_class, badge_text) = match dto.verdict.as_deref() {
                 Some("accepted") => ("subs__status subs__status--ok", "Accepted"),
                 Some("rejected") => ("subs__status subs__status--fail", "Wrong answer"),
@@ -499,6 +521,7 @@ fn subs_table(list: &[SubmissionDto], selected: RwSignal<Option<String>>) -> imp
                         >
                             "👁"
                         </button>
+                        {pull}
                     </td>
                 </tr>
             }

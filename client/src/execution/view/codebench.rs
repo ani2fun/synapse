@@ -12,7 +12,7 @@ use leptos::task::spawn_local;
 
 use crate::execution::state::BlockStore;
 use crate::execution::view::icons::icon_play;
-use crate::execution::view::runnable::Output;
+use crate::execution::view::output::Output;
 use crate::identity::state::AuthStore;
 use crate::islands::editor::{self, EditorCallbacks, MountedEditor};
 

@@ -117,6 +117,10 @@
 /* Per-case verdict badges — only cases actually Run carry one (oracle: WorkbenchTests). */
 .wb__chip--ok { border-color: hsl(var(--status-ok) / 0.5); color: hsl(var(--status-ok)); }
 .wb__chip--fail { border-color: hsl(var(--status-err) / 0.5); color: hsl(var(--status-err)); }
+/* Add-a-case: dashed, because it is an affordance rather than a case. It never takes --active —
+   the case it appends does, one tick later. */
+.wb__chip--add { border-style: dashed; padding-inline: 0.55rem; font-weight: 700; line-height: 1; }
+.wb__chip--add:hover { border-color: hsl(var(--primary) / 0.5); color: hsl(var(--primary)); }
 .wb__tick { margin-left: 0.35rem; font-weight: 700; }
 .wb__values { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 .wb__field { display: flex; flex-direction: column; gap: 0.2rem; }
@@ -145,8 +149,18 @@
 .wb__verdict--rejected { color: hsl(var(--status-err)); background: hsl(var(--status-err-bg) / 0.1); font-weight: 600; }
 .wb__verdict--failed { color: hsl(var(--muted-foreground)); background: hsl(var(--muted) / 0.6); }
 .wb__failure { margin-top: 0.5rem; font-weight: 400; }
+.wb__failure-head { display: flex; align-items: center; justify-content: space-between;
+                    gap: 0.6rem; margin-bottom: 0.3rem; }
 .wb__failure-line { margin: 0.15rem 0; padding: 0.3rem 0.5rem; background: hsl(var(--card));
                     border: 1px solid hsl(var(--status-err) / 0.35); border-radius: 0.35rem; font-size: 0.8rem; }
+/* "Use this test case" — the way out of a rejection. Disabled (never hidden) when the judged
+   input can't be reproduced in the visible fields; the tooltip is the only explanation there is. */
+.wb__use-case { flex: none; padding: 0.25rem 0.7rem; font-size: 0.75rem; font-weight: 600;
+                border: 1px solid hsl(var(--primary) / 0.45); border-radius: 9999px;
+                background: hsl(var(--primary) / 0.12); color: hsl(var(--primary)); cursor: pointer; }
+.wb__use-case:hover:not(:disabled) { background: hsl(var(--primary) / 0.2); }
+.wb__use-case:disabled { border-color: hsl(var(--border)); background: transparent;
+                         color: hsl(var(--muted-foreground)); cursor: not-allowed; }
 
 /* ── the quiz card (oracle: QuizCard, step 16) — one check-your-understanding
       question; Check tints the right answer green wherever it is, a wrong pick
