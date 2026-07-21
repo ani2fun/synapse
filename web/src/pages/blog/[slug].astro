@@ -13,6 +13,13 @@
 //
 // HEAD IS NEW, NOT A PORT — see blog/index.astro's comment: the oracle never gave blog pages a
 // real head at all.
+//
+// A09: the oracle's blog view never hydrated ANY interactive placeholder (client/src/blog/view
+// has no hydrate_* call at all — the oracle's blog content never carried one). This migration's
+// blog posts share the exact SAME `renderLesson` pipeline a lesson does, so a diagram/quiz/c4
+// fence in a post is not hypothetical — it renders the identical placeholder markup. `islands/
+// widgets` (the lesson body's quiz + diagram + c4 pass, A09) is wired here too rather than
+// leaving those placeholders inert only because the oracle happened not to need them.
 import Base from "../../layouts/Base.astro";
 import NotFound from "../../components/NotFound.astro";
 import { blogPost, ApiFailure } from "../../lib/api/client";
@@ -21,6 +28,8 @@ import { renderLesson } from "../../lib/markdown/render";
 
 import "../../../../client/styles/blog.css";
 import "../../../../client/styles/markdown.css";
+import "../../../../client/styles/diagrams.css";
+import "../../../../client/styles/codebench.css";
 
 /** `rebuilding-cortex` → `Rebuilding cortex` — good enough for a pager card (oracle: `humanize`). */
 function humanise(slug: string): string {
@@ -111,6 +120,14 @@ const canonicalPath = post ? `/blog/${slug}` : undefined;
           </article>
         </div>
       </main>
+    )
+  }
+
+  {
+    post && (
+      <script>
+        import "../../islands/widgets";
+      </script>
     )
   }
 </Base>

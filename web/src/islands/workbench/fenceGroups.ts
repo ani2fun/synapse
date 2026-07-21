@@ -2,10 +2,10 @@
  * Fence-group bars (port of client/src/execution/view/fence_group.rs, step-41 semantics),
  * vanilla TS — one piece of state per group (the active pane), plain DOM the rest of the way.
  *
- * Language tabs when adjacent plain fences differ, a lone ▶ pill otherwise; copy on the right.
- * "Try in Editor" (the codebench singleton) is A09's — the button is NOT rendered until the
- * codebench island exists, rather than shipping a dead control. The Rust gated it per-language
- * via `runnable_fence`; A09 re-adds the button with that gate when it lands the sheet.
+ * Language tabs when adjacent plain fences differ, a lone ▶ pill otherwise; copy + "Try in
+ * Editor" on the right. Try in Editor (A09) follows the SELECTED tab and only appears when the
+ * sandbox speaks that language (`runnableFence`, shared with the language preference) — prose
+ * fences (bash, json, yaml) still get the bar and the copy button, just not this one.
  */
 
 const PLAY_SVG =
@@ -35,6 +35,8 @@ function collectPanes(group: Element): Pane[] {
 
 /** Display name for the tab — mirrors logic::display_lang's title-casing of known aliases. */
 import { displayLang } from "../../lib/execution/blocks";
+import { runnableFence } from "../../lib/execution/language";
+import { openCodebench } from "../widgets/Codebench";
 
 function mountBar(group: Element): void {
   const bar = group.querySelector("div.fence-group__bar");
@@ -47,30 +49,6 @@ function mountBar(group: Element): void {
       pane.figure.classList.toggle("fence-group__pane--hidden", index !== active),
     );
   };
-
-  const lead = document.createElement("div");
-  lead.className = "fence-group__lead";
-  if (panes.length > 1) {
-    panes.forEach((pane, index) => {
-      const tab = document.createElement("button");
-      tab.className = "fence-group__tab";
-      tab.setAttribute("aria-label", `Show the ${displayLang(pane.language)} version`);
-      tab.innerHTML = `${PLAY_SVG}<span>${displayLang(pane.language)}</span>`;
-      tab.addEventListener("click", () => {
-        active = index;
-        showActive();
-        for (const [i, el] of lead.querySelectorAll("button").entries())
-          el.classList.toggle("fence-group__tab--active", i === active);
-      });
-      lead.appendChild(tab);
-    });
-    lead.querySelector("button")?.classList.add("fence-group__tab--active");
-  } else {
-    const pill = document.createElement("span");
-    pill.className = "fence-group__pill";
-    pill.innerHTML = `${PLAY_SVG}<span>${displayLang(panes[0]!.language)}</span>`;
-    lead.appendChild(pill);
-  }
 
   const actions = document.createElement("div");
   actions.className = "fence-group__actions";
@@ -89,6 +67,49 @@ function mountBar(group: Element): void {
     }, 1400);
   });
   actions.appendChild(copy);
+
+  const tryBtn = document.createElement("button");
+  tryBtn.className = "fence-group__try";
+  tryBtn.title = "Open this code in the editor — run it, feed it input, make it yours";
+  tryBtn.innerHTML = `${PLAY_SVG}<span>Try in Editor</span>`;
+  tryBtn.addEventListener("click", () => {
+    openCodebench({ code: panes[active]!.code, language: panes[active]!.language });
+  });
+  // <Show>-equivalent: present in the DOM only when the active pane's language is runnable,
+  // never merely hidden — a prose fence (bash, json, yaml) never grows this button.
+  const syncTry = () => {
+    if (runnableFence(panes[active]!.language)) {
+      if (!tryBtn.isConnected) actions.appendChild(tryBtn);
+    } else {
+      tryBtn.remove();
+    }
+  };
+  syncTry();
+
+  const lead = document.createElement("div");
+  lead.className = "fence-group__lead";
+  if (panes.length > 1) {
+    panes.forEach((pane, index) => {
+      const tab = document.createElement("button");
+      tab.className = "fence-group__tab";
+      tab.setAttribute("aria-label", `Show the ${displayLang(pane.language)} version`);
+      tab.innerHTML = `${PLAY_SVG}<span>${displayLang(pane.language)}</span>`;
+      tab.addEventListener("click", () => {
+        active = index;
+        showActive();
+        for (const [i, el] of lead.querySelectorAll("button").entries())
+          el.classList.toggle("fence-group__tab--active", i === active);
+        syncTry();
+      });
+      lead.appendChild(tab);
+    });
+    lead.querySelector("button")?.classList.add("fence-group__tab--active");
+  } else {
+    const pill = document.createElement("span");
+    pill.className = "fence-group__pill";
+    pill.innerHTML = `${PLAY_SVG}<span>${displayLang(panes[0]!.language)}</span>`;
+    lead.appendChild(pill);
+  }
 
   bar.replaceChildren(lead, actions);
   showActive();

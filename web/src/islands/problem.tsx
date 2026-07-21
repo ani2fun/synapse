@@ -18,10 +18,13 @@
  * workbench is extracted and mounted exactly once — by this island — with no auto-hydrator racing
  * it for the same placeholder.
  *
- * The Editorial tab mounts A08's stepper island (`practice/EditorialPane`) on first open. Still
+ * The Editorial tab mounts A08's stepper island (`practice/EditorialPane`) on first open; the
+ * Coach tab (A09) mounts `coach/CoachPane` the same way, reading its problem path off the URL and
+ * its live code snapshot off the workbench root's bubbling `synapse:code-changed`. Description
+ * workbenches also get A09's diagram + codebench-modal treatment (`islands/widgets`). Still
  * deliberately waiting: Visualise (A10) and real auth gating (A11 — until it installs
  * `window.__synapseAuth`, Edit/Submit/Submissions read anonymous, which is the correct anonymous
- * experience, not a regression). The Coach tab (A09) is likewise not rendered yet.
+ * experience, not a regression).
  */
 import { h, render } from "preact";
 import { useEffect, useState } from "preact/hooks";
@@ -37,6 +40,12 @@ import { hydrateFenceGroups } from "./workbench/fenceGroups";
 import { AUTH_CHANGED, isAuthed, OPEN_CONTENTS, RELAYOUT, SUBMITTED } from "./workbench/contracts";
 import { SubmissionsFeed } from "./problem-submissions";
 import { EditorialPane } from "./practice/EditorialPane";
+import { CoachPane } from "./coach/CoachPane";
+import { hydrateDiagrams } from "./widgets/Diagrams";
+// Side-effect import: mounts the page-wide codebench modal (A09) — a description-pane fence
+// group can still carry a "Try in Editor" button even though the whole-document quiz/diagram/c4
+// pass this module also offers stands down on a problem page (see its own module doc).
+import "./widgets/index";
 
 // The workbench root (its event target) is minted when the right pane mounts; the Submissions feed
 // dispatches LOAD_CODE / USE_CASE onto it, so it is shared through this module-scoped getter.
@@ -96,9 +105,15 @@ function hydrateContent(root: ParentNode, lessonPath: string[]): void {
     render(h(Workbench, { variants: decoded.variants, spec: decoded.spec, lessonPath, root: host }), host);
     count += 1;
   }
+  // Diagrams, but NOT quiz/c4 — the docked description pane mirrors the oracle's problem.rs,
+  // which hydrates diagrams alongside its workbenches/fence-groups and leaves quiz/c4 to the
+  // lesson body (islands/widgets' whole-document pass, which stands down on this page).
+  const diagrams = hydrateDiagrams(root);
   const groups = root.querySelectorAll("div.fence-group").length;
   hydrateFenceGroups(root);
-  if (count > 0 || groups > 0) log.debug(`hydrated ${count} in-pane workbench(es), ${groups} fence group(s)`);
+  if (count > 0 || groups > 0 || diagrams > 0) {
+    log.debug(`hydrated ${count} in-pane workbench(es), ${groups} fence group(s), ${diagrams} diagram(s)`);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -217,6 +232,11 @@ function wireTabs(pwb: HTMLElement, lessonPath: string[], spec: TestSpec | null)
       host.replaceChildren();
       render(h(EditorialPane, { md, workbenchRoot }), host);
       log.debug(`editorial stepper mounted (${md.length} chars)`);
+    } else if (tab === "coach") {
+      const host = pwb.querySelector<HTMLElement>('[data-pane="coach"] .pwb-coach-host');
+      if (!host) return;
+      render(h(CoachPane, { problem: lessonPath.join("/"), workbenchRoot }), host);
+      log.debug("coach pane mounted");
     } else if (tab === "submissions") {
       const host = pwb.querySelector<HTMLElement>('[data-pane="submissions"] .psub-host');
       if (host) render(h(SubmissionsFeed, { path: lessonPath, spec, workbenchRoot }), host);

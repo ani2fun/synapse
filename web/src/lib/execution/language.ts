@@ -38,6 +38,15 @@ export function canonicalLang(alias: string): string | null {
   return found ? found[0] : null;
 }
 
+/** A fence the engine can actually run (oracle: `execution::view::codebench`'s `runnable_fence`
+ *  — itself a thin delegation to `canonical_lang`, since step-40's stale copy of this table had
+ *  drifted from the server behind it). The "Try in Editor" button (fenceGroups.ts, A09) gates on
+ *  this, so the alias table and the fence-eligibility check share the ONE list and cannot drift
+ *  apart again. */
+export function runnableFence(lang: string): boolean {
+  return canonicalLang(lang) !== null;
+}
+
 /**
  * Which variant a block should open on, given the reader's stored language preference.
  *

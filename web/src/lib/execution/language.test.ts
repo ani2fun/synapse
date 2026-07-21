@@ -2,7 +2,7 @@
 // same fixtures, same assertions, case names ported to camelCase).
 
 import { describe, expect, it } from "vitest";
-import { LANGUAGES, canonicalLang, preferredIndex } from "./language";
+import { LANGUAGES, canonicalLang, preferredIndex, runnableFence } from "./language";
 import type { Variant } from "./blocks";
 
 function variant(language: string): Variant {
@@ -66,6 +66,23 @@ describe("language", () => {
     expect(preferredIndex(variants, "cobol")).toBe(0);
     // The honest case this whole fallback exists for: a page that simply hasn't got it.
     expect(preferredIndex(variants, "rust")).toBe(0);
+  });
+
+  // The "Try in Editor" gate (A09, fenceGroups.ts) — mirrors the server's Language::aliases, so
+  // pin the total alongside every alias individually: a drift here means the button appears (or
+  // vanishes) for a fence the sandbox can't (or can) actually run.
+  it("runnableFenceAcceptsEveryKnownAliasAndRejectsEverythingElse", () => {
+    for (const [, aliases] of LANGUAGES) {
+      for (const alias of aliases) expect(runnableFence(alias), alias).toBe(true);
+    }
+    for (const lang of ["bash", "toml", "plaintext", "cobol", "", "   "]) {
+      expect(runnableFence(lang), lang).toBe(false);
+    }
+  });
+
+  it("pinsTheTotalAliasCountAgainstTheServerContract", () => {
+    const total = LANGUAGES.reduce((sum, [, aliases]) => sum + aliases.length, 0);
+    expect(total).toBe(22);
   });
 
   // `RunnableBlock`'s island-side indexing does not clamp — this is the invariant that makes

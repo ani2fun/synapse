@@ -17,6 +17,7 @@ import { parseVariants } from "../../lib/execution/blocks";
 import type { Variant } from "../../lib/execution/blocks";
 import { hydrateFenceGroups } from "../workbench/fenceGroups";
 import { RELAYOUT } from "../workbench/contracts";
+import { hydrateDiagrams } from "../widgets/Diagrams";
 import { SolutionViewer } from "./SolutionViewer";
 import * as log from "../../lib/log";
 
@@ -169,6 +170,10 @@ export function MarkdownPane({ md, solutions, forceOpenDetails, workbenchRoot }:
         }
         if (solutions !== "none") hosts.current = mountSolutionBlocks(node, solutions === "gated", workbenchRoot);
         hydrateFenceGroups(node);
+        // A09 unification (beyond the oracle's split — editorial.rs's markdown_fragment hydrated
+        // diagrams, practice.rs's markdown_pane did not; this shared component now does it for
+        // both, so a diagram authored inside a practice statement renders instead of sitting inert).
+        hydrateDiagrams(node);
         // A viewer revealed inside a freshly-shown pane may have measured 0×0 — nudge Monaco.
         window.dispatchEvent(new Event(RELAYOUT));
       } catch (error) {

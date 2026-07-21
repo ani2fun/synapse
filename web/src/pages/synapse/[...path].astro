@@ -15,10 +15,11 @@
 // description = the lesson summary (else Base's default, byte-identical to the server's), a
 // canonical `/synapse/{path}`, and the Open Graph tags Base already emits.
 //
-// What deliberately does NOT work yet: the pipeline's other interactive placeholders (quiz,
-// diagrams, viz) land INERT — later steps hydrate them. The problem page's Editorial tab renders
-// plain editorial markdown, not A08's stepper; the Coach tab (A09), Visualise (A10) and real auth
-// gating (A11) arrive with their steps. The sidebar is structure only.
+// A08 gave the Editorial tab its stepper; A09 (this step) hydrates quiz/diagram/LikeC4-embed
+// placeholders in the lesson body (`islands/widgets`), adds the docked problem page's 4th tab —
+// Coach (`islands/coach/CoachPane`) — and the codebench modal ("Try in Editor" on fence bars).
+// What deliberately does NOT work yet: the `.viz-widget` placeholder (Visualise, A10) and real
+// auth gating (A11) arrive with their steps. The sidebar is structure only.
 import Base from "../../layouts/Base.astro";
 import Sidebar from "../../components/Sidebar.astro";
 import Pager from "../../components/Pager.astro";
@@ -36,6 +37,9 @@ import "../../../../client/styles/reader.css";
 import "../../../../client/styles/runnable.css";
 import "../../../../client/styles/markdown.css";
 import "../../../../client/styles/practice.css";
+import "../../../../client/styles/diagrams.css";
+import "../../../../client/styles/coach.css";
+import "../../../../client/styles/codebench.css";
 
 type Mode = "lesson" | "problem" | "notFound" | "error";
 
@@ -220,6 +224,13 @@ const difficulty = payload?.frontmatter.difficulty ?? null;
                   </svg>
                   Editorial
                 </button>
+                <button class="problem-tab problem-tab--coach" data-tab="coach" type="button">
+                  <svg class="problem-tab__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M22 10v6 M2 10l10-5 10 5-10 5z" />
+                    <path d="M6 12v5c3 3 9 3 12 0v-5" />
+                  </svg>
+                  Coach
+                </button>
                 <button class="problem-tab problem-tab--submissions" data-tab="submissions" type="button">
                   <svg class="problem-tab__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <path d="M3 3v5h5" />
@@ -241,6 +252,11 @@ const difficulty = payload?.frontmatter.difficulty ?? null;
                       island renders its OWN `.pwb-epane > .pwb__pane-scroll` into this host on first
                       open, carrying the raw editorial markdown it parses. */}
                   <div class="pwb-editorial-host" data-editorial={editorialMd ? encodeURIComponent(editorialMd) : ""} />
+                </div>
+                <div class="pwb__pane hidden" data-pane="coach">
+                  <div class="pwb__pane-scroll synapse-prose">
+                    <div class="pwb-coach-host" />
+                  </div>
                 </div>
                 <div class="pwb__pane hidden" data-pane="submissions">
                   <div class="pwb__pane-scroll synapse-prose">
@@ -339,6 +355,8 @@ const difficulty = payload?.frontmatter.difficulty ?? null;
     isLesson && payload && (
       <script>
         import "../../islands/reader";
+        // The A09 quiz/diagram/c4 pass, guarded the same way workbench/practice are.
+        import "../../islands/widgets";
         if (document.querySelector(".pwb[data-problem]")) {
           import("../../islands/problem");
         } else {

@@ -25,7 +25,10 @@ export default defineConfig({
       "@editor": fileURLToPath(new URL("../web/src/lib/islands/editor", import.meta.url)),
       "@auth": fileURLToPath(new URL("./islands/auth", import.meta.url)),
       "@tracer": fileURLToPath(new URL("./islands/tracer", import.meta.url)),
-      "@diagram": fileURLToPath(new URL("./islands/diagram", import.meta.url)),
+      // A09 MOVED the diagram loader into the Astro app (web/src/lib/islands/diagram) — the same
+      // pattern A03 set for @markdown: single-sourced there until A14 deletes this client, the
+      // wasm glue's `@diagram/loader` extern still resolves through the alias at build time.
+      "@diagram": fileURLToPath(new URL("../web/src/lib/islands/diagram", import.meta.url)),
     },
   },
   server: {
