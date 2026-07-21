@@ -1,14 +1,16 @@
 ---
 // The site footer. Minimal SSR chrome: the quiet closing line and the build the site is running.
-// Reads `import.meta.env.SYNAPSE_VERSION`, defaulting to "dev"; only a real commit SHA gets a
-// link (a dead footer link is worse than plain text).
+// The version is read from `process.env` at REQUEST time (this frontmatter runs in the Node
+// sidecar; Vite only statically inlines PUBLIC_-prefixed vars, so `import.meta.env` never sees
+// SYNAPSE_VERSION) — the image sets the env from the release's commit-sha build arg. Default
+// "dev"; only a real commit SHA gets a link (a dead footer link is worse than plain text).
 //
 // `.site-footer*` lives in library.css (in web/styles), imported here so the
 // dependency sits with the component that needs it.
 import "../../styles/library.css";
 
 const REPO = "https://github.com/ani2fun/synapse";
-const version = import.meta.env.SYNAPSE_VERSION ?? "dev";
+const version = process.env.SYNAPSE_VERSION ?? "dev";
 const isCommit = version.length >= 7 && /^[0-9a-f]+$/i.test(version);
 const sha = isCommit ? version.slice(0, 7) : version;
 ---

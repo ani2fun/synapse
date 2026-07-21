@@ -91,6 +91,11 @@ COPY dev-tools/start.sh /app/start.sh
 # would not add +x to a plain COPY'd file.
 RUN chmod -R a+rX /app && chmod 0755 /app/start.sh
 
+# The footer reads this at request time in the sidecar (the builder's copy inlines nothing —
+# Vite only statically injects PUBLIC_-prefixed vars).
+ARG SYNAPSE_VERSION=unknown
+ENV SYNAPSE_VERSION=$SYNAPSE_VERSION
+
 ENV SYNAPSE_ROOT=/content \
     SYNAPSE_AUTO_RELOAD=false \
     SYNAPSE_PORT=8080 \
