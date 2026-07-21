@@ -1,0 +1,245 @@
+---
+// The guided-tour carousel (A10 tail; oracle: SynapseTour.scala via client/src/catalog/view/
+// tour.rs, byte-faithful class structure so tour.css applies unchanged). The Rust re-rendered
+// ONE slide per index; here all four SSR (slides 2–4 start display:none) and islands/tour.ts
+// only toggles visibility — same UX, and the library cards' hrefs resolve at REQUEST time
+// instead of reactively (the index is already fetched for the book grid below).
+//
+// Slide 4 is the REAL widget: a planted `.viz-widget` carrying the hand-authored two-pointer
+// reverse (the same VizCases the Rust built in code, serialized to the tolerant authored wire —
+// bare {title, steps}, string annotations). The viz loader's near-viewport observer does the
+// rest: display:none never intersects, so the wasm loads exactly when this slide first shows.
+import { findBook, firstLessonPath } from "../lib/catalog/tree";
+import type { SynapseIndex } from "../lib/api/client";
+
+interface Props {
+  index: SynapseIndex | null;
+}
+const { index } = Astro.props;
+
+function bookHref(slug: string): string {
+  if (!index) return "/";
+  const book = findBook(index, slug);
+  const path = book ? firstLessonPath(book) : null;
+  return path ? `/synapse/${path}` : "/";
+}
+
+// Two-pointer in-place reverse of [a, e, i, o, u] — three authored steps (tour.rs verbatim).
+const cell = (slot: number, label: string) => ({ id: String(slot), label, kind: "cell", slot });
+const step = (vals: string[], l: number, r: number, changed: number[], note: string) => ({
+  nodes: vals.map((v, i) => cell(i, v)),
+  cursor: [
+    { name: "left", target: String(l) },
+    { name: "right", target: String(r) },
+  ],
+  changed: changed.map(String),
+  annotation: note,
+});
+const reverseTrace = {
+  title: "Reverse in place · two pointers",
+  steps: [
+    step(["a", "e", "i", "o", "u"], 0, 4, [], "left = 0, right = 4 — swap arr[left] and arr[right], then step inward."),
+    step(["u", "e", "i", "o", "a"], 1, 3, [0, 4], "Swapped a and u. left → 1, right → 3."),
+    step(["u", "o", "i", "e", "a"], 2, 2, [1, 3], "Swapped e and o. left meets right — the array is reversed."),
+  ],
+};
+const vizPayload = encodeURIComponent(JSON.stringify(reverseTrace));
+
+const EYEBROWS = ["The Library", "Runnable code", "Find your way", "See it work"];
+
+const SLIDES = [
+  {
+    title: "Open a book, start reading.",
+    desc: "The home library lists every book Synapse has — each one set like a publication you'd actually want to read, with rendered diagrams, interactive widgets and runnable code.",
+    bullets: ["Re-read any time — no paywall, no ads", "Pick up exactly where you left off", "Yours to keep — 100% of the writing"],
+  },
+  {
+    title: "Run it right in the page.",
+    desc: "Every code block is live. Press Run and it executes in the browser — Python, Java, SQL, Go and more. Sign in to make the example your own.",
+    bullets: ["No setup, no install — it just runs", "Edit the source once you sign in", "A full Monaco editor, same as your IDE"],
+  },
+  {
+    title: "Never lose the thread.",
+    desc: "A book is a lot of pages. The reader keeps you oriented — a chapter sidebar, a live table of contents, breadcrumbs and a minimap, all one glance away.",
+    bullets: ["Sidebar, TOC, breadcrumbs & minimap", "Resume reading lands you back in place", "Type size, leading and width, your way"],
+  },
+  {
+    title: "Watch the idea move.",
+    desc: "Diagrams and step-through visualizations turn an abstract mechanism into something you can see — arrays, trees, graphs and system designs, animated as they run.",
+    bullets: ["Step through an algorithm line by line", "Mermaid, D2 & interactive C4 diagrams", "Practice problems with a hidden test suite"],
+  },
+];
+
+const LIB_CARDS = [
+  { slug: "system-design-from-first-principles", thumb: "tour-lib__thumb--a", mark: "graph", name: "System Design", sub: "Distributed · Architecture" },
+  { slug: "dsa", thumb: "tour-lib__thumb--b", mark: "tree", name: "Data Structures & Algorithms", sub: "Python · Java" },
+  { slug: "low-level-design", thumb: "tour-lib__thumb--c", mark: "layers", name: "Low Level Design", sub: "OOP · SOLID · UML" },
+  { slug: "python", thumb: "tour-lib__thumb--d", mark: "code", name: "Programming Languages", sub: "Python · Java · SQL" },
+];
+
+const READER_CHAPTERS = ["Foundations", "Storage", "Replication", "Partitioning", "Consistency"];
+
+const CODE_LINES = [
+  `nums = [<span class="tk-num">1</span>, <span class="tk-num">2</span>, <span class="tk-num">3</span>, <span class="tk-num">4</span>, <span class="tk-num">5</span>]`,
+  `doubled = []`,
+  `<span class="tk-kw">for</span> n <span class="tk-kw">in</span> nums:`,
+  `    doubled.<span class="tk-fn">append</span>(n <span class="tk-op">*</span> <span class="tk-num">2</span>)`,
+  `<span class="tk-fn">print</span>(doubled)`,
+];
+---
+
+<div class="syn-tour" id="syn-tour">
+  <div class="syn-tour__stage">
+    {
+      SLIDES.map((slide, i) => (
+        <div class="syn-tour__slide" data-slide={i} style={i === 0 ? undefined : "display:none"}>
+          <div class="syn-tour__left">
+            <div class="syn-tour__eyebrow">{`0${i + 1} — ${EYEBROWS[i]}`}</div>
+            <h2 class="syn-tour__title">{slide.title}</h2>
+            <p class="syn-tour__desc">{slide.desc}</p>
+            <ul class="syn-tour__bullets">
+              {slide.bullets.map((b) => (
+                <li class="syn-tour__bullet">
+                  <span class="syn-tour__tick" aria-hidden="true"></span>
+                  {b}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div class="syn-tour__right" aria-hidden="true">
+            {i === 0 && (
+              <div class="tour-lib">
+                {LIB_CARDS.map((card) => (
+                  <a class="tour-lib__card" href={bookHref(card.slug)}>
+                    <div class={`tour-lib__thumb ${card.thumb}`}>
+                      <svg
+                        class="tour-lib__mark"
+                        viewBox="0 0 48 48"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.7"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        {card.mark === "graph" && (
+                          <>
+                            <circle cx="24" cy="12" r="5" />
+                            <circle cx="12" cy="34" r="5" />
+                            <circle cx="36" cy="34" r="5" />
+                            <path d="M21 16.5 14.5 29.5 M27 16.5 33.5 29.5 M17 34h14" />
+                          </>
+                        )}
+                        {card.mark === "tree" && (
+                          <>
+                            <circle cx="24" cy="10" r="4.5" />
+                            <circle cx="13" cy="26" r="4.5" />
+                            <circle cx="35" cy="26" r="4.5" />
+                            <circle cx="8" cy="40" r="3.5" />
+                            <circle cx="18" cy="40" r="3.5" />
+                            <path d="M21 13.5 15.5 22.5 M27 13.5 32.5 22.5 M11.5 30 9 36.5 M15 30 17 36.5" />
+                          </>
+                        )}
+                        {card.mark === "layers" && (
+                          <>
+                            <path d="M24 8 42 17 24 26 6 17z" />
+                            <path d="M6 26 24 35 42 26 M6 34 24 43 42 34" />
+                          </>
+                        )}
+                        {card.mark === "code" && <path d="M17 14 8 24 17 34 M31 14 40 24 31 34 M27 10 21 38" />}
+                      </svg>
+                    </div>
+                    <div class="tour-lib__name">{card.name}</div>
+                    <div class="tour-lib__sub">{card.sub}</div>
+                  </a>
+                ))}
+              </div>
+            )}
+            {i === 1 && (
+              <div class="tour-code">
+                <div class="tour-code__bar">
+                  <div class="tour-code__langs">
+                    <span class="tour-code__lang tour-code__lang--active">Python</span>
+                    <span class="tour-code__lang">Java</span>
+                  </div>
+                  <span class="tour-code__run">▶ Run</span>
+                </div>
+                <div class="tour-code__body">
+                  {CODE_LINES.map((src, n) => (
+                    <div class="tour-code__line">
+                      <span class="tour-code__ln">{n + 1}</span>
+                      <span class="tour-code__src" set:html={src} />
+                    </div>
+                  ))}
+                </div>
+                <div class="tour-code__out">
+                  <div class="tour-code__out-label">Output</div>
+                  <div class="tour-code__out-val">[2, 4, 6, 8, 10]</div>
+                </div>
+              </div>
+            )}
+            {i === 2 && (
+              <div class="tour-reader">
+                <div class="tour-reader__nav">
+                  <div class="tour-reader__eyebrow">Chapters</div>
+                  {READER_CHAPTERS.map((name, n) => (
+                    <div class={n === 2 ? "tour-reader__chapter tour-reader__chapter--active" : "tour-reader__chapter"}>
+                      <span>{n + 1}</span> {name}
+                    </div>
+                  ))}
+                </div>
+                <div class="tour-reader__page">
+                  <div class="tour-reader__crumb">Systems / Replication</div>
+                  <div class="tour-reader__title">Leaders &amp; Followers</div>
+                  <p class="tour-reader__text">
+                    A replica designated the leader accepts all writes. Followers receive the same changes as a log and
+                    apply them in order…
+                  </p>
+                  <div class="tour-reader__bar" style="width: 100%"></div>
+                  <div class="tour-reader__bar" style="width: 72%"></div>
+                  <div class="tour-reader__pager">
+                    <span class="tour-reader__prev">← Storage</span>
+                    <span class="tour-reader__next">Partitioning →</span>
+                  </div>
+                </div>
+                <div class="tour-reader__mini">
+                  <div class="tour-reader__mini-bar tour-reader__mini-bar--on"></div>
+                  <div class="tour-reader__mini-bar"></div>
+                  <div class="tour-reader__mini-bar"></div>
+                  <div class="tour-reader__mini-bar"></div>
+                </div>
+              </div>
+            )}
+            {i === 3 && (
+              <div class="tour-viz">
+                <div class="viz-widget" data-widget="array" data-payload={vizPayload}></div>
+              </div>
+            )}
+          </div>
+        </div>
+      ))
+    }
+  </div>
+  <div class="syn-tour__foot">
+    <div class="syn-tour__label">{`01 / 04 — ${EYEBROWS[0]}`}</div>
+    <div class="syn-tour__dots">
+      {SLIDES.map((_, i) => <button class={i === 0 ? "syn-tour__dot syn-tour__dot--active" : "syn-tour__dot"} data-dot={i} aria-label={`Go to slide ${i + 1}`}></button>)}
+    </div>
+    <div class="syn-tour__nav">
+      <button class="syn-tour__arrow" data-tour-prev aria-label="Previous">
+        <span class="syn-tour__arrow-ic syn-tour__arrow-ic--flip">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m9 18 6-6-6-6"></path>
+          </svg>
+        </span>
+      </button>
+      <button class="syn-tour__arrow syn-tour__arrow--primary" data-tour-next aria-label="Next">
+        <span class="syn-tour__arrow-ic">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m9 18 6-6-6-6"></path>
+          </svg>
+        </span>
+      </button>
+    </div>
+  </div>
+</div>

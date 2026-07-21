@@ -39,6 +39,9 @@ impl AuthStore {
         };
         provide_context(store);
         api::set_token_provider(|| HANDLE.with_borrow(|h| h.as_ref().and_then(|h| h.token())));
+        // The viz crate's trace runs carry the SAME bearer (its `/api/run` fetch lives
+        // in-crate since A10, with its own seam).
+        viz_wasm::api::set_token_provider(|| HANDLE.with_borrow(|h| h.as_ref().and_then(|h| h.token())));
         spawn_local(boot(store));
     }
 

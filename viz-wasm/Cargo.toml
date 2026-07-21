@@ -1,0 +1,30 @@
+[package]
+name = "viz-wasm"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+# rlib: the old Leptos client consumes the crate as an ordinary dependency (its `viz` module,
+# repointed). cdylib: the Astro app loads it as a standalone lazy wasm bundle through the
+# wasm-bindgen surface in `entry.rs`.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+synapse-shared = { path = "../shared" }
+leptos = { workspace = true }
+wasm-bindgen = { workspace = true }
+wasm-bindgen-futures = { workspace = true }
+js-sys = { workspace = true }
+web-sys = { workspace = true }
+gloo-net = { workspace = true }
+gloo-timers = { workspace = true }
+console_error_panic_hook = { workspace = true }
+serde = { workspace = true }
+# preserve_order is load-bearing: the decoder walks tracer JSON into HeapTrace and locals must
+# keep tracer order (step 28) — same flag the whole workspace builds with (step 45 item 4).
+serde_json = { workspace = true, features = ["preserve_order"] }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

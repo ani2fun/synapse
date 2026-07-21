@@ -251,7 +251,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@0.2.126
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -260,6 +265,12 @@ jobs:
       - name: npm ci
         working-directory: web
         run: npm ci
+      - name: viz wasm (A10)
+        # The lazy viz island imports web/src/lib/viz-wasm/pkg (gitignored build output) — the
+        # Astro build cannot bundle a bundle that was never built. Dev profile: this job proves
+        # the graph RESOLVES; size is the budget gate's business (A12), and wasm-opt does not
+        # change what Vite can import.
+        run: dev-tools/build-viz-wasm.sh dev
       - name: generated types are current
         # Regenerates schema.gen.ts exactly as a developer would and diffs it — a server change
         # nobody re-ran the generator for fails HERE, not as a silent divergence a reviewer has

@@ -357,6 +357,9 @@ const difficulty = payload?.frontmatter.difficulty ?? null;
         import "../../islands/reader";
         // The A09 quiz/diagram/c4 pass, guarded the same way workbench/practice are.
         import "../../islands/widgets";
+        // The A10 viz loader: no-ops unless the page planted `.viz-widget`s or a workbench
+        // variant carries a viz hint — the 280 KiB wasm is fetched lazily, never eagerly.
+        import "../../islands/viz";
         if (document.querySelector(".pwb[data-problem]")) {
           import("../../islands/problem");
         } else {

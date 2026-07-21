@@ -6,17 +6,16 @@
 // either resolves before the response is written, or it fails and the page shows the same
 // `AsyncResult::Failed` message the reactive client would.
 //
-// NOT PORTED THIS STEP: the `SynapseTour` carousel (view/tour.rs, 440 lines — four auto-
-// advancing slides, one of them a REAL Visualise widget). A static hero renders in its place.
-// This is a VISIBLE difference from the oracle design, flagged for sign-off in the A04 chapter
-// rather than silently dropped; the carousel is pure UI chrome with no data dependency of its
-// own, so it can land as a later, independent step without disturbing anything built here.
+// The `SynapseTour` carousel landed at A10's tail (components/Tour.astro + islands/tour.ts) —
+// A04 shipped a static hero in its place, flagged for sign-off. Slide 4's REAL widget is a
+// planted `.viz-widget` the lazy viz loader mounts when the slide first shows.
 //
 // The "N/M read" progress chips and the `.lib-continue` resume card are NOT rendered here
 // either — `localStorage` has no SSR equivalent, so both are injected post-hydration by
 // islands/library.ts (see that file's doc comment for the island-props pattern chosen).
 import Base from "../layouts/Base.astro";
 import BookCard from "../components/BookCard.astro";
+import Tour from "../components/Tour.astro";
 import { fetchIndex } from "../lib/api/client";
 import type { CatalogEntry, SynapseIndex } from "../lib/api/client";
 import type { components } from "../lib/api/schema.gen";
@@ -60,7 +59,7 @@ const indexJson = index ? JSON.stringify(index).replace(/</g, "\\u003c") : null;
           <span class="lib-hero__dot" aria-hidden="true"></span>
           A guided tour — everything Synapse can do
         </div>
-        <!-- SynapseTour (view/tour.rs) intentionally NOT ported this step — see the comment above. -->
+        <Tour index={index} />
         <div class="lib-hero__ctas">
           <button class="lib-hero__cta lib-hero__cta--primary" id="lib-start-reading" type="button">
             <svg
@@ -117,5 +116,9 @@ const indexJson = index ? JSON.stringify(index).replace(/</g, "\\u003c") : null;
   {indexJson && <script type="application/json" id="library-index-data" set:html={indexJson} />}
   <script>
     import "../islands/library";
+    import "../islands/tour";
+    // Slide 4's widget: the loader observes it (hidden = never intersecting) and fetches the
+    // wasm only when the tour reaches the slide.
+    import "../islands/viz";
   </script>
 </Base>

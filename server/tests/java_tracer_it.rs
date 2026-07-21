@@ -18,7 +18,7 @@ use synapse_server::execution::application::CodeRunner;
 use synapse_server::execution::domain::Language;
 use synapse_server::execution::infrastructure::GoJudgeRunner;
 
-const HARNESS: &str = include_str!("../../client/islands/tracer/java-harness.java");
+const HARNESS: &str = include_str!("../../web/src/lib/islands/tracer/java-harness.java");
 const PLACEHOLDER: &str = "__SYNAPSE_USER_SOURCE_B64__";
 
 /// A caller and a callee that mutate ONE array — the shape that exposed the bug: `arr` is a local

@@ -22,7 +22,10 @@ pub mod seo;
 pub mod shell;
 mod storage;
 pub mod tutoring;
-pub mod viz;
+// The viz slice moved to its own crate in A10 (the Astro app loads it as a standalone lazy
+// wasm bundle); this re-export keeps every `crate::viz::…` path in the client compiling
+// unchanged until A14 deletes the client.
+pub use viz_wasm as viz;
 
 use wasm_bindgen::prelude::wasm_bindgen;
 

@@ -47,6 +47,15 @@ export const OPEN_CONTENTS = "synapse:open-contents";
  *  Monaco fire it so the editor re-measures. */
 export const RELAYOUT = "synapse:relayout";
 
+/** Fired on window when the lazy viz loader (A10) has installed `__synapseViz` — workbenches
+ *  re-render so the Visualise button appears (its presence is a render-time check). */
+export const VIZ_READY = "synapse:viz-ready";
+
+/** Fired on window by surfaces that render markdown LATE (the editorial pane) and may have
+ *  planted fresh `.viz-widget`s — the viz loader re-sweeps (mounting is marker-idempotent),
+ *  loading the wasm first if the page had no reason to before. */
+export const VIZ_RESCAN = "synapse:viz-rescan";
+
 declare global {
   interface Window {
     /** A11 installs the real provider; absent = anonymous. Mirrors the Rust AuthStore seam. */
@@ -58,6 +67,10 @@ declare global {
       vizHint: string;
       stdin: string;
     }) => void;
+    /** The viz crate's bearer, indirected: A11 sets THIS; the viz loader hands the wasm a
+     *  wrapper that reads it per-request — so identity and the lazy wasm can load in either
+     *  order and a token refresh needs no re-install. */
+    __synapseVizToken?: () => string | null;
   }
 }
 

@@ -27,6 +27,7 @@ import {
   RELAYOUT,
   SUBMITTED,
   USE_CASE,
+  VIZ_READY,
   isAuthed,
 } from "./contracts";
 import type { LoadCode, UseCase } from "./contracts";
@@ -294,6 +295,14 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
     const onRelayout = () => mounted.current?.relayout();
     window.addEventListener(RELAYOUT, onRelayout);
     return () => window.removeEventListener(RELAYOUT, onRelayout);
+  }, []);
+
+  // The Visualise button is a render-time `__synapseViz` check; the lazy viz loader (A10)
+  // announces its arrival, and this tick makes the button appear on already-mounted blocks.
+  useEffect(() => {
+    const onVizReady = () => setAuthTick((n) => n + 1);
+    window.addEventListener(VIZ_READY, onVizReady);
+    return () => window.removeEventListener(VIZ_READY, onVizReady);
   }, []);
 
   // Theme follows the toggle: the theme island flips .dark on <html>; observe it.

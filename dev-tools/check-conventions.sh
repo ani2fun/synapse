@@ -46,10 +46,11 @@ fi
 # viz/engine/ joined in step 59: the whole engine is pure by design (it moved out of
 # synapse-shared for exactly that property) but only logic/ was ever gated — shapes.rs and
 # decoder.rs sat at viz/ root, clean yet unprotected. They moved under engine/ and the gate
-# now covers the folder, so the discipline is structural rather than observed.
-echo "→ client logic purity (no leptos/web-sys/wasm-bindgen/js-sys/gloo under logic/ + viz/engine/)"
+# now covers the folder, so the discipline is structural rather than observed. A10 moved the
+# viz slice to its own crate — the engine arm travelled with it (viz-wasm/src/engine below).
+echo "→ client logic purity (no leptos/web-sys/wasm-bindgen/js-sys/gloo under logic/ + viz-wasm engine/)"
 if [[ -d client/src ]]; then
-  impure=$(find client/src \( -path "*/logic/*" -o -path "*/viz/engine/*" \) -name "*.rs" -print0 2>/dev/null |
+  impure=$(find client/src viz-wasm/src/engine \( -path "*/logic/*" -o -path "*viz-wasm/src/engine/*" \) -name "*.rs" -print0 2>/dev/null |
     xargs -0 grep -l -E '^\s*use (leptos|web_sys|wasm_bindgen|js_sys|gloo)' 2>/dev/null || true)
   if [[ -n "$impure" ]]; then
     echo "✗ logic files using the web layer:"
@@ -86,7 +87,7 @@ server_ok=0
 check_caps 500 find server shared -name "*.rs" -not -path "*/target/*" || server_ok=1
 client_ok=0
 if [[ -d client ]]; then
-  check_caps 800 find client \( -name "*.rs" -o -name "*.ts" \) \
+  check_caps 800 find client viz-wasm \( -name "*.rs" -o -name "*.ts" \) \
     -not -path "*/node_modules/*" -not -path "*/target/*" -not -path "*/dist/*" \
     -not -path "*/pkg/*" -not -name "*.gen.ts" || client_ok=1
 fi

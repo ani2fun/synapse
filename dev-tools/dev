@@ -21,6 +21,13 @@ source "$(dirname "$0")/lib-ports.sh"
 reclaim "${SYNAPSE_PORT:-8280}" "synapse-server"
 reclaim 5373 "astro-dev"
 
+# The viz wasm bundle (A10): Vite resolves the lazy import on demand, so a missing pkg only
+# explodes the first time a page actually loads viz — build it up front (dev profile, seconds
+# when warm) so the loop never serves that surprise.
+if [[ ! -f web/src/lib/viz-wasm/pkg/viz_wasm.js ]]; then
+  ./dev-tools/build-viz-wasm.sh dev
+fi
+
 cargo build -p synapse-server --quiet
 ./target/debug/synapse-server &
 SERVER_PID=$!

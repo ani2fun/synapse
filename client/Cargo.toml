@@ -9,6 +9,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 synapse-shared = { path = "../shared" }
+viz-wasm = { path = "../viz-wasm" }
 leptos = { workspace = true }
 leptos_router = { workspace = true }
 wasm-bindgen = { workspace = true }

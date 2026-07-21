@@ -1,4 +1,6 @@
 // @ts-check
+import { fileURLToPath } from "node:url";
+
 import node from "@astrojs/node";
 import preact from "@astrojs/preact";
 import { defineConfig } from "astro/config";
@@ -14,6 +16,15 @@ export default defineConfig({
   integrations: [preact()],
   server: { port: 5373 },
   vite: {
+    resolve: {
+      // The viz wasm's bindgen glue imports `@editor/loader` / `@tracer/loader` (the crate's
+      // FFI externs, A10) — the same specifiers the old client's Vite resolves, pointed at the
+      // same single-sourced islands.
+      alias: {
+        "@editor": fileURLToPath(new URL("./src/lib/islands/editor", import.meta.url)),
+        "@tracer": fileURLToPath(new URL("./src/lib/islands/tracer", import.meta.url)),
+      },
+    },
     server: {
       strictPort: true,
       proxy: {

@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { parseVariants } from "../../lib/execution/blocks";
 import type { Variant } from "../../lib/execution/blocks";
 import { hydrateFenceGroups } from "../workbench/fenceGroups";
-import { RELAYOUT } from "../workbench/contracts";
+import { RELAYOUT, VIZ_RESCAN } from "../workbench/contracts";
 import { hydrateDiagrams } from "../widgets/Diagrams";
 import { SolutionViewer } from "./SolutionViewer";
 import * as log from "../../lib/log";
@@ -174,6 +174,10 @@ export function MarkdownPane({ md, solutions, forceOpenDetails, workbenchRoot }:
         // diagrams, practice.rs's markdown_pane did not; this shared component now does it for
         // both, so a diagram authored inside a practice statement renders instead of sitting inert).
         hydrateDiagrams(node);
+        // A ```viz fence in an editorial planted a fresh widget AFTER the viz loader's initial
+        // sweep (the old client's editorial shipped without this and rendered empty boxes —
+        // blocks.rs pins the lesson) — ask the loader to re-sweep (idempotent, loads on demand).
+        window.dispatchEvent(new Event(VIZ_RESCAN));
         // A viewer revealed inside a freshly-shown pane may have measured 0×0 — nudge Monaco.
         window.dispatchEvent(new Event(RELAYOUT));
       } catch (error) {
