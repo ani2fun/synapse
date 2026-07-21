@@ -26,8 +26,24 @@
 .pwb:not(.pwb--embedded) .pwb__right .runnable__out,
 .pwb:not(.pwb--embedded) .pwb__right .wb__verdict { flex: 0 0 auto; }
 /* Fill mode (the component's --fill class, on until the resize strip pins a height): the
-   !important beats the block's inline source-derived height. */
-.runnable__editor--fill { flex: 1 1 auto; height: auto !important; min-height: 220px; }
+   !important beats the block's inline source-derived height. `contain: size` breaks a latch:
+   with height:auto the container sizes from monaco's root while monaco (automaticLayout)
+   sizes its root from the container — one transient frame where the flex chain is unbounded
+   (e.g. the island hydrating before the pane height applies) and the editor latches at
+   thousands of px with nothing to ever shrink it. Containment zeroes the intrinsic height,
+   so the flex chain (min-height 220 + flex-grow) is the ONLY input. */
+.runnable__editor--fill { flex: 1 1 auto; height: auto !important; min-height: 220px;
+                          contain: size; }
+
+/* Island mount hosts (Astro): the Preact panes render INTO a host div the SSR frame provides.
+   Each host must RELAY the flex chain — bounded height, min-height:0 — or the pane content
+   spills past the pane invisibly and the pane's scroller (.pwb-escroll) never clips, so the
+   editorial Jump pills have nothing to scroll. The old client renders panes directly (these
+   classes don't exist there), so this rule is inert for it. */
+.pwb__pane > .pwb-editorial-host,
+.pwb__pane > .pwb-coach-host,
+.pwb__pane > .psub-host { display: flex; flex-direction: column;
+                          flex: 1 1 auto; min-height: 0; }
 
 /* ── the horizontal resize strip: editor above, test cases below (the wb-split rail,
       turned 90°) — drag to resize, double-click to reset ── */

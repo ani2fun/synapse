@@ -20,6 +20,11 @@ interface Props {
   description?: string;
   /** Site-relative path for canonical + og:url; omitted = no canonical tag. */
   canonicalPath?: string;
+  /** Landing page ONLY (the oracle's rule, footer.rs: lesson pages own their vertical rhythm,
+   *  and problem pages are a fixed-height two-pane layout with no page scroll at all — a footer
+   *  there is unreachable or fights the panes). Rendering it everywhere was an A03 parity bug
+   *  that surfaced as broken pane scrolling on problem pages. */
+  footer?: boolean;
 }
 
 const SITE_NAME = "Synapse";
@@ -27,7 +32,7 @@ const DEFAULT_DESCRIPTION =
   "Read, run and understand — interactive lessons on system design, data structures and " +
   "algorithms, with code you can execute and visualise in the page.";
 
-const { title = SITE_NAME, description = DEFAULT_DESCRIPTION, canonicalPath } = Astro.props;
+const { title = SITE_NAME, description = DEFAULT_DESCRIPTION, canonicalPath, footer = false } = Astro.props;
 // Absolute origin for OG/canonical — configured, never sniffed from Host (caller-controlled),
 // same rule as the axum side.
 const siteUrl = (import.meta.env.SYNAPSE_SITE_URL ?? "https://synapse.kakde.eu").replace(/\/+$/, "");
@@ -72,7 +77,7 @@ const canonical = canonicalPath ? `${siteUrl}${canonicalPath}` : undefined;
   <body>
     <Header />
     <slot />
-    <Footer />
+    {footer && <Footer />}
     <!-- The ⌘K palette (A05): mounted from Base so it exists on EVERY page — the e2e palette
          spec opens it from `/`, and the header's `.header__search` button (A03) has shipped
          inert until now. Vanilla TS, lazy data load on first open (islands/palette.ts). -->

@@ -157,3 +157,15 @@ own listener did the canonical tab match, and a Java solution landed in the Java
 boundary the old client had never actually exercised end to end. A seam that survives its second
 and third consumers unchanged is an interface; A08 is where the workbench's stopped being an
 assumption.
+
+## Fixed forward (user bug report, 2026-07-21)
+
+"The Jump pills don't navigate" — the pane never clipped, so there was nothing to scroll. The SSR
+frame provides host divs (`.pwb-editorial-host`, `.pwb-coach-host`, `.psub-host`) for the Preact
+panes to render into; a bare `display: block` div in the middle of a flex column refuses to shrink
+below its content (`min-height: auto`), so the editorial spilled 300px past the pane invisibly and
+`.pwb-escroll` measured `scrollHeight == clientHeight`. The step-57 scar said "scroll the pane,
+never the window" — the pane also has to be ABLE to scroll. practice.css now relays the chain
+through every island host (`flex: 1 1 auto; min-height: 0; flex column`); the rule is inert for
+the old client, which renders its panes directly. Verified: content 754 in a 443 scroller,
+Solution → 281, Complexity Analysis → 311, window pinned at 0.

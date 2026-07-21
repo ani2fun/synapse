@@ -140,3 +140,21 @@ tab, against a production-shaped serve) is what turned "the right pane won't mou
 auto-hydrator is claiming the first workbench," which is a fix. The single-script runtime branch
 is not a workaround for a bug in Astro — it is the honest shape: there is one script tag, and it
 decides at runtime, in the browser, where it is.
+
+## Fixed forward (user bug report, 2026-07-21)
+
+Two height-chain breaks surfaced together as "the test cases and output console are invisible."
+
+**The shell lift.** The Astro problem page mounts `.pwb` directly under `.shell-main` (no
+reader-layout wrapper), so the old client's `:has(.reader-layout …)` lift never fired and the
+workbench sat inside a max-width, padded column. `shell.css` grew a twin keyed on the workbench
+itself: `.shell-main:has(> .pwb:not(.pwb--embedded))` — embedded practice cards must not trigger it.
+
+**The fill latch.** `.runnable__editor--fill` is `height: auto !important` (the container sizes
+from monaco's root) while monaco (`automaticLayout`) sizes its root from the container — a
+feedback loop whose fixed point is *wherever it starts*. One transient frame where the flex chain
+is unbounded — the island hydrating before the pane height rule constrains it, a timing the old
+client never hit because the wasm boot was slower than the stylesheet — and the editor latches at
+5,228px forever, pushing the tests panel 4,000px down an invisible scroll. `contain: size` on the
+fill container zeroes its intrinsic height, making the flex chain (min-height 220 + flex-grow) the
+ONLY input; the latch cannot form and any stale layout self-heals on the next resize observation.

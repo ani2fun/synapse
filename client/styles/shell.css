@@ -62,6 +62,9 @@
    fighting a capped PARENT (the real culprit behind "still not full width" on wide
    monitors). Reader pages keep the column; the two-pane workbench takes the viewport. */
 .shell-main:has(.reader-layout--problem) { max-width: none; padding-inline: 0.5rem; }
+/* The Astro problem page mounts .pwb directly under shell-main (no reader-layout wrapper) —
+   same lift, keyed on the workbench itself. Embedded practice cards must NOT trigger it. */
+.shell-main:has(> .pwb:not(.pwb--embedded)) { max-width: none; padding-inline: 0.5rem; padding-block: 0; }
 
 /* ── library ── the landing's own rules live in library.css/tour.css (step 32) ── */
 .badge { font-size: 0.75rem; color: hsl(var(--primary)); }

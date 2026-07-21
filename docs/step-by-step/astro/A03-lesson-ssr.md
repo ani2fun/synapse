@@ -165,3 +165,13 @@ at a time without ever reintroducing that wait. This step is the pivot: A01 buil
 A02 removed the guesswork from the wire, and A03 is the first one a reader would actually feel — the
 one where a lesson stops being something wasm produces and becomes something the server hands over.
 ```
+
+## Fixed forward (user bug report, 2026-07-21)
+
+The footer rendered on EVERY page — an A03 parity bug. The oracle's rule (`footer.rs`) is that the
+footer is landing-page ONLY, precisely because problem pages are a fixed-height two-pane layout
+with no page scroll: a footer there stretches the document 177px past the viewport, the window
+gains a scrollbar, and every in-pane scroll interaction (the editorial Jump pills, the pane
+wheel) gets absorbed by the page instead. `Base.astro` now takes `footer` as an opt-in prop
+(default false); `index.astro` is the one opt-in. The symptom surfaced two steps later as
+"Jump does nothing" — the cause was here.
