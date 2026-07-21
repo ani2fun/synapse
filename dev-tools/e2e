@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Run the e2e smoke suite against a PRODUCTION-SHAPED serve — the real server over a built
-# `client/dist`, not Vite. See e2e/playwright.config.ts for why that distinction matters.
+# Run the e2e smoke suite against a PRODUCTION-SHAPED serve. Since migration step A12 that
+# means the ASTRO topology: axum (API + headers + compression) fronting the Node sidecar via
+# SYNAPSE_ASTRO_URL — the same two processes the production image runs. The old Leptos serve
+# remains reachable as `E2E_LEGACY=1 dev-tools/e2e` until A14 deletes the client (that is the
+# rollback path, and a rollback path nobody can rehearse is not one).
 #
 # Needs the oracle's backing services (synapse-rs has no compose of its own):
 #   cd ~/Development/homelab/synapse && docker compose up -d db
@@ -13,17 +16,41 @@ export SYNAPSE_DATABASE_URL="${SYNAPSE_DATABASE_URL:-postgres://synapse:synapse@
 # smoke suite pinned to real content means an unrelated edit in another repository can turn
 # this one red. Point SYNAPSE_ROOT at the real tree to spot-check against it.
 export SYNAPSE_ROOT="${SYNAPSE_ROOT:-e2e/fixture-content}"
-export STATIC_ROOT="${STATIC_ROOT:-client/dist}"
 export SYNAPSE_PORT="${SYNAPSE_PORT:-8280}"
-
-if [[ ! -d "$STATIC_ROOT" ]]; then
-  echo "→ no dist at $STATIC_ROOT — building the client"
-  (cd client && npm run build)
-fi
+SIDECAR_PORT="${SIDECAR_PORT:-4321}"
 
 # shellcheck source=lib-ports.sh
 source "$(dirname "$0")/lib-ports.sh"
 reclaim "$SYNAPSE_PORT" "synapse-server"
+
+SIDECAR_PID=""
+if [[ "${E2E_LEGACY:-}" == "1" ]]; then
+  # ── the OLD client serve (rollback rehearsal) ──
+  export STATIC_ROOT="${STATIC_ROOT:-client/dist}"
+  unset SYNAPSE_ASTRO_URL
+  if [[ ! -d "$STATIC_ROOT" ]]; then
+    echo "→ no dist at $STATIC_ROOT — building the old client"
+    (cd client && npm run build)
+  fi
+  echo "→ LEGACY mode: serving the old client from $STATIC_ROOT"
+else
+  # ── the Astro serve (the default since A12) ──
+  # The viz wasm bundle is gitignored build output the web build imports — build it first
+  # when absent (dev profile: this proves the graph, the budget gate sizes the release one).
+  if [[ ! -f web/src/lib/viz-wasm/pkg/viz_wasm.js ]]; then
+    ./dev-tools/build-viz-wasm.sh dev
+  fi
+  if [[ ! -f web/dist/server/entry.mjs ]]; then
+    echo "→ no web/dist — building the Astro app"
+    (cd web && npm run build)
+  fi
+  reclaim "$SIDECAR_PORT" "astro-sidecar"
+  echo "→ starting the sidecar on :$SIDECAR_PORT"
+  # Same pipe hygiene as the server below: log to a file, one PID to clean up.
+  HOST=127.0.0.1 PORT="$SIDECAR_PORT" node web/dist/server/entry.mjs >/tmp/e2e-sidecar.log 2>&1 &
+  SIDECAR_PID=$!
+  export SYNAPSE_ASTRO_URL="http://127.0.0.1:$SIDECAR_PORT"
+fi
 
 # Compile FIRST, in the foreground. `cargo run` compiles in the BACKGROUND while the health
 # poll counts down — locally the binary is warm so it starts instantly, but on a cold CI cache
@@ -32,7 +59,7 @@ reclaim "$SYNAPSE_PORT" "synapse-server"
 echo "→ building the server"
 cargo build -p synapse-server --quiet
 
-echo "→ starting the server on :$SYNAPSE_PORT over $STATIC_ROOT"
+echo "→ starting the server on :$SYNAPSE_PORT"
 # Run the BINARY, and send its output to a file rather than this script's stdout. Two reasons,
 # both learned from the first CI run of this suite, which hung for 39 minutes:
 #   · CI runs `dev-tools/e2e | tee`, and a background process that inherits the pipe keeps its
@@ -41,7 +68,7 @@ echo "→ starting the server on :$SYNAPSE_PORT over $STATIC_ROOT"
 #     same pipe. Exec'ing the built binary means there is exactly one PID to clean up.
 ./target/debug/synapse-server >/tmp/e2e-server.log 2>&1 &
 SERVER_PID=$!
-trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+trap 'kill "$SERVER_PID" 2>/dev/null || true; [[ -n "$SIDECAR_PID" ]] && kill "$SIDECAR_PID" 2>/dev/null || true' EXIT
 
 for _ in $(seq 1 60); do
   curl -sf "http://localhost:$SYNAPSE_PORT/api/health" >/dev/null && break
@@ -52,6 +79,14 @@ curl -sf "http://localhost:$SYNAPSE_PORT/api/health" >/dev/null || {
   sed 's/^/    /' /tmp/e2e-server.log
   exit 1
 }
+if [[ -n "$SIDECAR_PID" ]]; then
+  # The page path must actually flow through the proxy before the suite starts.
+  curl -sf "http://localhost:$SYNAPSE_PORT/" >/dev/null || {
+    echo "✗ the proxied Astro root never answered — sidecar log:"
+    sed 's/^/    /' /tmp/e2e-sidecar.log
+    exit 1
+  }
+fi
 
 cd e2e
 [[ -d node_modules ]] || npm ci
@@ -63,17 +98,23 @@ set +e
 npx playwright test "$@"
 PW_STATUS=$?
 set -e
+cd ..
 
 if [[ $PW_STATUS -ne 0 ]]; then
   echo
   echo "── the server was serving this ──"
-  echo "  index.html referenced assets:"
-  for a in $(curl -s "http://localhost:$SYNAPSE_PORT/" | grep -oE 'assets/[A-Za-z0-9_.-]+' | sort -u); do
+  echo "  root page assets:"
+  for a in $(curl -s "http://localhost:$SYNAPSE_PORT/" | grep -oE '(assets|_astro)/[A-Za-z0-9_.-]+' | sort -u); do
     echo "    $a -> $(curl -s -o /dev/null -w '%{http_code} %{content_type} %{size_download}B' \
       "http://localhost:$SYNAPSE_PORT/$a")"
   done
   echo "  server log (tail):"
   tail -30 /tmp/e2e-server.log | sed 's/^/    /' || true
+  [[ -n "$SIDECAR_PID" ]] && { echo "  sidecar log (tail):"; tail -20 /tmp/e2e-sidecar.log | sed 's/^/    /' || true; }
+  exit $PW_STATUS
 fi
 
-exit $PW_STATUS
+# ── the per-page budget (A12) — while the stack is still up ──
+if [[ -z "${E2E_LEGACY:-}" ]]; then
+  dev-tools/check-page-budget.sh "http://localhost:$SYNAPSE_PORT"
+fi

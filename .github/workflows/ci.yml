@@ -191,6 +191,14 @@ jobs:
       - if: always()
         run: docker rm -f go-judge || true
 
+  # COMPILE-ONLY since migration step A12: the old client is the rollback path, not the
+  # product — this job proves it still BUILDS (the wasm compiles, Vite resolves the @aliases
+  # that now point into web/) without paying the wasm-release + wasm-opt + budget minutes the
+  # Astro e2e job spends on the serve that actually ships. The 700 KiB budget gate retired with
+  # the production build here; the per-page gate lives in the e2e job. The Docker image still
+  # runs the full old-client build + old gate until A13 reworks it. Rollback REHEARSAL (not
+  # just compilation) is `E2E_LEGACY=1 dev-tools/e2e reader.spec.ts mobile.spec.ts` — run it
+  # locally before leaning on the rollback.
   client-build:
     timeout-minutes: 30
     needs: conventions
@@ -204,35 +212,15 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: wasm-bindgen@0.2.126
-      - name: wasm-opt (binaryen, upstream — NOT apt)
-        # apt ships binaryen 108, from 2022. Its `wasm-opt -Oz` MISCOMPILES a module built by
-        # the current toolchain: the result loads and then dies with
-        # `WebAssembly.Table.grow(): failed to grow table by 4`, so the app never mounts. CI
-        # built that artifact from step 35 onward and nothing ever executed it — the bundle
-        # budget measured a binary that could not run. The e2e suite is what finally ran it.
-        #
-        # The Dockerfile has pinned upstream binaryen since step 35 for a size reason (108
-        # leaves ~270 KiB gz on the table); correctness turns out to be the bigger one. The
-        # version is READ FROM the Dockerfile so the two can never drift — prod and CI must
-        # optimise with the same compiler.
-        run: |
-          set -euo pipefail
-          version=$(grep -oP 'ARG BINARYEN_VERSION=\K[0-9]+' Dockerfile)
-          echo "binaryen $version (from Dockerfile)"
-          curl -fsSL "https://github.com/WebAssembly/binaryen/releases/download/version_${version}/binaryen-version_${version}-x86_64-linux.tar.gz" \
-            | sudo tar -xz -C /usr/local --strip-components=1
-          wasm-opt --version
       - name: npm ci
         working-directory: client
         run: npm ci
-      - name: vitest (the TS-island suites)
+      - name: vitest (the TS-island suites + the stylesheet gate)
         working-directory: client
         run: npm test
-      - name: wasm + vite production build
+      - name: wasm (dev profile) + vite build — compiles and resolves, nothing more
         working-directory: client
-        run: npm run build
-      - name: bundle budget (700 KiB gz critical path)
-        run: dev-tools/check-bundle-budget.sh
+        run: npm run wasm && npx vite build
 
   # ── The Astro app (migration step A01, wire types + client step A02) ─────────────
   # Builds and type-checks web/ so the branch cannot rot the new front end while the old one
@@ -289,14 +277,19 @@ jobs:
         working-directory: web
         run: npm run build
 
-  # ── End-to-end smoke (step 52) ────────────────────────────────────────────────
+  # ── End-to-end smoke (step 52; the ASTRO serve since migration step A12) ──────
   # Every "Verified" section in 51 chapters was a human in a browser tab, and the classes of
   # bug that survived that — a drawer under the fixed header for nine steps, a palette rendering
   # at the page's bottom-left for a release — are exactly the ones a machine notices instantly.
   #
-  # It runs against the PRODUCTION-SHAPED serve (the real server over a built dist), not Vite:
-  # per-page meta, cache headers and the security-header stack only exist on that path, and
-  # step 19's chapter records that dev never reproduces CSP breakage.
+  # It runs against the PRODUCTION-SHAPED serve — since A12 that is the real axum server
+  # fronting the Node sidecar via SYNAPSE_ASTRO_URL (dev-tools/e2e starts both), the same two
+  # processes the production image runs. Per-page meta, cache headers, compression and the
+  # security-header stack only exist on that path, and step 19's chapter records that dev never
+  # reproduces CSP breakage. The per-page budget gate rides the same stack (the smoke script
+  # runs it after the specs, while everything is still up). The viz wasm builds RELEASE here —
+  # the optimized artifact is what the specs exercise and the budget caps, which is also the
+  # only place the binaryen-miscompile class of bug can surface for it.
   #
   # Content comes from e2e/fixture-content, never ../synapse-content — CI has no content
   # checkout, and pinning a smoke suite to another repository means an edit there can turn this
@@ -321,9 +314,9 @@ jobs:
     env:
       SYNAPSE_DATABASE_URL: postgres://synapse:synapse@localhost:5432/synapse_rs
       SYNAPSE_ROOT: e2e/fixture-content
-      STATIC_ROOT: client/dist
       SYNAPSE_PORT: 8280
       E2E_BASE_URL: http://localhost:8280
+      VIZ_WASM_RELEASE: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -351,8 +344,15 @@ jobs:
           curl -fsSL "https://github.com/WebAssembly/binaryen/releases/download/version_${version}/binaryen-version_${version}-x86_64-linux.tar.gz" \
             | sudo tar -xz -C /usr/local --strip-components=1
           wasm-opt --version
-      - name: build the client
-        working-directory: client
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: viz wasm (release — see the job comment)
+        run: dev-tools/build-viz-wasm.sh release
+      - name: build the Astro app
+        working-directory: web
         run: npm ci && npm run build
       # Chromium is ~130 MB and rust-cache does not cover it — without this the browser is
       # re-downloaded on every run.
