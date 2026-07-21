@@ -1,0 +1,65 @@
+---
+// The blog listing (A04; oracle: client/src/blog/view/mod.rs::BlogListPage, byte-faithful
+// classes so client/styles/blog.css applies unchanged). `blogList()` already comes back newest
+// first — the server sorts it (step 18); this page does no re-ordering of its own.
+//
+// HEAD IS NEW, NOT A PORT: the old client never gave the blog a real per-page head at all — it
+// never called `seo::set_title` for anything but a lesson, so every blog page showed whatever
+// generic title the SPA's static `index.html` carried. Astro's `output: "server"` re-renders
+// the whole head as props on every request regardless, so this is the first time the blog gets
+// one; there is no oracle string to match byte-for-byte here, unlike the lesson page's title
+// (A03) which mirrors `platform::static_routes::title_for` exactly.
+import Base from "../../layouts/Base.astro";
+import { blogList } from "../../lib/api/client";
+import type { BlogSummary } from "../../lib/api/client";
+
+import "../../../../client/styles/blog.css";
+
+let posts: BlogSummary[] = [];
+let loadError: string | null = null;
+try {
+  posts = await blogList();
+} catch (error) {
+  loadError = error instanceof Error ? error.message : String(error);
+}
+---
+
+<Base title="Blog — Synapse" canonicalPath="/blog">
+  <main class="shell-main">
+    <div class="blog">
+      <header class="blog-hero">
+        <p class="blog-hero__eyebrow">Writing</p>
+        <h1>The blog</h1>
+      </header>
+
+      {
+        loadError ? (
+          <p class="error">The blog failed to load: {loadError}</p>
+        ) : posts.length === 0 ? (
+          <p class="muted">No posts yet — check back soon.</p>
+        ) : (
+          <div class="blog-list">
+            {posts.map((post) => (
+              <a class="blog-card" href={`/blog/${post.slug}`}>
+                {post.eyebrow && <p class="blog-card__eyebrow">{post.eyebrow}</p>}
+                <h2 class="blog-card__title">{post.title}</h2>
+                {post.summary && <p class="blog-card__summary">{post.summary}</p>}
+                <div class="blog-card__meta">
+                  {post.publishedAt && <span class="blog-card__date">{post.publishedAt}</span>}
+                  {post.readMinutes != null && <span class="blog-card__read">{post.readMinutes} min read</span>}
+                  {post.tags.length > 0 && (
+                    <span class="blog-card__tags">
+                      {post.tags.map((tag) => (
+                        <span class="blog-card__tag">{tag}</span>
+                      ))}
+                    </span>
+                  )}
+                </div>
+              </a>
+            ))}
+          </div>
+        )
+      }
+    </div>
+  </main>
+</Base>

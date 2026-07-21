@@ -1,55 +1,121 @@
 ---
-// A01's placeholder landing page. Its one job is to prove the WHOLE path — Astro SSR → axum
-// API over localhost → rendered HTML through the astro_proxy — before any real porting starts.
-// A04 replaces this with the actual library (cards, categories, hero, progress chrome).
+// The real library landing (A04; oracle: client/src/catalog/view/library.rs, byte-faithful
+// class structure so client/styles/library.css + tour.css apply unchanged, replacing A01's
+// throwaway placeholder). SSR renders the hero + book grid synchronously in one fetch — there
+// is no client-side Loading state here (unlike the Rust's `AsyncResult::Loading`): the fetch
+// either resolves before the response is written, or it fails and the page shows the same
+// `AsyncResult::Failed` message the reactive client would.
+//
+// NOT PORTED THIS STEP: the `SynapseTour` carousel (view/tour.rs, 440 lines — four auto-
+// advancing slides, one of them a REAL Visualise widget). A static hero renders in its place.
+// This is a VISIBLE difference from the oracle design, flagged for sign-off in the A04 chapter
+// rather than silently dropped; the carousel is pure UI chrome with no data dependency of its
+// own, so it can land as a later, independent step without disturbing anything built here.
+//
+// The "N/M read" progress chips and the `.lib-continue` resume card are NOT rendered here
+// either — `localStorage` has no SSR equivalent, so both are injected post-hydration by
+// islands/library.ts (see that file's doc comment for the island-props pattern chosen).
 import Base from "../layouts/Base.astro";
-import { fetchIndex, type CatalogEntry } from "../lib/api/client";
+import BookCard from "../components/BookCard.astro";
+import { fetchIndex } from "../lib/api/client";
+import type { CatalogEntry, SynapseIndex } from "../lib/api/client";
+import type { components } from "../lib/api/schema.gen";
 
-// A01's first draft guessed the wire shape from field presence and silently dropped six of
-// seven books. `CatalogEntry` is generated from the server's own OpenAPI document now (step
-// A02) — `entries` is a REQUIRED array on `CategoryDto`, not the guessed `entries?`, so the
-// `else` branch below no longer needs a defensive presence check to be correct.
-let books: { title: string; path: string }[] = [];
+import "../../../client/styles/library.css";
+import "../../../client/styles/tour.css";
+
+type Book = components["schemas"]["BookDto"];
+
+let index: SynapseIndex | null = null;
 let loadError: string | null = null;
 try {
-  const index = await fetchIndex();
-  const walk = (entries: CatalogEntry[], prefix: string[]) => {
-    for (const entry of entries) {
-      if (entry.kind === "book") {
-        books.push({
-          title: entry.title,
-          path: [...(entry.categoryPath ?? prefix), entry.slug].join("/"),
-        });
-      } else {
-        walk(entry.entries, [...prefix, entry.slug]);
-      }
-    }
-  };
-  walk(index.entries, []);
+  index = await fetchIndex();
 } catch (error) {
   loadError = error instanceof Error ? error.message : String(error);
 }
+
+// Pulled out of the template (rather than an inline `.filter((e): e is X => …)` type predicate)
+// because esbuild's JSX transform for `.astro` frontmatter parses arrow-function generics/type
+// predicates ambiguously with JSX tags — this dodges the ambiguity entirely, in a plain TS
+// function body.
+function booksOf(entries: CatalogEntry[]): Book[] {
+  const out: Book[] = [];
+  for (const entry of entries) {
+    if (entry.kind === "book") out.push(entry);
+  }
+  return out;
+}
+
+// Embedded for islands/library.ts — re-uses the SAME fetch this page already made rather than
+// a second client-side round trip. `<` is escaped so a book title/description containing
+// "</script" cannot break out of the tag early.
+const indexJson = index ? JSON.stringify(index).replace(/</g, "\\u003c") : null;
 ---
 
 <Base title="Synapse">
-  <main class="library">
-    <h1>Synapse</h1>
-    <p class="muted">
-      Astro front end — migration step A01. This placeholder proves SSR → API → proxy;
-      the real library lands in A04.
-    </p>
-    {
-      loadError ? (
-        <p class="error">The catalog failed to load: {loadError}</p>
-      ) : (
-        <ul>
-          {books.map((book) => (
-            <li>
-              <a href={`/synapse/${book.path}`}>{book.title}</a>
-            </li>
-          ))}
-        </ul>
-      )
-    }
+  <main class="shell-main">
+    <div class="library">
+      <section class="lib-hero">
+        <div class="lib-hero__pill">
+          <span class="lib-hero__dot" aria-hidden="true"></span>
+          A guided tour — everything Synapse can do
+        </div>
+        <!-- SynapseTour (view/tour.rs) intentionally NOT ported this step — see the comment above. -->
+        <div class="lib-hero__ctas">
+          <button class="lib-hero__cta lib-hero__cta--primary" id="lib-start-reading" type="button">
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+            </svg>
+            Start reading
+          </button>
+          <a class="lib-hero__cta lib-hero__cta--ghost" href="/blog">Read the blog</a>
+        </div>
+      </section>
+
+      <div id="lib-continue-mount"></div>
+
+      {
+        loadError ? (
+          <p class="error">The library failed to load: {loadError}</p>
+        ) : (
+          index && (
+            <section id="library-grid" class="lib-section library__body">
+              <h2 class="lib-section__title">The books</h2>
+              <div class="lib-grid">
+                {index.entries.map((catalogEntry: CatalogEntry) =>
+                  catalogEntry.kind === "category" ? (
+                    <div class="lib-group">
+                      <div class="lib-group__title">{catalogEntry.title}</div>
+                      <div class="lib-grid lib-grid--nested">
+                        {booksOf(catalogEntry.entries).map((book) => (
+                          <BookCard book={book} />
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <BookCard book={catalogEntry} />
+                  ),
+                )}
+              </div>
+            </section>
+          )
+        )
+      }
+    </div>
   </main>
+  {indexJson && <script type="application/json" id="library-index-data" set:html={indexJson} />}
+  <script>
+    import "../islands/library";
+  </script>
 </Base>

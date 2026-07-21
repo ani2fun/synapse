@@ -1,0 +1,126 @@
+---
+// One blog post (A04; oracle: client/src/blog/view/mod.rs::BlogPostPage/loaded_post,
+// byte-faithful classes). The body crosses the SAME markdown pipeline a lesson does
+// (`renderLesson` — A03 moved it to web/src/lib/markdown), minus workbench hydration (blog
+// posts never carried runnable fences in the oracle content). `prev`/`next` on the DTO are
+// publish-order neighbours: `prev` = older, `next` = newer (see BlogPostDto's doc comment).
+//
+// The leading `<h1>` the pipeline renders is stripped: the header (below) already shows the
+// title, and the oracle's `loaded_post` removed the same duplicate via
+// `body.query_selector("h1")` + `previous_element_sibling().is_none()` once the DOM existed.
+// SSR has no DOM to query — the equivalent here is a string check on the rendered HTML's
+// leading tag, done BEFORE `set:html` rather than after mount.
+//
+// HEAD IS NEW, NOT A PORT — see blog/index.astro's comment: the oracle never gave blog pages a
+// real head at all.
+import Base from "../../layouts/Base.astro";
+import NotFound from "../../components/NotFound.astro";
+import { blogPost, ApiFailure } from "../../lib/api/client";
+import type { BlogPost } from "../../lib/api/client";
+import { renderLesson } from "../../lib/markdown/render";
+
+import "../../../../client/styles/blog.css";
+import "../../../../client/styles/markdown.css";
+
+/** `rebuilding-cortex` → `Rebuilding cortex` — good enough for a pager card (oracle: `humanize`). */
+function humanise(slug: string): string {
+  const words = slug.replace(/[-_]/g, " ");
+  return words.length > 0 ? words[0].toUpperCase() + words.slice(1) : words;
+}
+
+/** Drop a leading `<h1>` — the SSR equivalent of the oracle's "no previous sibling" DOM check:
+ *  a leading h1 in rendered HTML has nothing before it by construction. */
+function stripLeadingH1(html: string): string {
+  const trimmed = html.replace(/^\s+/, "");
+  const match = /^<h1[^>]*>[\s\S]*?<\/h1>/.exec(trimmed);
+  return match ? trimmed.slice(match[0].length).replace(/^\s+/, "") : html;
+}
+
+const slug = Astro.params.slug ?? "";
+
+let post: BlogPost | null = null;
+let html = "";
+let errorMessage = "";
+let notFound = false;
+
+try {
+  post = await blogPost(slug);
+  html = stripLeadingH1(await renderLesson(post.body));
+} catch (error) {
+  if (error instanceof ApiFailure && error.status === 404) {
+    notFound = true;
+    Astro.response.status = 404;
+  } else {
+    Astro.response.status = 502;
+    errorMessage = error instanceof Error ? error.message : String(error);
+  }
+}
+
+const title = post ? `${post.title} — Synapse` : notFound ? "Not found — Synapse" : "Error — Synapse";
+const description = post?.summary ?? undefined;
+const canonicalPath = post ? `/blog/${slug}` : undefined;
+---
+
+<Base title={title} description={description} canonicalPath={canonicalPath}>
+  {notFound && <NotFound path={`blog/${slug}`} />}
+
+  {
+    !notFound && !post && (
+      <main class="shell-main">
+        <section class="lesson lesson--error">
+          <h1 class="reader-prose__title">Something went wrong</h1>
+          <p class="reader-prose__lede">{errorMessage}</p>
+          <p>
+            <a class="header__link" href="/blog">
+              ← Back to the blog
+            </a>
+          </p>
+        </section>
+      </main>
+    )
+  }
+
+  {
+    post && (
+      <main class="shell-main">
+        <div class="blog blog--post">
+          <article class="blog-post">
+            <header class="blog-post__head">
+              {post.eyebrow && <p class="blog-post__eyebrow">{post.eyebrow}</p>}
+              <h1 class="blog-post__title">{post.title}</h1>
+              <p class="blog-post__meta">
+                {post.publishedAt && <span>{post.publishedAt}</span>}
+                {post.readMinutes != null && <span>{post.readMinutes} min read</span>}
+              </p>
+            </header>
+            <div class="blog-post__body synapse-prose" set:html={html} />
+            <nav class="blog-pager">
+              {post.prev && (
+                <a class="blog-pager__card" href={`/blog/${post.prev}`}>
+                  <span class="blog-pager__label">← Older</span>
+                  <span class="blog-pager__title">{humanise(post.prev)}</span>
+                </a>
+              )}
+              {post.next && (
+                <a class="blog-pager__card" href={`/blog/${post.next}`}>
+                  <span class="blog-pager__label">Newer →</span>
+                  <span class="blog-pager__title">{humanise(post.next)}</span>
+                </a>
+              )}
+            </nav>
+          </article>
+        </div>
+      </main>
+    )
+  }
+</Base>
+
+<style>
+  /* Shared with the lesson page's A03-local error/notfound chrome — kept here too since blog
+     pages import blog.css/markdown.css, not reader.css. */
+  .lesson--error {
+    max-width: 40rem;
+    margin-inline: auto;
+    padding-block: 4rem 6rem;
+  }
+</style>
