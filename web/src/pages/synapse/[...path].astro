@@ -20,6 +20,7 @@ import NotFound from "../../components/NotFound.astro";
 import { lesson as fetchLesson, fetchIndex, ApiFailure } from "../../lib/api/client";
 import type { LessonPayload } from "../../lib/api/client";
 import { renderLesson } from "../../lib/markdown/render";
+import * as log from "../../lib/log";
 import { titleForLesson, SITE_NAME } from "../../lib/seo";
 import { bookOf } from "../../lib/catalog/tree";
 import type { components } from "../../lib/api/schema.gen";
@@ -33,6 +34,7 @@ type Mode = "lesson" | "problem" | "notFound" | "error";
 const rawPath = Astro.params.path ?? "";
 const segments = rawPath.split("/").filter((segment) => segment !== "");
 
+const ssrStart = Date.now();
 let mode: Mode = "error";
 let payload: LessonPayload | null = null;
 let html = "";
@@ -65,6 +67,9 @@ try {
 
 const isLesson = mode === "lesson" || mode === "problem";
 const canonicalPath = `/synapse/${segments.join("/")}`;
+log.info(
+  `SSR /synapse/${segments.join("/")} — ${mode}${mode === "lesson" || mode === "problem" ? "" : ` (${errorMessage ?? "not found"})`} in ${Date.now() - ssrStart}ms`,
+);
 const title =
   payload && isLesson
     ? titleForLesson(payload.book.title, payload.frontmatter.title)

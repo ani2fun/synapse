@@ -1,3 +1,4 @@
+import * as log from "../lib/log";
 // The library landing's post-hydration chrome (oracle: catalog/view/library.rs's
 // `progress_chip` + `ContinueCard`, catalog/state/mod.rs's `ProgressStore`, and the Rust
 // `scroll_to_grid`). Vanilla TS, no framework — the SSR page is plain HTML and reading
@@ -38,6 +39,7 @@ function readIndex(): SynapseIndex | null {
 /** (a) "N/M read" — shown only once there is something to report, so an untouched library
  *  stays exactly as SSR rendered it. */
 function injectProgressChips(index: SynapseIndex, done: Set<string>): void {
+  if (done.size > 0) log.debug(`library: injecting progress chips (${done.size} finished lessons)`);
   for (const card of document.querySelectorAll<HTMLElement>("[data-book-slug]")) {
     const slug = card.dataset.bookSlug;
     if (!slug) continue;
@@ -63,6 +65,8 @@ function injectProgressChips(index: SynapseIndex, done: Set<string>): void {
  *  stored alongside the path: a stored title would go stale the moment a lesson is renamed. */
 function renderContinueCard(index: SynapseIndex): void {
   const mount = document.getElementById("lib-continue-mount");
+  const last = storage.get(storage.READER_LAST_KEY);
+  if (last != null) log.debug(`library: resume card → ${last}`);
   if (!mount) return;
   const path = storage.get(storage.READER_LAST_KEY);
   if (!path) return;

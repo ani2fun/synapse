@@ -1,3 +1,4 @@
+import * as log from "../lib/log";
 // The reader's post-hydration chrome (A05): done-ticks on the sidebar, reading-progress WRITES,
 // the mobile nav drawer, and reflecting saved reading-preferences onto `<html>`. Vanilla TS, same
 // reasoning as `islands/library.ts` — the SSR page is plain HTML and every job here is either
@@ -82,6 +83,7 @@ function readDone(): Set<string> {
 /** Visit semantics: skip the write when the last-opened lesson hasn't changed. */
 function visit(path: string): void {
   if (storage.get(storage.READER_LAST_KEY) === path) return;
+  log.debug(`reader-last → ${path}`);
   storage.set(storage.READER_LAST_KEY, path);
 }
 
@@ -90,6 +92,7 @@ function visit(path: string): void {
 function markDone(path: string): void {
   const done = readDone();
   if (done.has(path)) return;
+  log.info(`lesson finished → reader-progress (${path})`);
   done.add(path);
   storage.set(storage.READER_PROGRESS_KEY, progress.serialize(done));
   // The just-finished lesson's own sidebar row gets its tick immediately, not only after the

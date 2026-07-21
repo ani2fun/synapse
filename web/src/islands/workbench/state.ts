@@ -10,6 +10,7 @@ import type { ExecutorState } from "../../lib/execution/executor";
 import type { TestCase, TestSpec } from "../../lib/execution/judge";
 import { seedValues } from "../../lib/execution/blocks";
 import type { Verdict } from "../../lib/execution/judge";
+import * as log from "../../lib/log";
 import { Store } from "../../lib/store";
 
 /** One runnable block's state: the FSM in a store, plus the page-local Edit unlock. */
@@ -32,13 +33,16 @@ export class BlockStore {
     const startedState = executor.started(current);
     const handle = startedState.runId;
     const source = startedState.code;
+    log.info(`running ${language} block${stdin != null ? " (with case stdin)" : ""}`);
     this.state.set(startedState);
     void (async () => {
       try {
         const result = await apiRun({ language, source, stdin });
+        log.debug(`run done: ${result.status}`);
         this.state.update((s) => executor.completed(s, handle, result));
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        log.error(`run failed: ${message}`);
         this.state.update((s) => executor.failed(s, handle, message));
       }
     })();
@@ -82,22 +86,31 @@ export class SubmitStore {
   /** Guarded like the button: one judging at a time. */
   submit(path: string[], language: string, source: string): void {
     if (this.state.get().kind === "judging") return;
+    log.info(`submitting ${language} solution for ${path.join("/")}`);
     void (async () => {
       let id: string;
       try {
         id = (await apiSubmit({ path, language, source })).id;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        log.error(`submit failed: ${message}`);
         this.state.set({ kind: "failed", message });
         return;
       }
+      log.debug(`submission ${id} accepted — polling`);
       this.state.set({ kind: "judging", id });
       for (let attempt = 0; attempt < POLL_TRIES; attempt++) {
         await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-        if (!this.alive) return;
+        if (!this.alive) {
+          log.debug(`submission ${id}: poll cancelled (block unmounted)`);
+          return;
+        }
         try {
           const dto = await apiSubmission(id);
           if (dto.status === "completed") {
+            log.info(
+              `submission ${id}: ${dto.verdict ?? "?"} — ${dto.passed ?? 0}/${dto.total ?? 0}`,
+            );
             this.state.set({ kind: "done", dto });
             return;
           }
@@ -107,6 +120,7 @@ export class SubmitStore {
           return;
         }
       }
+      log.error("judging timed out");
       this.state.set({ kind: "failed", message: "judging timed out" });
     })();
   }

@@ -6,6 +6,7 @@
  */
 import { render, h } from "preact";
 
+import * as log from "../../lib/log";
 import { parseVariants } from "../../lib/execution/blocks";
 import type { TestSpec } from "../../lib/execution/judge";
 import { hydrateFenceGroups } from "./fenceGroups";
@@ -32,6 +33,7 @@ function lessonPathFromUrl(): string[] {
 
 export function hydrateWorkbenches(root: ParentNode): void {
   const lessonPath = lessonPathFromUrl();
+  let workbenches = 0;
   for (const element of root.querySelectorAll("div.workbench")) {
     const variantsJson = decodedAttr(element, "data-variants");
     const variants = variantsJson ? parseVariants(variantsJson) : null;
@@ -48,8 +50,11 @@ export function hydrateWorkbenches(root: ParentNode): void {
     const host = element as HTMLElement;
     host.replaceChildren();
     render(h(Workbench, { variants, spec, lessonPath, root: host }), host);
+    workbenches += 1;
   }
+  const groups = root.querySelectorAll("div.fence-group").length;
   hydrateFenceGroups(root);
+  log.info(`hydrated ${workbenches} workbench(es), ${groups} fence group(s)`);
 }
 
 // Auto-hydrate on import — the lesson page's script tag is the trigger.

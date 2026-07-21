@@ -14,3 +14,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+// Monaco's deep ESM entry ships no types — the moved island imports it untyped by design.
+declare module "monaco-editor/esm/vs/editor/edcore.main";

@@ -1,3 +1,4 @@
+import * as log from "../lib/log";
 // The ⌘K palette (oracle: client/src/search/{state,view}/mod.rs — `SearchStore` +
 // `SearchPalette`/`SearchButton`), a singleton modal mounted once per page from `Base.astro` so
 // it exists on EVERY page (the e2e palette spec opens it from `/`). Vanilla TS: there is no
@@ -25,6 +26,7 @@ async function loadEntries(): Promise<SearchEntry[]> {
   loadPromise = (async () => {
     let index;
     try {
+      log.debug("palette: first open — loading the search index");
       index = await fetchIndex();
     } catch {
       return [];
@@ -168,6 +170,7 @@ class Palette {
         const entry = this.results[active];
         if (entry) {
           this.close();
+          log.info(`palette → ${pageUrl(entry.page)}`);
           window.location.href = pageUrl(entry.page);
         }
         break;

@@ -29,6 +29,7 @@ import {
   isAuthed,
 } from "./contracts";
 import type { LoadCode, UseCase } from "./contracts";
+import * as log from "../../lib/log";
 import * as lazy from "./lazy";
 import { Output, TestsPanel, VerdictPanel } from "./panels";
 import { BlockStore, SubmitStore, TestsState } from "./state";
@@ -114,7 +115,9 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
         const ranCase = tests.ranCase.get();
         if (s.result && ranCase != null) {
           const expected = expectedFor(tests.spec.get(), ranCase);
-          tests.recordVerdict(ranCase, judge(s.result, expected));
+          const verdict = judge(s.result, expected);
+          log.debug(`case ${ranCase + 1} judged: ${verdict}`);
+          tests.recordVerdict(ranCase, verdict);
         }
       }),
     );
@@ -139,6 +142,7 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
   // ── tab switch: swap the ONE Monaco in place ──
   const switchTo = (index: number) => {
     if (index === active) return;
+    log.debug(`workbench tab → ${variants[index]!.language}`);
     wantsEditor.current = true;
     setActive(index);
     const store = stores[index]!;
@@ -163,6 +167,7 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
         (v) => wanted !== null && canonicalLang(v.language) === wanted,
       );
       const index = target >= 0 ? target : active;
+      log.debug(`solution copied into the ${variants[index]!.language} tab`);
       switchTo(index);
       stores[index]!.state.update((s) => executor.setCode(s, code));
       mounted.current?.setValue(code);
@@ -171,6 +176,7 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
     const onUseCase = (event: Event) => {
       if (!tests) return;
       const { args, expected } = (event as CustomEvent<UseCase>).detail;
+      log.debug("failing input pushed into the tests panel");
       const index = tests.append({ args, expected });
       onCaseSwitch(index);
     };
@@ -237,11 +243,13 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
         onToggleEdit: () => toggleEditRef.current(),
         onSubmit: hasSubmit ? () => submitRef.current() : undefined,
       });
+      log.debug(`monaco mounted (${v.language})`);
       mounted.current = handle;
       registryId.current = lazy.register(
         () => near.current,
         () => {
           // Eviction: drop the editor, refresh the placeholder from the LIVE buffer, re-arm.
+          log.debug("monaco evicted (over the page cap, far from viewport)");
           mounted.current?.dispose();
           mounted.current = null;
           wantsEditor.current = false;

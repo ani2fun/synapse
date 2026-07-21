@@ -5,6 +5,7 @@
 // `decode` format exactly (`error: detail`, `error` alone with no detail, `HTTP n` when the body
 // was not the envelope at all), so error copy shown to a reader is unchanged mid-migration.
 
+import * as log from "../log";
 import type { components } from "./schema.gen";
 
 // ── wire type aliases ───────────────────────────────────────────────────────────────────────
@@ -51,6 +52,13 @@ export interface DeleteMeResult {
  * (Astro/Vite's own env loading, what every other server-side module in `web/` reads);
  * `process.env` as a plain-Node fallback for code paths that run outside Vite's pipeline.
  */
+
+/** One line per wire call (the Rust chokepoint's localhost-only flow trace). */
+async function loggedFetch(input: string, init?: RequestInit): Promise<Response> {
+  log.debug(`${init?.method ?? "GET"} ${input}`);
+  return fetch(input, init);
+}
+
 export function apiBase(): string {
   if (typeof window !== "undefined") return "";
   return import.meta.env.SYNAPSE_API_URL ?? process.env.SYNAPSE_API_URL ?? "http://localhost:8280";
@@ -131,12 +139,12 @@ async function decode<T>(response: Response): Promise<T> {
 }
 
 async function get<T>(path: string): Promise<T> {
-  const response = await fetch(`${apiBase()}${path}`, { headers: bearerHeaders() });
+  const response = await loggedFetch(`${apiBase()}${path}`, { headers: bearerHeaders() });
   return decode<T>(response);
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(`${apiBase()}${path}`, {
+  const response = await loggedFetch(`${apiBase()}${path}`, {
     method: "POST",
     headers: { ...bearerHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -145,7 +153,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function del<T>(path: string): Promise<T> {
-  const response = await fetch(`${apiBase()}${path}`, { method: "DELETE", headers: bearerHeaders() });
+  const response = await loggedFetch(`${apiBase()}${path}`, { method: "DELETE", headers: bearerHeaders() });
   return decode<T>(response);
 }
 
