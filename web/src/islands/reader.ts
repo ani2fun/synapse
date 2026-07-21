@@ -114,11 +114,19 @@ function wireProgress(path: string): void {
 // THE MOBILE NAV DRAWER (oracle: `ReaderNavDrawer`)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// The FAB is the LESSON page's trigger; the PROBLEM page (A07) has no FAB — its docked
+// `.pwb__nav` Contents pill fires the `OPEN_CONTENTS` window event instead. So the drawer is set
+// up whenever there is a sidebar to clone, the FAB is optional, and the mount host is `.reader-nav`
+// when present (the lesson layout) else `document.body` (the problem layout, which keeps the
+// sidebar markup only as a hidden clone source). scrim/drawer are `position: fixed`, so the parent
+// choice is presentational, not positional.
 function wireNavDrawer(done: Set<string>): void {
   const nav = document.querySelector<HTMLElement>(".reader-nav");
-  const fab = nav?.querySelector<HTMLButtonElement>(".reader-nav-fab");
+  const fab = nav?.querySelector<HTMLButtonElement>(".reader-nav-fab") ?? null;
   const sidebarInner = document.querySelector<HTMLElement>(".reader-sidebar .reader-sidebar__inner");
-  if (!nav || !fab) return;
+  // Nothing to open onto: no lesson FAB AND no problem-page contents source.
+  if (!fab && !sidebarInner) return;
+  const host = nav ?? document.body;
 
   let scrim: HTMLDivElement | null = null;
   let drawer: HTMLElement | null = null;
@@ -128,11 +136,12 @@ function wireNavDrawer(done: Set<string>): void {
     drawer?.remove();
     scrim = null;
     drawer = null;
-    fab.setAttribute("aria-expanded", "false");
+    fab?.setAttribute("aria-expanded", "false");
   };
 
   const open = (): void => {
     if (drawer) return;
+    log.debug("contents drawer opened");
     scrim = document.createElement("div");
     scrim.className = "reader-nav-scrim";
     scrim.addEventListener("click", close);
@@ -163,11 +172,13 @@ function wireNavDrawer(done: Set<string>): void {
       drawer.append(clone);
     }
 
-    nav.append(scrim, drawer);
-    fab.setAttribute("aria-expanded", "true");
+    host.append(scrim, drawer);
+    fab?.setAttribute("aria-expanded", "true");
   };
 
-  fab.addEventListener("click", open);
+  fab?.addEventListener("click", open);
+  // The problem page's Contents pill lives in another island; it reaches this drawer by event.
+  window.addEventListener("synapse:open-contents", open);
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && drawer) close();
   });
@@ -192,7 +203,11 @@ function init(): void {
 
   if (path) {
     visit(path);
-    wireProgress(path);
+    // A problem page (A07) scrolls its PANES internally, not the window, so the page's own
+    // scroll track is ~0 and `isAtEnd` would mark it done the moment it paints. The oracle's
+    // problem layout has no ProgressStore scroll tracking at all — match it: `visit` still
+    // records "last opened" (the library's resume card), but done-on-scroll stays off.
+    if (!document.querySelector(".pwb[data-problem]")) wireProgress(path);
   }
 }
 

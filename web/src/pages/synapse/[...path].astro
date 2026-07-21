@@ -5,14 +5,20 @@
 // hydrate-first reader's ~7.2s-on-a-phone first paint into ~1.3s: the prose is HTML in the
 // response, not something a multi-megabyte wasm bundle produces after it boots.
 //
+// A07 adds the PROBLEM branch: a `kind: problem` lesson server-renders the two-pane workbench
+// frame (crumbs · left pane with the DESCRIPTION markdown + tab bar · a right-pane placeholder ·
+// the docked nav bar) instead of A03's prose fallback. `islands/problem` extracts the first
+// workbench into the right pane and wires the tabs/splitter/submissions over the static frame.
+//
 // Head PARITY with the axum side (server/src/platform/static_routes.rs::render_head, which the
 // e2e `per-page head` spec asserts on the raw response): title = `Book · Lesson — Synapse`,
 // description = the lesson summary (else Base's default, byte-identical to the server's), a
 // canonical `/synapse/{path}`, and the Open Graph tags Base already emits.
 //
-// What deliberately does NOT work yet: the pipeline's interactive placeholders (workbench, quiz,
-// diagrams, viz, fence-group tabs) land INERT — later steps hydrate them. Problem pages render a
-// prose fallback with a notice, not the two-pane workbench (A07). The sidebar is structure only.
+// What deliberately does NOT work yet: the pipeline's other interactive placeholders (quiz,
+// diagrams, viz) land INERT — later steps hydrate them. The problem page's Editorial tab renders
+// plain editorial markdown, not A08's stepper; the Coach tab (A09), Visualise (A10) and real auth
+// gating (A11) arrive with their steps. The sidebar is structure only.
 import Base from "../../layouts/Base.astro";
 import Sidebar from "../../components/Sidebar.astro";
 import Pager from "../../components/Pager.astro";
@@ -22,14 +28,24 @@ import type { LessonPayload } from "../../lib/api/client";
 import { renderLesson } from "../../lib/markdown/render";
 import * as log from "../../lib/log";
 import { titleForLesson, SITE_NAME } from "../../lib/seo";
-import { bookOf } from "../../lib/catalog/tree";
+import { bookOf, chapterProblems, problemContentSplit } from "../../lib/catalog/tree";
+import { DEFAULT_LEFT_PCT } from "../../lib/catalog/pane";
 import type { components } from "../../lib/api/schema.gen";
 
 import "../../../../client/styles/reader.css";
 import "../../../../client/styles/runnable.css";
 import "../../../../client/styles/markdown.css";
+import "../../../../client/styles/practice.css";
 
 type Mode = "lesson" | "problem" | "notFound" | "error";
+
+/** `count-all-digits` → `Count All Digits` — the oracle's `humanize` (problem.rs). */
+function humanize(slug: string): string {
+  return slug
+    .split("-")
+    .map((w) => (w === "" ? "" : w[0].toUpperCase() + w.slice(1)))
+    .join(" ");
+}
 
 const rawPath = Astro.params.path ?? "";
 const segments = rawPath.split("/").filter((segment) => segment !== "");
@@ -38,19 +54,32 @@ const ssrStart = Date.now();
 let mode: Mode = "error";
 let payload: LessonPayload | null = null;
 let html = "";
+let descriptionHtml = "";
+let editorialHtml = "";
+let counter: { problems: string[]; at: number } | null = null;
 let book: components["schemas"]["BookDto"] | null = null;
 let errorMessage = "";
 
 try {
   payload = await fetchLesson(segments);
   mode = payload.frontmatter.kind === "problem" ? "problem" : "lesson";
-  html = await renderLesson(payload.raw);
+  if (mode === "problem") {
+    // The FIRST `<details` at line start outside a fence splits description from editorial; the
+    // inline editorial wins, else the co-located sidecar the payload already carries.
+    const [descMd, inlineEditorial] = problemContentSplit(payload.raw);
+    descriptionHtml = await renderLesson(descMd);
+    const editorialMd = inlineEditorial.trim() !== "" ? inlineEditorial : (payload.editorial ?? "");
+    editorialHtml = editorialMd.trim() !== "" ? await renderLesson(editorialMd) : "";
+  } else {
+    html = await renderLesson(payload.raw);
+  }
   // The sidebar needs the FULL book tree (payload.book is only a ref). Best-effort: if the index
   // can't load, the sidebar degrades to absent — exactly as the Leptos reader renders no sidebar
-  // until its shared index resolves.
+  // until its shared index resolves. The problem-page counter rides the same book.
   try {
     const index = await fetchIndex();
     book = bookOf(index, segments);
+    if (mode === "problem" && book) counter = chapterProblems(book, segments.join("/"));
   } catch {
     book = null;
   }
@@ -68,7 +97,7 @@ try {
 const isLesson = mode === "lesson" || mode === "problem";
 const canonicalPath = `/synapse/${segments.join("/")}`;
 log.info(
-  `SSR /synapse/${segments.join("/")} — ${mode}${mode === "lesson" || mode === "problem" ? "" : ` (${errorMessage ?? "not found"})`} in ${Date.now() - ssrStart}ms`,
+  `SSR /synapse/${segments.join("/")} — ${mode}${isLesson ? "" : ` (${errorMessage ?? "not found"})`} in ${Date.now() - ssrStart}ms`,
 );
 const title =
   payload && isLesson
@@ -79,6 +108,9 @@ const title =
 // `?? undefined` (never null) so Base falls back to its default description — the same string the
 // axum side uses when a lesson has no summary, keeping the two heads in agreement.
 const description = payload?.frontmatter.summary ?? undefined;
+
+const bookName = payload ? humanize(payload.book.slug) : "";
+const difficulty = payload?.frontmatter.difficulty ?? null;
 ---
 
 <Base title={title} description={description} canonicalPath={isLesson ? canonicalPath : undefined}>
@@ -101,7 +133,7 @@ const description = payload?.frontmatter.summary ?? undefined;
   }
 
   {
-    isLesson && payload && (
+    mode === "lesson" && payload && (
       <main class="shell-main">
         <div class="reader-layout" data-sidebar="expanded">
           <aside class="reader-sidebar">{book && <Sidebar book={book} currentPath={segments.join("/")} />}</aside>
@@ -114,16 +146,6 @@ const description = payload?.frontmatter.summary ?? undefined;
                 <h1 class="reader-prose__title">{payload.frontmatter.title}</h1>
                 {payload.frontmatter.summary && <p class="reader-prose__lede">{payload.frontmatter.summary}</p>}
               </header>
-
-              {mode === "problem" && (
-                <aside class="lesson-notice" role="note">
-                  <p class="lesson-notice__title">Interactive problem workbench</p>
-                  <p>
-                    The interactive problem workbench arrives in step A07 of the migration. Below is the problem's
-                    prose; the two-pane editor, the test runner and the editorial tabs are not wired up yet.
-                  </p>
-                </aside>
-              )}
 
               <article class="lesson-body synapse-prose" set:html={html} />
 
@@ -151,51 +173,192 @@ const description = payload?.frontmatter.summary ?? undefined;
               stroke-linejoin="round"
               aria-hidden="true"
             >
-              <rect width="18" height="18" x="3" y="3" rx="2"></rect>
-              <path d="M9 3v18 M14 9l3 3-3 3"></path>
+              <rect width="18" height="18" x="3" y="3" rx="2" />
+              <path d="M9 3v18 M14 9l3 3-3 3" />
             </svg>
           </button>
         </div>
       </main>
     )
   }
+
   {
+    mode === "problem" && payload && (
+      <main class="shell-main">
+        <div class="pwb not-prose" data-problem>
+          <nav class="pwb__crumbs" aria-label="Breadcrumb">
+            <a class="pwb__crumb" href="/">
+              Home
+            </a>
+            <span class="pwb__crumb-sep">›</span>
+            <span class="pwb__crumb">{bookName}</span>
+            <span class="pwb__crumb-sep">›</span>
+            <span class="pwb__crumb pwb__crumb--current">{payload.frontmatter.title}</span>
+          </nav>
+
+          <div class="pwb__panes">
+            <div class="pwb__left" style={`width: ${DEFAULT_LEFT_PCT}%`}>
+              <div class="pwb__head">
+                <h1 class="pwb__title">{payload.frontmatter.title}</h1>
+                {payload.frontmatter.summary && <p class="pwb__lede">{payload.frontmatter.summary}</p>}
+              </div>
+
+              <div class="problem-tabs">
+                <button class="problem-tab problem-tab--description problem-tab--active" data-tab="description" type="button">
+                  <svg class="problem-tab__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" />
+                    <path d="M14 2v5h5 M16 13H8 M16 17H8 M10 9H8" />
+                  </svg>
+                  Description
+                </button>
+                <button class="problem-tab problem-tab--editorial" data-tab="editorial" type="button">
+                  <svg class="problem-tab__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 7v14 M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4" />
+                    <path d="M21 18a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4" />
+                  </svg>
+                  Editorial
+                </button>
+                <button class="problem-tab problem-tab--submissions" data-tab="submissions" type="button">
+                  <svg class="problem-tab__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 3v5h5" />
+                    <path d="M3.05 13A9 9 0 1 0 6 5.3L3 8 M12 7v5l4 2" />
+                  </svg>
+                  Submissions
+                </button>
+                {difficulty && <span class={`problem-diff problem-diff--${difficulty}`}>{difficulty}</span>}
+              </div>
+
+              <div class="pwb__pane-host">
+                <div class="pwb__pane" data-pane="description">
+                  <div class="pwb__pane-scroll synapse-prose">
+                    <div class="pwb-description" set:html={descriptionHtml} />
+                  </div>
+                </div>
+                <div class="pwb__pane hidden" data-pane="editorial">
+                  <div class="pwb__pane-scroll synapse-prose">
+                    {/* A08 replaces this plain editorial with the approach stepper. */}
+                    {editorialHtml ? (
+                      <div class="pwb-editorial pwb-description" set:html={editorialHtml} />
+                    ) : (
+                      <p class="psub__note">No editorial for this problem yet.</p>
+                    )}
+                  </div>
+                </div>
+                <div class="pwb__pane hidden" data-pane="submissions">
+                  <div class="pwb__pane-scroll synapse-prose">
+                    <div class="psub-host" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="wb-split" aria-label="Resize the panes">
+              <div class="wb-split__grip">
+                <span />
+                <span />
+                <span />
+              </div>
+            </div>
+
+            <div class="pwb__right">
+              <div class="pwb__nowb">Loading the workbench…</div>
+            </div>
+          </div>
+
+          <nav class="pwb__nav" aria-label="Problem navigation">
+            <div class="pwb__nav-left">
+              <button class="pwb__contents" aria-label="Contents — the book's lessons and problems" type="button">
+                <svg class="pwb__contents-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect width="18" height="18" x="3" y="3" rx="2" />
+                  <path d="M9 3v18 M14 9l3 3-3 3" />
+                </svg>
+                <span>Contents</span>
+              </button>
+            </div>
+            <div class="pwb__nav-mid">
+              {counter && (
+                <>
+                  <span class="pwb__nav-count">
+                    Problem {counter.at + 1} / {counter.problems.length}
+                  </span>
+                  <div class="pwb__nav-dots">
+                    {counter.problems.map((p, i) => (
+                      <a
+                        class:list={["pwb__dot", { "pwb__dot--current": i === counter!.at }]}
+                        href={`/synapse/${p}`}
+                        title={humanize(p.split("/").pop() ?? p)}
+                        aria-label={`Problem ${i + 1}`}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+            <div class="pwb__nav-right">
+              {payload.prev && (
+                <a class="pwb__step pwb__step--prev" href={`/synapse/${payload.prev}`}>
+                  <span class="pwb__step-chev">‹</span>
+                  <span class="pwb__step-text">
+                    <span class="pwb__step-label">Previous</span>
+                    <span class="pwb__step-title">{humanize(payload.prev.split("/").pop() ?? payload.prev)}</span>
+                  </span>
+                </a>
+              )}
+              {payload.next && (
+                <a class="pwb__step pwb__step--next" href={`/synapse/${payload.next}`}>
+                  <span class="pwb__step-text">
+                    <span class="pwb__step-label">Next</span>
+                    <span class="pwb__step-title">{humanize(payload.next.split("/").pop() ?? payload.next)}</span>
+                  </span>
+                  <span class="pwb__step-chev">›</span>
+                </a>
+              )}
+            </div>
+          </nav>
+        </div>
+
+        {/* Hidden source for the Contents drawer: the reader island clones
+            `.reader-sidebar .reader-sidebar__inner` on open. The problem page has no visible
+            sidebar column (full-width panes, step 39), only this clone source. */}
+        {book && (
+          <div class="pwb-sidebar-src" hidden>
+            <aside class="reader-sidebar">
+              <Sidebar book={book} currentPath={segments.join("/")} />
+            </aside>
+          </div>
+        )}
+      </main>
+    )
+  }
+
+  {
+    /* ONE hoisted script, runtime-branched. Two conditional `<script>` blocks do NOT survive
+       Astro's static hoisting — the compiler bundles both and Rollup can hand a page the wrong
+       one (a problem page loaded the workbench auto-hydrator, which then double-claimed the first
+       workbench). A single block with a `.pwb[data-problem]` runtime check picks the right island
+       and keeps each page lean: prose lessons never pull the problem code, and a problem page
+       never loads the auto-hydrator that races its extraction. */
     isLesson && payload && (
       <script>
         import "../../islands/reader";
+        if (document.querySelector(".pwb[data-problem]")) import("../../islands/problem");
+        else import("../../islands/workbench");
       </script>
-  <script>
-    import "../../islands/workbench";
-  </script>
     )
   }
 </Base>
 
 <style>
-  /* A03-local chrome: the problem-page fallback notice and the error block. Everything else the
-     lesson wears comes from the global reader.css / markdown.css. */
-  .lesson-notice {
-    margin: 0 0 2rem;
-    padding: 1rem 1.15rem;
-    border: 1px solid hsl(var(--border));
-    border-left: 3px solid hsl(var(--primary));
-    border-radius: var(--radius-md);
-    background: hsl(var(--secondary) / 0.3);
-    color: hsl(var(--muted-foreground));
-    font-size: 0.9rem;
-    line-height: 1.5;
-  }
-  .lesson-notice__title {
-    margin: 0 0 0.35rem;
-    font-weight: 600;
-    color: hsl(var(--foreground));
-  }
-  .lesson-notice p {
-    margin: 0;
-  }
+  /* A03-local chrome: the error block. Everything the problem/lesson pages wear comes from the
+     global reader.css / markdown.css / practice.css. */
   .lesson--error {
     max-width: 40rem;
     margin-inline: auto;
     padding-block: 4rem 6rem;
+  }
+  /* The Contents drawer's clone SOURCE must never paint — `hidden` handles semantics, this pins
+     it against any stylesheet that gives `.reader-sidebar` layout outside `.reader-layout`. */
+  .pwb-sidebar-src[hidden] {
+    display: none !important;
   }
 </style>

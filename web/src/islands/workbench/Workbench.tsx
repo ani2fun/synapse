@@ -24,6 +24,7 @@ import {
   AUTH_CHANGED,
   CODE_CHANGED,
   LOAD_CODE,
+  RELAYOUT,
   SUBMITTED,
   USE_CASE,
   isAuthed,
@@ -285,6 +286,15 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
   };
   const toggleEditRef = useRef(toggleEdit);
   toggleEditRef.current = toggleEdit;
+
+  // A pane that unhides a Monaco fires RELAYOUT (A07's problem-page tabs) so the editor
+  // re-measures — fulfils the contract's editor half. `automaticLayout` catches most reveals via
+  // its ResizeObserver; this is the belt for the display:none→shown case it can miss.
+  useEffect(() => {
+    const onRelayout = () => mounted.current?.relayout();
+    window.addEventListener(RELAYOUT, onRelayout);
+    return () => window.removeEventListener(RELAYOUT, onRelayout);
+  }, []);
 
   // Theme follows the toggle: the theme island flips .dark on <html>; observe it.
   useEffect(() => {

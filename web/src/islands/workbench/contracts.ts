@@ -37,6 +37,12 @@ export interface CodeSnapshot {
 /** Fired on window when the auth state flips (A11 dispatches; gates re-render). */
 export const AUTH_CHANGED = "synapse:auth-changed";
 
+/** Fired on window to open the reader's nav drawer (the book's contents). A07's docked problem
+ *  nav bar has no sidebar column of its own — its Contents pill dispatches this and `reader.ts`
+ *  (already loaded for progress/prefs) opens the same drawer the mobile FAB drives. One drawer,
+ *  two triggers; the event is the seam because the two live in different islands. */
+export const OPEN_CONTENTS = "synapse:open-contents";
+
 /** The relayout nudge (same name as the old client's RELAYOUT_EVENT) — panes that unhide a
  *  Monaco fire it so the editor re-measures. */
 export const RELAYOUT = "synapse:relayout";

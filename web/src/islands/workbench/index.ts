@@ -57,5 +57,11 @@ export function hydrateWorkbenches(root: ParentNode): void {
   log.info(`hydrated ${workbenches} workbench(es), ${groups} fence group(s)`);
 }
 
-// Auto-hydrate on import — the lesson page's script tag is the trigger.
-hydrateWorkbenches(document);
+// Auto-hydrate on import — the lesson page's script tag is the trigger. A problem page (A07)
+// owns its own workbench hydration (islands/problem extracts the FIRST workbench into the right
+// pane and hydrates the rest), so the auto-hydrator must never also claim those placeholders. The
+// `[...path].astro` script only dynamic-imports this module on non-problem pages; this guard is
+// the belt to that suspenders, so a stray import can't start a second, racing hydration.
+if (!document.querySelector(".pwb[data-problem]")) {
+  hydrateWorkbenches(document);
+}
