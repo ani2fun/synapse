@@ -1,0 +1,31 @@
+---
+// A prev/next pager card (oracle: reader.rs `pager_card`). The target is a directory-mirror
+// path carried on the lesson payload (`prev`/`next`); the visible title humanises its last
+// segment (`two-sum` → `Two Sum`). Renders nothing when there is no neighbour.
+interface Props {
+  target?: string | null;
+  label: string;
+  next: boolean;
+}
+
+const { target, label, next } = Astro.props;
+
+function humanise(path: string): string {
+  const last = path.split("/").pop() ?? path;
+  return last
+    .split("-")
+    .map((word) => (word ? word.charAt(0).toUpperCase() + word.slice(1) : ""))
+    .join(" ");
+}
+
+const cls = next ? "reader-pager__card reader-pager__card--next" : "reader-pager__card";
+---
+
+{
+  target && (
+    <a class={cls} href={`/synapse/${target}`}>
+      <span class="reader-pager__label">{label}</span>
+      <span class="reader-pager__title">{humanise(target)}</span>
+    </a>
+  )
+}

@@ -1,0 +1,48 @@
+---
+// The site footer (oracle: client/src/shell/footer.rs). Minimal SSR chrome: the quiet closing
+// line and the build the site is running. The Rust footer bakes `SYNAPSE_VERSION` at compile
+// time; here it reads `import.meta.env.SYNAPSE_VERSION`, defaulting to "dev" — and, like the
+// Rust, only a real commit SHA gets a link (a dead footer link is worse than plain text).
+//
+// `.site-footer*` lives in library.css (single-sourced from client/styles until A14), imported
+// here so the dependency sits with the component that needs it.
+import "../../../client/styles/library.css";
+
+const REPO = "https://github.com/ani2fun/synapse";
+const version = import.meta.env.SYNAPSE_VERSION ?? "dev";
+const isCommit = version.length >= 7 && /^[0-9a-f]+$/i.test(version);
+const sha = isCommit ? version.slice(0, 7) : version;
+---
+
+<footer class="site-footer">
+  <div class="site-footer__inner">
+    <div class="site-footer__left">
+      <p class="site-footer__line">© 2026 Aniket Kakde · Synapse — read it, run it, understand it.</p>
+      <p class="site-footer__line site-footer__muted">
+        Built with Rust, Astro and WebAssembly.{" "}
+        <a class="site-footer__link" href={REPO} rel="noopener" target="_blank">Source on GitHub</a>
+      </p>
+    </div>
+    <div class="site-footer__right">
+      {
+        isCommit ? (
+          <a
+            class="site-footer__version"
+            href={`${REPO}/commit/${version}`}
+            rel="noopener"
+            target="_blank"
+            title={`Deployed build ${version}`}
+          >
+            <span class="site-footer__version-label">version</span>
+            <span class="site-footer__sha">{sha}</span>
+          </a>
+        ) : (
+          <span class="site-footer__version" title="Local build — not a released commit">
+            <span class="site-footer__version-label">version</span>
+            <span class="site-footer__sha">{sha}</span>
+          </span>
+        )
+      }
+    </div>
+  </div>
+</footer>

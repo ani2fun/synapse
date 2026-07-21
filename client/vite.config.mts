@@ -10,12 +10,18 @@ import { defineConfig } from "vitest/config";
 // the wasm-bindgen glue's `import … from "@markdown/loader"` resolves through
 // it, and each loader's dynamic import gives the heavy renderer its own
 // chunk. vitest runs the island suites.
+//
+// A03 MOVED the markdown pipeline into the Astro app (web/src/lib/markdown),
+// where the server-rendered lesson page now shares it — so `@markdown` points
+// ACROSS the workspace at web/. Single-sourced there until A14 deletes this
+// client; the wasm glue's `@markdown/loader` extern still resolves through the
+// alias at build time, and render.test.ts now runs in web's vitest, not here.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default defineConfig({
   resolve: {
     alias: {
-      "@markdown": fileURLToPath(new URL("./islands/markdown", import.meta.url)),
+      "@markdown": fileURLToPath(new URL("../web/src/lib/markdown", import.meta.url)),
       "@editor": fileURLToPath(new URL("./islands/editor", import.meta.url)),
       "@auth": fileURLToPath(new URL("./islands/auth", import.meta.url)),
       "@tracer": fileURLToPath(new URL("./islands/tracer", import.meta.url)),

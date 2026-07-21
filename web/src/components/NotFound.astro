@@ -1,0 +1,38 @@
+---
+// The not-found block, shared by src/pages/404.astro (Astro's server-output 404) and the lesson
+// page's own 404 branch (a lesson path the catalog can't resolve). Both set
+// `Astro.response.status = 404` at the page; this is only the body.
+//
+// Pulls in reader.css for the `.reader-prose__*` / `.lesson` classes it borrows (shell.css,
+// which carries `.header__link`, is already global from Base).
+import "../../../client/styles/reader.css";
+
+interface Props {
+  /** The unresolved path, when one is known — shown so the reader sees what was missed. */
+  path?: string;
+}
+
+const { path } = Astro.props;
+---
+
+<main class="shell-main">
+  <section class="lesson lesson--notfound">
+    <p class="reader-prose__back">404</p>
+    <h1 class="reader-prose__title">Not found</h1>
+    <p class="reader-prose__lede">
+      {path ? `There is no lesson at “${path}”.` : "This page does not exist."}
+    </p>
+    <p><a class="header__link" href="/">← Back to the library</a></p>
+  </section>
+</main>
+
+<style>
+  .lesson--notfound {
+    max-width: 40rem;
+    text-align: center;
+    padding-block: 4rem 6rem;
+  }
+  .lesson--notfound .reader-prose__lede {
+    margin-inline: auto;
+  }
+</style>

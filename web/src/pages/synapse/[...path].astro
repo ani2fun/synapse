@@ -1,0 +1,163 @@
+---
+// The lesson page — the migration's central payoff (A03). `/synapse/{...path}` server-renders a
+// real lesson through the EXACT markdown pipeline the old Leptos client used (`renderLesson`,
+// moved to web/src/lib/markdown this step), with a native per-page head. This is what turns the
+// hydrate-first reader's ~7.2s-on-a-phone first paint into ~1.3s: the prose is HTML in the
+// response, not something a multi-megabyte wasm bundle produces after it boots.
+//
+// Head PARITY with the axum side (server/src/platform/static_routes.rs::render_head, which the
+// e2e `per-page head` spec asserts on the raw response): title = `Book · Lesson — Synapse`,
+// description = the lesson summary (else Base's default, byte-identical to the server's), a
+// canonical `/synapse/{path}`, and the Open Graph tags Base already emits.
+//
+// What deliberately does NOT work yet: the pipeline's interactive placeholders (workbench, quiz,
+// diagrams, viz, fence-group tabs) land INERT — later steps hydrate them. Problem pages render a
+// prose fallback with a notice, not the two-pane workbench (A07). The sidebar is structure only.
+import Base from "../../layouts/Base.astro";
+import Sidebar from "../../components/Sidebar.astro";
+import Pager from "../../components/Pager.astro";
+import NotFound from "../../components/NotFound.astro";
+import { lesson as fetchLesson, fetchIndex, ApiFailure } from "../../lib/api/client";
+import type { LessonPayload } from "../../lib/api/client";
+import { renderLesson } from "../../lib/markdown/render";
+import { titleForLesson, SITE_NAME } from "../../lib/seo";
+import { bookOf } from "../../lib/catalog/tree";
+import type { components } from "../../lib/api/schema.gen";
+
+import "../../../../client/styles/reader.css";
+import "../../../../client/styles/markdown.css";
+
+type Mode = "lesson" | "problem" | "notFound" | "error";
+
+const rawPath = Astro.params.path ?? "";
+const segments = rawPath.split("/").filter((segment) => segment !== "");
+
+let mode: Mode = "error";
+let payload: LessonPayload | null = null;
+let html = "";
+let book: components["schemas"]["BookDto"] | null = null;
+let errorMessage = "";
+
+try {
+  payload = await fetchLesson(segments);
+  mode = payload.frontmatter.kind === "problem" ? "problem" : "lesson";
+  html = await renderLesson(payload.raw);
+  // The sidebar needs the FULL book tree (payload.book is only a ref). Best-effort: if the index
+  // can't load, the sidebar degrades to absent — exactly as the Leptos reader renders no sidebar
+  // until its shared index resolves.
+  try {
+    const index = await fetchIndex();
+    book = bookOf(index, segments);
+  } catch {
+    book = null;
+  }
+} catch (error) {
+  if (error instanceof ApiFailure && error.status === 404) {
+    mode = "notFound";
+    Astro.response.status = 404;
+  } else {
+    mode = "error";
+    Astro.response.status = 502;
+    errorMessage = error instanceof Error ? error.message : String(error);
+  }
+}
+
+const isLesson = mode === "lesson" || mode === "problem";
+const canonicalPath = `/synapse/${segments.join("/")}`;
+const title =
+  payload && isLesson
+    ? titleForLesson(payload.book.title, payload.frontmatter.title)
+    : mode === "notFound"
+      ? `Not found — ${SITE_NAME}`
+      : `Error — ${SITE_NAME}`;
+// `?? undefined` (never null) so Base falls back to its default description — the same string the
+// axum side uses when a lesson has no summary, keeping the two heads in agreement.
+const description = payload?.frontmatter.summary ?? undefined;
+---
+
+<Base title={title} description={description} canonicalPath={isLesson ? canonicalPath : undefined}>
+  {mode === "notFound" && <NotFound path={rawPath} />}
+
+  {
+    mode === "error" && (
+      <main class="shell-main">
+        <section class="lesson lesson--error">
+          <h1 class="reader-prose__title">Something went wrong</h1>
+          <p class="reader-prose__lede">{errorMessage}</p>
+          <p>
+            <a class="header__link" href="/">
+              ← Back to the library
+            </a>
+          </p>
+        </section>
+      </main>
+    )
+  }
+
+  {
+    isLesson && payload && (
+      <main class="shell-main">
+        <div class="reader-layout" data-sidebar="expanded">
+          <aside class="reader-sidebar">{book && <Sidebar book={book} currentPath={segments.join("/")} />}</aside>
+          <article class="reader-layout__main">
+            <div class="lesson">
+              <header class="lesson-header">
+                <a class="reader-prose__back" href="/">
+                  ← Library
+                </a>
+                <h1 class="reader-prose__title">{payload.frontmatter.title}</h1>
+                {payload.frontmatter.summary && <p class="reader-prose__lede">{payload.frontmatter.summary}</p>}
+              </header>
+
+              {mode === "problem" && (
+                <aside class="lesson-notice" role="note">
+                  <p class="lesson-notice__title">Interactive problem workbench</p>
+                  <p>
+                    The interactive problem workbench arrives in step A07 of the migration. Below is the problem's
+                    prose; the two-pane editor, the test runner and the editorial tabs are not wired up yet.
+                  </p>
+                </aside>
+              )}
+
+              <article class="lesson-body synapse-prose" set:html={html} />
+
+              <nav class="reader-pager">
+                <Pager target={payload.prev} label="Previous" next={false} />
+                <Pager target={payload.next} label="Next" next={true} />
+              </nav>
+            </div>
+          </article>
+        </div>
+      </main>
+    )
+  }
+</Base>
+
+<style>
+  /* A03-local chrome: the problem-page fallback notice and the error block. Everything else the
+     lesson wears comes from the global reader.css / markdown.css. */
+  .lesson-notice {
+    margin: 0 0 2rem;
+    padding: 1rem 1.15rem;
+    border: 1px solid hsl(var(--border));
+    border-left: 3px solid hsl(var(--primary));
+    border-radius: var(--radius-md);
+    background: hsl(var(--secondary) / 0.3);
+    color: hsl(var(--muted-foreground));
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+  .lesson-notice__title {
+    margin: 0 0 0.35rem;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+  }
+  .lesson-notice p {
+    margin: 0;
+  }
+  .lesson--error {
+    max-width: 40rem;
+    margin-inline: auto;
+    padding-block: 4rem 6rem;
+  }
+</style>

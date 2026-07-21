@@ -1,0 +1,50 @@
+---
+// The site header (oracle: client/src/shell/mod.rs's `App` header + `search::view::SearchButton`).
+// SSR chrome only this step: the brand links home and the classes match shell.css exactly, but
+// the ⌘K palette and the theme toggle are INERT — A05 lands the palette island and the theme
+// store. The `.header__search` button is the e2e selector (`reader.spec.ts` clicks it), so it
+// ships now with its real markup even though its click does nothing yet.
+---
+
+<header class="header">
+  <nav class="header__nav">
+    <a class="header__brand" href="/">
+      <svg class="header__chip" width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+        <rect width="30" height="30" rx="7" fill="hsl(var(--primary))"></rect>
+        <g stroke="hsl(var(--primary-foreground))" stroke-width="1.6">
+          <line x1="10" y1="19" x2="15" y2="10"></line>
+          <line x1="15" y1="10" x2="20" y2="19"></line>
+          <line x1="10" y1="19" x2="20" y2="19"></line>
+        </g>
+        <g fill="hsl(var(--primary-foreground))">
+          <circle cx="15" cy="10" r="2.4"></circle>
+          <circle cx="10" cy="19" r="2.4"></circle>
+          <circle cx="20" cy="19" r="2.4"></circle>
+        </g>
+      </svg>
+      <span class="header__wordmark">synapse</span>
+    </a>
+    <div class="header__mid">
+      <button class="header__search" type="button" title="Search the library (⌘K)" aria-label="Search the library">
+        <svg
+          class="header__search-ic"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <circle cx="11" cy="11" r="8"></circle>
+          <path d="m21 21-4.3-4.3"></path>
+        </svg>
+        <span class="header__search-text">Search the library…</span>
+        <kbd class="header__search-kbd">⌘K</kbd>
+      </button>
+    </div>
+    <div class="header__actions">
+      <a class="header__link" href="/blog">Blog</a>
+    </div>
+  </nav>
+</header>

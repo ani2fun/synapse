@@ -1,0 +1,28 @@
+---
+// The reader sidebar's Expanded face, server-rendered (oracle: sidebar.rs `ReaderSidebar` →
+// `book_children`). Structure only: the book title + description head and the reading-order
+// tree. The interactive faces — the filter box, the Learn-browse toggle, the Compact rail, the
+// three persisted modes — are deferred to A04/A05; what ships here is the navigable skeleton.
+import SidebarTree from "./SidebarTree.astro";
+import { bookPrefix } from "../lib/catalog/tree";
+import type { components } from "../lib/api/schema.gen";
+
+type Book = components["schemas"]["BookDto"];
+
+interface Props {
+  book: Book;
+  /** The current lesson's full directory-mirror path, joined — marks the active row. */
+  currentPath: string;
+}
+
+const { book, currentPath } = Astro.props;
+const prefix = bookPrefix(book);
+---
+
+<div class="reader-sidebar__inner">
+  <div class="reader-sidebar__title">{book.title}</div>
+  {book.description && <div class="reader-sidebar__desc">{book.description}</div>}
+  <ul class="reader-sidebar__tree">
+    <SidebarTree entries={book.entries} prefix={prefix} currentPath={currentPath} />
+  </ul>
+</div>

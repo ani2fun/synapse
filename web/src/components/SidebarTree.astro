@@ -1,0 +1,85 @@
+---
+// One level of the reader sidebar's reading-order tree (oracle: sidebar.rs `tree_nodes`).
+// STRUCTURE ONLY this step — no filter box, no done-ticks, no Learn-browse, no Compact rail
+// (all of those are interactive state A04/A05 restore). Chapters are native `<details>`, open
+// when they contain the current lesson; the active lesson carries `--active`.
+//
+// Recursive: it imports itself for chapter children. The namesake-collapse rule matches the
+// Leptos sidebar exactly — a chapter whose only child is a lesson of the SAME slug
+// (`pattern-01/pattern-01.md`) renders as a single lesson row, not a folder to open to find
+// its own namesake.
+import Self from "./SidebarTree.astro";
+import type { components } from "../lib/api/schema.gen";
+
+type BookEntry = components["schemas"]["BookEntryDto"];
+
+interface Props {
+  entries: BookEntry[];
+  prefix: string[];
+  currentPath: string;
+}
+
+const { entries, prefix, currentPath } = Astro.props;
+---
+
+{
+  entries.map((entry) => {
+    if (entry.kind === "lesson") {
+      const full = [...prefix, entry.slug].join("/");
+      return (
+        <li>
+          <a
+            class:list={["reader-sidebar__link", { "reader-sidebar__link--active": currentPath === full }]}
+            href={`/synapse/${full}`}
+          >
+            {entry.title}
+          </a>
+        </li>
+      );
+    }
+
+    const segments = [...prefix, entry.slug];
+    // A chapter that exists ONLY to hold one lesson of its own name is pure nesting — render
+    // the lesson directly (oracle: the `[Lesson(only)] where only.slug == chapter.slug` arm).
+    const only = entry.entries.length === 1 && entry.entries[0].kind === "lesson" ? entry.entries[0] : null;
+    if (only && only.slug === entry.slug) {
+      const leaf = [...segments, only.slug].join("/");
+      return (
+        <li>
+          <a
+            class:list={["reader-sidebar__link", { "reader-sidebar__link--active": currentPath === leaf }]}
+            href={`/synapse/${leaf}`}
+          >
+            {only.title}
+          </a>
+        </li>
+      );
+    }
+
+    const contains = `${currentPath}/`.startsWith(`${segments.join("/")}/`);
+    return (
+      <li>
+        <details class="reader-sidebar__section" open={contains}>
+          <summary class="reader-sidebar__summary">
+            <svg
+              class="reader-sidebar__chevron"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="m9 18 6-6-6-6"></path>
+            </svg>
+            <span class="reader-sidebar__name">{entry.title}</span>
+          </summary>
+          <ul class="reader-sidebar__children">
+            <Self entries={entry.entries} prefix={segments} currentPath={currentPath} />
+          </ul>
+        </details>
+      </li>
+    );
+  })
+}
