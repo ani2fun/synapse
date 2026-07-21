@@ -45,6 +45,10 @@
     </div>
     <div class="header__actions">
       <a class="header__link" href="/blog">Blog</a>
+      <!-- The account chip's mount host (A11). DOM order matches the old client's
+           `client/src/shell/mod.rs`: Blog link, then the chip. islands/auth (loaded globally from
+           Base) renders the Preact `Chip` in here; its own root carries `account-chip`. -->
+      <span data-account-chip></span>
     </div>
   </nav>
 </header>

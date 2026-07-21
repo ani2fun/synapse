@@ -23,7 +23,10 @@ export default defineConfig({
     alias: {
       "@markdown": fileURLToPath(new URL("../web/src/lib/markdown", import.meta.url)),
       "@editor": fileURLToPath(new URL("../web/src/lib/islands/editor", import.meta.url)),
-      "@auth": fileURLToPath(new URL("./islands/auth", import.meta.url)),
+      // A11 MOVED the auth loader into the Astro app (web/src/lib/islands/auth) — the same
+      // pattern A03 set for @markdown: single-sourced there until A14 deletes this client, the
+      // wasm glue's `@auth/loader` extern still resolves through the alias at build time.
+      "@auth": fileURLToPath(new URL("../web/src/lib/islands/auth", import.meta.url)),
       // A10 MOVED the tracer harnesses into the Astro app (its viz.ts loads the viz wasm whose
       // glue resolves `@tracer/loader`) — single-sourced there, same pattern as @editor.
       "@tracer": fileURLToPath(new URL("../web/src/lib/islands/tracer", import.meta.url)),

@@ -12,6 +12,11 @@ import "../../../client/styles/shell.css";
 // page. (Step-40's scar, exactly: without this the `.cmdk-scrim` fixed-centering rule never
 // applies and the palette renders in normal flow instead of as a centered overlay.)
 import "../../../client/styles/search.css";
+// The account chip's classes (A11) live in reader.css (`.account-chip*`), and the chip renders in
+// the GLOBAL header — so its stylesheet belongs here rather than only on lesson pages (which also
+// import it; Vite dedupes). Every reader.css selector is scoped (`html[data-reader-*]`, `.reader-*`,
+// `.account-chip*`, `.lesson`, `.synapse-prose`), so nothing leaks onto the landing / blog pages.
+import "../../../client/styles/reader.css";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
 
@@ -83,6 +88,13 @@ const canonical = canonicalPath ? `${siteUrl}${canonicalPath}` : undefined;
          inert until now. Vanilla TS, lazy data load on first open (islands/palette.ts). -->
     <script>
       import "../islands/palette";
+    </script>
+    <!-- The auth boot island (A11): loaded on EVERY page because the header (and its account chip)
+         is global — check-sso runs everywhere, the chip mounts, and the bearer/`__synapseAuth`/
+         `__synapseVizToken` seams + the AUTH_CHANGED event install before any workbench renders.
+         keycloak-js stays a lazy chunk (the loader dynamic-imports it). -->
+    <script>
+      import "../islands/auth";
     </script>
   </body>
 </html>

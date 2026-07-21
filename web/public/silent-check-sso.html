@@ -1,4 +1,10 @@
 <!doctype html>
+<!-- keycloak-js's silent check-sso callback: loaded in a hidden iframe by the auth boot
+     (silentCheckSsoRedirectUri = /silent-check-sso.html), it posts its URL back to the opener
+     so keycloak-js can read the SSO result without a full navigation.
+     A11 DUPLICATE (deliberate): the old client's Vite build still ships its own copy from
+     client/public/ until A14 deletes that client; this is the byte-identical twin served by the
+     Astro app. Keep the two in sync until then. -->
 <html><body><script>
   parent.postMessage(location.href, location.origin);
 </script></body></html>
