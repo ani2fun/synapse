@@ -1,6 +1,5 @@
-//! The blog wire contract (oracle: `BlogApi.scala`, ADR-S012 code-first island). Field names are
-//! LOAD-BEARING. `publishedAt` is an ISO date STRING — empty when the post is undated (the
-//! oracle's deliberate non-Option; the card renders "" as nothing).
+//! The blog wire contract. Field names are LOAD-BEARING. `publishedAt` is an ISO date STRING —
+//! empty when the post is undated (deliberately non-`Option`; the card renders "" as nothing).
 
 use serde::{Deserialize, Serialize};
 

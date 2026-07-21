@@ -1,5 +1,5 @@
-//! The execution adapters (oracle: `execution/infrastructure/`) — the go-judge wire protocol,
-//! per-language recipes, the Java entrypoint normaliser, and the HTTP runner.
+//! The execution adapters — the go-judge wire protocol, per-language recipes, the Java
+//! entrypoint normaliser, and the HTTP runner.
 
 pub(crate) mod java_rewriter;
 pub(crate) mod recipe;

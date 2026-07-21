@@ -1,6 +1,4 @@
-// Parity tests for tree.ts (oracle: client/src/catalog/logic/logic_tests.rs — all 18 cases,
-// same fixtures, same assertions, case names ported to camelCase). A03 shipped tree.ts without
-// this file; A04 pays the debt off in full, one Rust test function per `it`.
+// 18 cases covering tree.ts's pure catalog navigation helpers.
 
 import { describe, expect, it } from "vitest";
 import type { components } from "../api/schema.gen";
@@ -13,7 +11,6 @@ import {
   pruneEntries,
   readingOrder,
   resolveC4Node,
-  spreadFractions,
   chapterCount,
   lessonCount,
   type C4PathHop,
@@ -148,16 +145,6 @@ describe("tree", () => {
 
     expect(pruneEntries(entries, "zzz")).toHaveLength(0);
     expect(pruneEntries(entries, "  ")).toHaveLength(entries.length);
-  });
-
-  it("spreadDeOverlapsAndClampsFractions", () => {
-    const out = spreadFractions([0.1, 0.11, 0.12]);
-    expect(out[1] - out[0]).toBeGreaterThanOrEqual(0.05 - 1e-9);
-    expect(out[2] - out[1]).toBeGreaterThanOrEqual(0.05 - 1e-9);
-    const edges = spreadFractions([0.0, 1.0]);
-    expect(edges[0]).toBeGreaterThanOrEqual(0.05 - 1e-9);
-    expect(edges[1]).toBeLessThanOrEqual(0.95 + 1e-9);
-    expect(spreadFractions([])).toEqual([]);
   });
 
   it("problemSplitDividesAtTheFirstTopLevelDetails", () => {

@@ -1,14 +1,11 @@
 ---
-// The real library landing (A04; oracle: client/src/catalog/view/library.rs, byte-faithful
-// class structure so client/styles/library.css + tour.css apply unchanged, replacing A01's
-// throwaway placeholder). SSR renders the hero + book grid synchronously in one fetch — there
-// is no client-side Loading state here (unlike the Rust's `AsyncResult::Loading`): the fetch
-// either resolves before the response is written, or it fails and the page shows the same
-// `AsyncResult::Failed` message the reactive client would.
+// The real library landing, classed so library.css + tour.css apply unchanged.
+// SSR renders the hero + book grid synchronously in one fetch — there is no client-side Loading
+// state here: the fetch either resolves before the response is written, or it fails and the
+// page shows an error message directly.
 //
-// The `SynapseTour` carousel landed at A10's tail (components/Tour.astro + islands/tour.ts) —
-// A04 shipped a static hero in its place, flagged for sign-off. Slide 4's REAL widget is a
-// planted `.viz-widget` the lazy viz loader mounts when the slide first shows.
+// The `SynapseTour` carousel (components/Tour.astro + islands/tour.ts). Slide 4's REAL widget is
+// a planted `.viz-widget` the lazy viz loader mounts when the slide first shows.
 //
 // The "N/M read" progress chips and the `.lib-continue` resume card are NOT rendered here
 // either — `localStorage` has no SSR equivalent, so both are injected post-hydration by
@@ -20,10 +17,10 @@ import { fetchIndex } from "../lib/api/client";
 import type { CatalogEntry, SynapseIndex } from "../lib/api/client";
 import type { components } from "../lib/api/schema.gen";
 
-import "../../../client/styles/library.css";
-import "../../../client/styles/tour.css";
-// The tour's slide-4 widget is a real WidgetHost (A10) — its chrome lives in viz.css.
-import "../../../client/styles/viz.css";
+import "../../styles/library.css";
+import "../../styles/tour.css";
+// The tour's slide-4 widget is a real WidgetHost — its chrome lives in viz.css.
+import "../../styles/viz.css";
 
 type Book = components["schemas"]["BookDto"];
 

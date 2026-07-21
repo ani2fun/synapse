@@ -1,4 +1,4 @@
-//! Oracle: `TreeLayoutSpec` — the subtree-width walk over a complete BST.
+//! The subtree-width walk over a complete BST.
 
 #![allow(clippy::unwrap_used, clippy::float_cmp)] // exact constants are the point
 

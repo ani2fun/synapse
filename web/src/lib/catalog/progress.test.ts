@@ -1,5 +1,5 @@
-// Parity tests for progress.ts (oracle: client/src/catalog/logic/progress.rs — all 10 cases,
-// same fixtures, same assertions, case names ported to camelCase).
+// Ten cases covering progress.ts's parse/serialize round trip, ordering stability, and
+// per-line degradation.
 
 import { describe, expect, it } from "vitest";
 import type { components } from "../api/schema.gen";
@@ -49,7 +49,7 @@ describe("progress", () => {
 
   it("aStrayLineCostsOnlyItself", () => {
     // The whole reason this is a list and not a positional record: garbage in the middle does
-    // not take the rest of the value down with it (cf. the oracle's prefs.rs).
+    // not take the rest of the value down with it (contrast `prefs.ts`'s exact-arity parse).
     const done = parse("learn/dsa/intro\n\n   \nlearn/dsa/arrays\n");
     expect(done.size).toBe(2);
     expect(done.has("learn/dsa/intro")).toBe(true);

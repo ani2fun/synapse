@@ -1,15 +1,12 @@
 ---
-// One library card (oracle: catalog/view/library.rs::book_card, byte-faithful classes so
-// client/styles/library.css applies unchanged). `data-book-slug` is what
-// islands/library.ts uses to find this card again after hydration — book slugs are globally
-// unique (tree.ts's `findBook` test), so a single attribute is enough to re-resolve the book
-// without re-walking the whole catalog tree per card.
+// One library card. `data-book-slug` is what islands/library.ts uses to find this card again
+// after hydration — book slugs are globally unique (tree.ts's `findBook` test), so a single
+// attribute is enough to re-resolve the book without re-walking the whole catalog tree per card.
 //
 // The "N/M read" progress chip is deliberately ABSENT from this markup: it is injected
 // client-side by islands/library.ts once localStorage resolves. SSR has no reading history to
-// show, and the oracle's own `progress_chip` likewise renders nothing until `ProgressStore`
-// resolves — this is the same "nothing until there is something to report" rule, just moved to
-// run after hydration instead of after a signal read.
+// show — "nothing until there is something to report" rule, run after hydration rather than
+// inline here.
 import { chapterCount, firstLessonPath, lessonCount } from "../lib/catalog/tree";
 import type { components } from "../lib/api/schema.gen";
 

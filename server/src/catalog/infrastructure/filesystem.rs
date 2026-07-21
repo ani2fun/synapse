@@ -1,7 +1,7 @@
-//! The filesystem `ContentRepository` (oracle: `FileSystemContentRepositoryLive`) — walks
-//! `SYNAPSE_ROOT`, decodes `book.json`/`category.json` leniently at every level, guards lesson
-//! reads against traversal (realpaths BOTH sides — macOS `/tmp` is a symlink), and produces the
-//! ADR-S010 content version (dev watermark / prod git SHA).
+//! The filesystem `ContentRepository` — walks `SYNAPSE_ROOT`, decodes `book.json`/
+//! `category.json` leniently at every level, guards lesson reads against traversal (realpaths
+//! BOTH sides — macOS `/tmp` is a symlink), and produces the content version (dev watermark /
+//! prod git SHA).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -107,7 +107,7 @@ fn is_content_dir(path: &Path) -> bool {
     path.is_dir() && !file_name(path).starts_with('.')
 }
 
-// Case-sensitive on purpose (oracle parity): content extensions are lowercase by convention.
+// Case-sensitive on purpose: content extensions are lowercase by convention.
 #[allow(clippy::case_sensitive_file_extension_comparisons)]
 fn is_markdown(path: &Path) -> bool {
     path.is_file() && file_name(path).ends_with(".md")

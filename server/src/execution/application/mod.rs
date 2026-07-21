@@ -1,4 +1,4 @@
-//! The execution use case (oracle: `RunCodeService` + the `CodeRunner` port). Deliberately
+//! The execution use case: `RunCodeService` over the `CodeRunner` port. Deliberately
 //! thin: validate → resolve → run. No go-judge knowledge, no concurrency gate — the adapter
 //! owns those.
 
@@ -20,7 +20,7 @@ pub trait CodeRunner: Send + Sync {
     ) -> impl Future<Output = Result<RunResult, ExecutionError>> + Send;
 }
 
-/// The context's error. HTTP mapping (at `http/`, step 10): `UnknownLanguage`→422,
+/// The context's error. HTTP mapping (at `http/`): `UnknownLanguage`→422,
 /// `PayloadTooLarge`→413, `BackendUnavailable`→503, `BackendFailed`→502.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ExecutionError {

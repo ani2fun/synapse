@@ -1,5 +1,4 @@
-// Parity tests for executor.ts (oracle: client/src/execution/logic/executor_tests.rs — all 10
-// cases, same fixtures, same assertions, case names ported to camelCase).
+// Ten cases covering the `CodeExecutor` FSM's transitions and staleness guards.
 
 import { describe, expect, it } from "vitest";
 import type { components } from "../api/schema.gen";

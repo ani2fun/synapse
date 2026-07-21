@@ -6,10 +6,10 @@ import { wrapJava } from "./java";
 import { wrapPython } from "./python";
 
 /**
- * The tracer wrappers (step 55). Small surface, but everything here fails SILENTLY when it
- * breaks: a wrap that leaves a placeholder behind still compiles and still runs, it just traces
- * nothing, and the Visualise modal shows an empty or failed card that reads like a user error.
- * The e2e suite cannot see any of it — a trace with the wrong contents is still a trace.
+ * The tracer wrappers. Small surface, but everything here fails SILENTLY when it breaks: a wrap
+ * that leaves a placeholder behind still compiles and still runs, it just traces nothing, and
+ * the Visualise modal shows an empty or failed card that reads like a user error. The e2e suite
+ * cannot see any of it — a trace with the wrong contents is still a trace.
  */
 
 const PLACEHOLDER = "__SYNAPSE_USER_SOURCE_B64__";

@@ -1,6 +1,6 @@
-//! The three catalog endpoints (oracle: `CatalogEndpoints` + `CatalogRoutes`). Route shape
-//! matters: `/index` and `/c4-doc/{id}` are more specific than the `{*paths}` lesson catch-all,
-//! and axum's router picks the most specific match.
+//! The three catalog endpoints. Route shape matters: `/index` and `/c4-doc/{id}` are more
+//! specific than the `{*paths}` lesson catch-all, and axum's router picks the most specific
+//! match.
 
 use std::sync::Arc;
 
@@ -20,9 +20,9 @@ use crate::insights::LessonViewStore;
 /// The production service: the catalog over the filesystem adapter (wired in `main`).
 pub type LiveCatalogService = CatalogService<FileSystemContentRepository>;
 
-/// The catalog's state. It carries the readership store (step 49) because serving a lesson is
-/// the one place that knows a lesson was read — generic over the port so `catalog/http` depends
-/// on `insights`'s CONTRACT, never its Postgres adapter.
+/// The catalog's state. It carries the readership store because serving a lesson is the one
+/// place that knows a lesson was read — generic over the port so `catalog/http` depends on
+/// `insights`'s CONTRACT, never its Postgres adapter.
 pub struct CatalogRoutesState<V> {
     pub service: Arc<LiveCatalogService>,
     pub views: Arc<V>,
@@ -142,7 +142,7 @@ pub async fn get_synapse_lesson<V: LessonViewStore>(
     }
 }
 
-/// Readership (step 49), recorded only on a lesson that actually resolved — a 404 is not a read.
+/// Readership, recorded only on a lesson that actually resolved — a 404 is not a read.
 ///
 /// FIRE AND FORGET: a store that is down must never cost the reader their lesson, so the error
 /// is logged at `warn` and dropped. The port returns a `Result` precisely so this policy lives

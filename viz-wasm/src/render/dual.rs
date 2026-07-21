@@ -1,4 +1,4 @@
-//! The dual views (oracle: `DualViewRenderers`, step 33): the derived tree above, the raw
+//! The dual views: the derived tree above, the raw
 //! backing array below, both driven by the SAME step signal — identical node ids make the
 //! diff cues light up in both panes at once.
 

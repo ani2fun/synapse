@@ -1,10 +1,9 @@
 /**
- * `/account` (oracle: client/src/identity/view/account_page.rs — `AccountPage`): the identity
- * card, then the danger zone — three permanent actions, each behind a styled confirm modal,
- * reporting through one inline status banner. The shared "account grammar" the admin panel
- * reuses. Deleting the account orchestrates erase → delete → sign-out ON THE CLIENT (store.ts),
- * so the server's identity context never depends on submissions. Anonymous visitors see a
- * sign-in prompt, not a broken page.
+ * `/account`: the identity card, then the danger zone — three permanent actions, each behind a
+ * styled confirm modal, reporting through one inline status banner. The shared "account grammar"
+ * the admin panel reuses. Deleting the account orchestrates erase → delete → sign-out ON THE
+ * CLIENT (store.ts), so the server's identity context never depends on submissions. Anonymous
+ * visitors see a sign-in prompt, not a broken page.
  */
 import { render, h } from "preact";
 import { useState } from "preact/hooks";

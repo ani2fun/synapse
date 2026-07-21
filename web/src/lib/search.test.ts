@@ -1,5 +1,4 @@
-// Oracle: `LibrarySearchSpec` (client/src/search/logic/logic_tests.rs) — the five
-// ranking/flattening behaviors, same fixture, same assertions, case names in camelCase.
+// Five ranking/flattening behaviors, one fixture library.
 
 import { describe, expect, it } from "vitest";
 import { entries, search } from "./search";

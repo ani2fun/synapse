@@ -1,13 +1,11 @@
-//! The frontmatter MECHANISM (step 62): the lenient fence splitter and its two helpers,
-//! shared by catalog and blog. Until this step the two contexts carried byte-identical
-//! twins (`fields_and_body`, quote-strip, inline-list — deliberate duplication, "contexts
-//! own their vocabulary"). The line actually worth defending is finer: contexts own their
-//! VOCABULARY — which fields exist and what they mean (`LessonFrontmatter` vs `BlogPost`
-//! stay exactly where they were) — while fence *parsing* is generic-subdomain mechanics
-//! that says nothing about either context. Pure text functions, no dependencies; the
-//! domain-purity gate is untouched.
+//! The frontmatter MECHANISM: the lenient fence splitter and its two helpers,
+//! shared by catalog and blog. The line worth defending is finer than "no duplication":
+//! contexts own their VOCABULARY — which fields exist and what they mean
+//! (`LessonFrontmatter` vs `BlogPost` stay exactly where they were) — while fence
+//! *parsing* is generic-subdomain mechanics that says nothing about either context. Pure
+//! text functions, no dependencies; the domain-purity gate is untouched.
 //!
-//! Leniency contract (ADR-0001): a fence exists only when the FIRST line is `---` and a
+//! Leniency contract: a fence exists only when the FIRST line is `---` and a
 //! closing `---` follows; anything malformed degrades to "no fence" (empty fields, the
 //! whole content as body) — missing metadata never fails a page.
 

@@ -1,7 +1,5 @@
 /**
- * The output, tests and verdict panels (ports of client/src/execution/view/output.rs and the
- * panel halves of workbench.rs). Classes are byte-faithful — runnable.css/practice.css apply
- * verbatim.
+ * The output, tests and verdict panels. Classes match runnable.css/practice.css exactly.
  */
 import type { ComponentChildren } from "preact";
 

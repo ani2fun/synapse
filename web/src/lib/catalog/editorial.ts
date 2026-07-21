@@ -1,8 +1,7 @@
 /**
- * The editorial document model (pure half of the redesigned Editorial tab; oracle:
- * client/src/catalog/logic/editorial.rs). One markdown string in — the sidecar or the inline
- * `<details>` tail, they share a shape — and a typed `EditorialDoc` out: approaches for the
- * stepper, sections for the jump bar, complexity claims for the cards.
+ * The editorial document model (pure half of the Editorial tab). One markdown string in — the
+ * sidecar or the inline `<details>` tail, they share a shape — and a typed `EditorialDoc` out:
+ * approaches for the stepper, sections for the jump bar, complexity claims for the cards.
  *
  * Two authored formats exist. Type 1 is flat (`## Intuition` / `## Approach` / `## Solution` /
  * `## Complexity Analysis`); type 2 nests the same set as `###` subsections under one `##` heading
@@ -98,8 +97,7 @@ export function parseEditorial(md: string): EditorialDoc {
 
 /**
  * The canonical kind behind a heading, via the same normalisation the remembered-section matcher
- * uses. `startsWith` on complexity covers both "Complexity" and "Complexity Analysis". (oracle:
- * `section_kind`)
+ * uses. `startsWith` on complexity covers both "Complexity" and "Complexity Analysis".
  */
 export function sectionKind(label: string): SectionKind {
   const norm = normalizeLabel(label);
@@ -137,7 +135,7 @@ function buildApproach(label: string, sections: SectionDoc[]): ApproachDoc {
 
 /**
  * Fence-aware split at line-start heading markers. The heading line is consumed into the label;
- * bodies and the preamble come back trimmed. (oracle: `split_at_headings`)
+ * bodies and the preamble come back trimmed.
  */
 function splitAtHeadings(md: string, marker: string): [string, [string, string][]] {
   let inFence = false;
@@ -161,8 +159,7 @@ function splitAtHeadings(md: string, marker: string): [string, [string, string][
 }
 
 /** Whether a top-level section body carries a canonical `###` subsection — the multi-approach
- *  discriminator (an approach heading is free text; its CONTENTS are the recognisable part).
- *  (oracle: `has_canonical_subheading`) */
+ *  discriminator (an approach heading is free text; its CONTENTS are the recognisable part). */
 function hasCanonicalSubheading(body: string): boolean {
   const [, subs] = splitAtHeadings(body, "### ");
   return subs.some(([label]) => sectionKind(label) !== "Other");
@@ -173,7 +170,7 @@ function hasCanonicalSubheading(body: string): boolean {
  * `<details` line). Per-section fragment rendering would smear that unbalanced pair across
  * fragments, so the OUTER wrapper — and only it — comes off here: the opening line, its `<summary>`
  * line, and the last fence-outside `</details>`. Nested details deeper in the document are content
- * and survive. (oracle: `strip_spoiler_wrapper`)
+ * and survive.
  */
 function stripSpoilerWrapper(md: string): string {
   const trimmed = md.trim();
@@ -203,7 +200,7 @@ function stripSpoilerWrapper(md: string): string {
  * The verified type-2 shape has NO `### Solution` heading — the fences sit at the tail of
  * `### Approach`. When no Solution section exists but a `solution` fence does, the owning section
  * splits at the first fence line and the tail becomes a synthetic Solution section right after it.
- * An explicit Solution heading suppresses this entirely. (oracle: `synthesize_solution`)
+ * An explicit Solution heading suppresses this entirely.
  */
 function synthesizeSolution(sections: SectionDoc[]): void {
   if (sections.some((s) => s.kind === "Solution")) return;
@@ -225,8 +222,7 @@ function synthesizeSolution(sections: SectionDoc[]): void {
 }
 
 /** Line index of the first fence OPENING whose info string carries the whitespace-delimited
- *  `solution` token (the same predicate render.ts groups on). Plain fences don't count. (oracle:
- *  `solution_fence_start`) */
+ *  `solution` token (the same predicate render.ts groups on). Plain fences don't count. */
 function solutionFenceStart(md: string): number | null {
   let inFence = false;
   const lines = md.split("\n");
@@ -244,7 +240,7 @@ function solutionFenceStart(md: string): number | null {
 }
 
 /** The full info string of the first `solution` fence, e.g. `python solution time=O(N) space=O(K)`
- *  — `solutionComplexities` reads the claims out. (oracle: `first_solution_meta`) */
+ *  — `solutionComplexities` reads the claims out. */
 export function firstSolutionMeta(md: string): string | null {
   const at = solutionFenceStart(md);
   if (at === null) return null;
@@ -266,7 +262,7 @@ function complexityClaims(meta: string | null): [string | null, string | null] {
 /**
  * Parse a Complexity section's authored `**Time Complexity:** … / **Space Complexity:** …`
  * paragraphs. Either axis may miss; when BOTH do the section isn't card-shaped and the caller
- * renders the prose as-is. (oracle: `complexity_prose`)
+ * renders the prose as-is.
  */
 export function complexityProse(md: string): ComplexityProse | null {
   let time: [string, string] | null = null;
@@ -322,7 +318,7 @@ function stripMarker(line: string): [boolean, string] | null {
  * — all verified in the real content. The value starts at the first `O(` and runs to the first
  * separator sitting OUTSIDE parentheses after at least one closed group, so `O(min(N1, N2))` and
  * `O(sqrt(N)) + O(K*log(K)) – …` both survive whole. A paragraph without an `O(` group is not card
- * material. (oracle: `split_value_prose`)
+ * material.
  */
 function splitValueProse(text: string): [string, string] | null {
   const SEPARATORS = [" – ", " — ", " - ", ". ", ", "];
@@ -369,7 +365,6 @@ function splitValueProse(text: string): [string, string] | null {
 /**
  * Display prettifier for complexity claims: authors write `O(sqrt(N)+K*log(K))` and `O(N^2)`, the
  * design shows `O(√N+K·log(K))` and `O(N²)`. Purely cosmetic — never fed back into parsing.
- * (oracle: `pretty_o`)
  */
 export function prettyO(o: string): string {
   let out = "";
@@ -404,7 +399,7 @@ export function prettyO(o: string): string {
 }
 
 /** `^` followed by a WHOLE integer becomes a superscript (`N^2` → `N²`); a fractional power like
- *  `N^1.5` has no clean superscript and stays as authored. (oracle: `superscript_powers`) */
+ *  `N^1.5` has no clean superscript and stays as authored. */
 function superscriptPowers(s: string): string {
   const DIGITS = ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"];
   const chars = [...s];
@@ -432,8 +427,7 @@ function superscriptPowers(s: string): string {
 }
 
 /** The scroll-spy: the ACTIVE section is the last one whose top has passed the threshold (tops are
- *  relative to the scroll container's top; sections above have negative tops). (oracle:
- *  `active_section`) */
+ *  relative to the scroll container's top; sections above have negative tops). */
 export function activeSection(sectionTops: number[], threshold: number): number {
   let active = 0;
   sectionTops.forEach((top, i) => {

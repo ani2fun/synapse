@@ -1,9 +1,9 @@
-//! The Graph family (oracle: `GraphLayouts.scala`): DUAL — a tree-shaped (acyclic, ≤1
+//! The Graph family: DUAL — a tree-shaped (acyclic, ≤1
 //! parent) union lays out as a tidy forest under a synthetic super-root; a cyclic/merging
-//! union falls to a SEEDED, DETERMINISTIC force simulation: velocity-Verlet with the
-//! oracle's constants (link 100 · manyBody −520 · collide RingR+12 · x/y anchor 0.07 ·
+//! union falls to a SEEDED, DETERMINISTIC force simulation: velocity-Verlet with pinned
+//! constants (link 100 · manyBody −520 · collide RingR+12 · x/y anchor 0.07 ·
 //! 320 synchronous ticks · velocityDecay 0.6) and a Mulberry32(0x5eed) PRNG for the jiggle,
-//! so a redraw is byte-identical. Pixel-parity with d3 is a NON-goal (ADR-S026) —
+//! so a redraw is byte-identical. Pixel-parity with d3 is a NON-goal —
 //! determinism + readable layout is.
 
 use std::collections::{HashMap, HashSet};
@@ -12,7 +12,7 @@ use super::constants::{NODE_R, PAD, RING_R, TREE_ROW_H};
 use super::{LayoutResult, Point, tree};
 use crate::engine::graph::{NodeId, VizEdge, VizNode};
 
-// Ported PRNG — seeded so `jiggle` (and therefore the whole sim) is reproducible.
+// Seeded PRNG, so `jiggle` (and therefore the whole sim) is reproducible.
 struct Mulberry32(u32);
 
 impl Mulberry32 {
@@ -144,8 +144,8 @@ fn forest(nodes: &[VizNode], edges: &[VizEdge]) -> LayoutResult {
 }
 
 // The seeded force simulation. Loops run over indexed Vecs — the arithmetic ORDER is part of
-// the determinism contract, so the phases stay one straight-line function (the oracle's
-// shape) rather than split helpers.
+// the determinism contract, so the phases stay one straight-line function rather than split
+// helpers.
 #[allow(
     clippy::many_single_char_names,
     clippy::cast_precision_loss,

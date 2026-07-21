@@ -1,7 +1,8 @@
-//! The mount kit slice (A10): the two mechanics `blocks` needs from the client's hydration
-//! seam (step 58), carried in-crate so widget discovery works under BOTH hosts. The store
-//! caravan deliberately did NOT come along — viz owns no app-level context stores; the modal
-//! store is provided by whichever host mounts the modal.
+//! The mount kit: the two mechanics `blocks` needs to hydrate widgets, mirroring the Leptos
+//! client's own hydration seam but carried in-crate so widget discovery works under BOTH
+//! hosts. The context-store bundling the client's hydration seam also provides deliberately
+//! did NOT come along — viz owns no app-level context stores; the modal store is provided by
+//! whichever host mounts the modal.
 
 use std::any::Any;
 

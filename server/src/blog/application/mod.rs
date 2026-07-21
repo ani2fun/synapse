@@ -1,4 +1,4 @@
-//! The blog use cases (oracle: `BlogService` + `BlogError` + the `BlogRepository` port): the
+//! The blog use cases (`BlogService` + `BlogError` + the `BlogRepository` port): the
 //! listing is version-gated (like the catalog index), post bodies are re-read every call so
 //! live edits show, and each post carries its publish-order neighbours.
 

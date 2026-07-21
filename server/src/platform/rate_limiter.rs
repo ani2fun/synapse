@@ -1,4 +1,4 @@
-//! In-memory fixed-window rate limiting (oracle: `RateLimiter`, step 19). Two buckets with two
+//! In-memory fixed-window rate limiting. Two buckets with two
 //! key namespaces: anonymous meters per IP, authenticated per subject — a per-person key
 //! survives NAT and gives signed-in readers the bigger budget. Windows are FLOOR-ALIGNED to the
 //! epoch (everyone's window rolls at the same instant); expired entries are pruned

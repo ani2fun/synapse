@@ -1,7 +1,7 @@
-// Oracle: client/src/catalog/logic/editorial_tests.rs — the same twenty-two cases, camelCased. The
-// fixtures mirror the REAL authored content in synapse-content/dsa: the flat single-approach format,
-// the multi-approach format (`## Brute / ## Optimal …` with `###` subsections incl. `### Edge Case`),
-// and the degradation shapes (arbitrary headings, plain fences, empty files).
+// Twenty-two cases. The fixtures mirror the REAL authored content in synapse-content/dsa: the
+// flat single-approach format, the multi-approach format (`## Brute / ## Optimal …` with `###`
+// subsections incl. `### Edge Case`), and the degradation shapes (arbitrary headings, plain
+// fences, empty files).
 
 import { describe, expect, it } from "vitest";
 

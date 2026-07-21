@@ -1,4 +1,4 @@
-//! Union-find over instance→instance refs (oracle: `CardGrouping.scala`). Instances linked by
+//! Union-find over instance→instance refs. Instances linked by
 //! reference merge into one card (a tree, a linked list); collections each own their own
 //! card. The representative is the lexicographically-smallest id, so grouping is
 //! deterministic. The `contains` guard drops refs to elided nulls.

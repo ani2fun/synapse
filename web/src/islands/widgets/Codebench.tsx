@@ -1,13 +1,12 @@
 /**
- * The popup codebench (port of client/src/execution/view/codebench.rs — qna Q1, option A): ONE
- * near-fullscreen modal with ONE Monaco created on first open and reused forever after (value +
- * tokenizer swap, the step-30 seam). Run + editable stdin + the runnable output panel ride
- * along; Esc closes like every other popup; editing gates on sign-in while Run stays open to
- * everyone. Authors write bare fences — no `run` attribute, no markdown changes.
+ * The popup codebench: ONE near-fullscreen modal with ONE Monaco created on first open and
+ * reused forever after (value + tokenizer swap). Run + editable stdin + the runnable output
+ * panel ride along; Esc closes like every other popup; editing gates on sign-in while Run stays
+ * open to everyone. Authors write bare fences — no `run` attribute, no markdown changes.
  *
- * The button that opens it lives in the fence group's header bar (`fenceGroups.ts`, step 41);
- * this module keeps the store, the modal, and (in `../../lib/execution/language.ts`) the alias
- * table that decides which fences get one.
+ * The button that opens it lives in the fence group's header bar (`fenceGroups.ts`); this module
+ * keeps the store, the modal, and (in `../../lib/execution/language.ts`) the alias table that
+ * decides which fences get one.
  */
 import { useEffect, useRef, useState } from "preact/hooks";
 

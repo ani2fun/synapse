@@ -1,4 +1,4 @@
-//! The catalog's output port + error (oracle: `ContentRepository.scala`, `ContentError.scala`).
+//! The catalog's output port and its error type.
 
 use crate::catalog::domain::catalog::SynapseContentError;
 use crate::catalog::domain::content_tree::ContentEntry;
@@ -6,9 +6,9 @@ use crate::catalog::domain::content_tree::ContentEntry;
 /// What the catalog needs from the outside world. Native async-fn-in-trait + generic services
 /// (static dispatch): nothing varies at runtime, so `dyn` would be ceremony (RS001).
 pub trait ContentRepository: Send + Sync {
-    /// The change watermark (ADR-S010): dev = mtime/count watermark so live edits show;
-    /// prod = the checkout's git SHA (advances when git-sync moves). Infallible — degraded
-    /// filesystems report a constant, they don't fail the request.
+    /// The change watermark: in dev this is an mtime/count watermark so live edits show up
+    /// immediately; in prod it is the checkout's git SHA (advances when git-sync moves).
+    /// Infallible — degraded filesystems report a constant, they don't fail the request.
     fn content_version(&self) -> impl Future<Output = String> + Send;
 
     /// The raw tree under the content root, metadata pre-decoded.
@@ -19,7 +19,7 @@ pub trait ContentRepository: Send + Sync {
     fn read_lesson(&self, path: &str) -> impl Future<Output = Result<String, ContentError>> + Send;
 }
 
-/// The context's error. HTTP mapping (at `http/`, step 05): `NotFound`→404, `Io`→500,
+/// The context's error. The HTTP layer maps these to status codes: `NotFound`→404, `Io`→500,
 /// `IndexInvalid`→500.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ContentError {

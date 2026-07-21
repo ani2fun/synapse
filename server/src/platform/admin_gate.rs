@@ -1,5 +1,4 @@
-//! The admin gate, extracted in step 49 from `submission/http/admin.rs` where it landed in
-//! step 21. Two contexts need it now — the allowlist panel and the readership read — and the
+//! The admin gate. Two contexts need it — the allowlist panel and the readership read — and the
 //! invariant is worth stating in one place rather than twice:
 //!
 //! **ADMIN is CONFIG (`ADMIN_USERS`), never a token claim, and the server re-checks it on

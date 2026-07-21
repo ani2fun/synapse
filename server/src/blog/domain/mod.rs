@@ -1,8 +1,8 @@
-//! The blog domain (oracle: `BlogPost` + `BlogFrontmatter`): one post per markdown file, a
+//! The blog domain (`BlogPost` + `BlogFrontmatter`): one post per markdown file, a
 //! lenient frontmatter fence, and graceful degradation — a malformed date or read-minutes value
-//! becomes `None`, never an error. The fence MECHANISM was a deliberate byte-identical twin of
-//! the catalog's until step 62; it is `platform::frontmatter` now, and what this module owns
-//! is blog's VOCABULARY — which fields a post has and how they degrade.
+//! becomes `None`, never an error. The fence-splitting MECHANISM is shared with the catalog via
+//! `platform::frontmatter`; what this module owns is blog's VOCABULARY — which fields a post
+//! has and how they degrade.
 
 use chrono::NaiveDate;
 
@@ -70,8 +70,8 @@ impl BlogPost {
     }
 }
 
-// The fence splitter and inline-list parser are `platform::frontmatter` since step 62 —
-// this module keeps blog's VOCABULARY (title/summary/publishedAt/tags/readMinutes/eyebrow).
+// The fence splitter and inline-list parser live in `platform::frontmatter` (shared with the
+// catalog); this module keeps blog's VOCABULARY (title/summary/publishedAt/tags/readMinutes/eyebrow).
 
 #[cfg(test)]
 #[path = "blog_tests.rs"]

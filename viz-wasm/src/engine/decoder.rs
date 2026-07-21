@@ -1,4 +1,4 @@
-//! The trace decoder (oracle: `TraceDecoder`): raw run stdout → program output + the heap
+//! The trace decoder: raw run stdout → program output + the heap
 //! trace between the markers. The LAST `__SYNAPSE_HEAP_BEGIN__` wins (a program printing the
 //! literal marker can't spoof); BEGIN without END means the trace overflowed the sandbox's
 //! stdout cap. Loud, not silent — no markers is simply "no trace", never an error swallowed.

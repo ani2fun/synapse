@@ -1,5 +1,5 @@
-//! The tutor wire contract (oracle: `TutorApi.scala`, ADR-S021 code-first island).
-//! `ChatMessage` is a pure shared model — it flows client ↔ server ↔ LLM untouched.
+//! The tutor wire contract. `ChatMessage` is a pure shared model — it flows client ↔ server
+//! ↔ LLM untouched.
 
 use serde::{Deserialize, Serialize};
 

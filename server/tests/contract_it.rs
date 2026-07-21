@@ -1,8 +1,8 @@
-//! The contract lock (RS001): the utoipa-rendered OpenAPI document must cover the oracle spec —
-//! every oracle path/method exists here, and the shared schemas agree on property names and
-//! required fields. `api/openapi.oracle.yaml` is a committed copy of Synapse's
-//! `api/openapi.yaml`; it grows in lock-step as endpoints are ported, so drift from the Scala
-//! contract is a red test, not a production surprise.
+//! The contract lock: the utoipa-rendered OpenAPI document must cover every path and method in
+//! `api/openapi.oracle.yaml` — the committed reference copy of the API contract — and the
+//! shared schemas must agree on property names and required fields. The reference copy grows
+//! in lock-step as endpoints are added, so drift from the contract is a red test, not a
+//! production surprise.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

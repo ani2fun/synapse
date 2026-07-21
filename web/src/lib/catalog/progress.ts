@@ -1,10 +1,10 @@
-// Reading progress (oracle: client/src/catalog/logic/progress.rs) — pure, so vitest covers it
-// natively; nothing here touches `localStorage` directly (that is `../storage.ts`'s job — this
-// module only parses/serialises the string storage hands back and does the reading-order math).
+// Reading progress — pure, so vitest covers it natively; nothing here touches `localStorage`
+// directly (that is `../storage.ts`'s job — this module only parses/serialises the string
+// storage hands back and does the reading-order math).
 //
 // Two facts are kept, and they are deliberately in SEPARATE localStorage keys rather than one
 // packed record: the set of lessons finished (`reader-progress`), and the last lesson opened
-// (`reader-last`). `prefs.rs`'s oracle packs four fields into one `|`-joined string parsed by an
+// (`reader-last`). `prefs.ts` packs four fields into one `|`-joined string parsed by an
 // exact-arity slice pattern, which means adding a fifth field silently resets every existing
 // reader's saved settings — that trap is not rebuilt here: one key, one job, and a key that
 // fails to parse costs only itself.
@@ -49,7 +49,7 @@ export function parse(stored: string | null | undefined): Set<string> {
 }
 
 /** Sorted so the serialised form is stable — an unordered set would rewrite the whole value on
- *  every commit and make the stored string churn for no reason (oracle: a `BTreeSet`). */
+ *  every commit and make the stored string churn for no reason. */
 export function serialize(done: Set<string>): string {
   return [...done].sort().join("\n");
 }

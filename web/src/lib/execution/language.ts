@@ -1,6 +1,6 @@
-// The client's fence-alias vocabulary (oracle: client/src/execution/logic/language.rs) — one
-// table, mirroring `server/execution/domain/Language::aliases`. The server stays the authority;
-// an alias added there joins this table in the same step.
+// The client's fence-alias vocabulary — one table, mirroring
+// `server/execution/domain/Language::aliases`. The server stays the authority; an alias added
+// there joins this table in the same step.
 //
 // Two jobs, and the second is why the table exists at all: telling a runnable fence from a
 // plaintext one, and folding every spelling of a language onto ONE canonical token so a stored
@@ -11,10 +11,10 @@ import type { Variant } from "./blocks";
 // `[canonical token, aliases]` — the canonical token is always the first alias, so the stored
 // value is the same string the server's `Language::resolve` would land on.
 //
-// The Rust oracle keeps this table module-private (only its own test module reaches it); TS has
-// no file-private visibility that would let a separate `*.test.ts` see an unexported const, so
-// it is exported here rather than duplicated — a deliberate, minor divergence, not a design
-// change (a future language switcher would want this exact list too).
+// The server keeps its equivalent table module-private (only its own test module reaches it);
+// TS has no file-private visibility that would let a separate `*.test.ts` see an unexported
+// const, so it is exported here instead (a future language switcher would want this exact list
+// too).
 export const LANGUAGES: [string, string[]][] = [
   ["python", ["python", "py", "python3"]],
   ["java", ["java"]],
@@ -38,11 +38,9 @@ export function canonicalLang(alias: string): string | null {
   return found ? found[0] : null;
 }
 
-/** A fence the engine can actually run (oracle: `execution::view::codebench`'s `runnable_fence`
- *  — itself a thin delegation to `canonical_lang`, since step-40's stale copy of this table had
- *  drifted from the server behind it). The "Try in Editor" button (fenceGroups.ts, A09) gates on
- *  this, so the alias table and the fence-eligibility check share the ONE list and cannot drift
- *  apart again. */
+/** A fence the engine can actually run — a thin delegation to `canonicalLang`. The "Try in
+ *  Editor" button (fenceGroups.ts) gates on this, so the alias table and the fence-eligibility
+ *  check share the ONE list and cannot drift apart. */
 export function runnableFence(lang: string): boolean {
   return canonicalLang(lang) !== null;
 }

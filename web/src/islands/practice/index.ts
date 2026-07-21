@@ -1,10 +1,10 @@
 /**
- * Practice-widget hydration (port of client/src/execution/view/practice.rs's `hydrate_practices`):
- * find every `div.practice-problem` the pipeline planted, decode its attribute payloads into a
- * `PracticeSpec`, and render a live Preact `PracticeProblem` two-pane card into it. Auto-hydrates on
- * import — the lesson page's script is the trigger; a problem page owns its own workbench hydration
- * and never imports this, but the guard is the belt to that suspenders (an embedded widget is
- * `.pwb--embedded`, NOT `.pwb[data-problem]`, so the guard fires only on the problem PAGE).
+ * Practice-widget hydration: find every `div.practice-problem` the pipeline planted, decode its
+ * attribute payloads into a `PracticeSpec`, and render a live Preact `PracticeProblem` two-pane
+ * card into it. Auto-hydrates on import — the lesson page's script is the trigger; a problem page
+ * owns its own workbench hydration and never imports this, but the guard is the belt to that
+ * suspenders (an embedded widget is `.pwb--embedded`, NOT `.pwb[data-problem]`, so the guard
+ * fires only on the problem PAGE).
  */
 import { render, h } from "preact";
 
@@ -32,7 +32,7 @@ function lessonPathFromUrl(): string[] {
 }
 
 /** Walk back to the nearest heading; take the text after "Practice:", else the heading, else "Your
- *  Turn". (oracle: `practice_title`) */
+ *  Turn". */
 function practiceTitle(element: Element): string {
   let cur = element.previousElementSibling;
   while (cur) {

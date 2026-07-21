@@ -1,5 +1,5 @@
-//! The catalog service (oracle: `CatalogService.scala`) — the driving use cases over the
-//! `ContentRepository` port, with the version-gated index cache (ADR-S010).
+//! The catalog service — the driving use cases over the `ContentRepository` port, with the
+//! version-gated index cache.
 
 use std::sync::Arc;
 
@@ -20,18 +20,10 @@ fn element_id_like(id: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
 }
 
-/// A page's `<head>`, projected out of the index (step 50).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PageMeta {
-    pub title: String,
-    pub description: Option<String>,
-    pub book_title: String,
-}
-
 pub struct CatalogService<R> {
     repo: R,
     /// `(content version, walk)` — rebuilt only when the version moves. A concurrent double
-    /// rebuild is harmless (the walk is idempotent), exactly like the oracle's plain `Ref`.
+    /// rebuild is harmless because the walk is idempotent.
     cache: RwLock<Option<(String, Arc<WalkResult>)>>,
 }
 
@@ -46,30 +38,6 @@ impl<R: ContentRepository> CatalogService<R> {
     /// The browsable index (cached per content version).
     pub async fn index(&self) -> Result<SynapseContentCatalog, ContentError> {
         Ok(self.current_walk().await?.catalog.clone())
-    }
-
-    /// What the server needs to render a page's `<head>` — and nothing more (step 50).
-    ///
-    /// Neither existing method is right for this. `index()` CLONES the entire catalog, and
-    /// `lesson()` re-reads the file from disk and probes for an editorial sidecar. A `<title>`
-    /// tag on every SPA request can afford neither, and both would be doing it to answer a
-    /// question the in-memory index already holds.
-    ///
-    /// `None` = no such page; the caller falls back to the site-wide defaults rather than 404ing,
-    /// because the SPA still owns client-side routing and may know about a route the catalog
-    /// does not.
-    pub async fn page_meta(&self, path: &[String]) -> Result<Option<PageMeta>, ContentError> {
-        if path.is_empty() || !path.iter().all(|s| walker::slug_like(s)) {
-            return Ok(None);
-        }
-        let walk = self.current_walk().await?;
-        Ok(
-            resolver::resolve_lesson(&walk.catalog, path).map(|(book, _, lesson)| PageMeta {
-                title: lesson.title.clone(),
-                description: lesson.description.clone(),
-                book_title: book.title.clone(),
-            }),
-        )
     }
 
     /// Every lesson URL in the catalog, for the sitemap. Paths only — the sitemap needs no
@@ -131,10 +99,9 @@ impl<R: ContentRepository> CatalogService<R> {
         })
     }
 
-    /// A LikeC4 component's tutorial doc (oracle step 32): the co-located
-    /// `_c4-docs/<leaf>.md` sidecar next to the lesson, keyed by the FQN's LEAF segment (a
-    /// container view's FQN and a sub-view's bare leaf resolve the same file). Re-read per
-    /// request; absent → `NotFound` → 404.
+    /// A LikeC4 component's tutorial doc: the co-located `_c4-docs/<leaf>.md` sidecar next to
+    /// the lesson, keyed by the FQN's LEAF segment (a container view's FQN and a sub-view's
+    /// bare leaf resolve the same file). Re-read per request; absent → `NotFound` → 404.
     pub async fn component_doc(
         &self,
         lesson_path: &[String],
@@ -169,8 +136,8 @@ impl<R: ContentRepository> CatalogService<R> {
         Ok(ComponentDoc::parse(&raw))
     }
 
-    /// `kind: problem` lessons may carry a `<lesson>.editorial.md` sidecar (oracle step 16);
-    /// its absence is normal, other repo failures propagate.
+    /// `kind: problem` lessons may carry a `<lesson>.editorial.md` sidecar; its absence is
+    /// normal, other repo failures propagate.
     async fn editorial_for(
         &self,
         lesson_file: &str,

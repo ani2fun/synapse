@@ -1,10 +1,11 @@
-//! The render contract (oracle: `VizGraph.scala`, ADR-S026/S027). `VizCases` is the
+//! The render contract. `VizCases` is the
 //! ubiquitous language every producer speaks: the live-trace adapter emits it, and
 //! hand-authored ` ```viz widget= ` payloads decode INTO it — the modal canvas and an inline
 //! widget are the same host consuming the same type.
 //!
-//! This is the anti-corruption WIRE contract: field names match the Cortex oracle's JSON
-//! exactly, so its goldens compare directly. Serialization is FAITHFUL (every field emitted,
+//! This is the anti-corruption WIRE contract: field names are pinned to match the
+//! cortex-goldens fixtures exactly, so they compare byte-for-byte. Serialization is FAITHFUL
+//! (every field emitted,
 //! `None` as `null`); deserialization is TOLERANT — the authored payload is a bare
 //! `{title?, steps}` (no `cases` wrapper), its `annotation` may be a plain string, and most
 //! fields are omitted (defaults fill them). `kind`/`layoutKind` stay strings: an OPEN
@@ -39,7 +40,7 @@ pub struct VizField {
 
 /// One drawable node. `slot` orders cells in a row/grid; `card_id` groups nodes per heap
 /// object; `kind`/`layout_kind` are per-node styling/geometry hints (open vocabulary).
-/// `id` is REQUIRED on decode (a node without one is a loud error, oracle parity); the rest
+/// `id` is REQUIRED on decode (a node without one is a loud error, by design); the rest
 /// default.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -82,7 +83,7 @@ pub struct VizEdge {
 }
 
 /// A pointer landing on a node; `color` is a role colour from `markers` (empty → assigned
-/// later). `target` is REQUIRED on decode (oracle parity).
+/// later). `target` is REQUIRED on decode, by design.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VizCursor {
     #[serde(default)]
@@ -161,7 +162,7 @@ pub struct VizFrame {
 }
 
 /// One animation step: the drawable graph + diff cues + the caption + the source line.
-/// `card_cursor` is reserved (`ArrowLayer` is cut, ADR-S026) — kept for wire parity.
+/// `card_cursor` is reserved (the arrow-layer feature is cut) — kept for wire parity.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub struct VizStep {

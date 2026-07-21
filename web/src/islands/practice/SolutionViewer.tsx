@@ -1,14 +1,14 @@
 /**
- * The read-only solution viewer (port of client/src/execution/view/practice.rs's `SolutionViewer`).
- * A `.solution-block` placeholder — one or more `solution` fences grouped by render.ts — becomes a
- * read-only Monaco behind the SAME language dropdown as the workbench's language pill; switching
- * swaps the buffer + tokenizer in place. "Copy to editor" dispatches LOAD_CODE ON the workbench
- * root (A06's contract), so the ACTIVE tab's code lands in its matching language tab on the right —
- * language-exact across the pane boundary.
+ * The read-only solution viewer. A `.solution-block` placeholder — one or more `solution` fences
+ * grouped by render.ts — becomes a read-only Monaco behind the SAME language dropdown as the
+ * workbench's language pill; switching swaps the buffer + tokenizer in place. "Copy to editor"
+ * dispatches LOAD_CODE ON the workbench root (the `workbench/contracts.ts` contract), so the
+ * ACTIVE tab's code lands in its matching language tab on the right — language-exact across the
+ * pane boundary.
  *
- * Two callers: the embedded practice widget mounts it REVEALED (oracle: `mount_solutions`); the
- * problem-page editorial mounts it behind a reveal gate (oracle: `mount_gated_solutions`). The
- * component itself is identical either way — the gate is the editorial's, not the viewer's.
+ * Two callers: the embedded practice widget mounts it REVEALED; the problem-page editorial
+ * mounts it behind a reveal gate. The component itself is identical either way — the gate is the
+ * editorial's, not the viewer's.
  */
 import { useEffect, useRef, useState } from "preact/hooks";
 
@@ -21,7 +21,7 @@ import { LOAD_CODE, RELAYOUT } from "../workbench/contracts";
 import type { LoadCode } from "../workbench/contracts";
 import * as log from "../../lib/log";
 
-/** The oracle's editor height rule (client/src/islands/editor.rs). */
+/** The editor height rule: clamp to a line count, with a floor and a ceiling. */
 function defaultHeightPx(source: string): number {
   const lines = source.split("\n").length;
   return Math.min(Math.max(lines * 20 + 28, 64), 520);
@@ -76,7 +76,7 @@ export function SolutionViewer({ variants, workbenchRoot }: SolutionViewerProps)
   }, []);
 
   // A viewer inside a collapsed editorial section (or a hidden tab) mounts 0×0 and renders no
-  // lines; the reveal broadcasts RELAYOUT and re-measuring here makes the code appear (step 41).
+  // lines; the reveal broadcasts RELAYOUT and re-measuring here makes the code appear.
   useEffect(() => {
     const onRelayout = () => mounted.current?.relayout();
     window.addEventListener(RELAYOUT, onRelayout);

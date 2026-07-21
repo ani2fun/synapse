@@ -1,19 +1,16 @@
-// Pipeline spec for the markdown reader. Pure node — no DOM, no Scala.js.
-// Ports Cortex's render.test.ts fixtures. Asserts the current scope: the GFM
-// core renders as safe HTML, fenced code is shiki-highlighted, and a run-fence
-// group (one or more adjacent ```lang run fences, + an optional ```testcases
-// JSON fence) becomes ONE `workbench` placeholder the client mounts an editor
-// into (steps 11 · 24). A ```mermaid fence becomes a `.mermaid-block` diagram
-// placeholder the client renders as SVG (step 24). The remaining reserved
-// fences (d2 / viz widget / orphan testcases) still render as PLAIN
-// highlighted code — their discovery hooks are later Phase-4 work (ADR-S015).
+// Pipeline spec for the markdown reader. Pure node — no DOM. Asserts the current scope: the GFM
+// core renders as safe HTML, fenced code is shiki-highlighted, and a run-fence group (one or
+// more adjacent ```lang run fences, + an optional ```testcases JSON fence) becomes ONE
+// `workbench` placeholder the client mounts an editor into. A ```mermaid fence becomes a
+// `.mermaid-block` diagram placeholder the client renders as SVG. ```d2 and ```viz widget
+// fences become their own source-carrying placeholders too (ADR-S015).
 import { describe, expect, it, vi } from "vitest";
 
 import { renderLesson } from "./render";
 
-// d2 no longer renders at parse time (prose-first refactor 2026-07-17): the pipeline emits a
-// SOURCE-carrying placeholder and the client renders it at mount. This mock proves the pipeline
-// never touches the d2 WASM — `compileCalls` must stay 0 on every render, including d2 pages.
+// d2 does not render at parse time (prose-first design): the pipeline emits a SOURCE-carrying
+// placeholder and the client renders it at mount. This mock proves the pipeline never touches
+// the d2 WASM — `compileCalls` must stay 0 on every render, including d2 pages.
 const d2Spy = vi.hoisted(() => ({ compileCalls: 0 }));
 vi.mock("@terrastruct/d2", () => ({
   D2: class {
@@ -110,8 +107,8 @@ describe("fenced code (shiki highlighting)", () => {
 
 // Every display-language fence is wrapped in ONE `.fence-group` card the client mounts a
 // header bar into — language TABS when adjacent fences offer the same idea in another
-// language, a lone ▶ pill otherwise (step 41). Unlike every other grouper, the fences keep
-// their rendered output: the panes are still shiki figures, nested inside the wrapper.
+// language, a lone ▶ pill otherwise. Unlike every other grouper, the fences keep their
+// rendered output: the panes are still shiki figures, nested inside the wrapper.
 function countOf(html: string, needle: RegExp): number {
   return (html.match(needle) ?? []).length;
 }
@@ -119,7 +116,7 @@ function countOf(html: string, needle: RegExp): number {
 const GROUPS = /class="fence-group"/g;
 const FIGURES = /data-rehype-pretty-code-figure/g;
 
-describe("plain fences → tab-group cards (step 41)", () => {
+describe("plain fences → tab-group cards", () => {
   it("groups ADJACENT fences in different languages into ONE card, in order", async () => {
     const html = await renderLesson("```java\nint x = 1;\n```\n\n```python\nx = 1\n```");
     expect(countOf(html, GROUPS)).toBe(1);
@@ -130,7 +127,7 @@ describe("plain fences → tab-group cards (step 41)", () => {
     expect(html).toContain("--shiki-"); // …and both are still highlighted
   });
 
-  it("emits the header-bar host FIRST and empty (mount_to appends — the bar must precede the panes)", async () => {
+  it("emits the header-bar host FIRST and empty (children render in DOM order — the bar must precede the panes)", async () => {
     const html = await renderLesson("```java\nint x = 1;\n```");
     expect(html).toContain('<div class="fence-group" data-langs="java"><div class="fence-group__bar"></div><figure');
   });
@@ -215,7 +212,7 @@ describe("workbench fences → adaptive placeholder (steps 11 · 24)", () => {
     expect(html).not.toContain('data-language="python"');
   });
 
-  it("captures a `viz=<structure>` hint from the fence meta onto the variant (step 30)", async () => {
+  it("captures a `viz=<structure>` hint from the fence meta onto the variant", async () => {
     const html = await renderLesson("```python run viz=array\nprint(sum([1, 2]))\n```");
     expect(workbenchVariants(html)).toEqual([{ lang: "python", source: "print(sum([1, 2]))", viz: "array" }]);
   });
@@ -294,7 +291,7 @@ describe("workbench fences → adaptive placeholder (steps 11 · 24)", () => {
   });
 });
 
-describe("solution fences → spoiler-safe placeholder (step 16)", () => {
+describe("solution fences → spoiler-safe placeholder", () => {
   it("a ```lang solution fence becomes an empty solution-block div with variants + metas", async () => {
     const html = await renderLesson("```python solution time=O(n) space=O(1)\ndef f(): pass\n```");
     expect(html).toContain('class="solution-block"');
@@ -332,7 +329,7 @@ describe("solution fences → spoiler-safe placeholder (step 16)", () => {
   });
 });
 
-describe("practice-problem fences → one grouped placeholder (step 30)", () => {
+describe("practice-problem fences → one grouped placeholder", () => {
   const SPEC = JSON.stringify({
     args: [{ id: "n", label: "n", type: "int" }],
     cases: [{ args: { n: "3" } }],
@@ -369,7 +366,7 @@ describe("practice-problem fences → one grouped placeholder (step 30)", () => 
     expect(editorials).toEqual([{ tag: "", md: "Use two pointers." }]);
   });
 
-  it("adjacent approach-tagged editorial fences become tagged entries, in order (step 30)", async () => {
+  it("adjacent approach-tagged editorial fences become tagged entries, in order", async () => {
     const tagged = [
       page,
       "```editorial approach-brute-force-1",
@@ -404,7 +401,7 @@ describe("other reserved fences stay plain code (hooks reserved, not built)", ()
 
 });
 
-describe("quiz fences → interactive card placeholder (step 16)", () => {
+describe("quiz fences → interactive card placeholder", () => {
   const QUIZ = '{"prompt": "Which graph is NOT two-colourable?", "options": ["A 4-cycle", "A triangle"], "answer": "A triangle"}';
 
   it("a valid ```quiz fence becomes an empty quiz-block div carrying the card JSON", async () => {
@@ -433,7 +430,7 @@ describe("quiz fences → interactive card placeholder (step 16)", () => {
   });
 });
 
-describe("mermaid fences → diagram placeholder (step 24)", () => {
+describe("mermaid fences → diagram placeholder", () => {
   it("a ```mermaid fence becomes an empty mermaid-block div carrying the URI-encoded source", async () => {
     const src = "flowchart LR\n  A --> B";
     const html = await renderLesson("```mermaid\n" + src + "\n```");
@@ -455,7 +452,7 @@ describe("mermaid fences → diagram placeholder (step 24)", () => {
   });
 });
 
-describe("d2 fences → source-carrying placeholders (prose-first; step 25 refactor)", () => {
+describe("d2 fences → source-carrying placeholders (prose-first)", () => {
   it("a lone ```d2 fence becomes a d2-block carrying the RAW SOURCE (no parse-time render)", async () => {
     const html = await renderLesson("```d2\nx -> y\n```");
     expect(html).toContain('class="d2-block"');
@@ -487,7 +484,7 @@ describe("d2 fences → source-carrying placeholders (prose-first; step 25 refac
   });
 });
 
-describe("viz widget fences → declarative-widget placeholder (step 26)", () => {
+describe("viz widget fences → declarative-widget placeholder", () => {
   const PAYLOAD = '{"steps":[{"nodes":[{"id":"0","label":"5","kind":"cell","slot":0}],"annotation":"start"}]}';
 
   it("a ```viz widget=array fence becomes a viz-widget div carrying the structure + payload", async () => {

@@ -1,6 +1,5 @@
 //! Integration: the submission endpoints that need NO database — the store is never touched on
-//! these paths (oracle: `SubmissionRoutesSpec`'s store-free cases). The full 202 → judge → poll
-//! round trip lives in the gated `postgres_it` suite.
+//! these paths. The full 202 → judge → poll round trip lives in the gated `postgres_it` suite.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

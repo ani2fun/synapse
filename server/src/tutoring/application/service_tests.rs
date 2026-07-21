@@ -1,4 +1,4 @@
-//! Oracle: `TutoringServiceSpec` — the prompt folding over a capturing fake client.
+//! Tests for `TutoringService` — the prompt folding over a capturing fake client.
 
 #![allow(clippy::unwrap_used)]
 

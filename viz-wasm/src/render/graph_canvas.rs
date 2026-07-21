@@ -1,4 +1,4 @@
-//! The generic node/edge canvas (oracle: `SvgGraphCanvas`) — the Force family (seeded
+//! The generic node/edge canvas — the Force family (seeded
 //! deterministic layout) and Trie (tidy tree layout) share it: rim-trimmed arrowed edges
 //! with optional labels, circle nodes with cursor rings + stacks.
 

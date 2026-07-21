@@ -1,12 +1,11 @@
 ---
-// The site footer (oracle: client/src/shell/footer.rs). Minimal SSR chrome: the quiet closing
-// line and the build the site is running. The Rust footer bakes `SYNAPSE_VERSION` at compile
-// time; here it reads `import.meta.env.SYNAPSE_VERSION`, defaulting to "dev" — and, like the
-// Rust, only a real commit SHA gets a link (a dead footer link is worse than plain text).
+// The site footer. Minimal SSR chrome: the quiet closing line and the build the site is running.
+// Reads `import.meta.env.SYNAPSE_VERSION`, defaulting to "dev"; only a real commit SHA gets a
+// link (a dead footer link is worse than plain text).
 //
-// `.site-footer*` lives in library.css (single-sourced from client/styles until A14), imported
-// here so the dependency sits with the component that needs it.
-import "../../../client/styles/library.css";
+// `.site-footer*` lives in library.css (in web/styles), imported here so the
+// dependency sits with the component that needs it.
+import "../../styles/library.css";
 
 const REPO = "https://github.com/ani2fun/synapse";
 const version = import.meta.env.SYNAPSE_VERSION ?? "dev";

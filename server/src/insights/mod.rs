@@ -1,11 +1,11 @@
-//! Readership (step 49) — a thin flat context (CLAUDE.md: "thin contexts flat"), deliberately
+//! Readership — a thin flat context (CLAUDE.md: "thin contexts flat"), deliberately
 //! NOT folded into `catalog`.
 //!
 //! Catalog is a pure content-serving context whose single output port is a filesystem; giving
 //! it a Postgres port would make it dual-store for a concern that is not content. And it is not
 //! `submission` either, which is about the reader's code rather than their reading. Measurement
 //! is its own capability, so it gets its own context — the same reasoning that made `blog` a
-//! deliberate twin of `catalog` in step 18 rather than a reuse of it.
+//! deliberate twin of `catalog` rather than a reuse of it.
 //!
 //! There is no `domain/` here on purpose: a view is a timestamp and a path. Nothing in this
 //! context has behaviour worth modelling, so a domain layer would be ceremony.

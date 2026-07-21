@@ -1,7 +1,7 @@
-//! Typed server config (oracle: `AppConfig.scala`). Defaults in code, overridden by `SYNAPSE_*`
+//! Typed server config. Defaults in code, overridden by `SYNAPSE_*`
 //! env vars — deliberately NOT the bare `PORT`, which preview tooling injects and must never
 //! hijack the server (the launch.json `unset PORT` gotcha, qna). Fields join one slice at a time,
-//! exactly as the oracle grew them (ADR-S019).
+//! one per feature area, so config grows alongside the features that need it.
 
 use figment::Figment;
 use figment::providers::{Env, Serialized};
@@ -12,45 +12,40 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     /// TCP port the server binds (dev convention: 8280 — synapse-rs owns its own port pair,
-    /// 5373/8280, so the Scala oracle's dev loop on 5273/8180 runs beside it). Env:
+    /// 5373/8280, kept separate from other local dev services). Env:
     /// `SYNAPSE_PORT`.
     pub port: u16,
-    /// The synapse-content checkout (step 06). Env: `SYNAPSE_ROOT` (the oracle's name — mapped
+    /// The synapse-content checkout. Env: `SYNAPSE_ROOT` (mapped
     /// in `load`) or `SYNAPSE_CONTENT_ROOT`.
     pub content_root: String,
-    /// ADR-S010: dev re-checks the content watermark so live edits show; prod builds the index
+    /// Dev re-checks the content watermark so live edits show; prod builds the index
     /// once per git SHA. Env: `SYNAPSE_AUTO_RELOAD`.
     pub auto_reload: bool,
-    /// The go-judge sandbox `POST /run` base URL (step 10). Env: `EXECUTOR_URL` (the oracle's
+    /// The go-judge sandbox `POST /run` base URL. Env: `EXECUTOR_URL` (the
     /// deploy-manifest name, mapped in `load`) or `SYNAPSE_EXECUTOR_URL`.
     pub executor_url: String,
-    /// The submissions store (step 14). Env: `DATABASE_URL` (the ecosystem convention, honored
+    /// The submissions store. Env: `DATABASE_URL` (the ecosystem convention, honored
     /// verbatim) or `SYNAPSE_DATABASE_URL`. The server FAILS FAST when Postgres is down
-    /// (oracle parity — Keycloak degrades, Postgres does not).
+    /// (Keycloak degrades gracefully instead; Postgres, as the system of record, does not).
     pub database_url: String,
-    /// The OIDC issuer whose tokens we accept (step 16) — the Keycloak realm URL. Env:
-    /// `OIDC_ISSUER` (oracle name) or `SYNAPSE_IDENTITY_ISSUER`. Keycloak-down DEGRADES (503
+    /// The OIDC issuer whose tokens we accept — the Keycloak realm URL. Env:
+    /// `OIDC_ISSUER` or `SYNAPSE_IDENTITY_ISSUER`. Keycloak-down DEGRADES (503
     /// on token paths) — it never blocks boot.
     pub identity_issuer: String,
-    /// The client id expected in `aud`/`azp` (step 16). Env: `OIDC_AUDIENCE`.
+    /// The client id expected in `aud`/`azp`. Env: `OIDC_AUDIENCE`.
     pub identity_audience: String,
-    /// The production SPA dist dir (step 18). Absent (the dev default) → no static routes;
-    /// Vite serves the client. Env: `STATIC_ROOT`.
-    pub static_root: String,
-    /// The Astro SSR sidecar's origin (migration step A01). `Some` switches page serving from
-    /// the built-in `StaticRoutes` to the `astro_proxy` fallback; `None` (the default) keeps
-    /// today's behaviour exactly. Env: `SYNAPSE_ASTRO_URL` (or the bare `ASTRO_URL`).
+    /// The Astro SSR sidecar's origin. `Some` mounts the page proxy as the router fallback;
+    /// `None` (the dev default) serves the API alone. Env: `SYNAPSE_ASTRO_URL` (or the bare
+    /// `ASTRO_URL`).
     pub astro_url: Option<String>,
-    /// The site's public origin, used for `<link rel="canonical">` and the Open Graph URLs the
-    /// server injects (step 50). OG requires ABSOLUTE urls, and the `Host` header is
-    /// caller-controlled — a configured value cannot be poisoned by a request.
+    /// The site's public origin, used for the sitemap's absolute URLs.
     /// Env: `SYNAPSE_SITE_URL` (or the bare `SITE_URL`).
     pub site_url: String,
-    /// The LikeC4 upstream the `/c4` proxy forwards to (step 18). Prod gotcha: the image
+    /// The LikeC4 upstream the `/c4` proxy forwards to. Prod gotcha: the image
     /// serves UNDER `/c4`, so the value ends in `/c4` and the stripped prefix cancels.
     /// Env: `LIKEC4_URL`.
     pub likec4_url: String,
-    /// Anonymous run/submit budget: per-IP fixed window (step 18). Envs:
+    /// Anonymous run/submit budget: per-IP fixed window. Envs:
     /// `RATE_LIMIT_ANON_WINDOW_SECONDS` / `RATE_LIMIT_ANON_LIMIT`.
     pub rate_limit_anon_window_seconds: u64,
     pub rate_limit_anon_limit: u32,
@@ -58,18 +53,18 @@ pub struct AppConfig {
     /// `RATE_LIMIT_AUTH_WINDOW_SECONDS` / `RATE_LIMIT_AUTH_LIMIT`.
     pub rate_limit_auth_window_seconds: u64,
     pub rate_limit_auth_limit: u32,
-    /// The submit gate (step 20): dev/personal instances stay open; prod flips it on. Env:
+    /// The submit gate: dev/personal instances stay open; prod flips it on. Env:
     /// `SUBMISSION_ALLOWLIST_ENFORCED`.
     pub submission_allowlist_enforced: bool,
-    /// The SCOPED Keycloak service-account client for account deletion (step 20 — the audit
-    /// HIGH: never the master-realm admin). Envs: `KEYCLOAK_ADMIN_CLIENT_ID` /
+    /// The SCOPED Keycloak service-account client for account deletion (least privilege:
+    /// never the master-realm admin). Envs: `KEYCLOAK_ADMIN_CLIENT_ID` /
     /// `KEYCLOAK_ADMIN_CLIENT_SECRET` (dev realm file seeds `synapse-admin`/`dev-admin-secret`).
     pub keycloak_admin_client_id: String,
     pub keycloak_admin_client_secret: String,
-    /// Who may manage the allowlist (step 21) — comma-separated usernames, compared lowercase.
+    /// Who may manage the allowlist — comma-separated usernames, compared lowercase.
     /// A raw string (not a list) so the env override stays a plain value. Env: `ADMIN_USERS`.
     pub admin_users: String,
-    /// The local Socratic coach (step 22, ADR-S025) — OFF by default; when off, the chat
+    /// The local Socratic coach — OFF by default; when off, the chat
     /// route is never mounted. Envs: `TUTOR_ENABLED` / `TUTOR_URL` / `TUTOR_MODEL`.
     pub tutor_enabled: bool,
     pub tutor_url: String,
@@ -86,7 +81,6 @@ impl Default for AppConfig {
             database_url: "postgres://synapse:synapse@localhost:5532/synapse_rs".to_owned(),
             identity_issuer: "http://localhost:8181/realms/synapse".to_owned(),
             identity_audience: "synapse-web".to_owned(),
-            static_root: "client/dist".to_owned(),
             astro_url: None,
             site_url: "https://synapse.kakde.eu".to_owned(),
             likec4_url: "http://localhost:8190".to_owned(),
@@ -120,7 +114,7 @@ impl AppConfig {
     /// Defaults merged with `SYNAPSE_`-prefixed env overrides (`SYNAPSE_PORT=9999`).
     /// (Boxed error: `figment::Error` is ~200 bytes and this sits on every caller's happy path.)
     pub fn load() -> Result<Self, Box<figment::Error>> {
-        // `SYNAPSE_ROOT` is the oracle's env name for the content checkout — map it onto the
+        // `SYNAPSE_ROOT` is the env name for the content checkout — map it onto the
         // `content_root` field here (a serde alias would collide with the serialized default).
         let env = Env::prefixed("SYNAPSE_").map(|key| {
             if key == "root" {
@@ -129,7 +123,7 @@ impl AppConfig {
                 key.as_str().to_owned().into()
             }
         });
-        // `EXECUTOR_URL` is the oracle's deploy-manifest name (no prefix) — honored verbatim.
+        // `EXECUTOR_URL` is the deploy-manifest name (no prefix) — honored verbatim.
         let executor = Env::raw().only(&["EXECUTOR_URL"]).map(|_| "executor_url".into());
         let database = Env::raw().only(&["DATABASE_URL"]).map(|_| "database_url".into());
         let oidc = Env::raw().only(&["OIDC_ISSUER", "OIDC_AUDIENCE"]).map(|key| {
@@ -139,9 +133,9 @@ impl AppConfig {
                 "identity_audience".into()
             }
         });
-        // The step-18 platform names (the oracle's deploy-manifest spellings, no prefix).
+        // Deploy-manifest spellings accepted without the SYNAPSE_ prefix.
         let platform = Env::raw()
-            .only(&["STATIC_ROOT", "LIKEC4_URL", "SITE_URL", "ASTRO_URL"])
+            .only(&["LIKEC4_URL", "SITE_URL", "ASTRO_URL"])
             .map(|key| key.as_str().to_lowercase().into());
         let rate = Env::raw()
             .only(&[
@@ -242,7 +236,7 @@ mod tests {
 
     #[test]
     fn synapse_root_maps_onto_content_root() {
-        // The oracle's env name; a naive serde alias collides with the serialized default
+        // A naive serde alias collides with the serialized default
         // ("duplicate field") — this pins the figment key mapping.
         figment::Jail::expect_with(|jail| {
             jail.set_env("SYNAPSE_ROOT", "/srv/content");

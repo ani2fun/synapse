@@ -1,17 +1,9 @@
-// Pure catalog navigation over the WIRE DTOs (oracle: client/src/catalog/logic/mod.rs — the
-// `logic` layer, no DOM, no fetch). A03 ported only the three walk helpers the SSR sidebar
-// needed — `bookPrefix`, `readingOrder`, `bookOf`. A04 pays down the rest of the debt: every
-// function `mod.rs` exports at its own file scope, ported faithfully, with the 18 parity tests
-// `logic_tests.rs` carries (see tree.test.ts, same case names in camelCase).
+// Pure catalog navigation over the WIRE DTOs — no DOM, no fetch.
 //
-// NOT ported here (mod.rs's SUBMODULES, each with its own test file the Rust side already
-// covers, and each feeding a page or island this branch has not reached yet):
-//   - editorial.rs  — the editorial-tab parser; arrives with the problem workbench (A07).
-//   - pane.rs        — the two-pane split-percentage clamp; also A07.
-//   - prefs.rs       — the four-field reading-preferences pack; the FAB it feeds is A05.
-// `progress.rs` is the one submodule THIS step does own — it ported separately, to
-// `web/src/lib/catalog/progress.ts`, because the library landing (A04's other deliverable)
-// needs it directly.
+// Related pure logic lives in its own module rather than here: `editorial.ts` (the editorial-tab
+// parser, feeding the problem workbench), `pane.ts` (the two-pane split-percentage clamp, also
+// the problem workbench), `prefs.ts` (the four-field reading-preferences pack, feeding the FAB),
+// and `progress.ts` (reading progress, feeding the library landing directly).
 
 import type { components } from "../api/schema.gen";
 
@@ -28,14 +20,14 @@ export interface ReadingOrderEntry {
   lesson: Lesson;
 }
 
-/** A book's URL prefix segments: `categoryPath + slug`. (oracle: `book_prefix`) */
+/** A book's URL prefix segments: `categoryPath + slug`. */
 export function bookPrefix(book: Book): string[] {
   return [...book.categoryPath, book.slug];
 }
 
 /**
  * Every lesson of a book with its FULL directory-mirror path, pre-order — the sidebar's and the
- * library card's source of truth. (oracle: `reading_order`)
+ * library card's source of truth.
  */
 export function readingOrder(book: Book): ReadingOrderEntry[] {
   const out: ReadingOrderEntry[] = [];
@@ -54,8 +46,8 @@ export function readingOrder(book: Book): ReadingOrderEntry[] {
 
 /**
  * The chapter a lesson belongs to FOR COUNTING purposes — its path minus the last segment,
- * except when that chapter exists only to hold it. (oracle: `counting_chapter`, private there —
- * kept private here too, `chapterProblems` is the only caller.)
+ * except when that chapter exists only to hold it. Kept private — `chapterProblems` is the
+ * only caller.
  *
  * Most problems are authored as `…/problems/<slug>/<slug>.md`, giving each one a chapter of its
  * own. Scoping on the raw parent would make every problem read "1 / 1" — so when the parent
@@ -75,8 +67,7 @@ function countingChapter(path: string): string | null {
 
 /**
  * The problems of `lessonPath`'s own chapter in reading order, and where that path sits among
- * them. `null` when the path isn't in the book, or isn't itself a problem. (oracle:
- * `chapter_problems`)
+ * them. `null` when the path isn't in the book, or isn't itself a problem.
  */
 export function chapterProblems(book: Book, lessonPath: string): { problems: string[]; at: number } | null {
   const here = countingChapter(lessonPath);
@@ -88,7 +79,7 @@ export function chapterProblems(book: Book, lessonPath: string): { problems: str
   return at === -1 ? null : { problems, at };
 }
 
-/** Where a book's cover card points: its first lesson in reading order. (oracle: `first_lesson_path`) */
+/** Where a book's cover card points: its first lesson in reading order. */
 export function firstLessonPath(book: Book): string | null {
   const order = readingOrder(book);
   return order.length > 0 ? order[0].path : null;
@@ -98,7 +89,6 @@ export function firstLessonPath(book: Book): string | null {
  * The book a lesson path belongs to: the entry whose `categoryPath + slug` prefixes the path.
  * A book matches on its first segment and returns immediately; a category matches and recurses
  * with the rest — so a category-nested book (`programming-languages/python/…`) still resolves.
- * (oracle: `book_of`)
  */
 export function bookOf(index: SynapseIndex, lessonPath: string[]): Book | null {
   const find = (entries: CatalogEntry[], path: string[]): Book | null => {
@@ -113,7 +103,7 @@ export function bookOf(index: SynapseIndex, lessonPath: string[]): Book | null {
   return find(index.entries, lessonPath);
 }
 
-/** The book with a globally-unique slug, DFS through categories. (oracle: `find_book`) */
+/** The book with a globally-unique slug, DFS through categories. */
 export function findBook(index: SynapseIndex, slug: string): Book | null {
   const dfs = (entries: CatalogEntry[]): Book | null => {
     for (const entry of entries) {
@@ -129,12 +119,12 @@ export function findBook(index: SynapseIndex, slug: string): Book | null {
   return dfs(index.entries);
 }
 
-/** Recursive lesson-leaf count — the card's "N lessons" line. (oracle: `lesson_count`) */
+/** Recursive lesson-leaf count — the card's "N lessons" line. */
 export function lessonCount(book: Book): number {
   return readingOrder(book).length;
 }
 
-/** DIRECT chapter children only (the oracle counts top-level chapters on the card). (oracle: `chapter_count`) */
+/** DIRECT chapter children only — the card counts top-level chapters, not nested ones. */
 export function chapterCount(book: Book): number {
   return book.entries.filter((entry) => entry.kind === "chapter").length;
 }
@@ -143,11 +133,10 @@ export function chapterCount(book: Book): number {
 export type C4PathHop = [tag: string, classes: string, dataId: string | null];
 
 /**
- * Resolve a click inside the LikeC4 viewer to an element FQN (oracle: `resolve_c4_node` /
- * `C4NodeResolver`). Walking target-first: a `<button>` BEFORE the node is one of LikeC4's own
- * controls (relationships/details) — let the viewer keep it. A node must carry the EXACT
- * `react-flow__node` class token (edges carry random-hash ids but not the token) and a
- * non-empty `data-id` — the dotted element FQN.
+ * Resolve a click inside the LikeC4 viewer to an element FQN. Walking target-first: a `<button>`
+ * BEFORE the node is one of LikeC4's own controls (relationships/details) — let the viewer keep
+ * it. A node must carry the EXACT `react-flow__node` class token (edges carry random-hash ids
+ * but not the token) and a non-empty `data-id` — the dotted element FQN.
  */
 export function resolveC4Node(path: C4PathHop[]): string | null {
   for (const [tag, classes, dataId] of path) {
@@ -159,8 +148,8 @@ export function resolveC4Node(path: C4PathHop[]): string | null {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PROBLEM CONTENT SPLIT (oracle: `problem_content_split` / `ProblemContent`) — the first
-// `<details` at line start OUTSIDE a code fence divides description from editorial.
+// PROBLEM CONTENT SPLIT — the first `<details` at line start OUTSIDE a code fence divides
+// description from editorial.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function problemContentSplit(raw: string): [description: string, editorial: string] {
@@ -182,9 +171,8 @@ export function problemContentSplit(raw: string): [description: string, editoria
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SIDEBAR FILTER (oracle: `prune_entries` / `SidebarFilter`) — case-insensitive substring on
-// titles. A matching chapter keeps ALL its lessons; otherwise it survives only through
-// surviving descendants.
+// SIDEBAR FILTER — case-insensitive substring on titles. A matching chapter keeps ALL its
+// lessons; otherwise it survives only through surviving descendants.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function pruneEntries(entries: BookEntry[], query: string): BookEntry[] {
@@ -213,24 +201,3 @@ export function pruneEntries(entries: BookEntry[], query: string): BookEntry[] {
   return walk(entries);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MINIMAP SPREAD (oracle: `spread_fractions` / `ReaderMiniMap.spread`) — de-overlap heading
-// fractions: min gap 0.05 (capped 1/(n+1)); forward pass pushes apart, backward clamps.
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function spreadFractions(fractions: number[]): number[] {
-  const n = fractions.length;
-  if (n === 0) return [];
-  const gap = Math.min(0.05, 1 / (n + 1));
-  const out = [...fractions].sort((a, b) => a - b);
-  for (let i = 1; i < n; i += 1) {
-    if (out[i] < out[i - 1] + gap) out[i] = out[i - 1] + gap;
-  }
-  for (let i = n - 1; i >= 0; i -= 1) {
-    const above = n - 1 - i;
-    const ceiling = 1 - gap - above * gap;
-    if (out[i] > ceiling) out[i] = ceiling;
-    if (i > 0 && out[i] < out[i - 1] + gap) out[i - 1] = out[i] - gap;
-  }
-  return out.map((value) => Math.min(Math.max(value, gap), 1 - gap));
-}

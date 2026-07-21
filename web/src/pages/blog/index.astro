@@ -1,19 +1,15 @@
 ---
-// The blog listing (A04; oracle: client/src/blog/view/mod.rs::BlogListPage, byte-faithful
-// classes so client/styles/blog.css applies unchanged). `blogList()` already comes back newest
-// first — the server sorts it (step 18); this page does no re-ordering of its own.
+// The blog listing, classed so blog.css applies unchanged. `blogList()` already
+// comes back newest first — the server sorts it; this page does no re-ordering of its own.
 //
-// HEAD IS NEW, NOT A PORT: the old client never gave the blog a real per-page head at all — it
-// never called `seo::set_title` for anything but a lesson, so every blog page showed whatever
-// generic title the SPA's static `index.html` carried. Astro's `output: "server"` re-renders
-// the whole head as props on every request regardless, so this is the first time the blog gets
-// one; there is no oracle string to match byte-for-byte here, unlike the lesson page's title
-// (A03) which mirrors `platform::static_routes::title_for` exactly.
+// The head (title/description) is server-rendered fresh on every request via Base.astro's
+// props — Astro's `output: "server"` re-renders the whole head on every navigation, unlike the
+// lesson page's title, which mirrors `platform::static_routes::title_for` exactly.
 import Base from "../../layouts/Base.astro";
 import { blogList } from "../../lib/api/client";
 import type { BlogSummary } from "../../lib/api/client";
 
-import "../../../../client/styles/blog.css";
+import "../../../styles/blog.css";
 
 let posts: BlogSummary[] = [];
 let loadError: string | null = null;

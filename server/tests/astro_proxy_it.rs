@@ -1,8 +1,8 @@
-//! Integration: the Astro front-door proxy (migration step A01) — a real axum stub plays the
-//! SSR sidecar, and the FULL `app()` router proves the fallback wiring: registered routes always
-//! win, page requests forward with the documented header contract, and an absent sidecar
-//! degrades to 502 rather than an exception. The `None` case pins that yesterday's behaviour is
-//! byte-identical — the whole rollback story is "unset one env var", so that claim gets a test.
+//! Integration: the Astro front-door proxy — a real axum stub plays the SSR sidecar, and the
+//! FULL `app()` router proves the fallback wiring: registered routes always win, page requests
+//! forward with the documented header contract, and an absent sidecar degrades to 502 rather
+//! than an exception. The `None` case pins that the API-only fallback is byte-identical, so
+//! unsetting the sidecar's env var is a complete rollback — that claim gets a test.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -131,7 +131,8 @@ async fn registered_routes_always_beat_the_fallback() {
 
 #[tokio::test]
 async fn robots_and_sitemap_serve_in_proxy_mode() {
-    // The step-A01 extraction: crawler plumbing must not change identity with the front end.
+    // Crawler plumbing (robots.txt/sitemap.xml) is served by axum directly and must not change
+    // identity depending on which front end is proxied behind it.
     let tmp = tempfile::tempdir().unwrap();
     let base = stub_sidecar().await;
     let app = app_with_astro(tmp.path(), Some(base));
@@ -178,11 +179,11 @@ async fn an_unreachable_sidecar_is_a_502_never_a_crash() {
 }
 
 #[tokio::test]
-async fn unset_is_byte_identical_yesterday() {
-    // The rollback claim. With no astro_url and no dist, `/` is the API-only plain-text root —
-    // exactly what `common::deps` served before this step existed.
+async fn unset_serves_the_api_alone_with_a_pointer() {
+    // No sidecar configured (dev without a web tier): `/` answers plain text naming the fix
+    // instead of a bare 404 — the API stays fully usable.
     let tmp = tempfile::tempdir().unwrap();
     let (status, _, body) = get_response(app_with_astro(tmp.path(), None), "/").await;
     assert_eq!(status, StatusCode::OK);
-    assert!(body.contains("synapse-rs server"), "{body}");
+    assert!(body.contains("SYNAPSE_ASTRO_URL"), "{body}");
 }

@@ -1,18 +1,17 @@
 /**
- * The problem page's redesigned Editorial pane (port of client/src/catalog/view/editorial.rs, the
- * Claude Design import of step 57): an approach STEPPER for multi-approach editorials (numbered
+ * The problem page's Editorial pane: an approach STEPPER for multi-approach editorials (numbered
  * circles over a connector rail, per-approach complexities), a sticky JUMP bar with a scroll-spy
- * over one continuously scrolling document of numbered sections, the solution gated behind a reveal
- * card (collapses again on approach switch — supersedes step 37's always-revealed rule, by design),
- * and the Complexity section rendered as Time/Space cards when its prose parses.
+ * over one continuously scrolling document of numbered sections, the solution gated behind a
+ * reveal card (collapses again on approach switch, by design), and the Complexity section
+ * rendered as Time/Space cards when its prose parses.
  *
  * The pure half lives in `lib/catalog/editorial.ts` — this component only spends the parsed
  * `EditorialDoc`: fragments render through `renderLesson` per section (via `MarkdownPane`) and
  * hydrate GATED solutions. The active approach persists under its OWN key (`PROBLEM_APPROACH_KEY`).
  *
- * SCROLL THE PANE, NOT THE WINDOW (step 57's lesson): `scrollIntoView` walks scrollable ancestors
- * and crept the page 64px per jump; below the 1024px breakpoint the pane stops scrolling and the
- * PAGE carries the content, so the same math targets the window there.
+ * SCROLL THE PANE, NOT THE WINDOW: `scrollIntoView` walks scrollable ancestors and crept the page
+ * 64px per jump; below the 1024px breakpoint the pane stops scrolling and the PAGE carries the
+ * content, so the same math targets the window there.
  */
 import { useMemo, useRef, useState } from "preact/hooks";
 

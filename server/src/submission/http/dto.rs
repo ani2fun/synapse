@@ -1,5 +1,5 @@
-//! Domain → wire flatten (oracle: `SubmissionDtos`). Only the FIRST failing case crosses;
-//! verdict strings are the oracle's exact vocabulary.
+//! Domain → wire flatten. Only the FIRST failing case crosses; verdict strings are a fixed
+//! vocabulary the workbench matches on.
 
 use axum::Json;
 use axum::http::StatusCode;
@@ -79,8 +79,8 @@ pub fn to_dto(submission: &Submission) -> SubmissionDto {
 }
 
 /// `NotAProblem`/`UnknownSubmission`→404 · `NotYours`→403 · `SubmitRequiresSignIn`→401 ·
-/// `NotAllowlisted`→403 · `InvalidSuite`/`StoreFailed`→500. The allowlist copy is the
-/// oracle's exact wording — the workbench renders `error — detail` verbatim.
+/// `NotAllowlisted`→403 · `InvalidSuite`/`StoreFailed`→500. The allowlist copy is fixed
+/// wording — the workbench renders `error — detail` verbatim.
 pub fn to_error(error: &SubmissionError) -> (StatusCode, Json<ApiError>) {
     // The common shape: a headline, with the variant's own Display as the detail.
     let plain = |status: StatusCode, headline: &str| {
@@ -109,8 +109,8 @@ pub fn to_error(error: &SubmissionError) -> (StatusCode, Json<ApiError>) {
             plain(StatusCode::INTERNAL_SERVER_ERROR, "Submission store failed")
         }
 
-        // The two refusals answer "why not?" rather than "what broke?", so they carry copy the
-        // workbench renders verbatim — the oracle's exact wording — instead of the Display string.
+        // The two refusals answer "why not?" rather than "what broke?", so they carry fixed copy
+        // the workbench renders verbatim instead of the Display string.
         SubmissionError::SubmitRequiresSignIn => (
             StatusCode::UNAUTHORIZED,
             ApiError {

@@ -1,7 +1,7 @@
-//! The structure→renderer decision (oracle: `RenderFamily.scala`, ADR-S026/S028) — the PURE
+//! The structure→renderer decision — the PURE
 //! half of dispatch, shared so the modal and the inline widgets agree. The match is
 //! exhaustive: adding a structure FORCES a family here (open/closed). Two kinds: the
-//! GEOMETRIC families lay out nodes on an SVG canvas; the BESPOKE ones (step 33's flow-layout
+//! GEOMETRIC families lay out nodes on an SVG canvas; the BESPOKE ones (flow-layout
 //! HTML chrome) are re-derived widgets or composites.
 
 use crate::engine::vocabulary::VizStructure;

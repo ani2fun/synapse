@@ -1,15 +1,16 @@
 /**
- * The embedded practice-problem widget (port of client/src/execution/view/practice.rs's
- * `PracticeProblem`): a two-pane `.pwb--embedded` card inline at the reading-column width —
- * Description/Editorial tabs on the left (the editorial splitting into Brute Force / Optimal
- * approach tabs when authored), the reused workbench (Run only — no Submit) on the right, a
- * draggable 9px splitter (28–64%), and an Enlarge toggle that CSS-promotes the SAME live panes to a
- * near-fullscreen modal (Monaco and all state survive). Copy-to-editor in a revealed solution lands
- * in the workbench tab MATCHING the solution's language.
+ * The embedded practice-problem widget: a two-pane `.pwb--embedded` card inline at the
+ * reading-column width — Description/Editorial tabs on the left (the editorial splitting into
+ * Brute Force / Optimal approach tabs when authored), the reused workbench (Run only — no
+ * Submit) on the right, a draggable 9px splitter (28–64%), and an Enlarge toggle that
+ * CSS-promotes the SAME live panes to a near-fullscreen modal (Monaco and all state survive).
+ * Copy-to-editor in a revealed solution lands in the workbench tab MATCHING the solution's
+ * language.
  *
- * The Workbench is mounted IMPERATIVELY into the right pane (as problem.tsx does): its `root` is the
- * event surface LOAD_CODE/USE_CASE target, so the editorial's SolutionViewers reach it through a
- * getter (`workbenchRoot`) rather than a shared signal — A06's contract.
+ * The Workbench is mounted IMPERATIVELY into the right pane (as problem.tsx does): its `root` is
+ * the event surface LOAD_CODE/USE_CASE target, so the editorial's SolutionViewers reach it
+ * through a getter (`workbenchRoot`) rather than a shared signal — the `workbench/contracts.ts`
+ * contract.
  */
 import { render, h } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";

@@ -1,18 +1,17 @@
 // ──────────────────────────────────────────────────────────────────
-// D2 ISLAND (client-mount render; prose-first refactor 2026-07-17)
+// D2 ISLAND — client-mount render, prose-first
 // ```d2 fence source → SVG string, via @terrastruct/d2
 // ──────────────────────────────────────────────────────────────────
 // d2, like mermaid, is a self-contained declarative-diagram renderer
-// (ADR-S026, orthogonal to the Laminar viz engine). It USED to render at
-// markdown-parse time inside render.ts, which blocked all prose behind N
-// sequential WASM layouts. It now renders on the CLIENT at mount, one
-// diagram per spawn_local (concurrent) and only when a diagram nears the
-// viewport — so the multi-MB d2 WASM loads lazily and prose paints first.
+// (ADR-S026, orthogonal to the viz engine). It renders on the CLIENT at
+// mount, each diagram in its own async task (concurrent) — so a lesson's
+// prose never waits behind a sequential parse-time layout pass, and the
+// multi-MB d2 WASM loads lazily.
 
 // A FRESH D2 instance per render. A single module-level instance CANNOT serve concurrent
 // compiles — several diagrams rendering at once (each its own task) deadlock it (verified:
-// 3 concurrent calls hang). The multi-MB WASM is dynamic-imported once (module-cached); only
-// the cheap `new D2()` is per-call, exactly as the old parse-time path did it.
+// 3 concurrent calls hang). The multi-MB WASM import itself is module-cached (fetched once);
+// only the cheap `new D2()` object is constructed per call.
 let salt = 0;
 
 /**

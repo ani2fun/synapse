@@ -1,11 +1,10 @@
-// Reading-preferences tokens (oracle: client/src/catalog/logic/prefs.rs — the pure half). Four
-// independent choices, each a small allow-list; persisted as one `|`-joined string. Unknown
-// tokens degrade per-field to the default (a bad stored value must never break the reader).
+// Reading-preferences tokens — the pure half. Four independent choices, each a small allow-list;
+// persisted as one `|`-joined string. Unknown tokens degrade per-field to the default (a bad
+// stored value must never break the reader).
 //
-// This module is pure — no `localStorage`, no DOM. `apply_to_html` (the state-layer half in the
-// Rust oracle, `catalog/state/mod.rs`) is folded in here as `applyToHtml`, since there is no
-// separate state-layer file on this side and the reflect-onto-`<html>` step is cheap enough not
-// to need one; the FAB *editing* UI itself is deferred (see the A05 chapter).
+// This module is otherwise pure — no `localStorage`, no DOM — except for `applyToHtml`, folded
+// in here since the reflect-onto-`<html>` step is cheap enough not to need a separate file. The
+// FAB *editing* UI that lets a reader change these lives in `islands/chrome.ts`.
 
 export interface Prefs {
   size: string;
@@ -67,8 +66,7 @@ export function serialize(prefs: Prefs): string {
 
 /** Reflect the four choices onto `<html data-reader-*>` — the stylesheet reads these attributes
  *  (`reader.css`'s `html[data-reader-size="…"] .synapse-prose`, etc). Set once on load, before
- *  the FAB itself exists — a saved preference must apply even though the editing UI is
- *  deferred (see the A05 chapter). */
+ *  the FAB itself mounts — a saved preference must apply even before the editing UI is ready. */
 export function applyToHtml(prefs: Prefs, root: HTMLElement = document.documentElement): void {
   root.setAttribute("data-reader-size", prefs.size);
   root.setAttribute("data-reader-leading", prefs.leading);

@@ -1,5 +1,4 @@
-// Parity tests for blocks.ts (oracle: client/src/execution/logic/blocks.rs — all 9 cases, same
-// fixtures, same assertions, case names ported to camelCase).
+// Nine cases covering blocks.ts's variant decode, display-name mapping, and reproducibility check.
 
 import { describe, expect, it } from "vitest";
 import type { TestSpec } from "./judge";

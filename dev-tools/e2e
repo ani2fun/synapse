@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
-# Run the e2e smoke suite against a PRODUCTION-SHAPED serve. Since migration step A12 that
-# means the ASTRO topology: axum (API + headers + compression) fronting the Node sidecar via
-# SYNAPSE_ASTRO_URL — the same two processes the production image runs. The old Leptos serve
-# remains reachable as `E2E_LEGACY=1 dev-tools/e2e` until A14 deletes the client (that is the
-# rollback path, and a rollback path nobody can rehearse is not one).
+# Run the e2e smoke suite against a PRODUCTION-SHAPED serve: axum (API + headers +
+# compression) fronting the Node sidecar via SYNAPSE_ASTRO_URL — the same two processes the
+# production image runs. The per-page budget gate runs after the specs, on the same stack.
 #
-# Needs the oracle's backing services (synapse-rs has no compose of its own):
+# Needs the content platform's backing services (this repo has no compose of its own):
 #   cd ~/Development/homelab/synapse && docker compose up -d db
-# and the DEDICATED database, never the oracle's Liquibase-managed `synapse`.
+# and the DEDICATED `synapse_rs` database, never the platform's own `synapse`.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -24,33 +22,21 @@ source "$(dirname "$0")/lib-ports.sh"
 reclaim "$SYNAPSE_PORT" "synapse-server"
 
 SIDECAR_PID=""
-if [[ "${E2E_LEGACY:-}" == "1" ]]; then
-  # ── the OLD client serve (rollback rehearsal) ──
-  export STATIC_ROOT="${STATIC_ROOT:-client/dist}"
-  unset SYNAPSE_ASTRO_URL
-  if [[ ! -d "$STATIC_ROOT" ]]; then
-    echo "→ no dist at $STATIC_ROOT — building the old client"
-    (cd client && npm run build)
-  fi
-  echo "→ LEGACY mode: serving the old client from $STATIC_ROOT"
-else
-  # ── the Astro serve (the default since A12) ──
-  # The viz wasm bundle is gitignored build output the web build imports — build it first
-  # when absent (dev profile: this proves the graph, the budget gate sizes the release one).
-  if [[ ! -f web/src/lib/viz-wasm/pkg/viz_wasm.js ]]; then
-    ./dev-tools/build-viz-wasm.sh dev
-  fi
-  if [[ ! -f web/dist/server/entry.mjs ]]; then
-    echo "→ no web/dist — building the Astro app"
-    (cd web && npm run build)
-  fi
-  reclaim "$SIDECAR_PORT" "astro-sidecar"
-  echo "→ starting the sidecar on :$SIDECAR_PORT"
-  # Same pipe hygiene as the server below: log to a file, one PID to clean up.
-  HOST=127.0.0.1 PORT="$SIDECAR_PORT" node web/dist/server/entry.mjs >/tmp/e2e-sidecar.log 2>&1 &
-  SIDECAR_PID=$!
-  export SYNAPSE_ASTRO_URL="http://127.0.0.1:$SIDECAR_PORT"
+# The viz wasm bundle is gitignored build output the web build imports — build it first
+# when absent (dev profile: this proves the graph, the budget gate sizes the release one).
+if [[ ! -f web/src/lib/viz-wasm/pkg/viz_wasm.js ]]; then
+  ./dev-tools/build-viz-wasm.sh dev
 fi
+if [[ ! -f web/dist/server/entry.mjs ]]; then
+  echo "→ no web/dist — building the Astro app"
+  (cd web && npm run build)
+fi
+reclaim "$SIDECAR_PORT" "astro-sidecar"
+echo "→ starting the sidecar on :$SIDECAR_PORT"
+# Same pipe hygiene as the server below: log to a file, one PID to clean up.
+HOST=127.0.0.1 PORT="$SIDECAR_PORT" node web/dist/server/entry.mjs >/tmp/e2e-sidecar.log 2>&1 &
+SIDECAR_PID=$!
+export SYNAPSE_ASTRO_URL="http://127.0.0.1:$SIDECAR_PORT"
 
 # Compile FIRST, in the foreground. `cargo run` compiles in the BACKGROUND while the health
 # poll counts down — locally the binary is warm so it starts instantly, but on a cold CI cache
@@ -114,7 +100,5 @@ if [[ $PW_STATUS -ne 0 ]]; then
   exit $PW_STATUS
 fi
 
-# ── the per-page budget (A12) — while the stack is still up ──
-if [[ -z "${E2E_LEGACY:-}" ]]; then
-  dev-tools/check-page-budget.sh "http://localhost:$SYNAPSE_PORT"
-fi
+# ── the per-page budget — while the stack is still up ──
+dev-tools/check-page-budget.sh "http://localhost:$SYNAPSE_PORT"

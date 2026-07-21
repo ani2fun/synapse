@@ -1,18 +1,15 @@
 #!/usr/bin/env bash
-# ── PER-PAGE EAGER-JS BUDGET (migration step A12) ─────────────────────────────
-# The old gate summed one SPA's critical path (700 KiB gz — ADR-S033) because one bundle served
-# every page. Astro inverts that: each page ships only its own eager assets, so the honest
-# measure is PER PAGE — fetch the page, collect what its HTML makes the browser download before
-# the reader sees content (module scripts + stylesheets), gzip-sum them. Lazy islands (Monaco,
-# keycloak-js, mermaid, the viz wasm) are dynamic imports and never appear in the HTML — they
-# stay out of the sum BY CONSTRUCTION, not by glob.
+# ── PER-PAGE EAGER-JS BUDGET ───────────────────────────────────────────────────
+# Astro ships each page only its own eager assets — no single bundle serves every page — so the
+# honest measure is PER PAGE — fetch the page, collect what its HTML makes the browser download
+# before the reader sees content (module scripts + stylesheets), gzip-sum them. Lazy islands
+# (Monaco, keycloak-js, mermaid, the viz wasm) are dynamic imports and never appear in the HTML —
+# they stay out of the sum BY CONSTRUCTION, not by glob.
 #
 # Four page kinds, one budget each: the landing, a prose lesson, a problem page, the blog list.
-# Measured at A12 (fixture content): landing 42 · lesson 47 · problem 48 · blog 11 KiB gz.
-# Budget 250 KiB: generous headroom over the heaviest page (~5×) while still a small fraction
-# of the old client's 700 — the number the whole migration exists to beat. If a page ever
-# approaches this budget, something structural regressed (an island went eager); tighten, don't
-# raise.
+# Measured against fixture content: landing 42 · lesson 47 · problem 48 · blog 11 KiB gz.
+# Budget 250 KiB: generous headroom over the heaviest page (~5×). If a page ever approaches this
+# budget, something structural regressed (an island went eager); tighten, don't raise.
 #
 # The viz wasm cap rides along when the pkg is a RELEASE build (VIZ_WASM_RELEASE=1 — CI's e2e
 # builds release; a local dev-profile pkg would fail the cap for being unoptimized, which is
@@ -41,9 +38,9 @@ measure_page() {
   html=$(curl -sf "$BASE$path") || { echo "  ✗ $label ($path) did not serve"; return 1; }
   total=0
   # Everything the HTML loads eagerly: script src + rel=stylesheet href. Astro emits
-  # root-relative /_astro/... URLs; the old client's /assets/... match too, so this gate would
-  # survive a rollback serve. Inline hoisted scripts are part of the HTML itself — counted via
-  # the document's own gz size below.
+  # root-relative /_astro/... URLs (the pattern also matches a conventional /assets/... path).
+  # Inline hoisted scripts are part of the HTML itself — counted via the document's own gz size
+  # below.
   local assets
   assets=$(printf '%s' "$html" |
     grep -oE '(src|href)="/(_astro|assets)/[^"]+\.(js|css)"' |

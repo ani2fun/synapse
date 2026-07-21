@@ -1,7 +1,6 @@
 //! Integration: the blog endpoints through the REAL stack — router, cache middleware,
-//! filesystem adapter, temp-dir posts (oracle: `BlogRoutesSpec`). Pins the wire shape:
-//! `publishedAt` as an ISO string, prev/next slugs, the `ApiError` envelope, and the
-//! content-cache stamp on `/api/blog`.
+//! filesystem adapter, temp-dir posts. Pins the wire shape: `publishedAt` as an ISO string,
+//! prev/next slugs, the `ApiError` envelope, and the content-cache stamp on `/api/blog`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

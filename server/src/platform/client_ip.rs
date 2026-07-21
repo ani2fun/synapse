@@ -1,4 +1,4 @@
-//! The caller's IP for anonymous rate-limit keys (oracle: `ClientIp`): the first
+//! The caller's IP for anonymous rate-limit keys: the first
 //! `X-Forwarded-For` hop (the edge appends; good enough for budgets, not for auth), then
 //! `X-Real-IP`, then the socket peer, then a shared `"unknown"` bucket. `Peer` is an
 //! infallible extractor over the connect-info extension — present when `main` serves with

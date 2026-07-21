@@ -1,13 +1,11 @@
-//! `/robots.txt` + `/sitemap.xml`, extracted from `static_routes.rs` in step A01 of the Astro
-//! migration.
+//! `/robots.txt` + `/sitemap.xml`.
 //!
-//! Why they moved: these two are generated from the in-memory catalog index, and the catalog
-//! lives HERE, in the axum process. During the migration the page-serving front end is
-//! switchable (`StaticRoutes` today, the Astro sidecar behind `astro_proxy` when
-//! `SYNAPSE_ASTRO_URL` is set) — but crawler plumbing must not change identity with the
-//! front end, so it mounts UNCONDITIONALLY in `app()`, before either. Post-migration they stay
-//! axum-side for the same reason: asking the sidecar to render a sitemap would mean shipping
-//! the catalog across a process boundary to format 237 `<loc>` lines.
+//! Why they live here, in the axum process, rather than behind the Astro sidecar: both are
+//! generated from the in-memory catalog index, and the catalog lives HERE. Asking the sidecar
+//! to render a sitemap would mean shipping the catalog across a process boundary to format
+//! 237 `<loc>` lines. Crawler plumbing mounts UNCONDITIONALLY in `app()`, before the page proxy
+//! (`astro_proxy`, mounted when `SYNAPSE_ASTRO_URL` is set), so it never changes identity
+//! depending on whether a page front end is configured.
 
 use std::fmt::Write as _;
 use std::sync::Arc;
@@ -78,8 +76,8 @@ async fn sitemap(State(state): State<SeoRoutesState>) -> Response {
     respond(body, "application/xml; charset=utf-8")
 }
 
-/// Owned here rather than borrowed from `static_routes` — that module's page-serving half is
-/// deleted at the end of the migration, and the sitemap must not lose its escape with it.
+/// Owned here rather than shared from elsewhere, so the sitemap's XML escaping has no
+/// dependency on any other module's lifetime.
 fn escape_xml(value: &str) -> String {
     value
         .replace('&', "&amp;")

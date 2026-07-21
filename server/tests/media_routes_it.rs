@@ -1,6 +1,6 @@
-//! Integration: `/media` (oracle: `MediaRoutesSpec`) — the content checkout's `_media/`
-//! tree over the real router: content types, the shared cache hour on BOTH 200 and 206,
-//! single-range serving, traversal guard, and origin compression staying off small bodies.
+//! Integration: `/media` — the content checkout's `_media/` tree over the real router:
+//! content types, the shared cache hour on BOTH 200 and 206, single-range serving, traversal
+//! guard, and origin compression staying off small bodies.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

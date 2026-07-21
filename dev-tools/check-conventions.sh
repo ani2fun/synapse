@@ -7,15 +7,14 @@
 #      axum / tower / hyper / tokio / sqlx / reqwest / utoipa — the domain is
 #      pure Rust (std + serde at most), and such a `use` means a port was
 #      skipped.
-#   2. CLIENT LOGIC PURITY: files under any client `logic/` layer use NO
-#      leptos / web-sys / wasm-bindgen / js-sys / gloo — pure logic stays
-#      native-testable (the three-layer rule).
-#   3. FILE-SIZE CAPS: server & shared ≤ 500 lines/file, client (+ TS islands)
-#      ≤ 800 — source AND tests. A file over its cap is doing too much or
-#      explaining too much; split it along the hexagonal / three-layer seams.
-#      `*.gen.ts` is exempt (step A02): a generated schema is machine output,
-#      not prose to split — the cap's reasoning does not apply to it, the same
-#      way dist/pkg/node_modules are not walked at all.
+#   2. VIZ ENGINE PURITY: files under viz-wasm/src/engine/ use NO
+#      leptos / web-sys / wasm-bindgen / js-sys / gloo — the engine stays
+#      pure and native-testable.
+#   3. FILE-SIZE CAPS: server & shared ≤ 500 lines/file, viz-wasm & web ≤ 800 —
+#      source AND tests. A file over its cap is doing too much or explaining
+#      too much; split it along the layer seams. `*.gen.ts` is exempt: a
+#      generated schema is machine output, not prose to split — the same way
+#      dist/pkg/node_modules are not walked at all.
 #
 # Run from the repo root (CI runs it before the toolchain — it needs nothing
 # but grep/find/wc). Exit 1 with every violation listed, so one run shows the
@@ -42,18 +41,15 @@ if [[ -d server/src ]]; then
   fi
 fi
 
-# ── 2 · Client logic purity ──────────────────────────────────────────────────
-# viz/engine/ joined in step 59: the whole engine is pure by design (it moved out of
-# synapse-shared for exactly that property) but only logic/ was ever gated — shapes.rs and
-# decoder.rs sat at viz/ root, clean yet unprotected. They moved under engine/ and the gate
-# now covers the folder, so the discipline is structural rather than observed. A10 moved the
-# viz slice to its own crate — the engine arm travelled with it (viz-wasm/src/engine below).
-echo "→ client logic purity (no leptos/web-sys/wasm-bindgen/js-sys/gloo under logic/ + viz-wasm engine/)"
-if [[ -d client/src ]]; then
-  impure=$(find client/src viz-wasm/src/engine \( -path "*/logic/*" -o -path "*viz-wasm/src/engine/*" \) -name "*.rs" -print0 2>/dev/null |
+# ── 2 · Viz engine purity ────────────────────────────────────────────────────
+# The whole engine is pure by design (contract, vocabulary, geometry, adapt) and the purity
+# is structural: a web-layer `use` under engine/ fails the gate, so it cannot erode quietly.
+echo "→ viz engine purity (no leptos/web-sys/wasm-bindgen/js-sys/gloo under viz-wasm/src/engine/)"
+if [[ -d viz-wasm/src/engine ]]; then
+  impure=$(find viz-wasm/src/engine -name "*.rs" -print0 2>/dev/null |
     xargs -0 grep -l -E '^\s*use (leptos|web_sys|wasm_bindgen|js_sys|gloo)' 2>/dev/null || true)
   if [[ -n "$impure" ]]; then
-    echo "✗ logic files using the web layer:"
+    echo "✗ engine files using the web layer:"
     echo "$impure" | while read -r f; do
       grep -n -E '^\s*use (leptos|web_sys|wasm_bindgen|js_sys|gloo)' "$f" | sed "s|^|    $f:|"
     done
@@ -61,8 +57,6 @@ if [[ -d client/src ]]; then
   else
     echo "  ok"
   fi
-else
-  echo "  (no client/ yet — arrives step 02)"
 fi
 
 # ── 3 · File-size caps ───────────────────────────────────────────────────────
@@ -82,15 +76,13 @@ check_caps() {
   return $over
 }
 
-echo "→ file-size caps (server/shared ≤ 500 · client/web ≤ 800 · *.gen.ts exempt)"
+echo "→ file-size caps (server/shared ≤ 500 · viz-wasm/web ≤ 800 · *.gen.ts exempt)"
 server_ok=0
 check_caps 500 find server shared -name "*.rs" -not -path "*/target/*" || server_ok=1
 client_ok=0
-if [[ -d client ]]; then
-  check_caps 800 find client viz-wasm \( -name "*.rs" -o -name "*.ts" \) \
-    -not -path "*/node_modules/*" -not -path "*/target/*" -not -path "*/dist/*" \
-    -not -path "*/pkg/*" -not -name "*.gen.ts" || client_ok=1
-fi
+check_caps 800 find viz-wasm \( -name "*.rs" -o -name "*.ts" \) \
+  -not -path "*/node_modules/*" -not -path "*/target/*" -not -path "*/dist/*" \
+  -not -path "*/pkg/*" -not -name "*.gen.ts" || client_ok=1
 web_ok=0
 if [[ -d web ]]; then
   check_caps 800 find web \( -name "*.ts" -o -name "*.tsx" -o -name "*.astro" \) \

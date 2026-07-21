@@ -1,6 +1,6 @@
 /**
- * The friendly logger (port of client/src/log.rs — ADR-S009's client half), made ISOMORPHIC:
- * the same call sites run in the browser (islands) and in the Node sidecar (SSR frontmatter).
+ * The friendly logger (ADR-S009's client half), made ISOMORPHIC: the same call sites run in the
+ * browser (islands) and in the Node sidecar (SSR frontmatter).
  *
  * Browser: a colored SYNAPSE badge + per-level emoji, each level mapped to the MATCHING
  * console method so DevTools filtering works; `debug` suppressed off-localhost so production
@@ -9,10 +9,9 @@
  * Node (SSR): plain `[SYNAPSE] emoji msg` lines on stdout/stderr — the sidecar's log becomes
  * followable the same way the axum side's tracing is; `debug` gated to dev builds.
  *
- * The point (build book step 12, re-affirmed for the migration at A06+): a dev session is
- * FOLLOWABLE FROM THE LOGS — boot → route → SSR fetch → hydrate → run → result — INFO as the
- * follow-along level, DEBUG filling in internals. Every island logs its lifecycle; every store
- * logs its transitions; the API client logs one line per wire call.
+ * The point: a dev session is FOLLOWABLE FROM THE LOGS — boot → route → SSR fetch → hydrate →
+ * run → result — INFO as the follow-along level, DEBUG filling in internals. Every island logs
+ * its lifecycle; every store logs its transitions; the API client logs one line per wire call.
  */
 
 const RESET = "color:inherit";

@@ -1,14 +1,13 @@
 /**
- * The embedded practice-problem decode (oracle: client/src/execution/logic/practice.rs, itself a
- * port of `PracticeBlocks.scala`, docs/embedded-practice-problems.md; grown there — and here —
- * with APPROACH TABS). Pure: the URI-decoded attribute strings a `.practice-problem` placeholder
- * carries in, a `PracticeSpec` out; the workbench half reuses the SAME `parseVariants`/`TestSpec`
- * decode the plain workbench placeholders use. A malformed practice problem (no variants, blank
- * statement) decodes to `null` and silently disappears — it never crashes the reader.
+ * The embedded practice-problem decode, with APPROACH TABS. Pure: the URI-decoded attribute
+ * strings a `.practice-problem` placeholder carries in, a `PracticeSpec` out; the workbench half
+ * reuses the SAME `parseVariants`/`TestSpec` decode the plain workbench placeholders use. A
+ * malformed practice problem (no variants, blank statement) decodes to `null` and silently
+ * disappears — it never crashes the reader.
  *
- * `solutionComplexities` lives here rather than in `blocks.ts` because the oracle's
- * `execution::logic::practice` owns it — the editorial model (`catalog/editorial.ts`) reads a
- * solution fence's `time=/space=` claims through it, so both consumers share this one parser.
+ * `solutionComplexities` lives here rather than in `blocks.ts` because the editorial model
+ * (`catalog/editorial.ts`) reads a solution fence's `time=/space=` claims through it, so both
+ * consumers share this one parser.
  */
 
 import { parseVariants } from "./blocks";
@@ -38,7 +37,6 @@ interface EditorialWire {
 /**
  * Decoded attribute payloads → the spec. `null` when the statement is blank or no variant
  * survives (`parseVariants` already drops blank-language entries and returns `null` for empty).
- * (oracle: `decode_practice`)
  */
 export function decodePractice(
   problemMd: string,
@@ -75,8 +73,7 @@ export function decodePractice(
 
 /**
  * `approach-brute-force-1` → "Brute Force" (numbered only when the same kind repeats); a bare or
- * unrecognised tag → "Editorial"; blank-body entries drop. Order is authoring order. (oracle:
- * `label_approaches`)
+ * unrecognised tag → "Editorial"; blank-body entries drop. Order is authoring order.
  */
 function labelApproaches(wire: EditorialWire[]): Approach[] {
   const kinds = wire.map((entry) => approachKind(entry.tag ?? ""));
@@ -100,8 +97,7 @@ function labelApproaches(wire: EditorialWire[]): Approach[] {
   return out;
 }
 
-/** The human kind behind a tag: strip `approach-`, strip a trailing `-<n>`, title-case. (oracle:
- *  `approach_kind`) */
+/** The human kind behind a tag: strip `approach-`, strip a trailing `-<n>`, title-case. */
 function approachKind(tag: string): string {
   const prefix = "approach-";
   if (!tag.startsWith(prefix)) return "Editorial";
@@ -122,8 +118,7 @@ function approachKind(tag: string): string {
 /**
  * A solution fence's meta carries `time=O(…) space=O(…)` claims, extracted here. A value may
  * contain spaces (`time=O(log N)`, `time=O(min(N1, N2))`) — following tokens are pulled in until
- * its parentheses balance, so whitespace inside the O-group never truncates it. (oracle:
- * `solution_complexities`)
+ * its parentheses balance, so whitespace inside the O-group never truncates it.
  */
 export function solutionComplexities(meta: string): [string, string][] {
   const depthDelta = (s: string): number => {

@@ -1,9 +1,9 @@
-//! Stage 6 (oracle: `StepDiff.scala`): per-step highlight / changed / removed + `unchanged`.
+//! Stage 6: per-step highlight / changed / removed + `unchanged`.
 //! Compare each step to its PRE-diff predecessor (a re-emitted removed node fades exactly
 //! once). By node id: highlight = new ids; changed = ids whose LABEL differs; removed = ids
-//! gone (re-emitted carrying their last label). `unchanged` DELIBERATELY includes edges
-//! (ADR-S030 delta #8 — the oracle omitted them, hiding rotations behind diff mode). Two
-//! nodes sharing an id is a loud error (delta #6), never a silent map dedup.
+//! gone (re-emitted carrying their last label). `unchanged` DELIBERATELY includes edges, so
+//! a rotation doesn't hide behind diff mode. Two nodes sharing an id is a loud error, never a
+//! silent map dedup.
 
 use std::collections::{HashMap, HashSet};
 
@@ -90,8 +90,8 @@ fn diff_at(steps: &[ProjectedStep], i: usize) -> DiffedStep {
         .cloned()
         .collect();
 
-    // Per-local changed flag, keyed (fn, name) → prev value. quirk (ADR-S030): a
-    // NEWLY-appeared local stays changed=false — ported faithfully from the oracle.
+    // Per-local changed flag, keyed (fn, name) → prev value. A deliberate quirk: a
+    // NEWLY-appeared local stays changed=false.
     let prev_locals: HashMap<(&str, &str), &str> = prev
         .frames
         .iter()

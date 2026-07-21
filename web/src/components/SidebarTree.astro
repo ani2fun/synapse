@@ -1,13 +1,12 @@
 ---
-// One level of the reader sidebar's reading-order tree (oracle: sidebar.rs `tree_nodes`).
-// STRUCTURE ONLY this step — no filter box, no done-ticks, no Learn-browse, no Compact rail
-// (all of those are interactive state A04/A05 restore). Chapters are native `<details>`, open
-// when they contain the current lesson; the active lesson carries `--active`.
+// One level of the reader sidebar's reading-order tree. Structure only: no filter box,
+// no done-ticks, no Learn-browse, no Compact rail — those are interactive state that
+// islands/chrome.ts and islands/reader.ts layer on after hydration. Chapters are native
+// `<details>`, open when they contain the current lesson; the active lesson carries `--active`.
 //
-// Recursive: it imports itself for chapter children. The namesake-collapse rule matches the
-// Leptos sidebar exactly — a chapter whose only child is a lesson of the SAME slug
-// (`pattern-01/pattern-01.md`) renders as a single lesson row, not a folder to open to find
-// its own namesake.
+// Recursive: it imports itself for chapter children. The namesake-collapse rule: a chapter
+// whose only child is a lesson of the SAME slug (`pattern-01/pattern-01.md`) renders as a single
+// lesson row, not a folder to open to find its own namesake.
 import Self from "./SidebarTree.astro";
 import type { components } from "../lib/api/schema.gen";
 
@@ -40,7 +39,7 @@ const { entries, prefix, currentPath } = Astro.props;
 
     const segments = [...prefix, entry.slug];
     // A chapter that exists ONLY to hold one lesson of its own name is pure nesting — render
-    // the lesson directly (oracle: the `[Lesson(only)] where only.slug == chapter.slug` arm).
+    // the lesson directly.
     const only = entry.entries.length === 1 && entry.entries[0].kind === "lesson" ? entry.entries[0] : null;
     if (only && only.slug === entry.slug) {
       const leaf = [...segments, only.slug].join("/");

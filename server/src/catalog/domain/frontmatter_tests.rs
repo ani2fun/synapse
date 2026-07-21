@@ -1,4 +1,5 @@
-//! Oracle: `FrontmatterSpec` + `FrontmatterParseSpec`.
+//! Tests for the catalog frontmatter vocabulary: title/summary/kind extraction and their
+//! fallback and blank-degrades-to-`None` rules.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

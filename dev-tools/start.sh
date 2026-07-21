@@ -1,7 +1,7 @@
 #!/bin/bash
 # ──────────────────────────────────────────────────────────────────────────────
-# THE PRODUCTION IMAGE ENTRYPOINT (step A13) — one script, two topologies, chosen
-# by SYNAPSE_ASTRO_URL so a rollback is an env flip, never a rebuild.
+# THE PRODUCTION IMAGE ENTRYPOINT — the axum server fronting the Astro SSR
+# sidecar, two processes in one container.
 #
 # bash (not the image's /bin/sh, which is dash) is REQUIRED for `wait -n`: dash's
 # builtin has no -n, and -n is the whole trick — it wakes on the FIRST child to
@@ -9,12 +9,12 @@
 # ──────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
-# ── ROLLBACK ──────────────────────────────────────────────────────────────────
-# SYNAPSE_ASTRO_URL empty/unset ⇒ the pre-A13 image, byte-for-byte: one process,
-# axum serving the old Leptos client from STATIC_ROOT. UNSET (not just empty) so the
-# server's figment config sees it ABSENT and takes the `None` branch (StaticRoutes) —
-# an empty string is `Some("")`, which enables the proxy pointed at nowhere and 502s
-# every page. `exec` so the server is PID 1 and gets signals directly — no wrapper to reap.
+# ── API-ONLY MODE ─────────────────────────────────────────────────────────────
+# SYNAPSE_ASTRO_URL empty/unset ⇒ one process, the API alone (pages answer with a
+# plain-text pointer) — a degraded ops mode, not a serve anyone should run long.
+# UNSET (not just empty) so the server's figment config sees it ABSENT — an empty
+# string is `Some("")`, which enables the proxy pointed at nowhere and 502s every
+# page. `exec` so the server is PID 1 and gets signals directly — no wrapper to reap.
 if [[ -z "${SYNAPSE_ASTRO_URL:-}" ]]; then
   unset SYNAPSE_ASTRO_URL
   exec /app/synapse-server

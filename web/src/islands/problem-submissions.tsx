@@ -1,15 +1,14 @@
 /**
- * The problem page's Submissions tab (port of client/src/catalog/view/problem.rs's
- * `SubmissionsFeed` / `subs_table` / `CodeCard`). The caller's OWN submissions for this lesson,
- * newest first: verdict badges, a revealed code card, "Copy to editor" into the right pane's
- * matching language tab, and "Use this test case" pulling a rejection's failing input into the
- * tests panel. Anonymous readers get the sign-in note.
+ * The problem page's Submissions tab. The caller's OWN submissions for this lesson, newest
+ * first: verdict badges, a revealed code card, "Copy to editor" into the right pane's matching
+ * language tab, and "Use this test case" pulling a rejection's failing input into the tests
+ * panel. Anonymous readers get the sign-in note.
  *
- * Cross-pane wiring is by event, not signal (A06's contract): "Copy to editor" dispatches
- * LOAD_CODE and "Use this test case" dispatches USE_CASE ON the workbench root; a completed
- * submit bubbles SUBMITTED up from that root, and this feed refetches on it. The workbench root is
- * handed in as a getter because it is minted after this component first renders (the right pane
- * mounts its Workbench independently).
+ * Cross-pane wiring is by event, not signal (the `workbench/contracts.ts` contract): "Copy to
+ * editor" dispatches LOAD_CODE and "Use this test case" dispatches USE_CASE ON the workbench
+ * root; a completed submit bubbles SUBMITTED up from that root, and this feed refetches on it.
+ * The workbench root is handed in as a getter because it is minted after this component first
+ * renders (the right pane mounts its Workbench independently).
  */
 import { useEffect, useRef, useState } from "preact/hooks";
 
@@ -33,7 +32,7 @@ interface FeedProps {
 type Rows = { kind: "loading" } | { kind: "error"; message: string } | { kind: "ok"; list: Submission[] };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// VERDICT BADGE + ROW HELPERS (oracle: subs_table)
+// VERDICT BADGE + ROW HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
 function badgeFor(verdict: string | null | undefined): [cls: string, text: string] {
@@ -58,7 +57,7 @@ function timeLabel(createdAt: string): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// USE-THIS-TEST-CASE (oracle: use_case_button) — only a rejection has a revealed input to pull
+// USE-THIS-TEST-CASE — only a rejection has a revealed input to pull
 // ─────────────────────────────────────────────────────────────────────────────
 
 function UseCaseButton({
@@ -95,7 +94,7 @@ function UseCaseButton({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// THE TABLE (oracle: subs_table)
+// THE TABLE
 // ─────────────────────────────────────────────────────────────────────────────
 
 function SubsTable({
@@ -156,7 +155,7 @@ function SubsTable({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// THE REVEALED CODE CARD (oracle: CodeCard) — shiki-highlighted, loadable into the right pane
+// THE REVEALED CODE CARD — shiki-highlighted, loadable into the right pane
 // ─────────────────────────────────────────────────────────────────────────────
 
 function CodeCard({
@@ -214,7 +213,7 @@ function CodeCard({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// THE FEED (oracle: SubmissionsFeed)
+// THE FEED
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function SubmissionsFeed({ path, spec, workbenchRoot }: FeedProps) {

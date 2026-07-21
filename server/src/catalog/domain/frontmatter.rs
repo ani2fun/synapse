@@ -1,7 +1,6 @@
-//! Lenient YAML-ish frontmatter (oracle: `Frontmatter.scala`, ADR-0001). The MECHANISM —
-//! fence split, quote strip, inline list — is `platform::frontmatter` since step 62 (it was
-//! a byte-identical twin of blog's); this module keeps the catalog's VOCABULARY: which
-//! fields a lesson has and how they degrade.
+//! Lenient YAML-ish frontmatter (ADR-0001). The MECHANISM — fence split, quote strip, inline
+//! list — lives in `platform::frontmatter`, shared with blog's identical parsing needs; this
+//! module keeps the catalog's VOCABULARY: which fields a lesson has and how they degrade.
 
 use crate::catalog::domain::lesson::{LessonFrontmatter, Parsed};
 pub(crate) use crate::platform::frontmatter::{fields_and_body, parse_inline_list};
@@ -17,8 +16,8 @@ pub fn extract_title(content: &str, fallback: &str) -> String {
 }
 
 /// Frontmatter `summary:` — the lesson's own one-line description, used for the `<meta
-/// name="description">` and Open Graph tags the server injects (step 50). Blank is `None`:
-/// an empty description tag is worse than none, because a crawler will show it.
+/// name="description">` and Open Graph tags the server injects. Blank is `None`: an empty
+/// description tag is worse than none, because a crawler will show it.
 pub fn extract_summary(content: &str) -> Option<String> {
     fields_and_body(content)
         .0

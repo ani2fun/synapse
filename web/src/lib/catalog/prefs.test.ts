@@ -1,4 +1,4 @@
-// Oracle: client/src/catalog/logic/prefs.rs's own `mod tests` — same two cases.
+// Two cases: the round trip, and per-field degradation on a malformed stored string.
 
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PREFS, parse, serialize } from "./prefs";

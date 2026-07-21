@@ -33,8 +33,8 @@ export default defineConfig({
         "/c4": "http://localhost:8280",
       },
       fs: {
-        // The stylesheets stay in client/styles until the old client is deleted (A14) — both
-        // apps import the same files, so there is no drift window.
+        // The viz wasm pkg lives under src/, but Cargo.lock (read by the wasm build check)
+        // and the repo root are outside the app dir.
         allow: [".."],
       },
     },

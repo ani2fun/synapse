@@ -1,4 +1,4 @@
-//! Stage 7 (oracle: `StepNarration.scala`): captions · colours · assemble the `VizGraph`.
+//! Stage 7: captions · colours · assemble the `VizGraph`.
 //! Caption precedence (top wins): removed → insert/added → changed → cursor-moved →
 //! "initial structure" → the raw source line. Colours are assigned ONCE across the whole
 //! trace (markers) so a pointer keeps its hue — and LAST, after every diff and caption

@@ -1,16 +1,15 @@
 /**
- * The header account chip (oracle: client/src/identity/view/mod.rs — `AccountChip`).
- * `loading` renders a QUIET placeholder (no "Sign in" flash before check-sso answers);
- * `anonymous` offers sign-in; `authed` shows @username with a menu — Manage account & data,
- * Admin panel (only when `me.admin`; UX-only, the server re-checks per call), Sign out.
- * Classes are the old chip's `account-chip*` (client/styles/reader.css), byte-faithful.
+ * The header account chip. `loading` renders a QUIET placeholder (no "Sign in" flash before
+ * check-sso answers); `anonymous` offers sign-in; `authed` shows @username with a menu — Manage
+ * account & data, Admin panel (only when `me.admin`; UX-only, the server re-checks per call),
+ * Sign out. Classes are `account-chip*` (web/styles/reader.css).
  */
 import { useEffect, useState } from "preact/hooks";
 
 import { getState, signIn, signOut, subscribe } from "./store";
 import type { AuthState } from "./store";
 
-/** Re-render on every store flip — the same shape as the Rust chip reading its context signal. */
+/** Re-render on every store flip. */
 export function useAuthState(): AuthState {
   const [snapshot, setSnapshot] = useState<AuthState>(getState());
   useEffect(() => subscribe(() => setSnapshot(getState())), []);

@@ -1,14 +1,13 @@
 /**
- * The Coach pane (port of client/src/tutoring/mod.rs — oracle: `CoachPane`, step 20 /
- * ADR-S025): a flat thin feature, the problem page's 4th tab. The transcript is EPHEMERAL (page
- * state, gone on navigation); config is fetched on mount and ANY failure falls to Off — never a
- * chat box that 404s. Off copy: "The coach is off / This feature is coming soon."
+ * The Coach pane (ADR-S025): a flat thin feature, the problem page's 4th tab. The transcript is
+ * EPHEMERAL (page state, gone on navigation); config is fetched on mount and ANY failure falls
+ * to Off — never a chat box that 404s. Off copy: "The coach is off / This feature is coming
+ * soon."
  *
- * `code_ctx` mirrored the workbench editor's `(source, language)` in the Rust, read at SEND time
- * only (an untracked read, never a subscription). Islands cannot share signals (A06's rule), so
- * this listens for the workbench root's bubbling `synapse:code-changed` and keeps the latest
- * snapshot in a ref — read only when `send()` fires, the same "snapshot, not a subscription"
- * semantics.
+ * `codeCtx` tracks the workbench editor's `(source, language)`, read at SEND time only (an
+ * untracked read, never a subscription). Islands cannot share signals, so this listens for the
+ * workbench root's bubbling `synapse:code-changed` and keeps the latest snapshot in a ref — read
+ * only when `send()` fires, a "snapshot, not a subscription" semantics.
  */
 import { useEffect, useRef, useState } from "preact/hooks";
 

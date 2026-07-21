@@ -1,21 +1,18 @@
 /**
- * The LikeC4 lesson embed chrome (port of client/src/catalog/view/c4.rs — oracle: `C4Blocks` +
- * `DiagramZoom.openIframe`, commit d8b969a): every authored `<iframe src="/c4/…">` is wrapped so
- * an Enlarge button (top-LEFT — LikeC4 owns top-right) floats over it; Enlarge opens the
- * near-fullscreen iframe zoom with parity chrome — − / + buttons driving SYNTHETIC ctrl+wheel
- * pinches at the viewer's `.react-flow__pane`, a live % read from the viewport transform, and
- * the gesture hint. While a `.likec4-overlay[open]` dialog is up inside the iframe, OUR chrome
- * steps aside (its ✕ · Share · Export render exactly where ours sits). Everything relies on the
- * `/c4` proxy keeping the iframe same-origin.
+ * The LikeC4 lesson embed chrome: every authored `<iframe src="/c4/…">` is wrapped so an Enlarge
+ * button (top-LEFT — LikeC4 owns top-right) floats over it; Enlarge opens the near-fullscreen
+ * iframe zoom with parity chrome — − / + buttons driving SYNTHETIC ctrl+wheel pinches at the
+ * viewer's `.react-flow__pane`, a live % read from the viewport transform, and the gesture hint.
+ * While a `.likec4-overlay[open]` dialog is up inside the iframe, OUR chrome steps aside (its
+ * ✕ · Share · Export render exactly where ours sits). Everything relies on the `/c4` proxy
+ * keeping the iframe same-origin.
  *
- * DIVERGENCE FROM THE RUST, on purpose: the Rust needed `js_sys::Reflect` everywhere because
- * `wasm_bindgen::JsCast` casts (`dyn_into`/`instanceof`) always fail across the parent/iframe
- * realm boundary. This is plain TypeScript running in the SAME JS engine as the DOM it touches —
- * property access (`el.tagName`, `frame.contentWindow`) works directly across frames; only
- * `instanceof`/constructor-identity checks are realm-sensitive, and this module makes none. The
- * one place a foreign constructor still matters is the synthetic wheel event: it is built from
- * the IFRAME's OWN `WheelEvent` (not the parent's), because react-flow's internal handling runs
- * in that realm — the same rule as the Rust, just without the `Reflect` ceremony to express it.
+ * CROSS-REALM RULE: this runs in the SAME JS engine as the DOM it touches, so property access
+ * (`el.tagName`, `frame.contentWindow`) works directly across frames; only
+ * `instanceof`/constructor-identity checks are realm-sensitive across the parent/iframe boundary.
+ * The one place a foreign constructor matters is the synthetic wheel event: it is built from the
+ * IFRAME's OWN `WheelEvent` (not the parent's), because react-flow's internal handling runs in
+ * that realm.
  */
 import { render, h } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
@@ -35,9 +32,9 @@ function injectScopeStyle(doc: Document): void {
   (doc.head ?? doc.documentElement)?.appendChild(style);
 }
 
-/** The click-to-docs bridge (oracle: `attachNodeBridge`): a CAPTURE-phase click listener on the
- *  same-origin iframe document. The composed path (target-first) feeds the pure `resolveC4Node`;
- *  on a hit the click is swallowed and the docs panel opens. */
+/** The click-to-docs bridge: a CAPTURE-phase click listener on the same-origin iframe document.
+ *  The composed path (target-first) feeds the pure `resolveC4Node`; on a hit the click is
+ *  swallowed and the docs panel opens. */
 function attachNodeBridge(doc: Document, onSelect: (id: string) => void): void {
   doc.addEventListener(
     "click",
@@ -182,8 +179,8 @@ function C4Zoom({ src, onClose, onSelect }: { src: string; onClose: () => void; 
         class={overlay ? "diagram-zoom diagram-zoom--fill diagram-zoom--c4-overlay" : "diagram-zoom diagram-zoom--fill"}
         onClick={(event) => event.stopPropagation()}
       >
-        {/* modal-btn = the shared teal pill (step 39's chrome) — the bare class read as an
-            unstyled stray next to every other overlay's Close. */}
+        {/* modal-btn = the shared teal pill every other overlay's Close button uses — the bare
+            class read as an unstyled stray. */}
         <button class="diagram-zoom__close modal-btn" aria-label="Close" onClick={onClose}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M18 6 6 18M6 6l12 12"></path>

@@ -1,10 +1,9 @@
-//! The adapter orchestrator: trace → `VizCases` (oracle: `HeapToGraph.scala`, ADR-S030).
+//! The adapter orchestrator: trace → `VizCases`.
 //! The ONLY place that knows the stage order — each stage is a pure function in its own
-//! module; the named intermediate types make most misorderings uncompilable. Cortex's
-//! 1,126-line `HeapToGraph` collapsed all of this into one nested expression; this is the
-//! same behaviour, staged and typed. `callstack` is a separate route (no heap root to hunt):
-//! cleanup → callstack projection → coalesce → diff → finish — deliberately NO
-//! trim/carry-forward (the oracle's asymmetry).
+//! module; the named intermediate types make most misorderings uncompilable, staged and
+//! typed rather than one nested expression. `callstack` is a separate route (no heap root to
+//! hunt): cleanup → callstack projection → coalesce → diff → finish — deliberately NO
+//! trim/carry-forward.
 
 pub mod callstack;
 pub mod cards;
@@ -27,9 +26,9 @@ use crate::engine::trace::HeapTrace;
 
 /// Adapt a raw heap trace to the render contract. `layout_hint` is the authored `viz=`
 /// structure token (or a legacy layout-kind name); `root_hint` names the root variable;
-/// `viz_case` caps the detected case count; `title`/`source` decorate the output. Faithful to
-/// the oracle's reduction (quirk, ported on purpose): any surviving segment wins; the error
-/// surfaces only if EVERY segment failed — and then it's the FIRST error.
+/// `viz_case` caps the detected case count; `title`/`source` decorate the output. A
+/// deliberate quirk: any surviving segment wins; the error surfaces only if EVERY segment
+/// failed — and then it's the FIRST error.
 pub fn adapt(
     trace: &HeapTrace,
     source: &str,

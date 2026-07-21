@@ -1,5 +1,5 @@
-// Oracle: client/src/catalog/logic/logic_tests.rs's `spread_de_overlaps_and_clamps_fractions` —
-// the same three assertions, ported case-for-case.
+// `spreadFractions` de-overlap: three assertions covering the forward push, the backward clamp,
+// and the empty-input case.
 
 import { describe, expect, it } from "vitest";
 import { spreadFractions } from "./chrome";

@@ -1,4 +1,4 @@
-//! The one place layout constants live (oracle: `Geometry.scala`, ADR-S026). Pure numbers —
+//! The one place layout constants live. Pure numbers —
 //! shared, cross-compiled, no DOM.
 
 // Graph nodes (trees/graphs)

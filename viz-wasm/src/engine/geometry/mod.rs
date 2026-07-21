@@ -1,8 +1,8 @@
-//! Pure geometry: `(nodes, edges) → positions` (oracle: `viz/geometry`, ADR-S026/S028).
+//! Pure geometry: `(nodes, edges) → positions`.
 //! A layout is a pure function of the UNION of every step's nodes/edges (the stability
-//! invariant, ADR-0018): a node's position NEVER shifts between steps — per-step rendering
-//! only toggles presence/classes. `constants` is the one place layout numbers live (Cortex
-//! copy-pasted `NODE_R=22` across ~11 files; here a change lands once).
+//! invariant): a node's position NEVER shifts between steps — per-step rendering
+//! only toggles presence/classes. `constants` is the one place layout numbers live, so a
+//! change lands once instead of needing to be copied to every family.
 
 pub mod chain;
 pub mod constants;

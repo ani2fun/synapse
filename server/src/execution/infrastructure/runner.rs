@@ -1,6 +1,6 @@
-//! The `CodeRunner` adapter over go-judge (oracle: `GoJudgeRunner.scala`).
+//! The `CodeRunner` adapter over go-judge.
 //!
-//! Load-bearing details, all oracle-derived: the client is FORCED to HTTP/1.1 (go-judge is
+//! Load-bearing details: the client is FORCED to HTTP/1.1 (go-judge is
 //! plaintext h1; h2c-upgrade headers come back as bare 400s); a semaphore bounds fan-out to 8
 //! concurrent runs (the rate limiter caps rate, not concurrency — excess queues); the
 //! per-request timeout is 100 s so go-judge's own clock limit fires first (a cold scala-cli

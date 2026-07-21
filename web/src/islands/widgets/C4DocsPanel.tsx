@@ -1,10 +1,9 @@
 /**
- * The C4 docs panel (port of client/src/catalog/view/c4_docs.rs — oracle: `C4DocsPanel`,
- * ADR-S032): click a component in an embedded LikeC4 diagram and its tutorial doc — a
- * co-located `_c4-docs/*.md` next to the lesson — slides in from the right. Clicking another
- * component switches context; ✕/Esc close. (RS deviation, on purpose, carried from the Rust
- * port: a fixed right-side panel instead of the oracle's JS grid collapse — the reader column
- * stays put, no inline-!important surgery.)
+ * The C4 docs panel (ADR-S032): click a component in an embedded LikeC4 diagram and its
+ * tutorial doc — a co-located `_c4-docs/*.md` next to the lesson — slides in from the right.
+ * Clicking another component switches context; ✕/Esc close. Deliberately a fixed right-side
+ * panel rather than collapsing the reader grid — the reader column stays put, no
+ * inline-!important surgery.
  */
 import { useEffect, useRef, useState } from "preact/hooks";
 

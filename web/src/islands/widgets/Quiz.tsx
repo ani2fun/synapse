@@ -1,8 +1,7 @@
 /**
- * The quiz card (port of client/src/quiz/mod.rs — oracle: `quiz/QuizCard` + `QuizBlocks`, step
- * 16, a thin flat feature): one check-your-understanding question rendered from a ```quiz fence.
- * Select an option, Check — the right answer tints green wherever it is, a wrong pick tints red,
- * and the verdict line says which; Try again resets. All state is two hooks; nothing leaves the
+ * The quiz card: one check-your-understanding question rendered from a ```quiz fence. Select an
+ * option, Check — the right answer tints green wherever it is, a wrong pick tints red, and the
+ * verdict line says which; Try again resets. All state is two hooks; nothing leaves the
  * component (quizzes are ungraded prose furniture, not submissions).
  */
 import { render, h } from "preact";

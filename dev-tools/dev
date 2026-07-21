@@ -1,18 +1,14 @@
 #!/usr/bin/env bash
-# ── DEV LOOP (Astro — the DEFAULT since the branch's direction is Astro) ─────
+# ── DEV LOOP ─────────────────────────────────────────────────────────────────
 # axum API on :8280 (background) + Astro dev on :5373 (foreground, HMR, proxies
 # /api /media /c4). Ctrl-C stops both. :5373 is pinned by the Keycloak dev realm
-# origin allowlist — a silent port bump 403s the silent-SSO iframe (step-39 scar).
-# The old Leptos loop lives on as dev-tools/dev-leptos until A14 removes it.
+# origin allowlist — a silent port bump 403s the silent-SSO iframe.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Say LOUDLY what this loop serves — the two loops share ports, starting one kills the
-# other's processes, and an old-client page in a leftover tab is indistinguishable from
-# "my changes aren't building" (a user hit exactly this).
 echo "──────────────────────────────────────────────────────────"
-echo "  synapse dev loop: ASTRO client (web/)"
-echo "  branch: $(git branch --show-current)   server :${SYNAPSE_PORT:-8280}   client :5373"
+echo "  synapse dev loop"
+echo "  branch: $(git branch --show-current)   api :${SYNAPSE_PORT:-8280}   web :5373"
 echo "──────────────────────────────────────────────────────────"
 
 

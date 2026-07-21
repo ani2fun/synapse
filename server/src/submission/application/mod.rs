@@ -1,5 +1,5 @@
-//! The submission use cases (oracle: `SubmitSolution` + ports, step 14 scope). Anonymous-first:
-//! `user_id` stays `None` until the identity step fills it; the ports already carry the seams
+//! The submission use cases (`SubmitSolution` + its ports). Anonymous-first: `user_id` stays
+//! `None` until an authenticated caller supplies one; the ports already carry the seams
 //! (`by_user`, owner checks) so identity slots in without reshaping the aggregate.
 
 use std::sync::Arc;
@@ -41,9 +41,8 @@ pub struct AllowlistEntry {
     pub granted_at: chrono::DateTime<chrono::Utc>,
 }
 
-/// Who may SAVE attempts (oracle: `SubmissionAllowlist`): keyed by the lowercase IdP
-/// username. The management verbs (step 21's admin panel) live on the same port — one
-/// capability, four verbs.
+/// Who may SAVE attempts (`SubmissionAllowlist`): keyed by the lowercase IdP username. The
+/// admin-panel management verbs live on the same port — one capability, four verbs.
 pub trait SubmissionAllowlist: Send + Sync {
     fn is_allowed(&self, username: &str) -> impl Future<Output = Result<bool, SubmissionError>> + Send;
     /// Newest grant first (`granted_at desc, username`).
@@ -66,7 +65,7 @@ pub struct Submitter {
     pub username: String,
 }
 
-/// The submissions store (oracle: `SubmissionRepository`). Owner checks are the APPLICATION's
+/// The submissions store (`SubmissionRepository`). Owner checks are the APPLICATION's
 /// job — the port just persists.
 pub trait SubmissionRepository: Send + Sync {
     fn save(&self, submission: &Submission) -> impl Future<Output = Result<(), SubmissionError>> + Send;
@@ -95,7 +94,7 @@ pub trait SubmissionRepository: Send + Sync {
     ) -> impl Future<Output = Result<Vec<Submission>, SubmissionError>> + Send;
 }
 
-/// Where a problem's hidden suite comes from (oracle: `ProblemTests`) — `None` = not a problem.
+/// Where a problem's hidden suite comes from (`ProblemTests`) — `None` = not a problem.
 pub trait ProblemTests: Send + Sync {
     fn suite_for(
         &self,
@@ -150,7 +149,7 @@ where
         }
     }
 
-    /// The gate runs FIRST (oracle: `authorize`): enforced → anonymous cannot save (401) and
+    /// The gate runs FIRST (`authorize`): enforced → anonymous cannot save (401) and
     /// only allow-listed usernames may (403) — rejects never touch the suite or the store.
     async fn authorize(&self, submitter: Option<&Submitter>) -> Result<(), SubmissionError> {
         if !self.allowlist_enforced {

@@ -1,4 +1,4 @@
-//! Domain → wire mapping (file-private to the http layer, oracle: `CatalogDtos`).
+//! Domain → wire mapping (file-private to the http layer).
 
 use synapse_shared::api::ApiError;
 use synapse_shared::catalog::{

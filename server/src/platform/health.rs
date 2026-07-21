@@ -1,4 +1,4 @@
-//! The `platform` context's health use cases (oracle: `Health.scala`), split the way
+//! The `platform` context's health use cases, split the way
 //! orchestrators actually consume them: a shallow **liveness** answer and a dependency-checking
 //! **readiness** answer. Conflating the two is the classic operational footgun — see `status`.
 //!

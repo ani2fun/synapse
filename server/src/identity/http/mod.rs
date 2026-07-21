@@ -1,5 +1,5 @@
-//! The identity HTTP surface (oracle: `IdentityRoutes`): the SPA's Keycloak coordinates, the
-//! who-am-I echo, and `DELETE /api/me` (step 20 — the account step). Deleting the account
+//! The identity HTTP surface (`IdentityRoutes`): the frontend's Keycloak coordinates, the
+//! who-am-I echo, and `DELETE /api/me` (the account-deletion endpoint). Deleting the account
 //! removes ONLY the sign-in; app data has its own verb, orchestrated by the client.
 
 use std::sync::Arc;
@@ -61,7 +61,7 @@ pub fn to_auth_error(error: &AuthError) -> (StatusCode, Json<ApiError>) {
 
 /// Resolve the caller when the bearer is OPTIONAL: absent = anonymous (`Ok(None)`); a
 /// PRESENT bearer must verify — bad tokens 401, never silently anonymous (the rule every
-/// context enforces, stated once as of step 61). Callers keep their own anonymous POLICY
+/// context enforces, stated once here). Callers keep their own anonymous POLICY
 /// (allow / 401 / empty list) and their own missing-token copy on top of this skeleton.
 pub async fn optional_user(
     identity: &LiveIdentityService,
@@ -111,7 +111,7 @@ pub(crate) async fn get_me(State(state): State<IdentityRoutesState>, headers: He
     }))
 }
 
-/// Delete the caller's sign-in (oracle steps 21/37): verified bearer required; the Keycloak
+/// Delete the caller's sign-in: verified bearer required; the Keycloak
 /// call rides the SCOPED service-account client. Failures are loud — never a swallowed
 /// success.
 #[utoipa::path(
@@ -137,7 +137,7 @@ pub(crate) async fn delete_me(
     }
 }
 
-/// The SPA's Keycloak coordinates, split from the issuer.
+/// The frontend's Keycloak coordinates, split from the issuer.
 #[utoipa::path(
     get,
     path = "/api/auth/config",

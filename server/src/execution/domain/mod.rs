@@ -1,16 +1,16 @@
-//! Pure execution domain — the language model (oracle: `Language.scala`). No sandbox ids, no
-//! magic ints: languages are an enum with labels and fence aliases (the code-quality bar's
-//! canonical "model it as an enum" example).
+//! Pure execution domain — the language model. No sandbox ids, no magic ints: languages are an
+//! enum with labels and fence aliases (the code-quality bar's canonical "model it as an enum"
+//! example).
 
 mod language;
 
 pub use language::Language;
 
-/// The sandbox's hard edges (oracle: `BackendLimits.goJudge` — hardcoded, no runner-info
-/// endpoint). Byte caps are UTF-8 byte counts, INCLUSIVE (`> limit` fails).
+/// The sandbox's hard edges — hardcoded, since go-judge exposes no runner-info endpoint to query
+/// them from. Byte caps are UTF-8 byte counts, INCLUSIVE (`> limit` fails).
 ///
-/// Lived in `synapse-shared` until step 59 — but it carries no serde and never crosses the
-/// wire, so "shared" described the folder rather than the fact (the step-45 test, reapplied).
+/// Lives here rather than in `synapse-shared`: it carries no serde and never crosses the wire,
+/// so "shared" would describe the folder rather than the fact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {
     pub max_stdout_bytes: usize,

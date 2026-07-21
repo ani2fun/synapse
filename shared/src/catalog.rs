@@ -1,7 +1,7 @@
-//! The catalog wire contract (oracle: `CatalogApi.scala`, ADR-S012 code-first). Field names and
-//! the `kind` discriminator are LOAD-BEARING — this is the JSON the client decodes. Tree nodes
-//! discriminate on `"kind"`: `"category"`/`"book"` at library level, `"chapter"`/`"lesson"`
-//! inside a book. Options serialize as nulls (circe parity).
+//! The catalog wire contract. Field names and the `kind` discriminator are LOAD-BEARING — this
+//! is the JSON the client decodes. Tree nodes discriminate on `"kind"`: `"category"`/`"book"`
+//! at library level, `"chapter"`/`"lesson"` inside a book. Options serialize as nulls, never
+//! omitted.
 
 use serde::{Deserialize, Serialize};
 
@@ -69,7 +69,7 @@ pub struct LessonDto {
     pub order: Option<i32>,
     pub essential: bool,
     /// The lesson's frontmatter `kind`, index-side, so the client can tell a problem from prose
-    /// without fetching every payload (step 64's "PROBLEM N / M" counter).
+    /// without fetching every payload (drives the "PROBLEM N / M" counter).
     ///
     /// NOT named `kind`: `BookEntryDto` is `#[serde(tag = "kind")]`, so a field by that name
     /// would emit the key TWICE — and serde cannot see inside the newtype to catch it. Skipped

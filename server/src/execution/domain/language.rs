@@ -1,7 +1,7 @@
 //! Every runnable language, with its display label and the fence aliases authors write.
 
 /// The runnable languages. Adding one here won't compile until every exhaustive `match`
-/// downstream (the go-judge recipes, step 10) handles it — that is the point.
+/// downstream (the go-judge recipes) handles it — that is the point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Language {
     Python,

@@ -1,4 +1,4 @@
-//! Stage 1 (oracle: `TraceCleanup.scala`): string synthesis + helper-step filter. If the
+//! Stage 1: string synthesis + helper-step filter. If the
 //! root hint names a string local, materialise it as an `Arr` of 1-char cells so two-pointer
 //! string problems render as an array; then drop steps whose active frame is a constructor/
 //! builder (setup noise, not algorithm steps).

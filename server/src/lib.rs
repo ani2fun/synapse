@@ -1,5 +1,5 @@
-//! The Synapse server, Rust edition — pragmatic hexagonal by bounded context (RS001, mirroring
-//! ADR-S007). Each context owns `domain/ application/ infrastructure/ http/` proportional to its
+//! The Synapse server — pragmatic hexagonal by bounded context. Each context owns
+//! `domain/ application/ infrastructure/ http/` proportional to its
 //! complexity; `platform` is the thin, flat cross-cutting context. `app()` assembles the full
 //! HTTP surface; the binary (`main.rs`) is the wiring point.
 
@@ -22,7 +22,6 @@ use catalog::http::LiveCatalogService;
 use execution::http::{ExecutionRoutesState, LiveRunService};
 use identity::http::IdentityRoutesState;
 use platform::rate_limiter::RateLimiter;
-use platform::static_routes::StaticRoutes;
 use submission::http::{LiveSubmitSolution, SubmissionRoutesState};
 use synapse_shared::api::{ApiError, HealthStatus};
 use synapse_shared::blog::{BlogPostDto, BlogSummaryDto};
@@ -39,7 +38,7 @@ use utoipa::OpenApi;
 /// Everything `app` composes — one wiring struct so `main` and the ITs build the same graph
 /// field by field.
 ///
-/// Generic (step 60, DIP at the wiring boundary) over the three ports a test wants to fake
+/// Generic (dependency inversion at the wiring boundary) over the three ports a test wants to fake
 /// through the FULL router: the allowlist, the lesson-view store, and the tutor client. The
 /// defaults are the production adapters, so `main` and the common IT helper spell nothing
 /// extra; an IT that passes a fake gets the whole `app()` — layer stack included — instead
@@ -63,15 +62,13 @@ pub struct AppDeps<
     pub limiter: Arc<RateLimiter>,
     /// The allowlist store the admin panel manages (the submit gate holds its own Arc).
     pub allowlist: Arc<L>,
-    /// Readership (step 49): the catalog records into it, the admin panel reads it.
+    /// Readership: the catalog records into it, the admin panel reads it.
     pub views: Arc<V>,
-    /// The production dist dir; absent (dev) → no static routes, and `/` answers plain text.
-    pub static_root: String,
-    /// The Astro SSR sidecar (migration step A01). `Some` switches the page front end from
-    /// `StaticRoutes` to `astro_proxy` as the router FALLBACK; `None` is exactly yesterday's
-    /// behaviour. Rollback at any point in the migration = unset `SYNAPSE_ASTRO_URL`.
+    /// The Astro SSR sidecar serving the pages. `Some` mounts `astro_proxy` as the router
+    /// FALLBACK (registered routes always win); `None` (dev without a web tier) serves the
+    /// API alone with a plain-text pointer at `/`.
     pub astro_url: Option<String>,
-    /// Public origin for canonical + Open Graph URLs (step 50).
+    /// Public origin for the sitemap's absolute URLs.
     pub site_url: String,
     /// The content checkout — `/media` serves its `_media/` tree (one shared cache hour).
     pub content_root: String,
@@ -79,15 +76,14 @@ pub struct AppDeps<
     /// Answers `/api/ready`: Postgres in the binary, the same lazy pool in ITs (which then
     /// report 503 — the honest answer for a store that is not there).
     pub readiness: Arc<dyn platform::health::ReadinessProbe>,
-    /// The coach (step 22): when disabled the chat route is never mounted — a structural 404.
+    /// The coach: when disabled the chat route is never mounted — a structural 404.
     pub tutor: tutoring::http::TutorRoutesState<C>,
 }
 
-/// The assembled HTTP surface. Contexts contribute their routers here as they land; integration
-/// tests drive this exact router, so what the suite exercises is what the binary serves.
-/// Precedence mirrors the oracle: API (cache-stamped) → `/c4` proxy → static+SPA fallback →
-/// the plain-text root. The SPA fallback ENUMERATES its segments, so it can never shadow
-/// `/api`; `ContentCacheControl` stamps only public content GETs on 200.
+/// The assembled HTTP surface. Contexts contribute their routers here; integration tests drive
+/// this exact router, so what the suite exercises is what the binary serves. Precedence: API
+/// (cache-stamped) → `/media` → `/c4` proxy → robots/sitemap → the Astro page proxy as the
+/// FALLBACK, so a registered route can never be shadowed by a page path.
 pub fn app<L, V, C>(deps: AppDeps<L, V, C>) -> Router
 where
     L: submission::application::SubmissionAllowlist + 'static,
@@ -104,10 +100,8 @@ where
         identity: Arc::clone(&deps.ident.identity),
         limiter: deps.limiter,
     };
-    let statics = StaticRoutes::new(&deps.static_root, Arc::clone(&deps.catalog), &deps.site_url);
-    // Crawler plumbing mounts UNCONDITIONALLY, before either front end: robots + sitemap are
-    // generated from the in-memory catalog, which lives in THIS process whichever side serves
-    // the pages.
+    // Crawler plumbing mounts UNCONDITIONALLY, before the page proxy: robots + sitemap are
+    // generated from the in-memory catalog, which lives in THIS process.
     let seo = platform::seo_routes::SeoRoutesState {
         catalog: Arc::clone(&deps.catalog),
         site_url: deps.site_url.clone(),
@@ -143,23 +137,23 @@ where
         .merge(platform::likec4_proxy::routes(&deps.likec4_url))
         .merge(platform::seo_routes::routes(seo));
     if let Some(astro_url) = deps.astro_url.as_deref() {
-        // The Astro front door: a FALLBACK, so every registered route above keeps winning and
+        // The page front door: a FALLBACK, so every registered route above keeps winning and
         // the sidecar's 404 page becomes the site 404.
         let proxy = platform::astro_proxy::AstroProxy::new(astro_url);
         router = router.fallback(axum::routing::any(platform::astro_proxy::handle).with_state(proxy));
-    } else if statics.enabled() {
-        router = router.merge(statics.routes());
     } else {
         router = router.route(
             "/",
-            get(|| async { "synapse-rs server — see /api/health or /api/synapse/index" }),
+            get(|| async {
+                "synapse server — API only (set SYNAPSE_ASTRO_URL for pages); see /api/health"
+            }),
         );
     }
-    // Outermost OF THE APPLICATION SUB-TREES (step 19; comment honesty from step 59): the
-    // security stamp covers every route class — API, proxy, static, and error responses
-    // alike. The TRANSPORT layers wrap further out still: compression (gzip/deflate at the
-    // ORIGIN — a CDN edge-compressing still pulls fat bytes across the tunnel — with
-    // sub-KiB responses left alone), then limits, then telemetry as the true outermost.
+    // Outermost OF THE APPLICATION SUB-TREES: the security stamp covers every route class —
+    // API, proxy, static, and error responses alike. The TRANSPORT layers wrap further out
+    // still: compression (gzip/deflate at the ORIGIN — a CDN edge-compressing still pulls fat
+    // bytes across the tunnel — with sub-KiB responses left alone), then limits, then
+    // telemetry as the true outermost layer.
     let stamped = router
         .layer(axum::middleware::from_fn_with_state(
             security,
@@ -175,16 +169,16 @@ where
     // timeout should still produce a span saying so, but nothing below should get the chance
     // to read an unbounded body first.
     let bounded = platform::limits::apply(stamped);
-    // Tracing wraps everything (step 45), outside even compression: a span that starts
+    // Tracing wraps everything, outside even compression: a span that starts
     // inside the header layers cannot report on them, and a request rejected at the edge is
     // exactly the one worth having a trace for.
     platform::telemetry::apply(bounded)
 }
 
 /// The code-first OpenAPI document (utoipa). The contract-lock test diffs this rendered
-/// document against `api/openapi.oracle.yaml`; the catalog endpoints are code-first in the
-/// oracle too (ADR-S012), so they appear here first and the oracle copy grows when ported
-/// endpoints reach it.
+/// document against `api/openapi.oracle.yaml`, the committed reference copy of the API
+/// contract; endpoints are code-first, so they appear here first and the reference copy
+/// grows as endpoints are added.
 #[derive(OpenApi)]
 #[openapi(
     info(title = "Synapse API", version = "0.1.0"),
@@ -219,9 +213,10 @@ where
         // `BookDto.entries` and `ChapterDto.entries` carry `schema(no_recursion)` (they are
         // genuinely self-referential trees) — that stops utoipa's auto-walk from EVER reaching
         // `BookEntryDto`/`ChapterDto`, so without listing them here the rendered document has a
-        // dangling `$ref` no `cargo test` catches (the contract lock only checks schemas the
-        // oracle ALSO names, and it does not name these). `openapi-typescript` is a stricter
-        // reader than our own tests — it surfaced this generating `schema.gen.ts` (step A02).
+        // dangling `$ref` no `cargo test` catches (the contract-lock test only checks schemas
+        // named in the committed reference copy, and it does not name these).
+        // `openapi-typescript` is a stricter reader than our own tests — it surfaced this
+        // generating `schema.gen.ts`.
         BookEntryDto,
         ChapterDto,
         LessonPayloadDto,

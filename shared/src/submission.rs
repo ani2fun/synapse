@@ -1,5 +1,5 @@
-//! The submission wire contract (oracle: `shared/submission/SubmissionApi.scala`, code-first).
-//! Wire-shaped, not domain: status/verdict travel as plain strings, the outcome flattened, and
+//! The submission wire contract. Wire-shaped, not domain: status/verdict travel as plain
+//! strings, the outcome flattened, and
 //! only the FIRST failing case ever crosses.
 
 use std::collections::BTreeMap;
@@ -71,7 +71,7 @@ pub struct DeleteResultDto {
     pub deleted: usize,
 }
 
-/// One allowlist grant (`/api/admin/allowlist`, step 21).
+/// One allowlist grant (`/api/admin/allowlist`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]

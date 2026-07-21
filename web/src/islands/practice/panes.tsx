@@ -1,10 +1,8 @@
 /**
- * The markdown panes shared by the practice widget and the problem-page editorial stepper (port of
- * the `markdown_pane` / `markdown_fragment` halves of client/src/execution/view/practice.rs +
- * client/src/catalog/view/editorial.rs). A fragment of editorial/statement markdown renders through
- * the SAME `renderLesson` pipeline the reader uses, then hydrates its interactive placeholders:
- * `.solution-block`s (revealed for practice, gated behind a reveal card for the editorial) and
- * fence-group bars.
+ * The markdown panes shared by the practice widget and the problem-page editorial stepper. A
+ * fragment of editorial/statement markdown renders through the SAME `renderLesson` pipeline the
+ * reader uses, then hydrates its interactive placeholders: `.solution-block`s (revealed for
+ * practice, gated behind a reveal card for the editorial) and fence-group bars.
  *
  * The gated/revealed split is the ONLY difference between the two callers, expressed as the `gated`
  * flag — the reveal gate is the editorial's, not the viewer's (SolutionViewer.tsx is identical
@@ -72,9 +70,9 @@ const INFO_ICON = (
 );
 
 /**
- * The problem-page editorial's reveal gate (oracle: `GatedSolution`). The viewer mounts on reveal
- * (visible, so Monaco measures right away) and unmounts on Hide; an approach switch re-creates the
- * fragment, so it collapses again.
+ * The problem-page editorial's reveal gate. The viewer mounts on reveal (visible, so Monaco
+ * measures right away) and unmounts on Hide; an approach switch re-creates the fragment, so it
+ * collapses again.
  */
 export function GatedSolution({ variants, workbenchRoot }: { variants: Variant[]; workbenchRoot: () => HTMLElement | null }) {
   const [revealed, setRevealed] = useState(false);
@@ -105,9 +103,9 @@ export function GatedSolution({ variants, workbenchRoot }: { variants: Variant[]
 }
 
 /**
- * Hydrate every `.solution-block` under `root`: a revealed viewer for the practice editorial
- * (oracle: `mount_solutions`), a reveal-gated one for the problem editorial (oracle:
- * `mount_gated_solutions`). Returns the mounted host elements so the caller can unmount them.
+ * Hydrate every `.solution-block` under `root`: a revealed viewer for the practice editorial, a
+ * reveal-gated one for the problem editorial. Returns the mounted host elements so the caller can
+ * unmount them.
  */
 export function mountSolutionBlocks(
   root: ParentNode,
@@ -133,8 +131,7 @@ export function mountSolutionBlocks(
 }
 
 /** How a fragment's `.solution-block`s hydrate: not at all (a Description/statement tab), revealed
- *  outright (a practice editorial — oracle `mount_solutions`), or behind a reveal card (the
- *  problem-page editorial — oracle `mount_gated_solutions`). */
+ *  outright (a practice editorial), or behind a reveal card (the problem-page editorial). */
 export type SolutionMode = "none" | "revealed" | "gated";
 
 export interface MarkdownPaneProps {
@@ -147,7 +144,7 @@ export interface MarkdownPaneProps {
 }
 
 /**
- * Render one markdown fragment and hydrate its placeholders. The oracle's same-breath pattern
+ * Render one markdown fragment and hydrate its placeholders. The same-breath pattern
  * (`el.innerHTML = html` then mount blocks) avoids a render-effect race; the async render can
  * outlive the mount, so a disposed ref just drops the result.
  */
@@ -170,13 +167,11 @@ export function MarkdownPane({ md, solutions, forceOpenDetails, workbenchRoot }:
         }
         if (solutions !== "none") hosts.current = mountSolutionBlocks(node, solutions === "gated", workbenchRoot);
         hydrateFenceGroups(node);
-        // A09 unification (beyond the oracle's split — editorial.rs's markdown_fragment hydrated
-        // diagrams, practice.rs's markdown_pane did not; this shared component now does it for
-        // both, so a diagram authored inside a practice statement renders instead of sitting inert).
+        // Diagrams hydrate here too, so a diagram authored inside a practice statement renders
+        // instead of sitting inert.
         hydrateDiagrams(node);
-        // A ```viz fence in an editorial planted a fresh widget AFTER the viz loader's initial
-        // sweep (the old client's editorial shipped without this and rendered empty boxes —
-        // blocks.rs pins the lesson) — ask the loader to re-sweep (idempotent, loads on demand).
+        // A ```viz fence in an editorial plants a fresh widget AFTER the viz loader's initial
+        // sweep — ask the loader to re-sweep (idempotent, loads on demand).
         window.dispatchEvent(new Event(VIZ_RESCAN));
         // A viewer revealed inside a freshly-shown pane may have measured 0×0 — nudge Monaco.
         window.dispatchEvent(new Event(RELAYOUT));

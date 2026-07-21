@@ -1,4 +1,4 @@
-//! Shared bits for the HTML flow-layout families (oracle: `DomKit.scala`, step 33): the
+//! Shared bits for the HTML flow-layout families: the
 //! per-widget diff modifier classes, the stacked cursor badge, and the ∅ / → glyphs. These
 //! widgets size to content and wrap — no SVG canvas, no layout pass.
 
@@ -8,8 +8,7 @@ use std::collections::HashMap;
 
 use super::themed;
 
-/// The BEM modifiers for a node id in a step, appended to `block` (each cue independently,
-/// oracle `diffMods`).
+/// The BEM modifiers for a node id in a step, appended to `block` (each cue independently).
 #[must_use]
 pub fn diff_mods(block: &str, id: &NodeId, step: &VizStep) -> String {
     use std::fmt::Write;

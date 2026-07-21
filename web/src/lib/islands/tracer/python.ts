@@ -1,5 +1,5 @@
 // ──────────────────────────────────────────────────────────────────
-// PYTHON TRACER WRAP (step 28)
+// PYTHON TRACER WRAP
 // ──────────────────────────────────────────────────────────────────
 // Embeds the user's Python source (base64, UTF-8-safe) into the sys.settrace
 // harness (python-harness.py, imported ?raw). The wrapped program runs through

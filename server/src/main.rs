@@ -1,5 +1,5 @@
-//! Binary entry — the wiring point (RS001's DIP rule: `main` composes config, logging, and the
-//! assembled router; nothing else knows the whole graph). `anyhow` is welcome here and only
+//! Binary entry — the wiring point: `main` composes config, logging, and the
+//! assembled router; nothing else knows the whole graph. `anyhow` is welcome here and only
 //! here — library code carries typed `thiserror` enums per context.
 
 use std::net::SocketAddr;
@@ -32,8 +32,8 @@ const JUDGE_GRACE: chrono::Duration = chrono::Duration::minutes(15);
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Dev-friendly default: INFO milestones everywhere, DEBUG internals for our own crates
-    // (ADR-S009); `RUST_LOG` overrides.
+    // Dev-friendly default: INFO milestones everywhere, DEBUG internals for our own crates;
+    // `RUST_LOG` overrides.
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env()
@@ -43,8 +43,8 @@ async fn main() -> anyhow::Result<()> {
 
     let cfg = synapse_server::config::AppConfig::load()?;
 
-    // Postgres FAILS FAST (oracle parity: Keycloak degrades, the system of record does not);
-    // migrations run at boot, exactly like Liquibase on pool acquire.
+    // Postgres FAILS FAST (Keycloak degrades gracefully instead; the system of record does
+    // not); migrations run automatically at boot, on pool acquire.
     let pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(8)
         .connect(&cfg.database_url)
@@ -122,7 +122,7 @@ async fn main() -> anyhow::Result<()> {
         content_root = cfg.content_root,
         auto_reload = cfg.auto_reload,
         executor_url = cfg.executor_url,
-        static_root = cfg.static_root,
+        astro_url = cfg.astro_url.as_deref().unwrap_or("(api only)"),
         likec4_url = cfg.likec4_url,
         "synapse-rs server started"
     );
@@ -139,7 +139,6 @@ async fn main() -> anyhow::Result<()> {
         tutor,
         astro_url: cfg.astro_url,
         site_url: cfg.site_url,
-        static_root: cfg.static_root.clone(),
         content_root: cfg.content_root.clone(),
         likec4_url: cfg.likec4_url.clone(),
         readiness,

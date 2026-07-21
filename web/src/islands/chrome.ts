@@ -1,25 +1,23 @@
 import * as log from "../lib/log";
-// The reader's floating chrome (oracle: client/src/catalog/view/{sidebar,chrome,prefs}.rs, build
-// book step 36). Vanilla TS, same reasoning as `islands/reader.ts` — the SSR page is plain HTML
-// and every job here is either `localStorage` (the sidebar face, the prefs pack) or a
-// scroll/click listener building fixed-position affordances that were never in the server markup.
-// There is nothing for a component framework to hydrate INTO.
+// The reader's floating chrome. Vanilla TS — the SSR page is plain HTML and every job here is
+// either `localStorage` (the sidebar face, the prefs pack) or a scroll/click listener building
+// fixed-position affordances that aren't in the server markup. There is nothing for a component
+// framework to hydrate INTO.
 //
 // This island loads ONLY on lesson pages (the `[...path].astro` `else` branch — problem pages get
 // none of it). Three pieces, each a section below:
 //   1. the sidebar's three persisted faces (Expanded · Compact rail · Hidden) + the collapse
-//      controls (oracle: `SidebarMode` + `ReaderSidebar`/`compact_rail` + the floating expand);
-//   2. the reading-preferences FAB + popover (oracle: `ReaderPrefsFab`) — the pure parse/
-//      serialize/applyToHtml half already lives in `lib/catalog/prefs.ts`;
-//   3. the right-edge minimap + the TOC FAB/popover (oracle: `MiniMap`/`TocFab`), fed by one
-//      scroll recompute (progress + active heading) over headings harvested from `.lesson-body`.
+//      controls;
+//   2. the reading-preferences FAB + popover — the pure parse/serialize/applyToHtml half lives in
+//      `lib/catalog/prefs.ts`;
+//   3. the right-edge minimap + the TOC FAB/popover, fed by one scroll recompute (progress +
+//      active heading) over headings harvested from `.lesson-body`.
 //
-// Deliberately NOT ported here (the oracle's names, so the next reader can find them): the
-// sidebar Filter box (`prune_entries`) and the ← Learn browse toggle (`browse_children`) — both
-// belong to the Expanded face but are their own feature and no e2e spec exercises them; and the
-// sticky wayfinding bar (`StickyBar`), the 2px top progress bar (`ReadingProgress`), focus mode
-// (`ReaderFocus`) and the scroll-to-top FAB (`ScrollTop`) — separate chrome the user's report did
-// not name. The minimap needs a progress fraction regardless, so that one scroll value is computed.
+// Not implemented here: the sidebar Filter box and the ← Learn browse toggle — both belong to the
+// Expanded face but are their own feature and no e2e spec exercises them; and the sticky
+// wayfinding bar, the 2px top progress bar, focus mode, and the scroll-to-top FAB — separate
+// chrome outside this pass's scope. The minimap needs a progress fraction regardless, so that one
+// scroll value is computed.
 
 import * as storage from "../lib/storage";
 import {
@@ -42,7 +40,7 @@ interface Heading {
   level: number;
 }
 
-/** Build an SVG icon element from its inner path markup (the oracle's exact `d` strings). */
+/** Build an SVG icon element from its inner path markup. */
 function icon(cls: string, inner: string): SVGSVGElement {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("class", cls);
@@ -58,13 +56,13 @@ function icon(cls: string, inner: string): SVGSVGElement {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SIDEBAR FACES (oracle: `SidebarMode` + `ReaderSidebar`/`top_row`/`compact_rail`)
+// SIDEBAR FACES
 // ─────────────────────────────────────────────────────────────────────────────
 
 type Face = "expanded" | "compact" | "hidden";
 
-/** Parse the stored face token — `collapsed` is the oracle's legacy alias for `hidden`, kept so
- *  an old-client visitor's saved face carries over (oracle: `SidebarMode::parse`). */
+/** Parse the stored face token — `collapsed` is a legacy alias for `hidden`, kept so a visitor's
+ *  previously saved face still carries over. */
 function parseFace(token: string | null): Face {
   if (token === "compact") return "compact";
   if (token === "hidden" || token === "collapsed") return "hidden";
@@ -78,12 +76,11 @@ interface RailChapter {
   active: boolean;
 }
 
-/** Read the top-level chapters straight off the rendered `.reader-sidebar__tree`. The oracle
- *  tiles a book's top-level CHAPTERS only (`compact_rail` filter-maps `Chapter`); a top-level
- *  lesson row — or a namesake-collapsed chapter the tree flattened to a lesson row — gets no
- *  tile, which is the one small deviation from the oracle (it tiles the RAW `book.entries`, so a
+/** Read the top-level chapters straight off the rendered `.reader-sidebar__tree`, tiling a book's
+ *  top-level CHAPTERS only; a top-level lesson row — or a namesake-collapsed chapter the tree
+ *  flattened to a lesson row — gets no tile. This walks the RAW `book.entries`, so a
  *  namesake-collapsed top-level chapter would still number there; such chapters are problem dirs
- *  that never sit at a book's top level in this content). */
+ *  that never sit at a book's top level in this content, so it doesn't come up in practice. */
 function railChapters(sidebar: Element): RailChapter[] {
   const tree = sidebar.querySelector(".reader-sidebar__tree");
   if (!tree) return [];
@@ -107,9 +104,9 @@ function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n);
 }
 
-/** Build the Compact rail once from the tree (oracle: `compact_rail`): an expand button atop a
- *  column of numbered tiles, each linking its chapter's first lesson; the active tile carries the
- *  conic `--progress` ring. Returns the rail plus the active tile (so scroll can drive its ring). */
+/** Build the Compact rail once from the tree: an expand button atop a column of numbered tiles,
+ *  each linking its chapter's first lesson; the active tile carries the conic `--progress` ring.
+ *  Returns the rail plus the active tile (so scroll can drive its ring). */
 function buildRail(sidebar: Element, onExpand: () => void): { rail: HTMLElement; activeTile: HTMLElement | null } {
   const rail = document.createElement("div");
   rail.className = "reader-rail";
@@ -149,8 +146,8 @@ function buildRail(sidebar: Element, onExpand: () => void): { rail: HTMLElement;
   return { rail, activeTile };
 }
 
-/** The Expanded face's toprow — the collapse controls the SSR inner never carried (oracle:
- *  `top_row`'s `.reader-sidebar__controls`, the two `.reader-sidebar__hide` buttons). */
+/** The Expanded face's toprow — the collapse controls the SSR inner never carried
+ *  (`.reader-sidebar__controls`, the two `.reader-sidebar__hide` buttons). */
 function buildToprow(toCompact: () => void, toHidden: () => void): HTMLElement {
   const row = document.createElement("div");
   row.className = "reader-sidebar__toprow";
@@ -176,9 +173,9 @@ function buildToprow(toCompact: () => void, toHidden: () => void): HTMLElement {
   return row;
 }
 
-/** The floating expand affordance for the Hidden face (oracle: reader.rs's `.reader-expand`).
- *  Kept in the DOM always; `.reader-expand--hidden` toggles it (CSS: display:none below 1024px,
- *  inline-flex above — desktop-only, the mobile route back is the drawer FAB). */
+/** The floating expand affordance for the Hidden face. Kept in the DOM always;
+ *  `.reader-expand--hidden` toggles it (CSS: display:none below 1024px, inline-flex above —
+ *  desktop-only, the mobile route back is the drawer FAB). */
 function buildFloatingExpand(onExpand: () => void): HTMLButtonElement {
   const btn = document.createElement("button");
   btn.className = "reader-expand reader-expand--hidden";
@@ -231,7 +228,7 @@ function wireSidebarFaces(layout: HTMLElement): Faces {
     rail.style.display = face === "compact" ? "" : "none";
     floating.classList.toggle("reader-expand--hidden", face !== "hidden");
     // Seed the ring from the current scroll position so switching to Compact shows it at once,
-    // not only after the next scroll event (the oracle's progress signal is already at value).
+    // not only after the next scroll event.
     if (face === "compact") {
       const scrollable = document.documentElement.scrollHeight - window.innerHeight;
       setRailProgress(scrollable > 0 ? Math.min(Math.max(window.scrollY / scrollable, 0), 1) : 0);
@@ -244,11 +241,11 @@ function wireSidebarFaces(layout: HTMLElement): Faces {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// READING-PREFERENCES FAB + POPOVER (oracle: `ReaderPrefsFab`)
+// READING-PREFERENCES FAB + POPOVER
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** A three-way segmented control (oracle: prefs.rs `segmented`). `preview` renders each option
- *  in the font its token names (`--serif/--sans/--mono`). Reflects + persists on click. */
+/** A three-way segmented control. `preview` renders each option in the font its token names
+ *  (`--serif/--sans/--mono`). Reflects + persists on click. */
 function segmented(
   label: string,
   options: readonly [string, string][],
@@ -310,8 +307,8 @@ function wirePrefsFab(): void {
     ["Width", WIDTHS, "width", false],
   ];
 
-  // The pop is built on open and removed on close (oracle: `open.then(panel)`), NOT toggled with
-  // `hidden` — the class rule carries `display: flex`, which outranks `[hidden]`'s UA `display:none`.
+  // The pop is built on open and removed on close, NOT toggled with `hidden` — the class rule
+  // carries `display: flex`, which outranks `[hidden]`'s UA `display:none`.
   let scrim: HTMLDivElement | null = null;
   let pop: HTMLDivElement | null = null;
   const close = (): void => {
@@ -368,10 +365,10 @@ function wirePrefsFab(): void {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MINIMAP + TOC (oracle: `MiniMap`/`TocFab`), fed by one scroll recompute
+// MINIMAP + TOC, fed by one scroll recompute
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Jump to a heading, offset for the fixed header (oracle: `scroll_to_heading`, −80px). */
+/** Jump to a heading, offset for the fixed header (−80px). */
 function scrollToHeading(id: string): void {
   const el = document.getElementById(id);
   if (!el) return;
@@ -379,8 +376,8 @@ function scrollToHeading(id: string): void {
   window.scrollTo(0, top);
 }
 
-/** Harvest h2[id]/h3[id] from the rendered prose (oracle: `harvest_headings`; the leading h1 is
- *  the page title and has no id). */
+/** Harvest h2[id]/h3[id] from the rendered prose (the leading h1 is the page title and has no
+ *  id). */
 function harvestHeadings(body: Element): Heading[] {
   const out: Heading[] = [];
   body.querySelectorAll<HTMLElement>("h2[id], h3[id]").forEach((el) => {
@@ -392,7 +389,7 @@ function harvestHeadings(body: Element): Heading[] {
 }
 
 function wireMinimapAndToc(headings: Heading[], onProgress: (fraction: number) => void): void {
-  // ── the minimap (oracle: `MiniMap`) — one tick per heading at its de-overlapped fraction ──
+  // ── the minimap — one tick per heading at its de-overlapped fraction ──
   const minimap = document.createElement("aside");
   minimap.className = "reader-minimap";
   minimap.setAttribute("aria-label", "Section map");
@@ -441,7 +438,7 @@ function wireMinimapAndToc(headings: Heading[], onProgress: (fraction: number) =
     log.debug(`chrome: minimap ${headings.length} ticks`);
   }
 
-  // ── the TOC FAB + popover (oracle: `TocFab`) ──
+  // ── the TOC FAB + popover ──
   const fab = document.createElement("button");
   fab.className = "reader-toc-fab";
   fab.type = "button";
@@ -505,7 +502,7 @@ function wireMinimapAndToc(headings: Heading[], onProgress: (fraction: number) =
   });
   document.body.append(fab);
 
-  // ── the one scroll recompute (oracle: `ChromeState::recompute`) ──
+  // ── the one scroll recompute ──
   let activeId: string | null = null;
   const reflectActive = (): void => {
     for (const { id, el } of tickEls) {

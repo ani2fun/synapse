@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 # ── VIZ WASM BUILD (dev | release) ────────────────────────────────────────────
-# The standalone viz crate's pipeline (A10) — the same three readable tools as
-# build-wasm.sh (cargo build → wasm-bindgen → release wasm-opt), pointed at
-# `viz-wasm` and landing in the ASTRO app: web/src/lib/viz-wasm/pkg is where the
-# lazy `islands/viz.ts` loader dynamic-imports the glue from (gitignored — build
-# output, rebuilt by CI/Docker).
+# The standalone `viz-wasm` crate's build pipeline: cargo build → wasm-bindgen → (release only)
+# wasm-opt. The output lands in the Astro app at web/src/lib/viz-wasm/pkg, where the lazy
+# `islands/viz.ts` loader dynamic-imports the glue from (gitignored — build output, rebuilt by
+# CI/Docker).
 #
-# Needs: the wasm32-unknown-unknown target and wasm-bindgen-cli matching
-# Cargo.lock (see build-wasm.sh). Release wants wasm-opt (binaryen).
+# Needs: the wasm32-unknown-unknown target and a wasm-bindgen-cli version matching Cargo.lock
+# (checked below). Release wants wasm-opt (binaryen).
 #
 # Usage: build-viz-wasm.sh [dev|release]   (default: dev)
 set -euo pipefail
@@ -22,8 +21,8 @@ if [[ "$locked" != "$have" ]]; then
 fi
 
 if [[ "$profile" == "release" ]]; then
-  # Same size-first profile + type-erased Leptos views as the old client's release build —
-  # the reasoning (measured at step 39) transfers wholesale: this bundle is all view code.
+  # Size-first codegen plus type-erased Leptos views: this bundle is all view code, so erasing
+  # view-tree monomorphization is the single biggest lever on its size.
   RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }--cfg erase_components" \
     cargo build -p viz-wasm --target wasm32-unknown-unknown --profile wasm-release
   wasm_file="target/wasm32-unknown-unknown/wasm-release/viz_wasm.wasm"

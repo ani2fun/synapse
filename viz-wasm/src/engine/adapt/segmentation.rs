@@ -1,4 +1,4 @@
-//! Stage 2 (oracle: `TraceSegmentation.scala`): one `VizGraph` per test case. A new case
+//! Stage 2: one `VizGraph` per test case. A new case
 //! begins when the root variable rebinds to a structure DISCONNECTED from the current case's
 //! root, read from the LIVE heap BOTH directions — `new→old` covers a rotation lifting a node
 //! above the root, `old→new` covers a recursive descent into a child; neither starts a new

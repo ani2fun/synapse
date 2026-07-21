@@ -1,44 +1,39 @@
 ---
-// One blog post (A04; oracle: client/src/blog/view/mod.rs::BlogPostPage/loaded_post,
-// byte-faithful classes). The body crosses the SAME markdown pipeline a lesson does
-// (`renderLesson` — A03 moved it to web/src/lib/markdown), minus workbench hydration (blog
-// posts never carried runnable fences in the oracle content). `prev`/`next` on the DTO are
-// publish-order neighbours: `prev` = older, `next` = newer (see BlogPostDto's doc comment).
+// One blog post. The body crosses the SAME markdown pipeline a lesson does (`renderLesson` in
+// web/src/lib/markdown), minus workbench hydration (blog posts never carry runnable fences).
+// `prev`/`next` on the DTO are publish-order neighbours: `prev` = older, `next` = newer (see
+// BlogPostDto's doc comment).
 //
 // The leading `<h1>` the pipeline renders is stripped: the header (below) already shows the
-// title, and the oracle's `loaded_post` removed the same duplicate via
-// `body.query_selector("h1")` + `previous_element_sibling().is_none()` once the DOM existed.
-// SSR has no DOM to query — the equivalent here is a string check on the rendered HTML's
-// leading tag, done BEFORE `set:html` rather than after mount.
+// title. SSR has no DOM to query, so this is a string check on the rendered HTML's leading tag,
+// done BEFORE `set:html` rather than after mount.
 //
-// HEAD IS NEW, NOT A PORT — see blog/index.astro's comment: the oracle never gave blog pages a
-// real head at all.
+// The head (title/description) is server-rendered fresh on every request, same as
+// blog/index.astro.
 //
-// A09: the oracle's blog view never hydrated ANY interactive placeholder (client/src/blog/view
-// has no hydrate_* call at all — the oracle's blog content never carried one). This migration's
-// blog posts share the exact SAME `renderLesson` pipeline a lesson does, so a diagram/quiz/c4
-// fence in a post is not hypothetical — it renders the identical placeholder markup. `islands/
-// widgets` (the lesson body's quiz + diagram + c4 pass, A09) is wired here too rather than
-// leaving those placeholders inert only because the oracle happened not to need them.
+// `islands/widgets` (the lesson body's quiz + diagram + c4 pass) is wired here too: blog posts
+// share the exact SAME `renderLesson` pipeline a lesson does, so a diagram/quiz/c4 fence in a
+// post is not hypothetical — it renders the identical placeholder markup and deserves the
+// identical hydration.
 import Base from "../../layouts/Base.astro";
 import NotFound from "../../components/NotFound.astro";
 import { blogPost, ApiFailure } from "../../lib/api/client";
 import type { BlogPost } from "../../lib/api/client";
 import { renderLesson } from "../../lib/markdown/render";
 
-import "../../../../client/styles/blog.css";
-import "../../../../client/styles/markdown.css";
-import "../../../../client/styles/diagrams.css";
-import "../../../../client/styles/codebench.css";
+import "../../../styles/blog.css";
+import "../../../styles/markdown.css";
+import "../../../styles/diagrams.css";
+import "../../../styles/codebench.css";
 
-/** `rebuilding-cortex` → `Rebuilding cortex` — good enough for a pager card (oracle: `humanize`). */
+/** `rebuilding-cortex` → `Rebuilding cortex` — good enough for a pager card. */
 function humanise(slug: string): string {
   const words = slug.replace(/[-_]/g, " ");
   return words.length > 0 ? words[0].toUpperCase() + words.slice(1) : words;
 }
 
-/** Drop a leading `<h1>` — the SSR equivalent of the oracle's "no previous sibling" DOM check:
- *  a leading h1 in rendered HTML has nothing before it by construction. */
+/** Drop a leading `<h1>` — a leading h1 in rendered HTML has nothing before it by construction,
+ *  so a string check on the head of the markup is enough. */
 function stripLeadingH1(html: string): string {
   const trimmed = html.replace(/^\s+/, "");
   const match = /^<h1[^>]*>[\s\S]*?<\/h1>/.exec(trimmed);
@@ -133,8 +128,8 @@ const canonicalPath = post ? `/blog/${slug}` : undefined;
 </Base>
 
 <style>
-  /* Shared with the lesson page's A03-local error/notfound chrome — kept here too since blog
-     pages import blog.css/markdown.css, not reader.css. */
+  /* Shared with the lesson page's error/notfound chrome — kept here too since blog pages
+     import blog.css/markdown.css, not reader.css. */
   .lesson--error {
     max-width: 40rem;
     margin-inline: auto;

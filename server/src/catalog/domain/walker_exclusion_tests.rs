@@ -1,7 +1,6 @@
-//! What the walker REFUSES to index (split out of `walker_tests.rs` in step 54, when that file
-//! reached its 500-line cap). One theme: a directory or file present on disk that must never
-//! become a catalog entry — hidden and non-slug names, a book's aux dirs, and material that is
-//! deliberately unpublishable (ADR-RS002).
+//! What the walker REFUSES to index. One theme: a directory or file present on disk that must
+//! never become a catalog entry — hidden and non-slug names, a book's aux dirs, and material
+//! that is deliberately unpublishable (ADR-RS002).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -98,16 +97,16 @@ fn reserved_aux_dirs_and_hidden_files_are_skipped_inside_books() {
 
 // ── errors & edge rules ───────────────────────────────────────────────────────
 
-// ── local-only is never content (step 54) ─────────────────────────────────────
+// ── local-only is never content ────────────────────────────────────────────────
 
 #[test]
 fn a_local_only_dir_yields_no_books_however_well_formed() {
-    // The content tree really does carry one of these, holding two complete books — 66 lessons
+    // The content tree really does carry one of these, holding two complete books — lessons
     // adapted from a commercial course plus a SQL book — kept for personal study (ADR-RS002).
-    // Before this rule the walker indexed them: they reached /api/synapse/index, /sitemap.xml
-    // and lesson_view. The ONLY thing keeping them out of production was that the bytes were
-    // never pushed, which is a property of another repository's .gitignore rather than a
-    // decision this server knew about.
+    // Without this rule the walker would index them: they would reach /api/synapse/index,
+    // /sitemap.xml and lesson_view. Keeping them unpublished would then depend on the bytes
+    // never being pushed, a property of another repository's .gitignore rather than a decision
+    // this server enforces itself.
     let result = walk(&[
         dir(
             "local-only",

@@ -1,4 +1,4 @@
-//! Oracle: `ArrayLayoutSpec` (incl. `Layout.union`) + `StackLayoutSpec`.
+//! Array layout (incl. `union`) + stack layout.
 
 #![allow(clippy::unwrap_used, clippy::float_cmp)] // exact constants are the point
 

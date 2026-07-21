@@ -1,13 +1,11 @@
 import * as log from "../lib/log";
-// The ⌘K palette (oracle: client/src/search/{state,view}/mod.rs — `SearchStore` +
-// `SearchPalette`/`SearchButton`), a singleton modal mounted once per page from `Base.astro` so
-// it exists on EVERY page (the e2e palette spec opens it from `/`). Vanilla TS: there is no
-// component framework instance for this to hydrate into, only the `.header__search` button
-// `Header.astro` has shipped inert since A03.
+// The ⌘K palette, a singleton modal mounted once per page from `Base.astro` so it exists on
+// EVERY page (the e2e palette spec opens it from `/`). Vanilla TS: there is no component
+// framework instance for this to hydrate into, only the `.header__search` button `Header.astro`
+// ships with.
 //
 // Data loads LAZILY on first open — `fetchIndex()` + `blogList()` — and is cached for the rest
-// of the page's life; a failed index load degrades to an empty result set exactly like the
-// Rust memo (`AsyncResult::Loading | Failed` → `Vec::new()`).
+// of the page's life; a failed index load degrades to an empty result set.
 
 import { fetchIndex, blogList } from "../lib/api/client";
 import { entries as flattenEntries, search as rankSearch } from "../lib/search";
@@ -18,8 +16,7 @@ let cachedEntries: SearchEntry[] | null = null;
 let loadPromise: Promise<SearchEntry[]> | null = null;
 
 /** Fetch once, keep forever (a page has one library and one blog list). Both calls degrade
- *  independently — a blog failure still leaves the lessons/books searchable, matching the
- *  Rust memo's `match blog.list().get() { Loaded(posts) => …, _ => logic::entries(&index, &[]) }`. */
+ *  independently — a blog failure still leaves the lessons/books searchable. */
 async function loadEntries(): Promise<SearchEntry[]> {
   if (cachedEntries) return cachedEntries;
   if (loadPromise) return loadPromise;

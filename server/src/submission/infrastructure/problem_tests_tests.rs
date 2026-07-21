@@ -1,4 +1,4 @@
-//! Oracle: `FileSystemProblemTestsSpec` — hermetic, over an in-memory content repo with the
+//! Tests for `FileSystemProblemTests` — hermetic, over an in-memory content repo with the
 //! REAL numbered-dir shape (the walker map is the only correct path from slug to file).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

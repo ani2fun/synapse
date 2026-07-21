@@ -1,10 +1,8 @@
-//! Integration: request tracing (step 45) through the REAL assembled router.
+//! Integration: request tracing through the REAL assembled router.
 //!
-//! RS001 has claimed `route→service→adapter` spans since the rebuild started, and until this
-//! step the server emitted flat events with no span context at all — the claim was true of
-//! the intent and false of the binary. These tests hold the claim to the actual output: a
-//! span is emitted per request, it carries the fields needed to correlate a production
-//! failure, and the id round-trips on the response.
+//! The server is designed to emit `route→service→adapter` spans for every request. These
+//! tests hold that design to the actual output: a span is emitted per request, it carries the
+//! fields needed to correlate a production failure, and the id round-trips on the response.
 //!
 //! The subscriber writes into a shared buffer rather than asserting on a mock, because what
 //! matters is what an operator reading logs actually sees.
@@ -87,7 +85,7 @@ async fn a_request_emits_an_http_span_with_method_path_status_and_latency() {
 
 /// The correlation guarantee. Without an id on both the span and the response, a user
 /// reporting "it broke" cannot be joined to the log line that recorded the break — which is
-/// the entire reason this step exists.
+/// the entire reason request-id propagation exists.
 #[tokio::test]
 async fn the_request_id_is_generated_echoed_on_the_response_and_recorded_on_the_span() {
     let (_status, headers, logs) =

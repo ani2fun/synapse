@@ -1,4 +1,4 @@
-//! The Chain family (oracle: `ChainRenderers`): linked-list boxes left-to-right in
+//! The Chain family: linked-list boxes left-to-right in
 //! next-order, `next` arrows above centre, `prev` dashed below, and the `∅` terminator.
 
 use crate::engine::geometry::constants::{CELL_H, CELL_W, CHAIN_DX};

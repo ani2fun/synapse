@@ -1,8 +1,8 @@
-//! The submission HTTP surface (oracle: `SubmissionRoutes` at the identity stage): POST → 202
-//! (bearer optional — anonymous submits, a BAD token 401s, never silently anonymous), public
-//! GET poll, PRIVATE list (anonymous → `[]`, store untouched), owner-only delete + erase-all.
-//! DTO↔domain mapping lives ONLY here; the bearer skeleton is `identity::http::optional_user`
-//! (step 61) — only the anonymous POLICY and the per-verb 401 copy stay local.
+//! The submission HTTP surface: POST → 202 (bearer optional — anonymous submits, a BAD token
+//! 401s, never silently anonymous), public GET poll, PRIVATE list (anonymous → `[]`, store
+//! untouched), owner-only delete + erase-all. DTO↔domain mapping lives ONLY here; the bearer
+//! skeleton is `identity::http::optional_user` — only the anonymous POLICY and the per-verb
+//! 401 copy stay local.
 
 pub mod admin;
 mod dto;
@@ -61,8 +61,8 @@ pub fn routes(state: SubmissionRoutesState) -> Router {
         .with_state(state)
 }
 
-/// The submission-local name for the shared skeleton (`identity::http::optional_user`, step
-/// 61 — the never-silently-anonymous rule lives THERE now); this keeps the call sites short.
+/// The submission-local name for the shared skeleton (`identity::http::optional_user`, which
+/// owns the never-silently-anonymous rule); this keeps the call sites short.
 async fn caller_user(
     state: &SubmissionRoutesState,
     headers: &HeaderMap,
@@ -103,7 +103,7 @@ pub(crate) async fn submit_solution(
         user_id: user.id.0,
         username: user.username,
     });
-    // The budget gate (step 19's port): signed-in meters per subject, anonymous per IP.
+    // The rate-limit budget gate: signed-in meters per subject, anonymous per IP.
     let consumed = match &submitter {
         Some(s) => state.limiter.consume_authenticated(&s.user_id),
         None => state.limiter.consume_anonymous(&client_ip(&headers, peer.0)),

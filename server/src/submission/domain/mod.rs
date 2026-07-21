@@ -1,4 +1,4 @@
-//! Pure submission domain (oracle: `Submission.scala` + `SuiteOutcome.scala`). The state is an
+//! Pure submission domain: the `Submission` aggregate and its `SuiteOutcome`. The state is an
 //! ADT, not a status column with nullables — a verdict on a pending row or a completed row
 //! without one is UNREPRESENTABLE in memory; Postgres flattens at the edge only.
 

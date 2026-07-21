@@ -1,10 +1,10 @@
-//! The JWKS token verifier (oracle: `JwksTokenVerifier.scala`). The pipeline, verbatim:
+//! The JWKS token verifier (`JwksTokenVerifier`). The pipeline:
 //! RS256 against the realm's JWKS (lazy first fetch, ~5 min cache, ONE forced refresh on an
 //! unknown `kid`), exact `iss`, `exp` with 60 s leeway, required `{sub, exp}` — then the MANUAL
-//! Keycloak audience quirk: public SPA tokens carry `aud:["account"]` and name the client in
-//! `azp`, so the rule is `aud ∋ clientId OR azp == clientId` (nimbus/jsonwebtoken `aud`
-//! checking stays OFF). Usernames leave here CANONICAL LOWERCASE (step-36 audit fix, applied
-//! once). Degrade: JWKS unreachable → `VerifierUnavailable` (503); everything else →
+//! Keycloak audience quirk: public Keycloak clients carry `aud:["account"]` and name the client
+//! in `azp`, so the rule is `aud ∋ clientId OR azp == clientId` (jsonwebtoken's own `aud`
+//! checking stays OFF). Usernames leave here CANONICAL LOWERCASE, applied
+//! once. Degrade: JWKS unreachable → `VerifierUnavailable` (503); everything else →
 //! `InvalidToken` (401).
 
 use std::time::{Duration, Instant};
@@ -118,7 +118,7 @@ impl TokenVerifier for JwksTokenVerifier {
     }
 }
 
-/// `aud ∋ clientId OR azp == clientId` — public SPA tokens carry `aud:["account"]`.
+/// `aud ∋ clientId OR azp == clientId` — public Keycloak clients carry `aud:["account"]`.
 fn check_audience(claims: &Claims, audience: &str) -> Result<(), AuthError> {
     let aud_hit = match &claims.aud {
         Some(serde_json::Value::String(s)) => s == audience,

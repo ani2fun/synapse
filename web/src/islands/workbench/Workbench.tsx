@@ -1,13 +1,12 @@
 /**
- * One runnable code block (port of client/src/execution/view/runnable.rs — the migration's
- * risk-1 component). Multi-variant language tabs over ONE Monaco; each variant keeps its own
- * buffer/run state in its own BlockStore; switching swaps the editor's value + tokenizer in
+ * One runnable code block. Multi-variant language tabs over ONE Monaco; each variant keeps its
+ * own buffer/run state in its own BlockStore; switching swaps the editor's value + tokenizer in
  * place. Viewport-lazy Monaco with the page-wide cap; shiki placeholder until then.
  *
- * Deliberately absent this step, per the migration plan: the auth island (A11) — until it
- * installs `window.__synapseAuth`, Edit and Submit render disabled with the sign-in copy,
- * which is exactly the anonymous experience; the viz island (A10) — Visualise renders only
- * once `window.__synapseViz` exists.
+ * Auth and viz are read through window-scoped checks rather than props: until the auth island
+ * installs `window.__synapseAuth`, Edit and Submit render disabled with the sign-in copy, which
+ * is exactly the anonymous experience; until the viz island installs `window.__synapseViz`,
+ * Visualise doesn't render at all.
  */
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 
@@ -36,7 +35,7 @@ import * as lazy from "./lazy";
 import { Output, TestsPanel, VerdictPanel } from "./panels";
 import { BlockStore, SubmitStore, TestsState } from "./state";
 
-/** The oracle's editor height rule (client/src/islands/editor.rs). */
+/** The editor height rule: clamp to a line count, with a floor and a ceiling. */
 function defaultHeightPx(source: string): number {
   const lines = source.split("\n").length;
   return Math.min(Math.max(lines * 20 + 28, 64), 520);
@@ -55,7 +54,7 @@ export interface WorkbenchProps {
   /** The hydrated placeholder — the event-contract surface (load-code / use-case listeners,
    *  submitted / code-changed dispatches). */
   root: HTMLElement;
-  /** Embedded practice (step 30): Run only — the Submit verb never renders. */
+  /** Embedded practice: Run only — the Submit verb never renders. */
   practice?: boolean;
   /** Problem page right pane: editor fills the free height until a drag pins one. */
   fill?: boolean;
@@ -227,7 +226,8 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
     const v = variants[active]!;
     void (async () => {
       // createEditor directly, not the loader shim: mountEditor's flat-positional signature is
-      // the wasm-bindgen FFI shape for the OLD client. The dynamic import keeps Monaco lazy.
+      // the wasm-bindgen FFI shape the viz-wasm crate's bindings call through, which this caller
+      // doesn't need. The dynamic import keeps Monaco lazy.
       const { createEditor } = await import("../../lib/islands/editor/monaco");
       if (mounted.current) return;
       const dark = document.documentElement.classList.contains("dark");
@@ -288,7 +288,7 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
   const toggleEditRef = useRef(toggleEdit);
   toggleEditRef.current = toggleEdit;
 
-  // A pane that unhides a Monaco fires RELAYOUT (A07's problem-page tabs) so the editor
+  // A pane that unhides a Monaco fires RELAYOUT (the problem page's tabs) so the editor
   // re-measures — fulfils the contract's editor half. `automaticLayout` catches most reveals via
   // its ResizeObserver; this is the belt for the display:none→shown case it can miss.
   useEffect(() => {
@@ -297,8 +297,8 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
     return () => window.removeEventListener(RELAYOUT, onRelayout);
   }, []);
 
-  // The Visualise button is a render-time `__synapseViz` check; the lazy viz loader (A10)
-  // announces its arrival, and this tick makes the button appear on already-mounted blocks.
+  // The Visualise button is a render-time `__synapseViz` check; the lazy viz loader announces
+  // its arrival, and this tick makes the button appear on already-mounted blocks.
   useEffect(() => {
     const onVizReady = () => setAuthTick((n) => n + 1);
     window.addEventListener(VIZ_READY, onVizReady);

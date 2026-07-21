@@ -1,6 +1,7 @@
-//! Inbound HTTP adapter for the `platform` context: axum routes → use cases, with the layered
-//! trace (route → service) every endpoint carries (ADR-S009). DTO↔domain mapping lives only
-//! here — trivially so for health, whose result *is* the shared DTO.
+//! Inbound HTTP adapter for the `platform` context: axum routes → use cases. Every endpoint
+//! carries a layered trace from route down to service, so a request's path through the system
+//! is visible in the logs. DTO↔domain mapping lives only here — trivially so for health, whose
+//! result *is* the shared DTO.
 
 use std::sync::Arc;
 

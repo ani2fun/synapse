@@ -1,5 +1,5 @@
-//! Live sandbox ITs, gated behind `GOJUDGE_IT` (oracle: `GoJudgeRunnerIT`) — need
-//! `docker compose up -d go-judge` (host :5150). Run:
+//! Live sandbox ITs, gated behind `GOJUDGE_IT` — need `docker compose up -d go-judge`
+//! (host :5150). Run:
 //! `GOJUDGE_IT=1 EXECUTOR_URL=http://localhost:5150 cargo test --test go_judge_it -- --test-threads=1`
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

@@ -1,5 +1,5 @@
-//! Lesson payloads (oracle: `LessonContent.scala`) — the typed frontmatter and the assembled
-//! lesson the service hands to the HTTP layer.
+//! Lesson payloads — the typed frontmatter and the assembled lesson the service hands to the
+//! HTTP layer.
 
 use crate::catalog::domain::catalog::{Book, Lesson};
 
@@ -23,7 +23,7 @@ pub struct Parsed {
 
 /// The assembled lesson. `prev_path`/`next_path` are IN-BOOK slug-paths here — the HTTP layer
 /// prepends `categoryPath + bookSlug` to make the wire's full paths. `editorial` joins for
-/// `kind: problem` lessons with a `.editorial.md` sidecar (oracle step 16).
+/// `kind: problem` lessons with a `.editorial.md` sidecar.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LessonContent {
     pub book: Book,

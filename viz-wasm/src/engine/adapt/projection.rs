@@ -1,8 +1,8 @@
-//! Stage 4 (oracle: `HeapProjection.scala`): one rooted segment → drawable steps. Per step:
+//! Stage 4: one rooted segment → drawable steps. Per step:
 //! re-resolve the root (rotation guard), take the reachable set minus null sentinels, project
 //! instances/arrays/dicts to nodes + edges, group cards and infer a per-card layout kind. The
-//! authored layout override applies to the ROOT CARD ONLY (ADR-S030 delta — the oracle forced
-//! every card; the fixtures are single-forced-card, so goldens don't move).
+//! authored layout override applies to the ROOT CARD ONLY, not every card — the cortex-goldens
+//! fixtures are all single-card, so this never moves them.
 
 use std::collections::{BTreeMap, HashSet};
 
@@ -14,8 +14,8 @@ use crate::engine::adapt::vocab;
 use crate::engine::graph::{NodeId, VizCursor, VizEdge, VizField, VizFrame, VizLocal, VizNode};
 use crate::engine::trace::{HeapObject, HeapScalar, HeapStep, HeapValue};
 
-/// A drawable node before diffing, carrying its owning heap id STRUCTURALLY (no id parsing —
-/// the oracle's `takeWhile(_ != '#')` wart, prevented).
+/// A drawable node before diffing, carrying its owning heap id STRUCTURALLY — no id parsing,
+/// by design.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProjectedNode {
     pub node: VizNode,
@@ -229,7 +229,7 @@ fn node_view(cls: &str, fields: &[(String, HeapValue)]) -> (String, Vec<VizField
     (label, meta)
 }
 
-/// Scala `Double.toString` parity for the integral case (`1.0`, not `1`).
+/// Double formatting for the integral case (`1.0`, not `1`) — pinned by the cortex goldens.
 fn scala_double_label(v: f64) -> String {
     if v.is_finite() && v.fract() == 0.0 && v.abs() < 1e15 {
         format!("{v:.1}")
@@ -419,8 +419,7 @@ fn type_label(v: &HeapValue, heap: &BTreeMap<String, HeapObject>) -> String {
 
 // A frame local's display value: scalar inline · instance → its node label · a list/dict → a
 // preview (first 12 elements, `…` past that — the frames panel has the row width, and the
-// view CSS ellipsizes whatever still overflows; deliberate divergence from the oracle's
-// 3-element preview, user ask 2026-07-17) · a dangling ref → `?`.
+// view CSS ellipsizes whatever still overflows) · a dangling ref → `?`.
 const ARR_PREVIEW_ITEMS: usize = 12;
 
 fn value_display(v: &HeapValue, heap: &BTreeMap<String, HeapObject>) -> String {

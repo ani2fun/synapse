@@ -1,5 +1,4 @@
-//! The identity use case + ports (oracle: `IdentityService` + `TokenVerifier` +
-//! `KeycloakAdmin`).
+//! The identity use case + ports: `IdentityService` + `TokenVerifier` + `KeycloakAdmin`.
 
 use crate::identity::domain::AuthenticatedUser;
 
@@ -18,7 +17,7 @@ pub trait TokenVerifier: Send + Sync {
     fn verify(&self, token: &str) -> impl Future<Output = Result<AuthenticatedUser, AuthError>> + Send;
 }
 
-/// The outbound port for account administration (oracle step 21/37): ONE capability —
+/// The outbound port for account administration: ONE capability —
 /// delete a user by `sub`. A missing user counts as already gone; any Keycloak-admin failure
 /// is `VerifierUnavailable` (503 — the IdP being down is OUR problem, never a silent success).
 pub trait KeycloakAdmin: Send + Sync {

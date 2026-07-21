@@ -1,4 +1,4 @@
-//! The Postgres allowlist adapter (oracle: `PostgresSubmissionAllowlist`) — the probe the
+//! The Postgres allowlist adapter (`PostgresSubmissionAllowlist`) — the probe the
 //! submit gate rides plus the admin panel's management verbs.
 
 use chrono::{DateTime, Utc};

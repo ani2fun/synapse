@@ -14,8 +14,8 @@ import { test as base, expect } from "@playwright/test";
  *
  *  · A failure now prints the real reason next to the assertion that noticed it.
  *  · An uncaught page error FAILS the test even if the assertions somehow pass. A page that
- *    threw is not a page that works, and the step-52 panic proved this codebase can render
- *    something plausible while being fundamentally broken underneath.
+ *    threw is not a page that works — this codebase has rendered something plausible while
+ *    being fundamentally broken underneath, and assertions alone did not catch it.
  */
 export const test = base.extend<{ pageErrors: string[] }>({
   pageErrors: [
@@ -45,8 +45,8 @@ export const test = base.extend<{ pageErrors: string[] }>({
       }
 
       // The test passed, so only a real fault should overturn that. A page that threw is not a
-      // page that works — step 52's panic rendered something plausible while being broken
-      // underneath. Resource noise alone is not grounds to fail a passing spec.
+      // page that works, even one that rendered something plausible while broken underneath.
+      // Resource noise alone is not grounds to fail a passing spec.
       const real = errors.filter((e) => !/Failed to load resource/i.test(e));
       if (real.length > 0) {
         throw new Error(`the page reported errors:\n${report}`);

@@ -1,4 +1,4 @@
-//! Oracle: `BlogServiceSpec` — ordering, the version-gated cache, neighbours, `NotFound`.
+//! Covers ordering, the version-gated cache, neighbours, `NotFound`.
 
 #![allow(clippy::unwrap_used)]
 

@@ -1,6 +1,5 @@
-//! Stage-level behaviors (a focused port of the oracle's `AdaptStagesSpec` /
-//! `HeapSnapshotSpec` / `HeapToGraphDiffSpec` cores — the 16 goldens carry the end-to-end
-//! load; these pin the individual stage rules the goldens can't isolate).
+//! Stage-level behaviors — the 16 goldens carry the end-to-end
+//! load; these pin the individual stage rules the goldens can't isolate.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -356,7 +355,7 @@ fn narration_reads_initial_then_cursor_moves() {
     let s2 = step(2, vec![("arr", sref("A")), ("i", int(1))], vec![("A", arr)]);
     let cases = adapt::adapt(&trace(vec![s1, s2]), "x\ny", "array", Some("arr"), None, "t").unwrap();
     let steps = &cases.cases[0].steps;
-    // Step 0 already carries a cursor, so the oracle narrates ITS placement (moved-vs-empty
+    // Step 0 already carries a cursor, so narration reports ITS placement (moved-vs-empty
     // prev beats "initial structure" in the precedence — goldens confirm).
     assert_eq!(steps[0].annotation.title, "i moves to 7");
     assert_eq!(steps[1].annotation.title, "i moves to 8");

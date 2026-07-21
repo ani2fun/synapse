@@ -1,4 +1,4 @@
-//! Oracle: `BlogPostSpec` — the four parse behaviors.
+//! Covers the four frontmatter parse behaviors.
 
 #![allow(clippy::unwrap_used)]
 

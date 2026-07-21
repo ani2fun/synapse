@@ -1,6 +1,6 @@
 //! Integration: POST /api/run through the REAL stack — router → service → `GoJudgeRunner` →
 //! wire — against a LOCAL go-judge stub (an axum server speaking the go-judge protocol), so
-//! the whole adapter path is exercised without a sandbox (oracle: `ExecutionRoutesSpec`).
+//! the whole adapter path is exercised without a sandbox.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

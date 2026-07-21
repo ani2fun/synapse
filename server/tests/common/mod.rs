@@ -32,7 +32,7 @@ const TEST_BUCKET: RateLimitBucket = RateLimitBucket {
 /// The default wiring over a content root — tests tweak fields before `synapse_server::app`.
 /// A nonexistent root is valid (empty catalog + blog); port 9 (discard) refuses connections,
 /// so executor/issuer/likec4 default to unreachable; the pool is LAZY so store-free routes
-/// stay green; the static root is absent so no SPA routes mount.
+/// stay green; `astro_url` is absent so `/` falls back to the plain API-only pointer text.
 #[allow(dead_code)] // each IT binary compiles common on its own; not all use every helper
 pub fn deps(content_root: &Path) -> AppDeps {
     deps_with(
@@ -52,7 +52,7 @@ fn lazy_pool() -> sqlx::PgPool {
 }
 
 /// The lazy-pool default stores + the disabled tutor, for ITs that fake only ONE of the
-/// three swappable ports (step 60) and want the production shape for the rest.
+/// three swappable ports and want the production shape for the rest.
 #[allow(dead_code)]
 pub fn lazy_allowlist() -> Arc<PostgresSubmissionAllowlist> {
     Arc::new(PostgresSubmissionAllowlist::new(lazy_pool()))
@@ -73,9 +73,9 @@ pub fn tutor_off() -> TutorRoutesState<OllamaTutorClient> {
     }
 }
 
-/// The FULL app with caller-supplied stores for the three fakeable ports (step 60): an IT
-/// that fakes one port passes the defaults above for the others and still drives the whole
-/// router — layer stack included — instead of assembling its own sub-router.
+/// The FULL app with caller-supplied stores for the three fakeable ports: an IT that fakes
+/// one port passes the defaults above for the others and still drives the whole router —
+/// layer stack included — instead of assembling its own sub-router.
 #[allow(dead_code)]
 pub fn app_with_stores<L, V, C>(
     issuer: &str,
@@ -99,7 +99,6 @@ where
         ident: base.ident,
         blog: base.blog,
         limiter: base.limiter,
-        static_root: base.static_root,
         astro_url: base.astro_url,
         site_url: base.site_url,
         content_root: base.content_root,
@@ -167,7 +166,6 @@ pub fn deps_with(
         limiter: Arc::new(RateLimiter::new(TEST_BUCKET, TEST_BUCKET)),
         astro_url: None,
         site_url: "https://synapse.test".to_owned(),
-        static_root: content_root.join("__no_dist__").to_string_lossy().into_owned(),
         content_root: content_root.to_string_lossy().into_owned(),
         likec4_url: "http://127.0.0.1:9".to_owned(),
         readiness,

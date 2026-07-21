@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ── GENERATE WIRE TYPES (migration step A02) ───────────────────────────────────
+# ── GENERATE WIRE TYPES ────────────────────────────────────────────────────────
 # The server's OpenAPI document (utoipa, code-first — server/src/lib.rs's `ApiDoc`) is the one
 # source of truth for what web/ decodes. This re-derives web/src/lib/api/schema.gen.ts from it:
 # build dump_openapi, run it for the document, feed the document to openapi-typescript, write

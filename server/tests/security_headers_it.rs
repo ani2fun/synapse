@@ -1,13 +1,10 @@
-//! Integration: the security stamp on EVERY route class (oracle: `SecurityHeadersSpec` + the
-//! step-36/38 prod incidents as fixtures). The exact header values are the contract — an
-//! over-tight CSP silently broke prod fonts/Monaco once and d2's ELK worker twice; these
-//! assertions are the regression net.
+//! Integration: the security stamp on EVERY route class. The exact header values are the
+//! contract — an over-tight CSP silently broke prod fonts/Monaco once and d2's ELK worker
+//! twice; these assertions are the regression net.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
-
-use std::fs;
 
 use axum::body::Body;
 use axum::http::{HeaderMap, Request, StatusCode};
@@ -63,7 +60,8 @@ async fn the_csp_allows_the_keycloak_origin_or_sign_in_breaks() {
 
 #[tokio::test]
 async fn the_csp_permits_the_apps_real_resources() {
-    // The step-36 incident (fonts/Monaco/inline) + step-38 (d2's ELK eval) + the RS wasm app.
+    // Real resources the CSP must allow: fonts + Monaco's inline styles, d2's ELK eval worker,
+    // and the wasm viz engine (needs 'wasm-unsafe-eval').
     let tmp = tempfile::tempdir().unwrap();
     let (_, headers) = headers_of(app(tmp.path()), "/api/health").await;
     let csp = value(&headers, "content-security-policy");
@@ -89,14 +87,16 @@ async fn stamps_errors_and_every_route_class_too() {
     assert_eq!(status, StatusCode::BAD_GATEWAY);
     assert_eq!(value(&headers, "x-content-type-options"), "nosniff");
 
-    // The static SPA index is stamped.
-    let dist = tmp.path().join("dist");
-    fs::create_dir_all(&dist).unwrap();
-    fs::write(dist.join("index.html"), "SPA").unwrap();
+    // The API-only root (no page tier configured) is stamped.
+    let (status, headers) = headers_of(app(tmp.path()), "/").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(value(&headers, "x-content-type-options"), "nosniff");
+
+    // The Astro page proxy's degrade path (sidecar down → 502) is stamped.
     let mut deps = common::deps(tmp.path());
     ISSUER.clone_into(&mut deps.ident.issuer);
-    deps.static_root = dist.to_string_lossy().into_owned();
+    deps.astro_url = Some("http://127.0.0.1:1".to_owned());
     let (status, headers) = headers_of(synapse_server::app(deps), "/synapse/deep/link").await;
-    assert_eq!(status, StatusCode::OK);
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
     assert_eq!(value(&headers, "x-content-type-options"), "nosniff");
 }

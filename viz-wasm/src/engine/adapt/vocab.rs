@@ -1,5 +1,5 @@
-//! The adapter's name heuristics (oracle: `AdaptVocab.scala`, ADR-S030), in one documented
-//! place, ported VERBATIM from Cortex so the fixture goldens compare. Adapter concerns —
+//! The adapter's name heuristics, in one documented place, pinned exactly so the
+//! cortex-goldens fixtures compare byte-for-byte. Adapter concerns —
 //! kept here, not in the authored `vocabulary`. Known quirk carried on purpose: the
 //! single-letter breadth of `INDEX_NAMES` (`l`/`r`/`m`/…) can promote a coincidentally-named
 //! integer local to an array-index cursor.

@@ -1,4 +1,4 @@
-//! The readership wire contract (step 49). Admin-only, and deliberately coarse: counts and a
+//! The readership wire contract. Admin-only, and deliberately coarse: counts and a
 //! timestamp, never a reader. There is no DTO here for recording a view because there is no
 //! endpoint for it — a view is recorded as a side effect of serving the lesson, so the client
 //! never asks for it and cannot inflate it.

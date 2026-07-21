@@ -1,11 +1,10 @@
 ---
-// `/admin` (oracle: client route `/admin` → `AdminPage`, step 35). Client-driven like /account:
-// SSR renders the shell + an empty host, the Preact island (islands/auth/AdminPanel) fills it.
-// `me.admin` gates the UI only — the API re-checks admin per call, so a non-admin who reaches
-// here sees the 403 in the banner (or "Admin only" before any call). account.css carries the
-// admin__ table/form classes verbatim.
+// `/admin`. Client-driven like /account: SSR renders the shell + an empty host, the Preact
+// island (islands/auth/AdminPanel) fills it. `me.admin` gates the UI only — the API re-checks
+// admin per call, so a non-admin who reaches here sees the 403 in the banner (or "Admin only"
+// before any call). account.css carries the admin__ table/form classes.
 import Base from "../layouts/Base.astro";
-import "../../../client/styles/account.css";
+import "../../styles/account.css";
 ---
 
 <Base title="Admin — Synapse">

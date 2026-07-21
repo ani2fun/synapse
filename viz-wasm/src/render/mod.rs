@@ -1,4 +1,4 @@
-//! The render kit (oracle: `RenderKit.scala`) — the SVG shared bits every family uses: diff
+//! The render kit — the SVG shared bits every family uses: diff
 //! classes, the themed role-colour mapping, cursor stacking, top-margin headroom, and
 //! fitted text.
 
@@ -18,7 +18,7 @@ use crate::engine::geometry::{LayoutResult, Point};
 use crate::engine::graph::{NodeId, VizCursor, VizGraph, VizStep};
 use leptos::prelude::*;
 
-/// Gap between the caret glyph and the first stacked name (oracle: `CursorCaretGap`).
+/// Gap between the caret glyph and the first stacked name.
 pub const CURSOR_CARET_GAP: f64 = 12.0;
 
 /// The diff-cue class for a node id in a step (`--new` / `--changed` / `--removed`).
@@ -35,7 +35,7 @@ pub fn diff_class(step: &VizStep, id: &NodeId, base: &str) -> String {
     }
 }
 
-/// Wire hex → the theme-aware `--viz-role-*` token, hex fallback (RenderKit.themed).
+/// Wire hex → the theme-aware `--viz-role-*` token, hex fallback.
 #[must_use]
 pub fn themed(hex: &str) -> String {
     let token = match hex {

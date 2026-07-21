@@ -1,11 +1,10 @@
 // ──────────────────────────────────────────────────────────────────
-// AUTH LOADER — keycloak-js behind the @auth lazy chunk
+// AUTH LOADER — keycloak-js behind a dynamic import
 // ──────────────────────────────────────────────────────────────────
-// The oracle's KeycloakJs facade + AuthBoot init, flattened to the
-// wasm-friendly FFI shape (same adaptation as @markdown/@editor): one
-// bootAuth() call runs the check-sso PKCE handshake and returns a handle;
-// the wasm side owns the store/refresh-loop/UI. keycloak-js only loads
-// when auth boots — never on the critical path.
+// A thin async wrapper around keycloak-js: one bootAuth() call runs the
+// check-sso PKCE handshake and returns a handle; islands/auth/store.ts owns
+// the store/refresh-loop/UI. keycloak-js only loads when auth boots — never
+// on the critical path.
 
 import type Keycloak from "keycloak-js";
 

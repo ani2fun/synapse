@@ -1,9 +1,9 @@
-//! The identity wire contract (oracle: `shared/identity/IdentityApi.scala`).
+//! The identity wire contract.
 
 use serde::{Deserialize, Serialize};
 
 /// The verified caller (`GET /api/me`). `admin` is UX-only — the server re-checks per call
-/// (it joins with the admin step; false until then).
+/// against the admin allowlist, so this is only ever a display hint.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct MeDto {

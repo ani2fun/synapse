@@ -1,4 +1,4 @@
-//! Oracle: `SubmitSolutionSpec` — the judge over in-memory fakes. `judge_and_complete` is
+//! Tests for `SubmitSolution` — the judge over in-memory fakes. `judge_and_complete` is
 //! driven DIRECTLY (pub(crate)) for determinism; `submit`'s detached task is fire-and-forget.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -330,7 +330,7 @@ async fn judge_and_complete_walks_judging_then_completed_and_never_sticks() {
 
 #[tokio::test]
 async fn gating_off_lets_anyone_submit() {
-    // The dev default (oracle qna Q31): open instance — anonymous and unlisted both save.
+    // The dev default: open instance — anonymous and unlisted both save.
     let (svc, _) = service_gated(
         Some(spec(&[Some("0")])),
         vec![ok_run("0"), ok_run("0")],

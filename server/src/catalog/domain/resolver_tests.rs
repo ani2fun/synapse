@@ -1,4 +1,4 @@
-//! Oracle: `CatalogResolverSpec` — a hand-built tree, no filesystem.
+//! Tests for pure catalog navigation, against a hand-built tree — no filesystem.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

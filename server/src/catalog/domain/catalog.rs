@@ -1,6 +1,6 @@
-//! The browsable catalog (oracle: `SynapseContentCatalog.scala`) — what the walker produces from
-//! the raw tree. Lesson BODIES are not held here (read on demand per request, ADR-S010); the
-//! walk result carries the slug-path → file-path map the adapter resolves reads through.
+//! The browsable catalog — what the walker produces from the raw tree. Lesson BODIES are not
+//! held here; each is read on demand per request. The walk result carries the slug-path →
+//! file-path map the adapter resolves reads through.
 
 use std::collections::BTreeMap;
 
@@ -61,7 +61,7 @@ pub struct Lesson {
     pub title: String,
     pub order: Option<i32>,
     pub essential: bool,
-    /// Frontmatter `summary:`, carried for the server-rendered meta tags (step 50).
+    /// Frontmatter `summary:`, carried for the server-rendered meta tags.
     ///
     /// INDEX-ONLY — deliberately absent from `LessonDto`. The client never needs it here: it
     /// already receives `frontmatter.summary` on the lesson payload it fetches anyway, so

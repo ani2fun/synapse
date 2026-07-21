@@ -1,5 +1,4 @@
-//! The one authored structure vocabulary (oracle: `VizVocabulary.scala`, ADR-S027). Cortex
-//! authored three parallel attributes; Synapse collapses them to ONE: `viz=<structure>[:<root>]`.
+//! The one authored structure vocabulary: ONE attribute, `viz=<structure>[:<root>]`.
 //! An unknown token has no entry → the caller shows an honest error card, never a silent guess.
 
 /// The geometry family a structure lays out with — WHERE its nodes sit.

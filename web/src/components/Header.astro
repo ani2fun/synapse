@@ -1,9 +1,7 @@
 ---
-// The site header (oracle: client/src/shell/mod.rs's `App` header + `search::view::SearchButton`).
-// SSR chrome only this step: the brand links home and the classes match shell.css exactly, but
-// the ⌘K palette and the theme toggle are INERT — A05 lands the palette island and the theme
-// store. The `.header__search` button is the e2e selector (`reader.spec.ts` clicks it), so it
-// ships now with its real markup even though its click does nothing yet.
+// The site header: brand link home, the `.header__search` button that islands/palette.ts
+// hydrates into the ⌘K command palette (also the e2e selector `reader.spec.ts` clicks), the
+// Blog link, and the account chip mount host.
 ---
 
 <header class="header">
@@ -45,9 +43,8 @@
     </div>
     <div class="header__actions">
       <a class="header__link" href="/blog">Blog</a>
-      <!-- The account chip's mount host (A11). DOM order matches the old client's
-           `client/src/shell/mod.rs`: Blog link, then the chip. islands/auth (loaded globally from
-           Base) renders the Preact `Chip` in here; its own root carries `account-chip`. -->
+      <!-- The account chip's mount host. islands/auth (loaded globally from Base) renders the
+           Preact `Chip` in here, after the Blog link; its own root carries `account-chip`. -->
       <span data-account-chip></span>
     </div>
   </nav>

@@ -1,8 +1,9 @@
-//! The OpenAI-compatible chat adapter (oracle: `OllamaTutorClient` + `TutorWire`): one
+//! The OpenAI-compatible chat adapter (`OllamaTutorClient` + `TutorWire`): one
 //! non-streaming `POST {base}/v1/chat/completions` — Ollama, LM Studio, and vLLM all speak
 //! it. Wire shaping is adapter-owned (never shared); HTTP/1.1 forced (local model servers
-//! are plain HTTP/1.1 — the go-judge h2c lesson); 60 s per request (local CPU inference is
-//! slow — generous, not infinite), 10 s connect.
+//! are plain HTTP/1.1, and negotiating h2c against a server that doesn't support it stalls
+//! the connection — the go-judge adapter hit this first); 60 s per request (local CPU
+//! inference is slow — generous, not infinite), 10 s connect.
 
 use synapse_shared::tutor::ChatMessage;
 

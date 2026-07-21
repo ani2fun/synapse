@@ -1,6 +1,5 @@
 /**
- * The workbench's reactive stores (port of client/src/execution/state/mod.rs + the TestsState
- * half of view/workbench.rs), over lib/store.ts. The FSM itself is pure (lib/execution/
+ * The workbench's reactive stores, over lib/store.ts. The FSM itself is pure (lib/execution/
  * executor.ts, test-pinned); these wrap it with I/O and the staleness discipline.
  */
 import { run as apiRun, submit as apiSubmit, submission as apiSubmission } from "../../lib/api/client";
@@ -137,7 +136,7 @@ export class TestsState {
   readonly values: Store<Record<string, string>>;
   readonly verdicts = new Store<ReadonlyMap<number, Verdict>>(new Map());
   readonly ranCase = new Store<number | null>(null);
-  /** The LIVE suite: authored cases plus any the learner appends (step 63). */
+  /** The LIVE suite: authored cases plus any the learner appends. */
   readonly spec: Store<TestSpec>;
 
   constructor(spec: TestSpec) {

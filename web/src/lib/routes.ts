@@ -1,6 +1,4 @@
-// The client app-map (oracle: client/src/router/page.rs, itself modelled on `Page.scala`). URL
-// ↔ Page parsing is pure — no DOM, no fetch — ported ahead of any page that needs it (A02's
-// pure-logic parity pass: prove the shape and its tests before anything depends on it).
+// The client app-map. URL ↔ Page parsing is pure — no DOM, no fetch.
 
 /** Every page shape the parser recognises. */
 export type Page =

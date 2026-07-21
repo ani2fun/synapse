@@ -1,5 +1,4 @@
-// Parity tests for language.ts (oracle: client/src/execution/logic/language.rs — all 8 cases,
-// same fixtures, same assertions, case names ported to camelCase).
+// Eight cases covering language.ts's alias folding, uniqueness, and the server contract pin.
 
 import { describe, expect, it } from "vitest";
 import { LANGUAGES, canonicalLang, preferredIndex, runnableFence } from "./language";
@@ -18,8 +17,8 @@ describe("language", () => {
     expect(canonicalLang("NODE")).toBe("javascript");
   });
 
-  // The alias the client's old flat table was missing — the server has run it since step 09, so
-  // assert the fix rather than trusting the table was copied correctly.
+  // A less obvious alias — assert the resolution explicitly rather than trusting the table was
+  // copied correctly.
   it("sqliteResolvesToSql", () => {
     expect(canonicalLang("sqlite")).toBe("sql");
     expect(canonicalLang("sql")).toBe("sql");
@@ -32,8 +31,8 @@ describe("language", () => {
     expect(canonicalLang("plaintext")).toBeNull();
   });
 
-  // Ported from the server's `aliases_are_globally_unique_and_round_trip` — an alias claimed by
-  // two languages would make the preference resolve differently depending on table order.
+  // Mirrors the server's `aliases_are_globally_unique_and_round_trip` check — an alias claimed
+  // by two languages would make the preference resolve differently depending on table order.
   it("aliasesAreGloballyUniqueAndRoundTrip", () => {
     const seen: string[] = [];
     for (const [canonical, aliases] of LANGUAGES) {
@@ -68,8 +67,8 @@ describe("language", () => {
     expect(preferredIndex(variants, "rust")).toBe(0);
   });
 
-  // The "Try in Editor" gate (A09, fenceGroups.ts) — mirrors the server's Language::aliases, so
-  // pin the total alongside every alias individually: a drift here means the button appears (or
+  // The "Try in Editor" gate (fenceGroups.ts) — mirrors the server's Language::aliases, so pin
+  // the total alongside every alias individually: a drift here means the button appears (or
   // vanishes) for a fence the sandbox can't (or can) actually run.
   it("runnableFenceAcceptsEveryKnownAliasAndRejectsEverythingElse", () => {
     for (const [, aliases] of LANGUAGES) {

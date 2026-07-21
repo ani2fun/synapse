@@ -1,6 +1,6 @@
-//! The `@tracer` island (oracle: `PythonTracer`/`JavaTracer` over `@tracer/loader`): wraps
-//! user source in the language's trace harness. Each ~900-line harness string lives in its
-//! own lazy chunk, loaded on the reader's FIRST Visualise of that language.
+//! The `@tracer` island: wraps user source in the language's trace harness. Each ~900-line
+//! harness string lives in its own lazy chunk, loaded on the reader's FIRST Visualise of that
+//! language.
 
 use wasm_bindgen::prelude::*;
 

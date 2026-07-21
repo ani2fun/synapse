@@ -1,4 +1,4 @@
-//! Request tracing (step 45, closing RS001's `route→service→adapter` claim).
+//! Request tracing — carries a request's identity across the `route → service → adapter` hops.
 //!
 //! Before this the server emitted 48 flat events with no span context: a 500 in production
 //! could not be tied back to the request that caused it, because nothing carried a request

@@ -1,7 +1,7 @@
-//! `/api/admin/allowlist` (oracle: `AllowlistAdminRoutes`, step 35): list · grant · revoke,
-//! gated per call — the ADMIN check is config (`ADMIN_USERS`), not a token claim, and the
-//! server re-checks EVERY request (`MeDto.admin` is UX only). Generic over the allowlist
-//! port so the route tests drive a fake through the real router.
+//! `/api/admin/allowlist`: list · grant · revoke, gated per call — the ADMIN check is config
+//! (`ADMIN_USERS`), not a token claim, and the server re-checks EVERY request (`MeDto.admin`
+//! is UX only). Generic over the allowlist port so the route tests drive a fake through the
+//! real router.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -46,9 +46,8 @@ pub fn routes<L: SubmissionAllowlist + 'static>(state: AdminRoutesState<L>) -> R
         .with_state(state)
 }
 
-/// The gate itself moved to `platform::admin_gate` in step 49, when the readership read became
-/// the second caller. The invariant it carries is unchanged: ADMIN is config, re-checked here
-/// on every call.
+/// The gate itself lives in `platform::admin_gate`, shared with the readership read. The
+/// invariant it carries: ADMIN is config, re-checked here on every call.
 async fn require_admin<L>(state: &AdminRoutesState<L>, headers: &HeaderMap) -> Result<String, Reject> {
     gate(&state.identity, &state.admin_users, headers, "allowlist").await
 }

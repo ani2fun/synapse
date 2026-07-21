@@ -1,10 +1,9 @@
 ---
-// `/account` (oracle: client route `/account` → `AccountPage`). The page is fully client-driven
-// — it needs the live auth state — so SSR renders only the shell + an empty mount host; the
-// Preact island (islands/auth/AccountPanel) fills it once the store resolves. account.css carries
-// the account-page / confirm / danger-zone classes verbatim from the old client.
+// `/account`. The page is fully client-driven — it needs the live auth state — so SSR renders
+// only the shell + an empty mount host; the Preact island (islands/auth/AccountPanel) fills it
+// once the store resolves. account.css carries the account-page / confirm / danger-zone classes.
 import Base from "../layouts/Base.astro";
-import "../../../client/styles/account.css";
+import "../../styles/account.css";
 ---
 
 <Base title="Your account — Synapse">

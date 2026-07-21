@@ -1,4 +1,4 @@
-//! The execution wire contract (oracle: `shared/execution/`, ADR-S012 code-first island).
+//! The execution wire contract.
 //! `POST /api/run` speaks exactly these shapes; `RunStatus` crosses the wire as the CASE NAME
 //! string — never a Judge0-style magic int (the code-quality bar's canonical example).
 
@@ -62,9 +62,9 @@ pub struct RunResult {
     pub memory_kb: Option<i64>,
 }
 
-// NOTE: the sandbox `Limits` + `GO_JUDGE_LIMITS` lived here until step 59. They carry no
-// serde and never cross the wire — server-only validation facts — so they moved to
-// `server::execution::domain`, keeping this crate a pure wire kernel.
+// NOTE: the sandbox `Limits` + `GO_JUDGE_LIMITS` live in `server::execution::domain`, not
+// here — they carry no serde and never cross the wire, so keeping them out of this crate
+// keeps it a pure wire kernel.
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]

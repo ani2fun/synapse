@@ -1,26 +1,25 @@
 import * as log from "../lib/log";
-// The reader's post-hydration chrome (A05): done-ticks on the sidebar, reading-progress WRITES,
-// the mobile nav drawer, and reflecting saved reading-preferences onto `<html>`. Vanilla TS, same
+// The reader's post-hydration chrome: done-ticks on the sidebar, reading-progress WRITES, the
+// mobile nav drawer, and reflecting saved reading-preferences onto `<html>`. Vanilla TS, same
 // reasoning as `islands/library.ts` — the SSR page is plain HTML and every job here is either
 // `localStorage` (no SSR equivalent) or a scroll/click listener, so there is nothing for a
-// component framework to hydrate INTO.
+// component framework to hydrate INTO. This island loads on EVERY lesson page, including problem
+// pages (see the internal `.pwb[data-problem]` guard on scroll-driven progress below).
 //
-// Oracle spec, ported through A04's pure `progress.ts`/`prefs.ts` rather than re-derived:
-//   - done-ticks + the `--active`/`--done` classes: client/src/catalog/view/sidebar.rs's
-//     `lesson_link` (the exact class list, `.reader-sidebar__tick` span, `aria-label="Finished"`).
-//   - progress WRITES (`reader-last`, `reader-progress`): client/src/catalog/state/mod.rs's
-//     `ProgressStore.visit`/`set_done` (idempotent — a re-mark of an already-finished lesson
-//     writes nothing) driven by `catalog/view/chrome.rs`'s scroll recompute + `progress::is_at_end`.
-//   - the mobile drawer: `catalog/view/reader.rs`'s `ReaderNavDrawer` (FAB → scrim + drawer,
-//     closes on scrim/Escape/any nav-link tap via `closest("a")`).
-//   - prefs: `catalog/state/mod.rs`'s `PrefsStore::provide` (`apply_to_html` half only — the FAB
-//     EDITING panel is deferred, see the A05 chapter).
+// Built on the pure `progress.ts`/`prefs.ts` helpers:
+//   - done-ticks + the `--active`/`--done` classes (the exact class list, `.reader-sidebar__tick`
+//     span, `aria-label="Finished"`).
+//   - progress WRITES (`reader-last`, `reader-progress`): idempotent — a re-mark of an
+//     already-finished lesson writes nothing — driven by a scroll recompute + `progress.isAtEnd`.
+//   - the mobile drawer (FAB → scrim + drawer, closes on scrim/Escape/any nav-link tap via
+//     `closest("a")`).
+//   - prefs: the `applyToHtml` half only — the FAB editing UI itself lives in `islands/chrome.ts`.
 //
-// Deferred (not this step's job — see the A05 chapter for the full list): the Compact rail, the
-// minimap, the sticky bar, the TOC FAB, focus mode, the sidebar filter box, the Learn-browse
-// toggle, and the reading-preferences FAB's editing UI. None of the seven e2e specs exercise any
-// of them, and the SSR sidebar (`Sidebar.astro`/`SidebarTree.astro`) never rendered their markup
-// in the first place — there is nothing half-wired to leave inert.
+// The Compact rail, the minimap, the sticky bar, the TOC FAB, and the reading-preferences FAB's
+// editing UI live in `islands/chrome.ts` (lesson pages only, not problem pages). Not implemented
+// anywhere yet: focus mode, the sidebar filter box, and the Learn-browse toggle — none of the
+// e2e specs exercise them, and the SSR sidebar (`Sidebar.astro`/`SidebarTree.astro`) never
+// renders their markup, so there is nothing half-wired left inert.
 
 import * as storage from "../lib/storage";
 import * as progress from "../lib/catalog/progress";
@@ -48,7 +47,7 @@ function lessonPathFromHref(href: string): string | null {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DONE-TICKS (oracle: sidebar.rs's `lesson_link`)
+// DONE-TICKS
 // ─────────────────────────────────────────────────────────────────────────────
 
 function markLinkDone(link: HTMLAnchorElement): void {
@@ -77,7 +76,7 @@ function readDone(): Set<string> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PROGRESS WRITES (oracle: `ProgressStore.visit`/`set_done`, `progress::is_at_end`)
+// PROGRESS WRITES
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Visit semantics: skip the write when the last-opened lesson hasn't changed. */
@@ -87,8 +86,7 @@ function visit(path: string): void {
   storage.set(storage.READER_LAST_KEY, path);
 }
 
-/** Idempotent: re-marking an already-finished lesson writes nothing (mirrors
- *  `ProgressStore.set_done`'s `changed == Some(true)` guard). */
+/** Idempotent: re-marking an already-finished lesson writes nothing. */
 function markDone(path: string): void {
   const done = readDone();
   if (done.has(path)) return;
@@ -111,11 +109,11 @@ function wireProgress(path: string): void {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// THE MOBILE NAV DRAWER (oracle: `ReaderNavDrawer`)
+// THE MOBILE NAV DRAWER
 // ─────────────────────────────────────────────────────────────────────────────
 
-// The FAB is the LESSON page's trigger; the PROBLEM page (A07) has no FAB — its docked
-// `.pwb__nav` Contents pill fires the `OPEN_CONTENTS` window event instead. So the drawer is set
+// The FAB is the LESSON page's trigger; the PROBLEM page has no FAB — its docked `.pwb__nav`
+// Contents pill fires the `OPEN_CONTENTS` window event instead. So the drawer is set
 // up whenever there is a sidebar to clone, the FAB is optional, and the mount host is `.reader-nav`
 // when present (the lesson layout) else `document.body` (the problem layout, which keeps the
 // sidebar markup only as a hidden clone source). scrim/drawer are `position: fixed`, so the parent
@@ -185,7 +183,7 @@ function wireNavDrawer(done: Set<string>): void {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PREFS (oracle: `PrefsStore::provide`'s `apply_to_html` half)
+// PREFS (`applyToHtml` half only)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function applyStoredPrefs(): void {
@@ -203,10 +201,9 @@ function init(): void {
 
   if (path) {
     visit(path);
-    // A problem page (A07) scrolls its PANES internally, not the window, so the page's own
-    // scroll track is ~0 and `isAtEnd` would mark it done the moment it paints. The oracle's
-    // problem layout has no ProgressStore scroll tracking at all — match it: `visit` still
-    // records "last opened" (the library's resume card), but done-on-scroll stays off.
+    // A problem page scrolls its PANES internally, not the window, so the page's own scroll
+    // track is ~0 and `isAtEnd` would mark it done the moment it paints. `visit` still records
+    // "last opened" (the library's resume card), but done-on-scroll stays off for problem pages.
     if (!document.querySelector(".pwb[data-problem]")) wireProgress(path);
   }
 }

@@ -1,4 +1,4 @@
-//! 2-D cell grid (oracle: `GridLayouts.scala`): cells placed by `slot` into (row, col), the
+//! 2-D cell grid: cells placed by `slot` into (row, col), the
 //! column count derived from the cell count (√n). Traced grid runs refine it once the
 //! adapter lands.
 

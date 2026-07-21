@@ -1,4 +1,4 @@
-//! Where a problem's hidden suite lives (oracle: `FileSystemProblemTests`) — resolved THROUGH
+//! Where a problem's hidden suite lives (`FileSystemProblemTests`) — resolved THROUGH
 //! the catalog walker's lesson-file map (naive path joining is impossible: real folders carry
 //! `NN-` order prefixes). Two tiers: the `.tests.json` sidecar is authoritative; a trailing
 //! testcases fence in the lesson itself is the fallback (the fence-only problems fix). Absent

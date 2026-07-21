@@ -1,6 +1,6 @@
 //! Integration: the catalog endpoints through the REAL stack — router, middleware, filesystem
-//! adapter, temp-dir content (oracle: `CatalogRoutesSpec`). These tests pin the WIRE SHAPE:
-//! `kind` discriminators, full prev/next paths, the `ApiError` envelope, the cache header.
+//! adapter, temp-dir content. These tests pin the WIRE SHAPE: `kind` discriminators, full
+//! prev/next paths, the `ApiError` envelope, the cache header.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

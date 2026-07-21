@@ -1,4 +1,4 @@
-//! The Cells family (oracle: `LinearLayouts.scala`): a contiguous row of cells, one column
+//! The Cells family: a contiguous row of cells, one column
 //! per `slot`; and the vertical LIFO stack. Room is reserved above for pointer carets and
 //! below for index labels; the client renderer turns positions into SVG.
 

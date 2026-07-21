@@ -1,5 +1,5 @@
-//! The trace session (oracle: `TraceSession`): wrap the code in the language's harness, run
-//! it through the ORDINARY `/api/run` (no new endpoint — ADR-S029), decode the markers, and
+//! The trace session: wrap the code in the language's harness, run
+//! it through the ORDINARY `/api/run` (no new endpoint), decode the markers, and
 //! adapt through the SAME shared pipeline the goldens pin. Cached per
 //! (language, source, structure, root, stdin); Re-trace forces a fresh run. Every failure is
 //! a Failed card, never a blank modal.
@@ -127,7 +127,7 @@ fn run(session: &Session) {
     });
 }
 
-/// Pure: run output → the modal's state (oracle: `TraceSession.outcome`).
+/// Pure: run output → the modal's state.
 fn outcome(key: &Key, stdout: &str, stderr: &str, compile_output: &str) -> TraceState {
     match decoder::decode(stdout) {
         Err(error) => TraceState::Failed(error.to_string()),

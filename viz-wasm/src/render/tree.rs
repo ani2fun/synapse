@@ -1,4 +1,4 @@
-//! The Tree family (oracle: `TreeRenderers`): circles of radius `NODE_R` on the
+//! The Tree family: circles of radius `NODE_R` on the
 //! subtree-width layout, edges drawn behind, cursor stacks above.
 
 use crate::engine::geometry::constants::NODE_R;

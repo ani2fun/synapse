@@ -1,9 +1,8 @@
-//! The CORTEX PARITY gate (oracle: `CortexGoldenSpec` + `VizParity`): the 16 goldens are
-//! Cortex's own finished `HeapToGraph` output; the paired inputs are the oracle's hand-built
-//! traces (exported verbatim as JSON). Each fixture adapts through the REAL Rust pipeline and
-//! must match its golden after normalisation — `VizParity.normalize` erases exactly the three
-//! deliberate-delta fields (`structureType` → None, `cardCursor` → [], `unchanged` → false),
-//! each citing an ADR-S030 delta row; ANY other difference fails.
+//! The CORTEX PARITY gate: the 16 goldens are a reference pipeline's finished output, pinned
+//! byte-exact; the paired inputs are hand-built traces stored as JSON. Each fixture adapts
+//! through the REAL Rust pipeline and must match its golden after normalisation —
+//! `normalize` erases exactly the three deliberate-delta fields (`structureType` → None,
+//! `cardCursor` → [], `unchanged` → false); ANY other difference fails.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -33,12 +32,12 @@ fn golden(name: &str) -> VizCases {
     serde_json::from_str(&json).unwrap()
 }
 
-/// The FOUR deliberate deltas, erased on BOTH sides before compare (ADR-S030 + one of ours):
-/// `structureType` (chrome inference deleted) · `cardCursor` (`ArrowLayer` cut) ·
-/// `unchanged` (gained edges — delta #8) · frame locals' `value` AND `changed` (the list
-/// preview widened from the oracle's 3 elements to 12 — user ask 2026-07-17 — which also
-/// lets `changed` see mutations past index 2 that the narrow preview MASKED; the goldens
-/// stay the oracle's verbatim exports, and the new behavior is pinned by its own test below).
+/// The FOUR deliberate deltas, erased on BOTH sides before compare:
+/// `structureType` (chrome inference deleted) · `cardCursor` (the arrow-layer feature is
+/// cut) · `unchanged` (this pipeline additionally diffs edges) · frame locals' `value` AND
+/// `changed` (the list preview here is widened from 3 elements to 12, which also lets
+/// `changed` see mutations past index 2 that a narrower preview would mask; the goldens
+/// keep the narrower preview's values, and the new behavior is pinned by its own test below).
 fn normalize(cases: &VizCases) -> VizCases {
     VizCases {
         cases: cases
@@ -78,8 +77,7 @@ fn normalize(cases: &VizCases) -> VizCases {
 }
 
 /// The widened preview, pinned: a fixture whose trace holds a long list must render more
-/// than three elements in the frame local (the oracle showed `[0, 0, 0, …]`; we show up to
-/// 12 before the `…`).
+/// than three elements in the frame local — up to 12 before the `…`.
 #[test]
 fn frame_local_lists_preview_twelve_elements() {
     let fixture = fixtures()
@@ -100,8 +98,8 @@ fn frame_local_lists_preview_twelve_elements() {
         value, "[0, 0, 0, 0, 0, 0, 0, 0]",
         "all eight elements shown — no premature ellipsis"
     );
-    // The knock-on the oracle's narrow preview masked: bits[4] mutates at step 2, past the
-    // old 3-element window — the local must now report `changed`.
+    // The knock-on effect of the wider preview: bits[4] mutates at step 2, past a 3-element
+    // window — the local must now report `changed`.
     let local = &cases.cases[0].steps[2].frames[0].locals[0];
     assert!(local.changed, "a mutation past index 2 marks the local changed");
 }

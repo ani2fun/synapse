@@ -1,8 +1,8 @@
-//! The crate's one wire call (A10): tracing runs through the ORDINARY `/api/run` (no new
-//! endpoint — ADR-S029), so this is a minimal same-origin POST with the same bearer seam the
-//! client's api has. Each host installs its own provider: the old client's `AuthStore` wires
-//! its token handle in, the Astro app calls [`entry`](crate::entry)'s `viz_install_token`
-//! with the auth island's provider. The default stays anonymous.
+//! The crate's one wire call: tracing runs through the ORDINARY `/api/run` (no new
+//! endpoint), so this is a minimal same-origin POST with the same bearer seam the
+//! Leptos client's api has. Each host installs its own provider: the Leptos client's
+//! `AuthStore` wires its token handle in, the Astro app calls [`entry`](crate::entry)'s
+//! `viz_install_token` with the auth island's provider. The default stays anonymous.
 
 use std::cell::RefCell;
 

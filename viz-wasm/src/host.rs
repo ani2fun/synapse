@@ -1,6 +1,6 @@
-//! The widget host (oracle: `WidgetHost`) — the ONE `VizCases` consumer: title, the scaled
-//! canvas, the transport bar (only when there's more than one step), the reactive caption,
-//! and the honest failure cards (never a blank box).
+//! The widget host — the ONE `VizCases` consumer: title, the scaled canvas, the transport
+//! bar (only when there's more than one step), the reactive caption, and the honest failure
+//! cards (never a blank box).
 
 use crate::engine::graph::VizCases;
 use crate::engine::playback::State;
@@ -76,7 +76,7 @@ pub fn WidgetHost(
     }
 }
 
-/// The data-driven legend (oracle: `DomKit.legend`): rows appear only when some step uses
+/// The data-driven legend: rows appear only when some step uses
 /// the cue. Diff swatches wear the diff TOKENS (what the renderers tint); cursor/line items
 /// wear the marker palette. A doubly list adds the next/prev arrow lines.
 fn legend_view(graph: &crate::engine::graph::VizGraph, structure: VizStructure) -> AnyView {

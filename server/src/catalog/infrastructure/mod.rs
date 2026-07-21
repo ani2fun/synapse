@@ -1,5 +1,5 @@
-//! The catalog's outbound adapters (oracle: `catalog/infrastructure/`) — the filesystem
-//! repository over `SYNAPSE_ROOT` and the git-SHA content version (ADR-S010/S033).
+//! The catalog's outbound adapters — the filesystem repository over `SYNAPSE_ROOT` and the
+//! git-SHA content version.
 
 mod commit_sha;
 mod filesystem;

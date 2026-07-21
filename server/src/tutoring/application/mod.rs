@@ -1,5 +1,5 @@
-//! The tutoring use case (oracle: `TutoringService` + `TutorError` + the `TutorClient` port).
-//! The service's whole job is the SYSTEM PROMPT: steering (hints over solutions), never
+//! The tutoring use case: `TutoringService` + `TutorError` + the `TutorClient` port. The
+//! service's whole job is the SYSTEM PROMPT: steering (hints over solutions), never
 //! scoring — a learner can never be blocked by it. History passes through untouched.
 
 use synapse_shared::tutor::ChatMessage;
@@ -31,7 +31,7 @@ pub struct ChatContext {
     pub language: Option<String>,
 }
 
-/// The base steering prompt — VERBATIM from the oracle; load-bearing.
+/// The base steering prompt — its EXACT wording is load-bearing; do not paraphrase it.
 const BASE_PROMPT: &str = "You are a patient coding coach guiding a learner through a \
 data-structures-and-algorithms problem. Ask questions and give hints that nudge them toward \
 their OWN solution — never hand over a complete, working answer outright. Point at the \

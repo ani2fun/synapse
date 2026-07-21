@@ -1,6 +1,6 @@
-//! The queue/deque strip and the vertical stack column (oracle: `QueueRenderers`, step 33):
-//! shared-border cell strips with end markers (head/tail · front/back · top) coloured
-//! through the role tokens, and the flow hint row above.
+//! The queue/deque strip and the vertical stack column: shared-border cell strips with end
+//! markers (head/tail · front/back · top) coloured through the role tokens, and the flow
+//! hint row above.
 
 use crate::engine::graph::{VizGraph, VizNode, VizStep};
 use crate::engine::markers;

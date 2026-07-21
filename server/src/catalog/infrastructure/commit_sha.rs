@@ -1,7 +1,7 @@
-//! The prod content version (oracle: `ContentCommitSha.scala`, ADR-S010/S033): the checkout's
-//! git HEAD SHA, re-read per call with three tiny file reads and NO `git` binary — the git-sync
-//! sidecar advances the SHA with no redeploy, and the version-gated cache rebuilds when it
-//! moves. Anything unreadable degrades to `"static"`, never an error.
+//! The prod content version: the checkout's git HEAD SHA, re-read per call with three tiny file
+//! reads and NO `git` binary — the git-sync sidecar advances the SHA with no redeploy, and the
+//! version-gated cache rebuilds when it moves. Anything unreadable degrades to `"static"`, never
+//! an error.
 
 use std::fs;
 use std::path::{Path, PathBuf};

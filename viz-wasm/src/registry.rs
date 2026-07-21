@@ -1,6 +1,6 @@
-//! Family → renderer dispatch (oracle: `RendererRegistry`). The DECISION is the shared pure
+//! Family → renderer dispatch. The DECISION is the shared pure
 //! `RenderFamily::of`; this maps a family to a concrete Leptos renderer — the SVG geometry
-//! families plus the step-33 bespoke HTML gallery. Two structure-level quirks live here:
+//! families plus the bespoke HTML gallery. Two structure-level quirks live here:
 //! callstack keeps the SVG frame boxes (the Stack strip is for data stacks), and deque flips
 //! the queue strip's vocabulary.
 
@@ -38,7 +38,7 @@ pub fn render(structure: VizStructure, cases: &VizCases, step_index: Signal<usiz
                 step_index,
             ))
         }
-        // The step-33 bespoke HTML gallery.
+        // The bespoke HTML gallery.
         RenderFamily::Grid => Some(grid_table::table(graph, step_index)),
         RenderFamily::Buckets => Some(buckets::hashmap(graph, step_index)),
         RenderFamily::Queue => Some(strip::queue(graph, step_index, structure == VizStructure::Deque)),

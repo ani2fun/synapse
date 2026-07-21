@@ -1,6 +1,6 @@
 //! Integration: the run/submit budget through the REAL router — the 429 envelope, per-IP
-//! keying via X-Forwarded-For, and the sign-in hint (oracle: the step-19 gate; the unit
-//! windows live in `rate_limiter_tests`).
+//! keying via X-Forwarded-For, and the sign-in hint (the unit windows live in
+//! `rate_limiter_tests`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

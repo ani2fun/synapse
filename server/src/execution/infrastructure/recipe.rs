@@ -1,4 +1,4 @@
-//! Per-language sandbox recipes (oracle: `GoJudgeRecipe.scala`). go-judge is a raw command
+//! Per-language sandbox recipes. go-judge is a raw command
 //! runner with NO language abstraction — compile/run orchestration lives in the adapter. The
 //! `match` is exhaustive on purpose: adding a `Language` won't compile until it gets a recipe.
 

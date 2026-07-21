@@ -1,8 +1,8 @@
-// The authored test suite + pure judging (oracle: shared/src/execution/test_run.rs — `judge` +
-// `stdin_for`, used by BOTH the server and the workbench island). `ArgSpec`/`TestCase`/`TestSpec`
-// never cross the wire through a utoipa-documented endpoint (unlike `RunResult`/`RunStatus`,
-// which live in `../api/schema.gen`), so they are defined here rather than generated — this
-// module is their TS home, same as `test_run.rs` is their Rust one.
+// The authored test suite + pure judging — mirrors `judge` + `stdin_for` in
+// shared/src/execution/test_run.rs, used by BOTH the server and the workbench island.
+// `ArgSpec`/`TestCase`/`TestSpec` never cross the wire through a utoipa-documented endpoint
+// (unlike `RunResult`/`RunStatus`, which live in `../api/schema.gen`), so they are defined here
+// rather than generated — this module is their TS home, same as `test_run.rs` is their Rust one.
 //
 // Kept in lock-step with the Rust twin by `shared/test-vectors/judge-vectors.json`: both
 // `judge.test.ts` (here) and `shared/src/execution/judge_vectors_test.rs` run the SAME vectors,
@@ -12,8 +12,8 @@ import type { components } from "../api/schema.gen";
 
 type RunResult = components["schemas"]["RunResult"];
 
-/** One declared stdin argument. The oracle's Rust field is `tpe` (a Scala-keyword dodge mapped
- *  at the codec to the wire's `type`); TS has no such keyword clash, so the field is just
+/** One declared stdin argument. The Rust DTO's field is `tpe` (mapped to the wire's `type` at
+ *  the codec, avoiding a keyword clash); TS has no such keyword clash, so the field here is just
  *  `type`. */
 export interface ArgSpec {
   id: string;
@@ -35,9 +35,8 @@ export interface TestSpec {
 }
 
 /** A judged case's verdict — spelled as the case-name string, matching how `RunStatus` already
- *  crosses the wire (oracle: a plain `enum Verdict`, no serde on it at all — the string form is
- *  this port's own choice, not a wire requirement, made for consistency with the rest of this
- *  module's vocabulary). */
+ *  crosses the wire. This type never itself crosses the wire; the string form is a deliberate
+ *  choice for consistency with the rest of this module's vocabulary, not a wire requirement. */
 export type Verdict = "Accepted" | "WrongAnswer" | "Errored" | "Finished";
 
 /** The stdin a case feeds the program: ONE LINE PER DECLARED ARG, in declaration order (missing

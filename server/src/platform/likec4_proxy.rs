@@ -1,4 +1,4 @@
-//! The `/c4` reverse proxy (oracle: `LikeC4Proxy`, step 19): the LikeC4 container isn't
+//! The `/c4` reverse proxy: the LikeC4 container isn't
 //! internet-facing — the server forwards `GET /c4/*` to it, STRIPPING the `/c4` prefix (prod
 //! gotcha: the image serves UNDER `/c4`, so `LIKEC4_URL` ends in `/c4` and the two cancel).
 //! GET-only, buffered, only `content-type` copied back; an unreachable upstream is a 502,

@@ -1,4 +1,4 @@
-//! The `viz=callstack` route (oracle: `CallStackProjection.scala`): each non-helper frame
+//! The `viz=callstack` route: each non-helper frame
 //! becomes a slot node in a growing stack (innermost frame on top), labelled
 //! `fn(firstIntArg)`. No segmentation, no heap projection — the call stack IS the structure.
 

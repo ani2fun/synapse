@@ -1,5 +1,5 @@
-//! Pure catalog navigation (oracle: `CatalogResolver.scala`) — descend categories to a book,
-//! then walk its interior to a lesson; and the pre-order reading sequence prev/next hangs off.
+//! Pure catalog navigation — descend categories to a book, then walk its interior to a lesson;
+//! and the pre-order reading sequence prev/next hangs off.
 
 use crate::catalog::domain::catalog::{Book, BookEntry, CatalogEntry, Lesson, SynapseContentCatalog};
 

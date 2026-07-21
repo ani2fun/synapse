@@ -1,5 +1,5 @@
 /**
- * The lazy viz loader (A10): the ONLY code that touches the viz wasm bundle. The crate
+ * The lazy viz loader: the ONLY code that touches the viz wasm bundle. The crate
  * (viz-wasm/) ships the whole widget spine — inline widgets, the trace session, the Visualise
  * modal — as a standalone wasm-bindgen bundle; this island decides WHEN a page pays for it and
  * wires the window contracts once it has.
@@ -14,8 +14,8 @@
  * Contracts installed after init:
  *   · `window.__synapseViz` (contracts.ts) → `viz_open_modal` — its arrival re-renders
  *     workbenches via VIZ_READY so the Visualise button appears;
- *   · the crate's bearer seam gets a WRAPPER reading `window.__synapseVizToken` at call time,
- *     so identity (A11) can install/refresh its provider in either order relative to this load.
+ *   · the crate's bearer seam gets a WRAPPER reading `window.__synapseVizToken` at call time, so
+ *     the identity island can install/refresh its provider in either order relative to this load.
  */
 import * as log from "../lib/log";
 import { VIZ_READY, VIZ_RESCAN } from "./workbench/contracts";

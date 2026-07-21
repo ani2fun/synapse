@@ -1,4 +1,4 @@
-//! The blog HTTP surface (oracle: `BlogRoutes` + `BlogDtos`): the flat listing and one post by
+//! The blog HTTP surface (`BlogRoutes` + `BlogDtos`): the flat listing and one post by
 //! slug. DTO↔domain mapping lives ONLY here; `publishedAt` crosses the wire as an ISO string,
 //! empty when the post is undated.
 

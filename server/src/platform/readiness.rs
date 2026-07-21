@@ -1,6 +1,6 @@
 //! The Postgres `ReadinessProbe` adapter.
 //!
-//! `platform` is a thin context and stays flat (ADR-S007: layer in proportion to complexity),
+//! `platform` is a thin context and stays flat — layering is proportional to complexity —
 //! so this adapter sits beside its port rather than under an `infrastructure/` of its own —
 //! the same call the context already makes for the rate limiter and the proxy.
 //!

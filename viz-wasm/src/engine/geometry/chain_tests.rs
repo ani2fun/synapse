@@ -1,4 +1,4 @@
-//! Oracle: `ChainLayoutSpec` — next-chain order, head detection, cycle/merge flags.
+//! Next-chain order, head detection, cycle/merge flags.
 
 #![allow(clippy::unwrap_used, clippy::float_cmp)] // exact constants are the point
 

@@ -1,17 +1,15 @@
-// The reader chrome's pure logic (oracle: client/src/catalog/logic/mod.rs's `spread_fractions`,
-// the minimap half of `catalog/view/chrome.rs`). No DOM, no `localStorage` — the island in
-// `islands/chrome.ts` harvests headings and drives scroll; this module only does the math the
-// oracle pinned natively, so vitest can pin it the same way (`logic_tests.rs`'s
-// `spread_de_overlaps_and_clamps_fractions`).
+// The reader chrome's pure logic. No DOM, no `localStorage` — the island in `islands/chrome.ts`
+// harvests headings and drives scroll; this module only does the math, pinned natively so
+// vitest can test it directly.
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MINIMAP SPREAD (oracle: ReaderMiniMap.spread) — de-overlap heading fractions:
-// min gap 0.05 (capped 1/(n+1)); forward pass pushes apart, backward clamps.
+// MINIMAP SPREAD — de-overlap heading fractions: min gap 0.05 (capped 1/(n+1));
+// forward pass pushes apart, backward clamps.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** De-overlap a sorted-or-unsorted list of document fractions so no two ticks sit closer than a
- *  minimum gap, and every tick stays inside `[gap, 1 - gap]`. A byte-faithful port of the Rust
- *  oracle's `spread_fractions` (same forward push / backward clamp / final clamp passes). */
+ *  minimum gap, and every tick stays inside `[gap, 1 - gap]` (forward push / backward clamp /
+ *  final clamp passes). */
 export function spreadFractions(fractions: readonly number[]): number[] {
   const n = fractions.length;
   if (n === 0) return [];

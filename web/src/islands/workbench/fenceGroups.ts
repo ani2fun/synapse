@@ -1,11 +1,11 @@
 /**
- * Fence-group bars (port of client/src/execution/view/fence_group.rs, step-41 semantics),
- * vanilla TS — one piece of state per group (the active pane), plain DOM the rest of the way.
+ * Fence-group bars, vanilla TS — one piece of state per group (the active pane), plain DOM the
+ * rest of the way.
  *
  * Language tabs when adjacent plain fences differ, a lone ▶ pill otherwise; copy + "Try in
- * Editor" on the right. Try in Editor (A09) follows the SELECTED tab and only appears when the
- * sandbox speaks that language (`runnableFence`, shared with the language preference) — prose
- * fences (bash, json, yaml) still get the bar and the copy button, just not this one.
+ * Editor" on the right. Try in Editor follows the SELECTED tab and only appears when the sandbox
+ * speaks that language (`runnableFence`, shared with the language preference) — prose fences
+ * (bash, json, yaml) still get the bar and the copy button, just not this one.
  */
 
 const PLAY_SVG =

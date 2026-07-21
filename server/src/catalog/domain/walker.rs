@@ -1,6 +1,6 @@
-//! The pure catalog assembler (oracle: `SynapseContentWalker.scala`) — turns the raw content
-//! tree into the browsable catalog + the lesson-file map, enforcing the `SYNAPSE_ROOT`
-//! conventions (ADR-S010) and refusing to paper over slug collisions.
+//! The pure catalog assembler — turns the raw content tree into the browsable catalog + the
+//! lesson-file map, enforcing the `SYNAPSE_ROOT` conventions and refusing to paper over slug
+//! collisions.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -17,19 +17,18 @@ pub const DEFAULT_ESSENTIAL: bool = true;
 ///
 /// `examples` and `c4` are aux dirs a book may carry alongside its chapters.
 ///
-/// `local-only` is different in kind and is here for a REASON WORTH KNOWING (step 54). The
-/// content tree carries material that must never be served — most of it adapted from a
-/// commercial course, kept for personal study (ADR-RS002). It was excluded solely by a
-/// `.gitignore` rule in the CONTENT repository, which meant the separation lived in a different
-/// repo, a different layer and a different moment (push time) from the thing it protected. The
-/// server indexed those books happily: they appeared in `/api/synapse/index`, in `/sitemap.xml`
-/// once step 50 landed, and in `lesson_view` once step 49 did.
+/// `local-only` is different in kind and is here for a REASON WORTH KNOWING. The content tree
+/// carries material that must never be served — most of it adapted from a commercial course,
+/// kept for personal study (ADR-RS002). Relying solely on a `.gitignore` rule in the CONTENT
+/// repository would put the protection in a different repo, a different layer, and a different
+/// moment (push time) from the thing it protects: a stray `git add -f`, a blanket `git add -A`,
+/// or a restructure that moves a book out of that folder would publish it silently, and the
+/// server would index it happily (it would appear in `/api/synapse/index`, in `/sitemap.xml`,
+/// and in `lesson_view`).
 ///
-/// One `git add -f`, one blanket `git add -A` (this project has that scar — see the step-42
-/// note), or one restructure that moves a book out of that folder would have published them,
-/// silently. Naming it here makes it unservable by construction, in the repo that does the
-/// serving. The `_`-prefix rule above is the other half; either alone suffices, and having both
-/// is deliberate.
+/// Naming it here makes it unservable by construction, in the repo that does the serving. The
+/// `_`-prefix rule above is the other half; either alone suffices, and having both is
+/// deliberate.
 const RESERVED_AUX_DIRS: [&str; 3] = ["examples", "c4", "local-only"];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -109,8 +108,8 @@ fn includes_as_content(name: &str) -> bool {
 }
 
 /// A lesson source: `.md`, not the `.editorial.md` sidecar, not `_*`/`.*`.
-/// Case-sensitive on purpose (oracle parity): content extensions are lowercase by convention,
-/// and `.MD` should NOT silently become a lesson.
+/// Case-sensitive on purpose: content extensions are lowercase by convention, and `.MD` should
+/// NOT silently become a lesson.
 #[allow(clippy::case_sensitive_file_extension_comparisons)]
 fn is_lesson_file(name: &str) -> bool {
     name.ends_with(".md")

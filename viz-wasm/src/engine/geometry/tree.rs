@@ -1,4 +1,4 @@
-//! The Tree family (oracle: `TreeLayouts.scala`): a recursive subtree-width walk — a leaf
+//! The Tree family: a recursive subtree-width walk — a leaf
 //! takes the next column; an internal node centres over its children's columns; depth sets
 //! the row. Children order by edge label (left < right < other), so a BST reads
 //! left-to-right and a skewed chain cascades straight down.
@@ -26,7 +26,8 @@ struct Walk {
 }
 
 impl Walk {
-    // Iteration is over ordered Vecs throughout — never map order (the JVM↔JS lesson).
+    // Iteration is over ordered Vecs throughout — never map order, so layout stays
+    // deterministic regardless of hash order.
     fn walk(&mut self, id: &NodeId, d: i32) {
         if self.visited.contains(id) {
             return;

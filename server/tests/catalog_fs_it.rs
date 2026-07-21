@@ -1,5 +1,4 @@
-//! Integration: the filesystem adapter + commit SHA against REAL temp dirs (oracle:
-//! `FileSystemContentRepositorySpec`, `ContentCommitShaSpec`, `CatalogAutoReloadSpec`).
+//! Integration: the filesystem adapter + commit SHA against REAL temp dirs.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -76,7 +75,7 @@ async fn read_lesson_rejects_traversal_and_missing_files() {
     assert_eq!(ok, "# Intro\nwelcome");
 }
 
-// ── the content version (ADR-S010) ────────────────────────────────────────────
+// ── the content version (a watermark: advances on edit/add, ignores hidden churn) ────────────
 
 #[tokio::test]
 async fn watermark_advances_on_edit_and_on_add_but_not_on_hidden_churn() {

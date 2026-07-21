@@ -1,6 +1,6 @@
-//! Integration: `/api/admin/allowlist` (oracle: `AllowlistAdminRoutesSpec`) — the admin gate
-//! and the management verbs through the REAL router, over a fake allowlist (the SQL side is
-//! the gated Postgres IT) and a local JWKS stub minting real tokens.
+//! Integration: `/api/admin/allowlist` — the admin gate and the management verbs through the
+//! REAL router, over a fake allowlist (the SQL side is the gated Postgres IT) and a local JWKS
+//! stub minting real tokens.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -111,8 +111,8 @@ fn mint(issuer: &str, username: &str) -> String {
     jsonwebtoken::encode(&header, &claims, &key).unwrap()
 }
 
-/// The FULL app over the fake allowlist (step 60 — `AppDeps` is generic over the port, so
-/// this IT no longer assembles its own sub-router; requests cross the real layer stack).
+/// The FULL app over the fake allowlist (`AppDeps` is generic over the port, so this IT
+/// doesn't assemble its own sub-router; requests cross the real layer stack).
 fn admin_app(issuer: &str, allowlist: &'static FakeAllowlist) -> Router {
     common::app_with_stores(
         issuer,

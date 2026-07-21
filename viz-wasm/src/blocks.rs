@@ -1,4 +1,4 @@
-//! Widget placeholder discovery (oracle: `WidgetBlocks`): the markdown pipeline plants
+//! Widget placeholder discovery: the markdown pipeline plants
 //! `div.viz-widget[data-widget][data-payload]`; this finds them and decodes. Structure
 //! resolution and payload decode are INDEPENDENT, so the host can tell "unknown structure"
 //! from "unreadable payload" — honest cards, never a blank box.
@@ -39,7 +39,7 @@ pub fn discover(root: &web_sys::HtmlElement) -> Vec<(web_sys::HtmlElement, Widge
 pub fn mount_widgets(root: &web_sys::HtmlElement) -> Vec<Box<dyn Any>> {
     discover(root)
         .into_iter()
-        // Idempotent by marker (A10): the Astro host mounts body-wide at load AND again when
+        // Idempotent by marker: the Astro host mounts body-wide at load AND again when
         // the editorial pane renders markdown late — the second sweep must skip live widgets,
         // not stack a second mount inside them.
         .filter(|(element, _)| element.get_attribute("data-viz-mounted").is_none())

@@ -17,5 +17,5 @@ graph LR
     server -. uses .-> shared
 ```
 
-The client (Leptos/WASM), content tree, Postgres, go-judge, Keycloak, and LikeC4 join this
+The web tier (Astro SSR + islands), content tree, Postgres, go-judge, Keycloak, and LikeC4 join this
 diagram as their steps land — the oracle's final shape is the destination.

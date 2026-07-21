@@ -1,8 +1,7 @@
-//! The one pure step-through state machine (oracle: `Playback.scala`, ADR-S026). Cortex had
-//! three stepper implementations; Synapse has one, and because it's pure it's unit-tested
+//! The one pure step-through state machine — because it's pure it's unit-tested
 //! without a DOM or a timer. Named `Playback`, deliberately NOT "FSM" — the codebase already
-//! has a real finite-state machine (`CodeExecutor`), and overloading the term confuses the
-//! two (qna Q36).
+//! has a real finite-state machine (`CodeExecutor`), and overloading the term would confuse
+//! the two.
 
 /// `index` — the current step, always in `[0, count)`; `playing` — whether a transport timer
 /// is advancing; `count` — the number of steps (≥ 1). Construct via [`State::initial`]; the

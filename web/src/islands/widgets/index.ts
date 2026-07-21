@@ -1,17 +1,16 @@
 /**
- * The lesson-body widget families (A09) — quiz, diagrams, and the LikeC4 embed chrome, plus the
- * two page-wide singletons they share (the C4 docs panel and the codebench modal). Auto-hydrates
- * on import, mirroring `workbench/index.ts` and `practice/index.ts`: the entry script imports
- * this unconditionally (`[...path].astro`, `blog/[slug].astro`), and this module decides what
- * applies.
+ * The lesson-body widget families — quiz, diagrams, and the LikeC4 embed chrome, plus the two
+ * page-wide singletons they share (the C4 docs panel and the codebench modal). Auto-hydrates on
+ * import, mirroring `workbench/index.ts` and `practice/index.ts`: the entry script imports this
+ * unconditionally (`[...path].astro`, `blog/[slug].astro`), and this module decides what applies.
  *
- * Oracle split (reader.rs vs problem.rs): the LESSON BODY (and, new for the migration, a blog
- * post — see the module doc below) gets the full pass — quiz + diagrams + c4 (+ its docs panel).
- * The PROBLEM PAGE's docked description pane has no room for quiz/c4 furniture and hydrates only
- * diagrams, scoped to itself (`islands/problem.tsx` calls `hydrateDiagrams` directly) — so this
- * module's whole-document pass is guarded off `.pwb[data-problem]`, same guard as its siblings.
- * The codebench modal is the one thing EVERY page needs (a problem description can still carry a
- * plain fence-group with a "Try in Editor" button), so it mounts unconditionally.
+ * The LESSON BODY (and a blog post — see the module doc below) gets the full pass — quiz +
+ * diagrams + c4 (+ its docs panel). The PROBLEM PAGE's docked description pane has no room for
+ * quiz/c4 furniture and hydrates only diagrams, scoped to itself (`islands/problem.tsx` calls
+ * `hydrateDiagrams` directly) — so this module's whole-document pass is guarded off
+ * `.pwb[data-problem]`, same guard as its siblings. The codebench modal is the one thing EVERY
+ * page needs (a problem description can still carry a plain fence-group with a "Try in Editor"
+ * button), so it mounts unconditionally.
  */
 import { render, h } from "preact";
 

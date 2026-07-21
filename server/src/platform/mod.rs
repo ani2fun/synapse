@@ -1,7 +1,6 @@
-//! The `platform` bounded context — cross-cutting concerns (health today; static routes, media,
-//! proxies, rate limiting, security headers as their steps land). Thin and flat per ADR-S007:
-//! no `domain/` (results are shared DTOs) and no ports yet — the full hexagonal layering debuts
-//! in `catalog`.
+//! The `platform` bounded context — cross-cutting concerns: health, media, proxies, rate
+//! limiting, security headers. Thin and flat: no `domain/` (results are shared DTOs) and no
+//! ports beyond `ReadinessProbe` — the full hexagonal layering lives in `catalog`.
 
 pub mod admin_gate;
 pub mod astro_proxy;
@@ -18,5 +17,4 @@ pub mod rate_limiter;
 pub mod readiness;
 pub mod security_headers;
 pub mod seo_routes;
-pub mod static_routes;
 pub mod telemetry;

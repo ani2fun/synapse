@@ -1,7 +1,7 @@
-//! Java entrypoint normaliser (oracle: `JavaSourceRewriter.scala`). The sandbox writes
+//! Java entrypoint normaliser. The sandbox writes
 //! `Main.java` and runs `java Main`, but DSA lessons write `class Solution` — rename the first
 //! top-level class (and its self-references) to `Main`, unless a `Main` already exists or the
-//! source is a tracer harness (the sentinel skip, oracle Phase-4).
+//! source is a tracer harness (the sentinel skip).
 
 use std::sync::LazyLock;
 
@@ -9,7 +9,7 @@ use regex::Regex;
 
 use crate::execution::domain::Language;
 
-/// The tracer harness's first line (oracle: `TracerMarks.JavaSentinel`) — traced Java already
+/// The tracer harness's first line — traced Java already
 /// defines `Main`, so it must pass through untouched.
 pub(crate) const JAVA_TRACER_SENTINEL: &str = "// __SYNAPSE_TRACER__";
 

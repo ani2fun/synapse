@@ -1,4 +1,4 @@
-//! Role-based cursor palette (oracle: `MarkerColors.scala`, ported from Cortex ADR-0016).
+//! Role-based cursor palette.
 //! Pointer names carry meaning across algorithms — `i` opens a range, `slow`/`fast` race —
 //! so they get STABLE role colours, and a reader learns the vocabulary once. The WIRE carries
 //! these canonical hexes (parity-pinned); the client maps them to theme-aware CSS tokens.

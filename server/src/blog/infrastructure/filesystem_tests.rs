@@ -1,4 +1,4 @@
-//! Oracle: `FileSystemBlogRepositorySpec` — real temp dirs, drafts, traversal, the watermark.
+//! Covers real temp dirs, drafts, traversal, the watermark.
 
 #![allow(clippy::unwrap_used)]
 

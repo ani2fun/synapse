@@ -1,13 +1,13 @@
-//! The platform-level wire contracts — the walking skeleton's surface (oracle:
-//! `api/openapi.yaml` + `synapse.shared.api.Endpoints`, ADR-S019). Code-first here: `utoipa`
-//! derives the OpenAPI schema from these types, and the contract-lock test
-//! (`server/tests/contract_it.rs`) diffs the rendered spec against the committed oracle spec.
+//! The platform-level wire contracts — the walking skeleton's surface. Code-first here:
+//! `utoipa` derives the OpenAPI schema from these types, and the contract-lock test
+//! (`server/tests/contract_it.rs`) diffs the rendered spec against the committed
+//! `api/openapi.oracle.yaml`.
 
 use serde::{Deserialize, Serialize};
 
 /// Walking-skeleton health — just a status string today. Real backing-store checks
 /// (Postgres / go-judge / Keycloak) join it when those stores are actually wired; the spec
-/// grows to match (ADR-S019).
+/// grows to match.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct HealthStatus {

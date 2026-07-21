@@ -2,11 +2,11 @@
 // TRACER LOADER
 // tiny dynamic-import gateway so the harness string lands lazily
 // ──────────────────────────────────────────────────────────────────
-// Same trick as @editor/@diagram/@markdown: Scala.js imports THIS module
-// via @JSImport, and the dynamic import()s below keep each harness string
-// (python.ts + python-harness.py; java.ts + java-harness.java) off the initial
-// bundle — each loaded once when the reader first Visualises that language
-// (Python step 28/30; Java step 31).
+// Same trick as @editor/loader: the viz-wasm crate's generated bindings import
+// THIS module via @tracer/loader, and the dynamic import()s below keep each
+// harness string (python.ts + python-harness.py; java.ts + java-harness.java)
+// off the initial bundle — each loaded once when the reader first Visualises
+// that language.
 
 import type { wrapPython } from "./python";
 import type { wrapJava } from "./java";

@@ -1,4 +1,4 @@
-//! The transport bar (oracle: `TransportBar`): first/prev/play-pause/next/last, a scrubber,
+//! The transport bar: first/prev/play-pause/next/last, a scrubber,
 //! and the step label — over the ONE `Playback` stepper. The single interval timer lives
 //! here: started on play, cleared on pause/unmount; `tick` self-stops at the end.
 
@@ -10,7 +10,7 @@ const STEP_DELAY_MS: u32 = 900;
 #[component]
 pub fn TransportBar(
     state: RwSignal<State>,
-    /// Diff mode (oracle: `StepTimeline.stops`): when non-empty, the STEP buttons hop only
+    /// Diff mode: when non-empty, the STEP buttons hop only
     /// between these indices; the scrubber, label, and autoplay still cover every step.
     #[prop(optional)]
     stops: Option<Signal<Vec<usize>>>,

@@ -1,7 +1,7 @@
-//! The raw tracer wire model (oracle: `HeapTrace.scala`, ADR-S026) — the anti-corruption
+//! The raw tracer wire model — the anti-corruption
 //! boundary in front of the foreign tracer JSON. Language-agnostic: the Python and Java
 //! harnesses emit the same `{steps, truncated}` shape. Serde here serves the TEST fixtures
-//! (the oracle's hand-built traces exported as JSON) and, later, the client decoder.
+//! (hand-built traces stored as JSON) and the client decoder.
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -56,8 +56,9 @@ pub struct HeapFrame {
 }
 
 /// One traced event: the source `line`, the `event` kind (line/call/return), the live
-/// frames, and the heap. `BTreeMap` keeps every heap scan deterministic by construction
-/// (Rust `HashMap` order is as unspecified as the JVM↔JS hazard the oracle pinned).
+/// frames, and the heap. `BTreeMap` keeps every heap scan deterministic by construction —
+/// a Rust `HashMap`'s iteration order is unspecified, and object-key order varies across
+/// JS engines too, so nothing here can be allowed to depend on it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HeapStep {
     pub line: i32,

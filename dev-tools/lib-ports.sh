@@ -1,11 +1,11 @@
-# ── Port reclamation, shared by `dev` and `e2e` (step 53) ─────────────────────
+# ── Port reclamation, shared by `dev` and `e2e` ────────────────────────────────
 # Sourced, not executed. Both scripts bind FIXED ports by design — Vite is
 # --strictPort because the Keycloak dev realm whitelists specific origins, and a
-# silent bump 403s the silent-SSO iframe (the step-39 trap). So a port being held
-# always means a leftover process, never a neighbour to negotiate with.
+# silent bump 403s the silent-SSO iframe. So a port being held always means a
+# leftover process, never a neighbour to negotiate with.
 #
-# Before this existed, a stale server on :8280 made the new bind die with
-# "Address already in use (os error 48)" while Vite carried on and proxied to the
+# Without this, a stale server left on :8280 makes the new bind die with
+# "Address already in use (os error 48)" while Vite carries on and proxies to the
 # OLD binary — a page that looks alive and serves pre-edit code.
 
 # reclaim <port> <label>

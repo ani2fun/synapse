@@ -1,9 +1,8 @@
-//! The scoped Keycloak admin adapter (oracle: `KeycloakAdminClient`, step 37 — the audit
-//! HIGH). It authenticates as a confidential SERVICE-ACCOUNT client in OUR OWN realm
-//! (`synapse-admin`, `client_credentials`, `realm-management:manage-users` only) — never the
-//! master-realm bootstrap admin, whose leak would be a full IdP takeover. Two hops per
-//! delete: token, then `DELETE /admin/realms/{realm}/users/{sub}` (204 = deleted, 404 =
-//! already gone — both success).
+//! The scoped Keycloak admin adapter (`KeycloakAdminClient`). It authenticates as a confidential
+//! SERVICE-ACCOUNT client in OUR OWN realm (`synapse-admin`, `client_credentials`,
+//! `realm-management:manage-users` only) — never the master-realm bootstrap admin, whose leak
+//! would be a full IdP takeover. Two hops per delete: token, then
+//! `DELETE /admin/realms/{realm}/users/{sub}` (204 = deleted, 404 = already gone — both success).
 
 use crate::identity::application::{AuthError, KeycloakAdmin};
 

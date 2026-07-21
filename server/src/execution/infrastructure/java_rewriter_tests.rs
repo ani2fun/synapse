@@ -1,4 +1,4 @@
-//! Oracle: `JavaSourceRewriterSpec`.
+//! Tests for the Java entrypoint normaliser.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

@@ -1,25 +1,24 @@
 ---
-// The lesson page — the migration's central payoff (A03). `/synapse/{...path}` server-renders a
-// real lesson through the EXACT markdown pipeline the old Leptos client used (`renderLesson`,
-// moved to web/src/lib/markdown this step), with a native per-page head. This is what turns the
-// hydrate-first reader's ~7.2s-on-a-phone first paint into ~1.3s: the prose is HTML in the
-// response, not something a multi-megabyte wasm bundle produces after it boots.
+// The lesson page. `/synapse/{...path}` server-renders a real lesson through the EXACT markdown
+// pipeline the reader uses (`renderLesson`, web/src/lib/markdown), with a native per-page head.
+// This is what turns the hydrate-first reader's ~7.2s-on-a-phone first paint into ~1.3s: the
+// prose is HTML in the response, not something a multi-megabyte wasm bundle produces after it
+// boots.
 //
-// A07 adds the PROBLEM branch: a `kind: problem` lesson server-renders the two-pane workbench
-// frame (crumbs · left pane with the DESCRIPTION markdown + tab bar · a right-pane placeholder ·
-// the docked nav bar) instead of A03's prose fallback. `islands/problem` extracts the first
-// workbench into the right pane and wires the tabs/splitter/submissions over the static frame.
+// A `kind: problem` lesson server-renders the two-pane workbench frame (crumbs · left pane with
+// the DESCRIPTION markdown + tab bar · a right-pane placeholder · the docked nav bar) instead of
+// the prose fallback. `islands/problem` extracts the first workbench into the right pane and
+// wires the tabs/splitter/submissions over the static frame.
 //
 // Head PARITY with the axum side (server/src/platform/static_routes.rs::render_head, which the
 // e2e `per-page head` spec asserts on the raw response): title = `Book · Lesson — Synapse`,
 // description = the lesson summary (else Base's default, byte-identical to the server's), a
 // canonical `/synapse/{path}`, and the Open Graph tags Base already emits.
 //
-// A08 gave the Editorial tab its stepper; A09 (this step) hydrates quiz/diagram/LikeC4-embed
-// placeholders in the lesson body (`islands/widgets`), adds the docked problem page's 4th tab —
-// Coach (`islands/coach/CoachPane`) — and the codebench modal ("Try in Editor" on fence bars).
-// What deliberately does NOT work yet: the `.viz-widget` placeholder (Visualise, A10) and real
-// auth gating (A11) arrive with their steps. The sidebar is structure only.
+// The Editorial tab has its own stepper island; the lesson body hydrates quiz/diagram/
+// LikeC4-embed placeholders (`islands/widgets`), the docked problem page's 4th tab is Coach
+// (`islands/coach/CoachPane`), and fence bars carry the codebench modal ("Try in Editor"). The
+// sidebar is structure only here — its interactive faces live in `islands/chrome.ts`.
 import Base from "../../layouts/Base.astro";
 import Sidebar from "../../components/Sidebar.astro";
 import Pager from "../../components/Pager.astro";
@@ -33,21 +32,21 @@ import { bookOf, chapterProblems, problemContentSplit } from "../../lib/catalog/
 import { DEFAULT_LEFT_PCT } from "../../lib/catalog/pane";
 import type { components } from "../../lib/api/schema.gen";
 
-import "../../../../client/styles/reader.css";
-import "../../../../client/styles/runnable.css";
+import "../../../styles/reader.css";
+import "../../../styles/runnable.css";
 // viz.css carries MORE than the viz widgets: the workbench's language dropdown
-// (`.wb__lang-menu`/`-scrim`/`-opt`, step 38) lives there too — without it the menu renders
-// as bare stacked buttons (a real shipped bug: A06–A10 never imported it).
-import "../../../../client/styles/viz.css";
-import "../../../../client/styles/markdown.css";
-import "../../../../client/styles/practice.css";
-import "../../../../client/styles/diagrams.css";
-import "../../../../client/styles/coach.css";
-import "../../../../client/styles/codebench.css";
+// (`.wb__lang-menu`/`-scrim`/`-opt`) lives there too — without it the menu renders as bare
+// stacked buttons.
+import "../../../styles/viz.css";
+import "../../../styles/markdown.css";
+import "../../../styles/practice.css";
+import "../../../styles/diagrams.css";
+import "../../../styles/coach.css";
+import "../../../styles/codebench.css";
 
 type Mode = "lesson" | "problem" | "notFound" | "error";
 
-/** `count-all-digits` → `Count All Digits` — the oracle's `humanize` (problem.rs). */
+/** `count-all-digits` → `Count All Digits`. */
 function humanize(slug: string): string {
   return slug
     .split("-")
@@ -63,9 +62,9 @@ let mode: Mode = "error";
 let payload: LessonPayload | null = null;
 let html = "";
 let descriptionHtml = "";
-// The RAW editorial markdown (inline tail, else the sidecar) — the A08 stepper island parses it
-// and renders per-section on first open of the Editorial tab, so the server ships the markdown, not
-// pre-rendered HTML (the old Leptos reader rendered client-side too; parity, and per-section).
+// The RAW editorial markdown (inline tail, else the sidecar) — the stepper island parses it and
+// renders per-section on first open of the Editorial tab, so the server ships the markdown, not
+// pre-rendered HTML.
 let editorialMd = "";
 let counter: { problems: string[]; at: number } | null = null;
 let book: components["schemas"]["BookDto"] | null = null;
@@ -84,8 +83,8 @@ try {
     html = await renderLesson(payload.raw);
   }
   // The sidebar needs the FULL book tree (payload.book is only a ref). Best-effort: if the index
-  // can't load, the sidebar degrades to absent — exactly as the Leptos reader renders no sidebar
-  // until its shared index resolves. The problem-page counter rides the same book.
+  // can't load, the sidebar degrades to absent rather than failing the whole page. The
+  // problem-page counter rides the same book.
   try {
     const index = await fetchIndex();
     book = bookOf(index, segments);
@@ -166,11 +165,11 @@ const difficulty = payload?.frontmatter.difficulty ?? null;
             </div>
           </article>
         </div>
-        <!-- OUTSIDE the reader grid on purpose (oracle step-38 prod bug, A05 chapter): a
-             sibling of `.reader-layout`, never its third grid child, or it becomes a phantom
-             grid item at desktop width. The FAB itself is CSS-hidden at >=1024px
-             (reader.css's `.reader-nav-fab` media rule); the drawer it opens clones
-             `.reader-sidebar .reader-sidebar__inner` at click time (islands/reader.ts). -->
+        <!-- OUTSIDE the reader grid on purpose: a sibling of `.reader-layout`, never its third
+             grid child, or it becomes a phantom grid item at desktop width. The FAB itself is
+             CSS-hidden at >=1024px (reader.css's `.reader-nav-fab` media rule); the drawer it
+             opens clones `.reader-sidebar .reader-sidebar__inner` at click time
+             (islands/reader.ts). -->
         <div class="reader-nav">
           <button class="reader-nav-fab" aria-label="Contents" aria-expanded="false" type="button">
             <svg
@@ -252,7 +251,7 @@ const difficulty = payload?.frontmatter.difficulty ?? null;
                   </div>
                 </div>
                 <div class="pwb__pane hidden" data-pane="editorial">
-                  {/* No `.pwb__pane-scroll` wrapper here (unlike the other panes): the A08 stepper
+                  {/* No `.pwb__pane-scroll` wrapper here (unlike the other panes): the stepper
                       island renders its OWN `.pwb-epane > .pwb__pane-scroll` into this host on first
                       open, carrying the raw editorial markdown it parses. */}
                   <div class="pwb-editorial-host" data-editorial={editorialMd ? encodeURIComponent(editorialMd) : ""} />
@@ -337,7 +336,7 @@ const difficulty = payload?.frontmatter.difficulty ?? null;
 
         {/* Hidden source for the Contents drawer: the reader island clones
             `.reader-sidebar .reader-sidebar__inner` on open. The problem page has no visible
-            sidebar column (full-width panes, step 39), only this clone source. */}
+            sidebar column (full-width panes), only this clone source. */}
         {book && (
           <div class="pwb-sidebar-src" hidden>
             <aside class="reader-sidebar">
@@ -345,7 +344,7 @@ const difficulty = payload?.frontmatter.difficulty ?? null;
             </aside>
           </div>
         )}
-        <!-- The drawer's mount host, PINNED (step 42): reader.css hides .reader-nav-scrim/-drawer
+        <!-- The drawer's mount host, PINNED: reader.css hides .reader-nav-scrim/-drawer
              at >=1024px except under .reader-nav--pinned — a body-mounted drawer on this page
              opened into display:none, which is why the Contents pill looked dead on desktop.
              No FAB inside: the crumb-row pill is this page's only trigger (and --pinned hides
@@ -365,16 +364,16 @@ const difficulty = payload?.frontmatter.difficulty ?? null;
     isLesson && payload && (
       <script>
         import "../../islands/reader";
-        // The A09 quiz/diagram/c4 pass, guarded the same way workbench/practice are.
+        // The quiz/diagram/c4 pass, guarded the same way workbench/practice are.
         import "../../islands/widgets";
-        // The A10 viz loader: no-ops unless the page planted `.viz-widget`s or a workbench
+        // The viz loader: no-ops unless the page planted `.viz-widget`s or a workbench
         // variant carries a viz hint — the 280 KiB wasm is fetched lazily, never eagerly.
         import "../../islands/viz";
         if (document.querySelector(".pwb[data-problem]")) {
           import("../../islands/problem");
         } else {
           import("../../islands/workbench");
-          // Practice widgets (A08) live in ordinary lesson bodies — their `.practice-problem`
+          // Practice widgets live in ordinary lesson bodies — their `.practice-problem`
           // placeholders auto-hydrate here (the island guards itself off problem pages).
           import("../../islands/practice");
           // The reader chrome (sidebar faces, prefs FAB, TOC + minimap) — lesson pages ONLY, so
@@ -387,8 +386,8 @@ const difficulty = payload?.frontmatter.difficulty ?? null;
 </Base>
 
 <style>
-  /* A03-local chrome: the error block. Everything the problem/lesson pages wear comes from the
-     global reader.css / markdown.css / practice.css. */
+  /* The error block. Everything the problem/lesson pages wear comes from the global
+     reader.css / markdown.css / practice.css. */
   .lesson--error {
     max-width: 40rem;
     margin-inline: auto;

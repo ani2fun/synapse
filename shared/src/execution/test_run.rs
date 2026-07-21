@@ -1,5 +1,5 @@
-//! The authored test suite + pure judging (oracle: `TestSpec.scala` + `TestRun.scala`) — shared
-//! because the workbench (client) and the submission judge (server) apply the SAME rules.
+//! The authored test suite + pure judging — shared because the workbench (client) and the
+//! submission judge (server) apply the SAME rules.
 
 use std::collections::BTreeMap;
 
@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::execution::RunResult;
 
 /// One declared stdin argument. The authored JSON writes `type`; the field is `tpe` here
-/// (mapped at the codec), mirroring the oracle's Scala-keyword dodge.
+/// (mapped at the codec) since `type` is a reserved word.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ArgSpec {

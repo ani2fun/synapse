@@ -1,7 +1,7 @@
 ---
-// Astro's server-output 404 (A03). With `output: "server"`, Astro serves this for any route the
-// app doesn't match and lets the page pick the status — so the axum astro_proxy copies a real
-// 404 back and the sidecar's 404 becomes the site 404 (the A01 header contract, tested).
+// Astro's server-output 404. With `output: "server"`, Astro serves this for any route the app
+// doesn't match and lets the page pick the status — so the axum astro_proxy copies a real 404
+// back and the sidecar's 404 becomes the site 404 (a tested header contract).
 import Base from "../layouts/Base.astro";
 import NotFound from "../components/NotFound.astro";
 

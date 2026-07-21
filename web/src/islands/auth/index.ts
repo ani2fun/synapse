@@ -1,8 +1,8 @@
 /**
- * The auth boot island (oracle: `AuthStore::provide` + the header's `<AccountChip/>`), loaded
- * from Base.astro on EVERY page — the header is global, so check-sso runs everywhere. The boot
- * flow itself is plain TS in ./store; the only Preact here is the header chip (menu state).
- * keycloak-js stays a lazy chunk (the loader dynamic-imports it) — this entry is small.
+ * The auth boot island, loaded from Base.astro on EVERY page — the header is global, so
+ * check-sso runs everywhere. The boot flow itself is plain TS in ./store; the only Preact here
+ * is the header chip (menu state). keycloak-js stays a lazy chunk (the loader dynamic-imports
+ * it) — this entry is small.
  */
 import { render, h } from "preact";
 

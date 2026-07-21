@@ -1,4 +1,4 @@
-// Oracle: client/src/catalog/logic/pane.rs's own `mod tests` — the same six cases, camelCased.
+// Six cases covering the splitter width round-trip, clamp, and legacy-format degradation.
 
 import { describe, expect, it } from "vitest";
 import {
@@ -24,7 +24,7 @@ describe("pane — the splitter width", () => {
     expect(parseLeftPct("1")).toBeCloseTo(MIN_LEFT_PCT);
   });
 
-  // Includes a step-47 `tab|pct|section` record: unreadable now, and deliberately so — the width
+  // Includes a legacy `tab|pct|section` record: unreadable now, and deliberately so — the width
   // resets once rather than the format growing a legacy branch forever.
   it("anything unreadable is the default width", () => {
     for (const stored of [null, "", "banana", "editorial|52.50|Solution"]) {

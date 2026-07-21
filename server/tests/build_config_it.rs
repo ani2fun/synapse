@@ -1,4 +1,4 @@
-//! The build-configuration lock (step 45).
+//! The build-configuration lock.
 //!
 //! Not a behaviour the server needs — a guarantee that the binary CI tests is the binary the
 //! Dockerfile ships.

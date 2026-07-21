@@ -1,9 +1,8 @@
-// The typed API client (oracle chain: Rust `client/src/api/mod.rs`, itself modelled on
-// `ApiClient.scala`) — fetches decoding the wire DTOs the server publishes as OpenAPI, generated
-// into `./schema.gen.ts` (never hand-typed — see the A02 chapter for the incident that argues
-// for this). Errors surface as an `ApiFailure`; its `.message` matches the Rust client's
-// `decode` format exactly (`error: detail`, `error` alone with no detail, `HTTP n` when the body
-// was not the envelope at all), so error copy shown to a reader is unchanged mid-migration.
+// The typed API client — fetches decoding the wire DTOs the server publishes as OpenAPI,
+// generated into `./schema.gen.ts` (never hand-typed). Errors surface as an `ApiFailure`; its
+// `.message` follows one decode format (`error: detail`, `error` alone with no detail, `HTTP n`
+// when the body was not the envelope at all), so error copy shown to a reader stays consistent
+// across every endpoint.
 
 import * as log from "../log";
 import type { components } from "./schema.gen";
@@ -46,14 +45,14 @@ export interface DeleteMeResult {
 // ── the origin seam ─────────────────────────────────────────────────────────────────────────
 
 /**
- * In the browser every fetch is same-origin, so the base is `""` — identical to the old
- * client's relative paths. SSR has no browser origin to be relative to: that fetch is a real
- * network hop to the axum process, and `SYNAPSE_API_URL` names where. `import.meta.env` first
- * (Astro/Vite's own env loading, what every other server-side module in `web/` reads);
- * `process.env` as a plain-Node fallback for code paths that run outside Vite's pipeline.
+ * In the browser every fetch is same-origin, so the base is `""` — plain relative paths. SSR
+ * has no browser origin to be relative to: that fetch is a real network hop to the axum
+ * process, and `SYNAPSE_API_URL` names where. `import.meta.env` first (Astro/Vite's own env
+ * loading, what every other server-side module in `web/` reads); `process.env` as a plain-Node
+ * fallback for code paths that run outside Vite's pipeline.
  */
 
-/** One line per wire call (the Rust chokepoint's localhost-only flow trace). */
+/** One line per wire call — a single chokepoint for the request flow trace. */
 async function loggedFetch(input: string, init?: RequestInit): Promise<Response> {
   log.debug(`${init?.method ?? "GET"} ${input}`);
   return fetch(input, init);
@@ -64,14 +63,14 @@ export function apiBase(): string {
   return import.meta.env.SYNAPSE_API_URL ?? process.env.SYNAPSE_API_URL ?? "http://localhost:8280";
 }
 
-// ── the bearer seam (oracle: the Rust client's `set_token_provider` thread_local) ─────────────
+// ── the bearer seam ──────────────────────────────────────────────────────────────────────────
 
 let tokenProvider: () => string | null = () => null;
 
 /**
  * Identity installs this once, at startup; every call below reads it through `bearerHeaders`.
- * The default stays anonymous — this module never imports identity, the same direction-of-
- * dependency the Rust client's thread_local enforces (`api` stays feature-agnostic).
+ * The default stays anonymous — this module never imports identity, keeping `api` feature-
+ * agnostic.
  */
 export function installTokenProvider(provider: () => string | null): void {
   tokenProvider = provider;
@@ -157,7 +156,7 @@ async function del<T>(path: string): Promise<T> {
   return decode<T>(response);
 }
 
-// ── the 18 endpoints (oracle: client/src/api/mod.rs, one function per Rust fn) ────────────────
+// ── the 18 endpoints, one function per server route ────────────────────────────────────────────
 
 /** The browsable library index. */
 export function fetchIndex(): Promise<SynapseIndex> {

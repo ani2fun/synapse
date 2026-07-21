@@ -1,17 +1,18 @@
-//! Baseline security headers (oracle: `SecurityHeaders`, step 36 + the step-38 CSP incidents
-//! folded in as final design). Five headers on EVERY response — API, proxy, static, errors
+//! Baseline security headers. Five headers on EVERY response — API, proxy, static, errors
 //! alike; defence in depth is not just the happy path. The CSP is parameterised by the OIDC
 //! issuer: it allows ONLY self + the Keycloak origin (+ the named third parties below), so a
 //! misconfigured issuer surfaces as a broken sign-in, never as a wildcard policy.
 //!
-//! The two prod incidents this policy encodes (validate a CSP against the app's HEAVIEST page,
-//! and only under prod-shaped serving — Vite never sends these headers):
-//! - fonts/Monaco/inline-theme-script broke on the first over-tight CSP → Google Fonts,
+//! Two allowances this policy encodes, each earned by a real breakage (a CSP must be validated
+//! against the app's HEAVIEST page, and only under prod-shaped serving — the dev server (Vite)
+//! never sends these headers, so dev never reproduces a CSP-caused breakage):
+//! - fonts/Monaco/inline-theme-script broke on an over-tight CSP → Google Fonts,
 //!   `'unsafe-inline'`, `blob:` workers, `img-src https:` allowances;
 //! - d2's blob render worker calls `new Function(elkJs)` at init (even under dagre), a blob
 //!   worker INHERITS the page CSP, and no directive scopes eval to one worker →
 //!   `'unsafe-eval'`. `'wasm-unsafe-eval'` covers WASM compilation only — here it is
-//!   load-bearing for the Leptos app itself.
+//!   load-bearing for the viz-wasm engine (a Leptos-compiled WASM module that powers the
+//!   visualisations), which the browser loads as a lazy WASM bundle.
 
 use std::sync::Arc;
 
@@ -92,7 +93,7 @@ fn origin_of(issuer: &str) -> String {
     format!("{scheme}://{host}")
 }
 
-/// The RS-reality policy: `'wasm-unsafe-eval'` carries the Leptos app itself, `'unsafe-eval'`
+/// The policy in practice: `'wasm-unsafe-eval'` carries the viz-wasm engine, `'unsafe-eval'`
 /// carries d2's ELK blob worker, `blob:`+`worker-src` carry Monaco/d2/mermaid/tracer workers,
 /// and only the auth origin + named third parties join `'self'`.
 fn csp_for(auth_origin: &str) -> String {

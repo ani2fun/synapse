@@ -1,12 +1,11 @@
 /**
- * The standalone problem page's interactive layer (port of client/src/catalog/view/problem.rs's
- * `ProblemWorkbench`). The Astro page server-renders the whole static frame — crumbs, the left
- * pane's head + tab bar, the DESCRIPTION markdown, the docked nav bar — and this island wires the
- * living parts over it:
+ * The standalone problem page's interactive layer. The Astro page server-renders the whole
+ * static frame — crumbs, the left pane's head + tab bar, the DESCRIPTION markdown, the docked
+ * nav bar — and this island wires the living parts over it:
  *
- *   · the splitter (28–64%, the one thing the page still remembers — step 65, `pane.ts`),
+ *   · the splitter (28–64%, the one thing the page still remembers, `pane.ts`),
  *   · the Description | Editorial | Submissions tabs (mount-once, `.hidden`; every problem opens
- *     on Description — step 65),
+ *     on Description),
  *   · the right pane's Workbench, with the FIRST description workbench EXTRACTED into it,
  *   · the remaining description workbenches + fence-group bars, hydrated in place,
  *   · the Submissions feed (lazy, refetched on submit) and the anonymous sign-in bar,
@@ -18,13 +17,13 @@
  * workbench is extracted and mounted exactly once — by this island — with no auto-hydrator racing
  * it for the same placeholder.
  *
- * The Editorial tab mounts A08's stepper island (`practice/EditorialPane`) on first open; the
- * Coach tab (A09) mounts `coach/CoachPane` the same way, reading its problem path off the URL and
- * its live code snapshot off the workbench root's bubbling `synapse:code-changed`. Description
- * workbenches also get A09's diagram + codebench-modal treatment (`islands/widgets`). Still
- * deliberately waiting: Visualise (A10) and real auth gating (A11 — until it installs
- * `window.__synapseAuth`, Edit/Submit/Submissions read anonymous, which is the correct anonymous
- * experience, not a regression).
+ * The Editorial tab mounts the stepper island (`practice/EditorialPane`) on first open; the
+ * Coach tab mounts `coach/CoachPane` the same way, reading its problem path off the URL and its
+ * live code snapshot off the workbench root's bubbling `synapse:code-changed`. Description
+ * workbenches also get the diagram + codebench-modal treatment (`islands/widgets`). Visualise
+ * renders once the viz island installs `window.__synapseViz`; Edit/Submit/Submissions reflect
+ * real auth state through `window.__synapseAuth` — anonymous readers see the correct restricted
+ * experience.
  */
 import { h, render } from "preact";
 import { useEffect, useState } from "preact/hooks";
@@ -42,7 +41,7 @@ import { SubmissionsFeed } from "./problem-submissions";
 import { EditorialPane } from "./practice/EditorialPane";
 import { CoachPane } from "./coach/CoachPane";
 import { hydrateDiagrams } from "./widgets/Diagrams";
-// Side-effect import: mounts the page-wide codebench modal (A09) — a description-pane fence
+// Side-effect import: mounts the page-wide codebench modal — a description-pane fence
 // group can still carry a "Try in Editor" button even though the whole-document quiz/diagram/c4
 // pass this module also offers stands down on a problem page (see its own module doc).
 import "./widgets/index";
@@ -105,9 +104,9 @@ function hydrateContent(root: ParentNode, lessonPath: string[]): void {
     render(h(Workbench, { variants: decoded.variants, spec: decoded.spec, lessonPath, root: host }), host);
     count += 1;
   }
-  // Diagrams, but NOT quiz/c4 — the docked description pane mirrors the oracle's problem.rs,
-  // which hydrates diagrams alongside its workbenches/fence-groups and leaves quiz/c4 to the
-  // lesson body (islands/widgets' whole-document pass, which stands down on this page).
+  // Diagrams, but NOT quiz/c4 — the docked description pane hydrates diagrams alongside its
+  // workbenches/fence-groups and leaves quiz/c4 to the lesson body (islands/widgets'
+  // whole-document pass, which stands down on this page).
   const diagrams = hydrateDiagrams(root);
   const groups = root.querySelectorAll("div.fence-group").length;
   hydrateFenceGroups(root);
@@ -173,7 +172,7 @@ function mountRightPane(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// THE SPLITTER — 28–64%, persisted as a bare width (step 65 / pane.ts)
+// THE SPLITTER — 28–64%, persisted as a bare width (pane.ts)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function wireSplitter(pwb: HTMLElement): void {
@@ -211,7 +210,7 @@ function wireSplitter(pwb: HTMLElement): void {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// THE TABS — Description | Editorial | Submissions, mount-once (step 65: always Description)
+// THE TABS — Description | Editorial | Submissions, mount-once (always opens on Description)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function wireTabs(pwb: HTMLElement, lessonPath: string[], spec: TestSpec | null): void {
@@ -219,7 +218,7 @@ function wireTabs(pwb: HTMLElement, lessonPath: string[], spec: TestSpec | null)
   const panes = Array.from(pwb.querySelectorAll<HTMLElement>(".pwb__pane[data-pane]"));
   const seen = new Set<string>();
 
-  // Editorial: the A08 stepper island renders itself into the host on first open, parsing the raw
+  // Editorial: the stepper island renders itself into the host on first open, parsing the raw
   // editorial markdown the SSR carried on `data-editorial` and hydrating GATED solution viewers
   // whose Copy-to-editor targets the right pane's workbench (via the `workbenchRoot` getter).
   const onFirstOpen = (tab: string): void => {

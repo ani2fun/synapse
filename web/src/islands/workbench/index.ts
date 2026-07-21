@@ -1,8 +1,8 @@
 /**
- * Workbench hydration (port of client/src/execution/view/hydrate.rs): find every
- * `div.workbench` the pipeline planted, decode `data-variants` (+ optional `data-spec`), and
- * render a live Preact Workbench into it. Fence-group bars hydrate alongside. The lesson path
- * comes from the URL — the same directory-mirror segments the payload was fetched for.
+ * Workbench hydration: find every `div.workbench` the pipeline planted, decode `data-variants`
+ * (+ optional `data-spec`), and render a live Preact Workbench into it. Fence-group bars hydrate
+ * alongside. The lesson path comes from the URL — the same directory-mirror segments the
+ * payload was fetched for.
  */
 import { render, h } from "preact";
 
@@ -57,8 +57,8 @@ export function hydrateWorkbenches(root: ParentNode): void {
   log.info(`hydrated ${workbenches} workbench(es), ${groups} fence group(s)`);
 }
 
-// Auto-hydrate on import — the lesson page's script tag is the trigger. A problem page (A07)
-// owns its own workbench hydration (islands/problem extracts the FIRST workbench into the right
+// Auto-hydrate on import — the lesson page's script tag is the trigger. A problem page owns its
+// own workbench hydration (islands/problem extracts the FIRST workbench into the right
 // pane and hydrates the rest), so the auto-hydrator must never also claim those placeholders. The
 // `[...path].astro` script only dynamic-imports this module on non-problem pages; this guard is
 // the belt to that suspenders, so a stray import can't start a second, racing hydration.

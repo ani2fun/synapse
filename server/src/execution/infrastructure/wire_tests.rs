@@ -1,4 +1,4 @@
-//! Oracle: `GoJudgeWireSpec` — golden request shapes and response mappings, no HTTP.
+//! Golden request shapes and response mappings for the go-judge wire protocol, no HTTP.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

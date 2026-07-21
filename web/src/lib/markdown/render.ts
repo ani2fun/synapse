@@ -3,9 +3,10 @@
 // unified · remark · rehype · shiki → safe HTML for the lesson reader
 // ──────────────────────────────────────────────────────────────────
 // Turns trusted first-party lesson markdown (synapse-content, ADR-S010)
-// into an HTML string the Laminar client injects via innerHTML. Loaded
-// lazily behind loader.ts, so shiki + the plugin graph only land when a
-// lesson first opens. Pipeline decisions live in ADR-S015.
+// into an HTML string a caller injects via innerHTML (the lesson page,
+// editorial panes, C4 docs). Loaded lazily behind loader.ts, so shiki + the
+// plugin graph only land when a lesson first opens. Pipeline decisions
+// live in ADR-S015.
 
 import { unified } from "unified";
 import remarkParse from "remark-parse";
@@ -30,7 +31,7 @@ const synapseTheme = createCssVariablesTheme({
 
 // A fence is *runnable* when its meta carries the bare `run` token —
 // ```python run . The reader turns these into an interactive editor +
-// Run button instead of a static highlighted block (step 11).
+// Run button instead of a static highlighted block.
 const runnableMeta = /(?:^|\s)run(?:$|\s)/;
 
 function isRunnable(node: Code): boolean {
@@ -38,7 +39,7 @@ function isRunnable(node: Code): boolean {
 }
 
 // A run fence may also carry a `viz=<structure>[:<root>]` hint — ```python run viz=array:nums —
-// declaring how the traced run should be visualised (step 30). Captured per variant; the shared
+// declaring how the traced run should be visualised. Captured per variant; the shared
 // CodeVariant stays hint-free (the client pairs the hint alongside it).
 const vizMeta = /(?:^|\s)viz=(\S+)/;
 
@@ -49,7 +50,7 @@ function vizOf(meta: string | null | undefined): string | undefined {
 
 // A *solution* fence — ```python solution time=O(n) space=O(1) — is the authored answer to the
 // surrounding exercise. Adjacent solution fences (python + java) group exactly like run fences,
-// into ONE spoiler-safe placeholder the client reveals on demand (step 16).
+// into ONE spoiler-safe placeholder the client reveals on demand.
 const solutionMeta = /(?:^|\s)solution(?:$|\s)/;
 
 function isSolution(node: Code): boolean {
@@ -58,7 +59,7 @@ function isSolution(node: Code): boolean {
 
 // A *plain* fence is one no other transform claims: a real display language, no `run` or
 // `solution` marker, and not one of the widget vocabularies below. These become tab-group
-// cards (step 41) — see the fall-through at the end of the `code` handler.
+// cards — see the fall-through at the end of the `code` handler.
 //
 // The predicate gates the group HEAD as well as its siblings, so a fence either always gets
 // the card or never does. Reserved vocabularies keep their existing behaviour: claimed ones
@@ -78,12 +79,13 @@ function isPlainFence(node: RootContent): node is Code {
   return !RESERVED_FENCE_LANGS.has(fenceLang(node));
 }
 
-// ── Workbench blocks (step 13) ──────────────────────────────────────
+// ── Workbench blocks ──────────────────────────────────────
 // Adjacent run fences group into ONE workbench placeholder (its language
 // variants); a ```testcases JSON fence directly after the group is parsed
 // as the block's TestSpec and spliced out of the prose. The shapes mirror
-// synapse.shared.execution.{TestSpec, ArgSpec, TestCase} — the authored
-// JSON uses `type` (the Scala side maps it to `tpe` at the codec).
+// shared/src/execution/test_run.rs's ArgSpec/TestCase/TestSpec — the
+// authored JSON uses `type` (mapped to the Rust DTO's `tpe` field at the
+// codec).
 
 type FenceVariant = { lang: string; source: string; viz?: string };
 type ArgSpecJson = { id: string; label: string; type: string; placeholder?: string };
@@ -137,11 +139,11 @@ function authoringError(prefix: string, message: string): Element {
   };
 }
 
-// ── Quiz blocks (step 16) ───────────────────────────────────────────
+// ── Quiz blocks ───────────────────────────────────────────────────
 // A ```quiz fence carries one check-your-understanding card as JSON:
 // {prompt, options: [String], answer: String (one of the options), input?}.
 // Client-only — it never crosses the wire, so the model lives in the
-// client (QuizBlocks), not in shared.
+// client, not in shared.
 
 type QuizJson = { prompt: string; options: string[]; answer: string; input?: string };
 
@@ -167,17 +169,17 @@ function parseQuiz(raw: string): { quiz?: QuizJson; error?: string } {
   return { quiz: data as unknown as QuizJson };
 }
 
-// ── D2 diagrams (step 25 · prose-first refactor 2026-07-17) ──────────
-// d2 now renders on the CLIENT at mount, exactly like mermaid — NOT at
-// parse time. This transformer is a SYNCHRONOUS grouping pass: it emits a
+// ── D2 diagrams — prose-first ──────────
+// d2 renders on the CLIENT at mount, exactly like mermaid — NOT at parse
+// time. This transformer is a SYNCHRONOUS grouping pass: it emits a
 // placeholder carrying the RAW d2 SOURCE (URI-encoded), never the SVG, and
 // imports no WASM. A lone fence → `.d2-block[data-source]`; a run of
 // *consecutive* fences → a `.d2-slideshow[data-slides]` (JSON array of
-// sources) step-through. The client's D2Card/D2Slideshow (diagrams.rs)
-// load the multi-MB d2 WASM lazily, only when a diagram nears the viewport,
-// and surface a malformed diagram as an error card at mount — so the whole
-// lesson's prose paints immediately instead of waiting on N sequential
-// parse-time layouts.
+// sources) step-through. The client's D2Card/D2Slideshow
+// (islands/widgets/Diagrams.tsx) load the multi-MB d2 WASM lazily at mount
+// and surface a malformed diagram as an error card — so the whole lesson's
+// prose paints immediately instead of waiting on N sequential parse-time
+// layouts.
 
 /** A raw-HTML mdast node (passes through remark-rehype under allowDangerousHtml). */
 function html(value: string): RootContent {
@@ -226,27 +228,26 @@ function d2Transform() {
  *
  * Scope: the GFM core (headings, lists, tables, links, inline code,
  * blockquotes) + fenced code with shiki highlighting — plus **workbench
- * blocks** (steps 11 · 24): a ```lang run fence — or several *adjacent*
- * ones, one per language — becomes one empty
- * `<div class="workbench" data-variants data-spec?>` placeholder
- * (URI-encoded JSON), which the Laminar client discovers and mounts an
- * editor into. A ```testcases JSON fence directly after the group is
- * parsed as the block's test spec (`data-spec`) and spliced out; if its
- * JSON is invalid, a visible `.workbench-error` card renders instead and
- * the raw fence stays. Every other fence is a static highlighted block
+ * blocks**: a ```lang run fence — or several *adjacent* ones, one per
+ * language — becomes one empty `<div class="workbench" data-variants
+ * data-spec?>` placeholder (URI-encoded JSON), which the client discovers
+ * and mounts an editor into. A ```testcases JSON fence directly after the
+ * group is parsed as the block's test spec (`data-spec`) and spliced out;
+ * if its JSON is invalid, a visible `.workbench-error` card renders instead
+ * and the raw fence stays. Every other fence is a static highlighted block
  * via the default handler → rehype-pretty-code.
  *
- * **Solution fences** (step 16) — ```lang solution time=O(…) space=O(…) —
- * group adjacently the same way into one spoiler-safe
- * `<div class="solution-block" data-variants data-metas>` placeholder the
- * client reveals on demand. A ```quiz fence becomes a `.quiz-block` card
- * (step 16) and a ```mermaid fence becomes a `.mermaid-block` diagram
- * placeholder (step 24) the client renders as SVG. ```d2 fences are
- * rendered to SVG at parse time and grouped (a run of ≥2 → a slideshow;
- * step 25). A ```viz widget=<structure> fence becomes a `.viz-widget`
- * placeholder carrying its VizCases payload (step 26). An *orphan*
- * ```testcases fence and <details> editorials still pass through as plain
- * highlighted code / raw HTML.
+ * **Solution fences** — ```lang solution time=O(…) space=O(…) — group
+ * adjacently the same way into one spoiler-safe `<div class="solution-block"
+ * data-variants data-metas>` placeholder the client reveals on demand. A
+ * ```quiz fence becomes a `.quiz-block` card and a ```mermaid fence becomes
+ * a `.mermaid-block` diagram placeholder the client renders as SVG. ```d2
+ * fences become source-carrying placeholders too (a lone fence →
+ * `.d2-block`, a run of ≥2 → a `.d2-slideshow`) — rendered on the CLIENT at
+ * mount, not here. A ```viz widget=<structure> fence becomes a `.viz-widget`
+ * placeholder carrying its VizCases payload. An *orphan* ```testcases fence
+ * and <details> editorials still pass through as plain highlighted code /
+ * raw HTML.
  *
  * Trusted content (ADR-S015): the source is first-party (read from
  * SYNAPSE_ROOT), so raw HTML passes through unmodified — no
@@ -271,7 +272,7 @@ export async function renderLesson(raw: string): Promise<string> {
         code(state, node: Code, parent) {
           if ((node as unknown as Record<string, boolean>)[CONSUMED]) return []; // swallowed by its group head
 
-          // Solution fences → ONE spoiler-safe placeholder per adjacent group (step 16).
+          // Solution fences → ONE spoiler-safe placeholder per adjacent group.
           if (isSolution(node)) {
             const variants: FenceVariant[] = [{ lang: node.lang!, source: node.value }];
             const metas: string[] = [node.meta ?? ""];
@@ -299,9 +300,10 @@ export async function renderLesson(raw: string): Promise<string> {
             };
           }
 
-          // Mermaid fences → a diagram placeholder the client renders as SVG (step 24). The source
-          // rides URI-encoded on data-source; mermaid itself is a lazy island (@diagram), so nothing
-          // heavy loads here. Every other fence still shiki-highlights via the default handler.
+          // Mermaid fences → a diagram placeholder the client renders as SVG. The source rides
+          // URI-encoded on data-source; mermaid itself is a lazy island
+          // (lib/islands/diagram/mermaid.ts), so nothing heavy loads here. Every other fence
+          // still shiki-highlights via the default handler.
           if (node.lang === "mermaid") {
             return {
               type: "element",
@@ -314,7 +316,7 @@ export async function renderLesson(raw: string): Promise<string> {
             };
           }
 
-          // Declarative widget fences → a viz-widget placeholder (step 26). ```viz widget=<structure> carries
+          // Declarative widget fences → a viz-widget placeholder. ```viz widget=<structure> carries
           // a VizCases JSON payload; it rides URI-encoded on data-payload, the structure on data-widget. The
           // client decodes + mounts a WidgetHost. Invalid JSON keeps the raw fence under an error card.
           if (node.lang === "viz") {
@@ -342,8 +344,8 @@ export async function renderLesson(raw: string): Promise<string> {
             }
           }
 
-          // Quiz fences → one interactive card placeholder each (step 16); invalid JSON keeps the
-          // raw fence visible under an authoring-error card, exactly like testcases.
+          // Quiz fences → one interactive card placeholder each; invalid JSON keeps the raw
+          // fence visible under an authoring-error card, exactly like testcases.
           if (node.lang === "quiz") {
             const parsed = parseQuiz(node.value);
             if (parsed.quiz) {
@@ -360,7 +362,7 @@ export async function renderLesson(raw: string): Promise<string> {
             return [authoringError("Quiz ignored", parsed.error!), defaultHandlers.code(state, node)].flat();
           }
 
-          // ```problem → a PRACTICE PROBLEM widget (docs/embedded-practice-problems.md). The fence body is the
+          // ```problem → a PRACTICE PROBLEM widget. The fence body is the
           // statement (markdown, → Description tab); it consumes the directly-following ```lang run starter (+
           // language variants), an optional ```testcases judge set, and an optional ```editorial solution
           // (markdown, → Editorial tab), emitting one `.practice-problem` placeholder. Backward compatible:
@@ -412,7 +414,7 @@ export async function renderLesson(raw: string): Promise<string> {
             return pExtras.length > 0 ? [pDiv, ...pExtras] : pDiv;
           }
 
-          // Plain fences → ONE tab-group card per adjacent run (step 41). Every display-language
+          // Plain fences → ONE tab-group card per adjacent run. Every display-language
           // fence gets the framed card: a header bar carrying language TABS when adjacent fences
           // offer the same idea in another language, a ▶ pill when it stands alone, and the
           // actions (copy · Try in Editor) on the far right where they never cover the code.
@@ -445,8 +447,9 @@ export async function renderLesson(raw: string): Promise<string> {
               tagName: "div",
               properties: { className: ["fence-group"], "data-langs": langs.join(",") },
               children: [
-                // Emitted FIRST and left empty: Leptos' `mount_to` appends, so the client's
-                // header bar lands ABOVE the panes without a CSS reordering hack.
+                // Emitted FIRST and left empty: children render in DOM order, so the header bar
+                // lands ABOVE the panes without a CSS reordering hack; fenceGroups.ts fills it
+                // in after hydration.
                 {
                   type: "element",
                   tagName: "div",

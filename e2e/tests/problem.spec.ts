@@ -1,8 +1,8 @@
 import { test, expect } from "./fixtures";
 
 /**
- * The problem-page smoke (migration step A12): the two-pane workbench frame is a page kind of
- * its own — SSR frame + the extraction island — and until this spec, nothing in CI opened one.
+ * The problem-page smoke: the two-pane workbench frame is a page kind of its own — SSR frame
+ * plus the extraction island — and until this spec, nothing in CI opened one.
  * The fixture problem (`learn/smoke/problems/threshold/threshold`) is ours and stable, so the
  * path is hardcoded rather than discovered — a rename here is a deliberate edit, not drift.
  *
@@ -16,8 +16,8 @@ const PROBLEM = "/synapse/learn/smoke/problems/threshold/threshold";
 test("the problem page renders its frame and extracts the workbench", async ({ page }) => {
   await page.goto(PROBLEM);
 
-  // The SSR frame: crumbs visible (not under the fixed header — the A07 padding regression),
-  // the four tabs, the docked nav.
+  // The SSR frame: crumbs visible (not clipped under the fixed header — a past padding
+  // regression), the four tabs, the docked nav.
   const crumbs = page.locator(".pwb__crumbs");
   await expect(crumbs).toBeVisible();
   expect((await crumbs.boundingBox())?.y ?? 0).toBeGreaterThan(60);
@@ -31,7 +31,7 @@ test("the problem page renders its frame and extracts the workbench", async ({ p
   await expect(right.locator(".runnable__run")).toBeVisible();
   await expect(right.locator(".wb__chip").first()).toBeVisible();
 
-  // The page itself must not scroll — the panes own all scrolling (step 37's contract).
+  // The page itself must not scroll — the panes own all scrolling.
   const overflow = await page.evaluate(
     () => document.documentElement.scrollHeight - window.innerHeight,
   );
@@ -43,7 +43,8 @@ test("the editorial tab mounts its stepper", async ({ page }) => {
   await expect(page.locator(".pwb__right .runnable")).toBeVisible();
 
   await page.locator(".problem-tab--editorial").click();
-  // The A08 stepper island renders on first open: the pane scroller plus at least one Jump pill.
+  // The editorial stepper island renders on first open: the pane scroller plus at least one
+  // Jump pill.
   await expect(page.locator(".pwb-escroll")).toBeVisible();
   await expect(page.getByRole("button", { name: /intuition/i }).first()).toBeVisible();
 });

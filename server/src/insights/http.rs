@@ -1,4 +1,4 @@
-//! `GET /api/admin/lesson-views` (step 49) — the read half of readership. Gated per call by
+//! `GET /api/admin/lesson-views` — the read half of readership. Gated per call by
 //! the shared `require_admin`, and generic over the store port so the route tests drive a fake
 //! through the REAL router (the `admin_allowlist_it.rs` pattern: implement the port for
 //! `&'static Fake`).

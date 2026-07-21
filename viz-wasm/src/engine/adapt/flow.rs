@@ -1,4 +1,4 @@
-//! Stage 5 (oracle: `StepFlow.scala`): trim · fill · coalesce, oracle order. (1)
+//! Stage 5: trim · fill · coalesce, in that order. (1)
 //! `drop_empty_ends` trims blank steps off both ends, KEEPING exactly the last leading blank
 //! (the frame that opens the animation); (2) `carry_forward` fills interior blanks with the
 //! previous non-empty graph; (3) `coalesce` drops exact consecutive duplicates on

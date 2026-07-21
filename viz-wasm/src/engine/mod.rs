@@ -1,8 +1,8 @@
-//! The viz engine (RS-P7; oracle: `shared/viz`, ADR-S026/S027) — pure, IO-free, DOM-free.
-//! This step lands the SPINE: the render contract (`graph`), the one authored vocabulary
-//! (`vocabulary`), the structure→renderer dispatch (`render_family`), the role-colour palette
-//! (`markers`), and the one playback state machine (`playback`). The adapt pipeline and the
-//! geometry families join in their own steps, exactly as the oracle staged them.
+//! The viz engine — pure, IO-free, DOM-free. The spine: the render contract (`graph`), the
+//! one authored vocabulary (`vocabulary`), the structure→renderer dispatch (`render_family`),
+//! the role-colour palette (`markers`), and the one playback state machine (`playback`).
+//! The adapt pipeline (`adapt`) and the geometry families (`geometry`) turn a raw trace into
+//! that render contract.
 
 pub mod adapt;
 pub mod decoder;

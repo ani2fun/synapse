@@ -1,4 +1,4 @@
-//! The blog bounded context (oracle: `blog/`, step 19) — a flat, chronological cousin of the
+//! The blog bounded context — a flat, chronological cousin of the
 //! catalog: markdown posts in `<contentRoot>/blog/`, newest first, no tree.
 
 pub mod application;

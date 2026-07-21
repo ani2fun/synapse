@@ -1,5 +1,4 @@
-// Oracle: client/src/execution/logic/practice.rs's own `mod tests` — the same seven cases,
-// camelCased. The fixtures mirror the real authored `.practice-problem` attribute payloads.
+// Seven cases. The fixtures mirror the real authored `.practice-problem` attribute payloads.
 
 import { describe, expect, it } from "vitest";
 

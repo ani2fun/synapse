@@ -2,8 +2,8 @@
 // MONACO EDITOR ISLAND
 // vanilla monaco-editor, set up once, behind the @editor lazy chunk
 // ──────────────────────────────────────────────────────────────────
-// The runnable code block (step 11) mounts a read-only Monaco here to show a
-// snippet; editing unlocks with identity (Phase 6). This module is reached
+// The runnable code block mounts a read-only Monaco here to show a
+// snippet; editing unlocks with identity. This module is reached
 // only through loader.ts's dynamic import(), so monaco's editor core + web
 // worker land in their own on-demand chunk — never on the initial bundle.
 //
@@ -88,25 +88,25 @@ export interface EditorHandle {
   setTheme: (dark: boolean) => void;
   /**
    * Toggle read-only in place (the ⌘E unlock) without recreating the editor — cursor and undo
-   * history survive. (synapse-rs extension: the oracle handle had no in-place toggle.)
+   * history survive.
    */
   setReadOnly: (readOnly: boolean) => void;
-  /** Replace the whole buffer (the workbench's Reset-to-starter; step 16). */
+  /** Replace the whole buffer (the workbench's Reset-to-starter). */
   setValue: (value: string) => void;
   /** Read the live buffer (the one-click copy overlay). */
   getValue: () => string;
   /**
    * Highlight the current step's line (and, when given, the upcoming one) and scroll it into view — the
-   * Visualise modal's SourcePane (step 30), Python-Tutor style. `current`/`next` are 1-indexed source lines.
+   * Visualise modal's SourcePane, Python-Tutor style. `current`/`next` are 1-indexed source lines.
    */
   setLineHighlights: (current: number, next: number | null) => void;
-  /** Re-tokenize the buffer as another fence language — the workbench language tabs (step 30). */
+  /** Re-tokenize the buffer as another fence language — the workbench language tabs. */
   setLanguage: (fenceLang: string) => void;
   /**
    * Force a re-measure. `automaticLayout` observes the container, but a container inside a
    * `display: none` ancestor measures 0×0 and renders no lines; revealing it does not reliably
    * produce an observation monaco acts on. The editorial mounts its solution viewers inside
-   * collapsed section wrappers, so the reveal calls this (step 41).
+   * collapsed section wrappers, so the reveal calls this.
    */
   relayout: () => void;
 }
@@ -116,7 +116,7 @@ export interface EditorOptions {
   language: string; // fence alias
   readOnly: boolean;
   dark: boolean;
-  /** Fires with the full buffer on every edit — problem workbenches feed their code state from it (step 16). */
+  /** Fires with the full buffer on every edit — problem workbenches feed their code state from it. */
   onChange?: (value: string) => void;
   /** Workbench keymap (VS Code muscle memory on our own verbs) — wired only where the surface has the verb. */
   onRun?: () => void; // Cmd/Ctrl+Enter — run the block

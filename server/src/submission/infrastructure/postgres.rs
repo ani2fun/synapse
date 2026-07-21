@@ -1,8 +1,8 @@
-//! The Postgres `SubmissionRepository` (oracle: `PostgresSubmissionRepository`). The state ADT
-//! flattens to `(status, outcome jsonb, completed_at)` at this edge only. The JSONB codecs are
-//! ADAPTER-OWNED (storage format ≠ wire contract) and replicate circe's derived shape exactly —
-//! the externally-tagged wrapper object `{"Rejected":{"passed":8,…,"firstFailure":{…}}}` — so a
-//! Rust deployment can read rows the Scala oracle wrote.
+//! The Postgres `SubmissionRepository`. The state ADT flattens to
+//! `(status, outcome jsonb, completed_at)` at this edge only. The JSONB codecs are
+//! ADAPTER-OWNED (storage format ≠ wire contract) and use a fixed externally-tagged wrapper
+//! object shape (`{"Rejected":{"passed":8,…,"firstFailure":{…}}}`) so rows written by an
+//! earlier deployment of this service remain readable.
 
 use std::collections::BTreeMap;
 
@@ -295,7 +295,7 @@ mod tests {
         };
         let json = serde_json::to_value(OutcomeJson::from(&outcome)).unwrap();
         // The externally-tagged wrapper object + camelCase + case-name status — byte-compatible
-        // with rows the Scala oracle wrote.
+        // with rows written by an earlier deployment of this service.
         assert_eq!(json["Rejected"]["passed"], 8);
         assert_eq!(json["Rejected"]["firstFailure"]["status"], "Accepted");
         assert_eq!(json["Rejected"]["firstFailure"]["expected"], "120");

@@ -1,16 +1,14 @@
 import * as log from "../lib/log";
-// The library landing's post-hydration chrome (oracle: catalog/view/library.rs's
-// `progress_chip` + `ContinueCard`, catalog/state/mod.rs's `ProgressStore`, and the Rust
-// `scroll_to_grid`). Vanilla TS, no framework — the SSR page is plain HTML and reading
-// progress is a browser-only concern (`localStorage` has no SSR equivalent), so there is
-// nothing here for a component framework to hydrate INTO; this script just mutates the DOM
-// Astro already rendered.
+// The library landing's post-hydration chrome. Vanilla TS, no framework — the SSR page is plain
+// HTML and reading progress is a browser-only concern (`localStorage` has no SSR equivalent), so
+// there is nothing here for a component framework to hydrate INTO; this script just mutates the
+// DOM Astro already rendered.
 //
 // Three jobs:
 //   (a) inject "N/M read" into each book card's footer (`.lib-card__progress` / `--all`),
 //   (b) render the `.lib-continue` "pick up where you left off" card above the grid, and
-//   (c) the "Start reading" CTA's smooth-scroll-with-header-offset (oracle's `scroll_to_grid`:
-//       the grid's bounding-rect top + `scrollY` − 80, the sticky header's height).
+//   (c) the "Start reading" CTA's smooth-scroll-with-header-offset (the grid's bounding-rect top
+//       + `scrollY` − 80, the sticky header's height).
 //
 // ISLAND-PROPS PATTERN CHOSEN HERE: index.astro embeds the SAME `SynapseIndexDto` it already
 // fetched for SSR as a `<script type="application/json" id="library-index-data">` blob
@@ -20,7 +18,7 @@ import * as log from "../lib/log";
 // flatten/lookup logic living twice in two languages of client code. Each card carries
 // `data-book-slug` (see BookCard.astro) so this script can re-resolve a book without
 // re-walking the whole catalog tree per card; the continue card resolves its book through
-// `bookOf`, exactly like the oracle.
+// `bookOf` the same way.
 import * as storage from "../lib/storage";
 import { completedCount, parse as parseDone } from "../lib/catalog/progress";
 import { bookOf, findBook, readingOrder } from "../lib/catalog/tree";
@@ -60,9 +58,9 @@ function injectProgressChips(index: SynapseIndex, done: Set<string>): void {
   }
 }
 
-/** (b) "Pick up where you left off" — renders nothing until there IS a last lesson, exactly
- *  like the oracle's `ContinueCard`. The title/book come from the index rather than being
- *  stored alongside the path: a stored title would go stale the moment a lesson is renamed. */
+/** (b) "Pick up where you left off" — renders nothing until there IS a last lesson. The
+ *  title/book come from the index rather than being stored alongside the path: a stored title
+ *  would go stale the moment a lesson is renamed. */
 function renderContinueCard(index: SynapseIndex): void {
   const mount = document.getElementById("lib-continue-mount");
   const last = storage.get(storage.READER_LAST_KEY);
@@ -97,7 +95,7 @@ function renderContinueCard(index: SynapseIndex): void {
   mount.replaceChildren(a);
 }
 
-/** (c) Smooth-jump to the grid, offset for the sticky header (oracle: `scroll_to_grid`). */
+/** (c) Smooth-jump to the grid, offset for the sticky header. */
 function wireStartReading(): void {
   document.getElementById("lib-start-reading")?.addEventListener("click", () => {
     const grid = document.getElementById("library-grid");

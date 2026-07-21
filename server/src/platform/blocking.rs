@@ -1,6 +1,6 @@
-//! The one `run_blocking` (step 62) — formerly a byte-identical twin in the catalog and
-//! blog filesystem adapters. Infrastructure-side by nature (tokio), so it lives in
-//! `platform`, never under a `domain/`.
+//! The one `run_blocking`, shared by the catalog and blog filesystem adapters (which
+//! otherwise carried byte-identical copies). Infrastructure-side by nature (tokio), so it
+//! lives in `platform`, never under a `domain/`.
 
 /// Run blocking filesystem work off the async workers.
 pub(crate) async fn run_blocking<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> T {

@@ -1,4 +1,4 @@
-//! Oracle: `VizGraphCodecSpec` — the tolerant decoders over VERBATIM authored payloads, and
+//! The tolerant decoders over VERBATIM authored payloads, and
 //! the faithful round-trip of the adapter wire form.
 
 #![allow(clippy::unwrap_used)]
@@ -119,7 +119,7 @@ fn the_adapter_wire_form_round_trips() {
 
 #[test]
 fn the_faithful_encoder_emits_every_field_including_nulls() {
-    // Parity with circe's deriveEncoder: options serialize as null, nothing is skipped.
+    // The faithful encoder never skips a field: options serialize as null, nothing omitted.
     let step = VizStep::default();
     let json = serde_json::to_string(&step).unwrap();
     for field in [

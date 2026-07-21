@@ -3,14 +3,14 @@
 // tiny dynamic-import gateway so monaco lands in its own chunk
 // ──────────────────────────────────────────────────────────────────
 // monaco's editor core + web worker are multi-MB; only lessons with runnable
-// blocks pay for them, fetched once and cached (the oracle's loader pattern).
+// blocks pay for them, fetched once and cached.
 //
-// Oracle deviation, on purpose (same as @markdown): the oracle exports
-// loadCreateEditor() and Scala invokes the fn with an options OBJECT of
-// callbacks; flat args + js functions are the friendlier wasm-bindgen FFI
-// shape, so the call is folded in here. `setReadOnly` is a small wrapper
-// extension (monaco updateOptions) so the ⌘E toggle doesn't recreate the
-// editor and lose cursor state.
+// `mountEditor` takes flat positional args + JS function callbacks rather than
+// an options object — that's the wasm-bindgen FFI shape the viz-wasm crate's
+// generated bindings call through (see lib/viz-wasm/pkg/viz_wasm.js), so the
+// call is folded in here. `setReadOnly` is a small wrapper extension (monaco
+// updateOptions) so the ⌘E toggle doesn't recreate the editor and lose cursor
+// state.
 
 import type { EditorHandle, EditorOptions } from "./monaco";
 

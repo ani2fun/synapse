@@ -1,4 +1,4 @@
-//! Frame locals that point at nodes (oracle: `CursorDetection.scala`). Two kinds, both from
+//! Frame locals that point at nodes. Two kinds, both from
 //! the ACTIVE frame's locals: index cursors (an integer local whose name is in the allowlist
 //! and whose value indexes the root array) and ref cursors (a local holding a reference to a
 //! rendered node). Colours are assigned later (narration); `color` stays empty here.

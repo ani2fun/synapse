@@ -1,4 +1,4 @@
-//! Lesson media (oracle: `MediaRoutes`): `GET /media/{*rest}` serves `content_root/_media`
+//! Lesson media: `GET /media/{*rest}` serves `content_root/_media`
 //! — traversal-guarded, explicit content types (SVG must be `image/svg+xml`), range-aware
 //! (a single `bytes=start[-end]` range → 206), and one shared hour of cache
 //! (`public, max-age=3600` on BOTH 200 and 206): media is path-addressed but not
@@ -85,7 +85,8 @@ async fn media(
 }
 
 /// `bytes=start[-end]` (a single range; suffix/multi ranges fall back to the full 200).
-/// Out-of-bounds → `None` (full response), matching the oracle's tolerant read.
+/// Out-of-bounds → `None` (full response): a malformed or unsatisfiable range degrades to the
+/// full 200 rather than erroring.
 fn parse_range(value: &str, total: usize) -> Option<(usize, usize)> {
     let spec = value.strip_prefix("bytes=")?;
     let (start, end) = spec.split_once('-')?;

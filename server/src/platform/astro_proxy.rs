@@ -1,10 +1,12 @@
-//! The Astro front door (migration step A01) — forwards page requests to the SSR sidecar.
+//! The Astro front door — forwards page requests to the SSR sidecar.
 //!
 //! Modeled on `likec4_proxy` (buffered, GET-shaped, 502 on an unreachable upstream) but mounted
 //! as the router's **fallback**, not a wildcard route. Registered routes — `/api`, `/media`,
-//! `/c4`, robots/sitemap — always win over the fallback in axum, so the Cortex-inherited
-//! "greedy wildcard shadows /api" scar cannot recur here by construction, and the sidecar's own
-//! 404 page becomes the site 404.
+//! `/c4`, robots/sitemap — always win over the fallback in axum. **A greedy wildcard route
+//! must never be used for page serving** — mounting the proxy as anything other than the
+//! fallback risks a wildcard shadowing `/api` and silently swallowing API requests as page
+//! requests. Mounting it as the fallback makes that impossible by construction, and the
+//! sidecar's own 404 page becomes the site 404.
 //!
 //! Header contract, stated once:
 //! - Upstream request: original path+query, `accept` and `if-none-match` forwarded.
@@ -16,8 +18,8 @@
 //! - Response copyback: status + `content-type`, `cache-control`, `etag`, `vary`, `location`.
 //!   Everything else the sidecar says is dropped — the axum stack owns security headers,
 //!   compression and tracing.
-//! - `/_astro/*` hashed assets get `immutable` stamped if the sidecar omitted a cache header,
-//!   matching the old client's hashed-asset policy.
+//! - `/_astro/*` hashed assets get `immutable` stamped if the sidecar omitted a cache header —
+//!   a hashed filename changes whenever its content does, so caching it forever is safe.
 
 use axum::body::Body;
 use axum::extract::{Request, State};

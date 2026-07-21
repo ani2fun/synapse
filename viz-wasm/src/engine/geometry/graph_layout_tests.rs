@@ -1,4 +1,4 @@
-//! Oracle: `GraphLayoutSpec` — forest-vs-force dispatch and, load-bearing, DETERMINISM:
+//! Forest-vs-force dispatch and, load-bearing, DETERMINISM:
 //! a redraw is byte-identical.
 
 #![allow(clippy::unwrap_used)]

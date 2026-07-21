@@ -1,17 +1,13 @@
-// The one `localStorage` accessor (oracle: client/src/storage.rs). Every preference in the app
-// persists through here: reader prefs, reading progress, the sidebar face, the workbench
-// language, the problem-page panes, the theme.
+// The one `localStorage` accessor. Every preference in the app persists through here: reader
+// prefs, reading progress, the sidebar face, the workbench language, the problem-page panes, the
+// theme.
 //
 // Both read and write swallow failure by design — Safari's private mode and a
 // cookies-disabled profile both make `localStorage` throw rather than return `null`, and a
-// preference that cannot be saved must never take the page down with it. The Rust oracle gets
-// this for free from `web_sys::window()?...ok()??` (an absent `window()` — no browser — reads
-// the same as a denied storage call); the SSR equivalent is the explicit `typeof window`
-// check below, because Astro's server render has no `window` at all.
+// preference that cannot be saved must never take the page down with it. The explicit
+// `typeof window` check below covers Astro's server render, which has no `window` at all.
 //
-// A05 (the mobile drawer's sidebar-face persistence, the theme toggle, the ⌘K palette's recent
-// searches — whichever of those land there) is the next consumer of this module; nothing about
-// it is A04-specific.
+// Any new preference feature should add its own key here rather than reinventing the accessor.
 
 /** Read a key; absent, unreadable, storage-denied, or server-rendered (no `window`) all read
  *  as `null`. */
@@ -45,13 +41,13 @@ export function remove(key: string): void {
   }
 }
 
-// ── the key inventory (oracle: every `const … _KEY` across client/src) ────────────────────────
+// ── the key inventory ───────────────────────────────────────────────────────────────────────
 // One name per feature, spelled once, so a typo in a second call site can't silently start a
 // new key instead of colliding with a lint.
 
 /** The four-field reading-preferences pack (size · leading · family · width). */
 export const READER_PREFS_KEY = "reader-prefs";
-/** The newline-set of finished lesson paths (this step's `progress.ts`). */
+/** The newline-set of finished lesson paths (`progress.ts`). */
 export const READER_PROGRESS_KEY = "reader-progress";
 /** The last lesson path opened — the library's "continue where you left off" card. */
 export const READER_LAST_KEY = "reader-last";

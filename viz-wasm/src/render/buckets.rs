@@ -1,4 +1,4 @@
-//! The hashmap buckets widget (oracle: `BucketRenderers.hashmap`, step 33): one row per
+//! The hashmap buckets widget: one row per
 //! bucket — the index chip, then the chain of `key: value` pills joined by → connectors.
 
 use crate::engine::graph::{VizGraph, VizStep};

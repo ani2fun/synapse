@@ -1,7 +1,7 @@
-//! The filesystem blog adapter (oracle: `FileSystemBlogRepository`): posts are `<slug>.md`
+//! The filesystem blog adapter (`FileSystemBlogRepository`): posts are `<slug>.md`
 //! files directly under `<contentRoot>/blog/` — non-recursive, `_`-prefixed files are drafts
-//! and never ship. Reads are traversal-guarded; the watermark mirrors the catalog's
-//! dev-vs-prod split via `auto_reload`.
+//! and never ship. Reads are traversal-guarded; the watermark follows the same dev-vs-prod
+//! split as the catalog via `auto_reload`.
 
 use std::path::{Path, PathBuf};
 

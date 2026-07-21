@@ -1,4 +1,4 @@
-//! Oracle: `RunCodeServiceSpec` — validation over a recording fake runner.
+//! Validation tests for `RunCodeService`, driven over a recording fake runner.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

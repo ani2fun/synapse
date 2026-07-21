@@ -1,9 +1,9 @@
-//! Friendly browser-console logger (oracle: `Log.scala`, ADR-S009's client half) — a colored
-//! `SYNAPSE` badge + a per-level emoji, mirroring the server's tracing style. Levels map to
-//! the MATCHING `console` method so `DevTools` filtering still works. `debug` is suppressed
-//! off-localhost so production stays quiet. The point (build book step 12): a dev session is
-//! **followable from the logs** — boot → route → lesson load → markdown render → block
-//! mount → run → result — INFO as the follow-along level, DEBUG filling in internals.
+//! Friendly browser-console logger — a colored `SYNAPSE` badge + a per-level emoji, mirroring
+//! the server's tracing style. Levels map to the MATCHING `console` method so `DevTools`
+//! filtering still works. `debug` is suppressed off-localhost so production stays quiet. The
+//! point: a dev session is **followable from the logs** — boot → route → lesson load →
+//! markdown render → block mount → run → result — INFO as the follow-along level, DEBUG
+//! filling in internals.
 
 use wasm_bindgen::JsValue;
 

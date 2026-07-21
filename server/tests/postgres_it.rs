@@ -1,10 +1,9 @@
-//! Gated Postgres ITs (oracle: `PostgresSubmissionRepositoryIT`) — real database via
-//! `docker compose up -d db` (:5532), migrations applied, rows cleaned after. Run:
-//! `POSTGRES_IT=1 cargo test --test postgres_it`
+//! Gated Postgres ITs — real database via `docker compose up -d db` (:5532), migrations
+//! applied, rows cleaned after. Run: `POSTGRES_IT=1 cargo test --test postgres_it`
 //!
-//! These run in CI on every push since step 45 (a `services: postgres` block), which is why
-//! `--test-threads=1` is no longer in that command: each test now owns a namespace instead of
-//! sharing one prefix, so the suite is safe under default parallelism.
+//! These run in CI on every push (a `services: postgres` block); `--test-threads=1` is
+//! deliberately NOT in that command — each test owns its own namespace instead of sharing one
+//! prefix, so the suite is safe under default parallelism.
 //!
 //! The crown piece: the FULL 202 → background judge → poll flow through the real router, the
 //! real Postgres, and a local go-judge stub.
@@ -38,12 +37,12 @@ const IT_PREFIX: &str = "it-rs";
 
 /// Each test gets its OWN namespace under `it-rs`, and cleans only that.
 ///
-/// This used to be a single shared `it-rs` prefix wiped by every `gated_pool()` call, which
-/// meant two tests running concurrently deleted each other's fixtures —
-/// `listing_is_newest_first_and_narrows_by_user` would see 2 rows where it inserted 3. It
-/// never surfaced because the suite was env-gated and only ever run by hand, usually with
-/// `--test-threads=1`. Wiring it into CI (step 45) is what exposed it: shared mutable state
-/// under default parallelism is a flake waiting for a faster machine.
+/// A single shared `it-rs` prefix wiped by every `gated_pool()` call would let two tests
+/// running concurrently delete each other's fixtures — e.g.
+/// `listing_is_newest_first_and_narrows_by_user` seeing 2 rows where it inserted 3. Running
+/// this suite in CI (rather than only by hand, usually with `--test-threads=1`) is what
+/// exposed that: shared mutable state under default parallelism is a flake waiting for a
+/// faster machine.
 ///
 /// Callers pass a name unique to the test; `scoped_pool` derives the namespace from it.
 async fn scoped_pool(scope: &str) -> Option<(PgPool, String)> {
@@ -285,7 +284,7 @@ async fn allowlist_grant_list_revoke_round_trip() {
     );
 }
 
-// ── Readership (step 49) ──────────────────────────────────────────────────────
+// ── Readership ─────────────────────────────────────────────────────────────────
 // `lesson_view` is path-keyed like `submissions`, so it takes the same namespace treatment:
 // clean only this test's own prefix, never a blanket `like 'it-rs%'`.
 
@@ -319,8 +318,8 @@ async fn readership_counts_and_orders_by_views() {
     let top = store.top(50).await.unwrap();
     // Match on the namespace BOUNDARY, not the bare prefix. `it-rs-views-limit` starts with
     // `it-rs-views`, so a plain `starts_with(&ns)` pulls the sibling test's rows in whenever the
-    // two run concurrently — which is the step-45 lesson repeating, one level down: the cleanup
-    // was already boundary-aware (`{namespace}/%`) and only the assertion filter was not.
+    // two run concurrently — the same cleanup-boundary lesson as `scoped_pool`, one level down:
+    // the cleanup was already boundary-aware (`{namespace}/%`) and only the assertion filter was not.
     let owned = format!("{ns}/");
     let mine: Vec<_> = top.iter().filter(|c| c.lesson_path.starts_with(&owned)).collect();
 

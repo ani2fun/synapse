@@ -1,4 +1,4 @@
-//! Oracle: `CatalogServiceSpec` — the use cases over an instrumented in-memory repo.
+//! The use cases over an instrumented in-memory repo.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

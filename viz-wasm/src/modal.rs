@@ -1,6 +1,6 @@
-//! The Visualise modal (oracle: `VisualiseModal` + `SourcePane` + `FramesPanel`, ADR-S031):
-//! a near-fullscreen player over the SAME `WidgetHost` the inline widgets use — the case
-//! strip, the EDITABLE source pane with current/next line highlights, the frames panel, and
+//! The Visualise modal: a near-fullscreen player over the SAME `WidgetHost` the inline
+//! widgets use — the case strip, the EDITABLE source pane with current/next line
+//! highlights, the frames panel, and
 //! the program output. Esc closes; Space toggles play; ←/→ step. The pane's edits and the
 //! stdin box feed one LIVE (source, stdin) pair — every re-trace path (the bar's ↻, the `r`
 //! key, the stdin panel's button) re-traces exactly what is on screen.
@@ -52,7 +52,7 @@ pub struct VizModalStore {
 }
 
 impl VizModalStore {
-    /// A fresh store. Callers own the reactive scope: the old client mints it inside App's
+    /// A fresh store. Callers own the reactive scope: the Leptos client mints it inside App's
     /// owner via [`provide`](Self::provide); the Astro entry mints it under a detached root
     /// (its signal outlives every view there).
     #[must_use]
@@ -261,7 +261,7 @@ fn ready(
     let timeline_cases = cases.clone();
     let stops_cases = cases.clone();
     let program_out = program_out.to_owned();
-    // Diff stops (oracle: StepTimeline.stops): the indices where the structure CHANGED.
+    // Diff stops: the indices where the structure CHANGED.
     let stops: Signal<Vec<usize>> = Signal::derive(move || {
         if !diff_mode.get() {
             return Vec::new();
@@ -503,7 +503,7 @@ fn FramesPanel(cases: VizCases, case_idx: RwSignal<usize>, step_state: RwSignal<
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TIMELINE · OUTPUT · GUIDE (oracle: StepTimeline chips, OutputPanel, guideCard)
+// TIMELINE · OUTPUT · GUIDE
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// The numbered step chips — reach ANY frame, independent of diff mode; structurally
@@ -580,7 +580,7 @@ fn output_panel(
     }
 }
 
-/// The (i) guide button + the "How Visualise works" card (oracle copy verbatim).
+/// The (i) guide button + the "How Visualise works" card.
 fn guide_button(open: RwSignal<bool>) -> impl IntoView {
     const SECTIONS: [(&str, &str); 4] = [
         (

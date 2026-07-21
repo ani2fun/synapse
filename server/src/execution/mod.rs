@@ -1,6 +1,7 @@
-//! The `execution` bounded context (oracle steps 09–11): run untrusted lesson code in the
+//! The `execution` bounded context: run untrusted lesson code in the
 //! go-judge sandbox. `domain/` is the pure language model; `application/` validates and owns
-//! the `CodeRunner` port; the go-judge adapter and `POST /api/run` arrive in step 10.
+//! the `CodeRunner` port; `infrastructure/` holds the go-judge adapter and `http/` exposes
+//! `POST /api/run`.
 
 pub mod application;
 pub mod domain;

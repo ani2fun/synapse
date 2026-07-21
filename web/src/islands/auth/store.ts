@@ -1,14 +1,14 @@
 /**
- * The auth store + boot flow (oracle: client/src/identity/state/mod.rs — `AuthStore` + `AuthBoot`).
+ * The auth store + boot flow.
  *
- * A Leptos `RwSignal` in the old client; islands cannot share a signal, so the singleton lives
- * here as a plain module (Vite dedupes it into one shared chunk, so the header chip, the account
- * page and the admin page all observe the SAME instance) with a subscribe/notify seam plus the
- * window-scoped contracts the workbench/problem gates read. The state starts `loading` — never a
- * "Sign in" flash before check-sso answers — adopts the session by echoing `GET /api/me` (the
- * SERVER, not the token, is the identity authority), and a 30 s loop refreshes the token when
- * < 60 s remain; a failed refresh degrades to `anonymous`. Every failure lands on `anonymous`,
- * never an error page. NEVER logs a token.
+ * Islands cannot share a signal, so the singleton lives here as a plain module (Vite dedupes it
+ * into one shared chunk, so the header chip, the account page and the admin page all observe the
+ * SAME instance) with a subscribe/notify seam plus the window-scoped contracts the
+ * workbench/problem gates read. The state starts `loading` — never a "Sign in" flash before
+ * check-sso answers — adopts the session by echoing `GET /api/me` (the SERVER, not the token, is
+ * the identity authority), and a 30 s loop refreshes the token when < 60 s remain; a failed
+ * refresh degrades to `anonymous`. Every failure lands on `anonymous`, never an error page. NEVER
+ * logs a token.
  */
 
 import * as api from "../../lib/api/client";
@@ -53,8 +53,7 @@ function currentToken(): string | null {
 }
 
 /** The bearer seam + the workbench/viz window contracts. Installed ONCE, before the first
- *  `/api/me` — the getters read the live `handle`/`state`, so a token refresh needs no re-install
- *  (the oracle installs the provider once in `AuthStore::provide`). */
+ *  `/api/me` — the getters read the live `handle`/`state`, so a token refresh needs no re-install. */
 function installSeams(): void {
   if (seamsInstalled) return;
   seamsInstalled = true;
@@ -78,7 +77,7 @@ export function isAuthed(): boolean {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BOOT (oracle: AuthBoot.start) — config → check-sso (PKCE S256) → adopt → refresh loop
+// BOOT — config → check-sso (PKCE S256) → adopt → refresh loop
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Idempotent: the header island calls this on every page; it runs once per document. */
@@ -126,8 +125,9 @@ async function adopt(): Promise<void> {
   }
 }
 
-/** Poll every 30 s, refreshing when < 60 s remain; a failed refresh means the session is gone
- *  (the oracle polls `updateToken`, not `onTokenExpired`). */
+/** Poll every 30 s, refreshing when < 60 s remain; a failed refresh means the session is gone.
+ *  Polls `updateToken` on an interval rather than relying on keycloak-js's `onTokenExpired`
+ *  callback. */
 async function refreshLoop(): Promise<void> {
   for (;;) {
     await sleep(30_000);
@@ -143,7 +143,7 @@ async function refreshLoop(): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SESSION ACTIONS (oracle: AuthStore::sign_in / sign_out / account_url)
+// SESSION ACTIONS
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function signIn(): void {
@@ -161,13 +161,13 @@ export function accountUrl(): string | null {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ACCOUNT ACTIONS (oracle: state/mod.rs erase_submissions / erase_all_data / delete_account)
+// ACCOUNT ACTIONS
 // Deleting the account orchestrates erase → delete → sign-out ON THE CLIENT, so the server's
-// identity context never depends on submissions (step-20 design).
+// identity context never depends on submissions.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** The browser-side state the account owns — reading preferences + progress. Theme is a
- *  preference of the DEVICE, not "my data" (the oracle excluded it too). */
+ *  preference of the DEVICE, not "my data", so it's excluded. */
 const LOCAL_KEYS = [
   storage.READER_PREFS_KEY,
   storage.READER_PROGRESS_KEY,

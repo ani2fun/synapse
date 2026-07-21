@@ -1,7 +1,7 @@
-// Pure search over the flattened library (oracle: client/src/search/logic/mod.rs): every
-// lesson, every book (linked to its first lesson), every blog post — ranked prefix (100) >
-// word-start (80) > substring (60) > subsequence (30), with a +10 bonus for matching the LABEL
-// over the breadcrumb, kind as the tiebreak (lessons first), shorter labels before longer.
+// Pure search over the flattened library: every lesson, every book (linked to its first
+// lesson), every blog post — ranked prefix (100) > word-start (80) > substring (60) >
+// subsequence (30), with a +10 bonus for matching the LABEL over the breadcrumb, kind as the
+// tiebreak (lessons first), shorter labels before longer.
 //
 // No DOM, no fetch — the palette island (`islands/palette.ts`) is the only caller, and it feeds
 // this whatever `fetchIndex()`/`blogList()` already resolved.
@@ -15,7 +15,6 @@ type Book = components["schemas"]["BookDto"];
 type BookEntry = components["schemas"]["BookEntryDto"];
 type BlogSummary = components["schemas"]["BlogSummaryDto"];
 
-/** oracle: `search::logic::Kind` */
 export type SearchKind = "lesson" | "book" | "blog";
 
 export interface SearchEntry {

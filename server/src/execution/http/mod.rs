@@ -1,5 +1,4 @@
-//! `POST /api/run` (oracle: `ExecutionRoutes` + `ExecutionDtos`, step 10; the rate-limit +
-//! identity gate grafted at step 19's port). A badly-running program is a 200 with a
+//! `POST /api/run`. A badly-running program is a 200 with a
 //! non-`Accepted` status; the error channel is for the CALLER's mistakes (422/413), the
 //! BACKEND's failures (503/502), and the budget (429). The gate is identity-aware: an absent
 //! bearer meters per IP, a verified bearer per subject (bad tokens 401, never silently
@@ -75,7 +74,8 @@ pub(crate) async fn run_code(
 }
 
 /// 429 with the retry seconds in the BODY — the uniform `(status, ApiError)` envelope, no
-/// `Retry-After` header (the oracle's deliberate fork).
+/// `Retry-After` header (deliberate: every error response uses the same envelope shape rather
+/// than splitting rate-limit info across a header and a body).
 pub(crate) fn over_budget(throttled: Throttled, hint: &str) -> (StatusCode, Json<ApiError>) {
     (
         StatusCode::TOO_MANY_REQUESTS,

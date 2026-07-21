@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["shared", "server", "client", "viz-wasm"]
+members = ["shared", "server", "viz-wasm"]
 
 [workspace.package]
 version = "0.1.0"
@@ -34,9 +34,8 @@ chrono = { version = "0.4", features = ["serde"] }
 jsonwebtoken = "9"
 sqlx = { version = "0.8", default-features = false, features = ["postgres", "runtime-tokio", "macros", "migrate", "chrono", "uuid", "json"] }
 
-# ── client ──
+# ── viz wasm ──
 leptos = { version = "0.8", features = ["csr"] }
-leptos_router = { version = "0.8" }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"

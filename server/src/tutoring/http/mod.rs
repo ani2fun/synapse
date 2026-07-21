@@ -1,6 +1,6 @@
-//! The tutor HTTP surface (oracle: `TutorRoutes`): `config` ALWAYS answers; `chat` is only
-//! MOUNTED when enabled — a disabled deployment 404s it structurally (no runtime check, no
-//! `Disabled` error case). Generic over the client port so route ITs drive a fake.
+//! The tutor HTTP surface: `config` ALWAYS answers; `chat` is only MOUNTED when enabled — a
+//! disabled deployment 404s it structurally (no runtime check, no `Disabled` error case).
+//! Generic over the client port so route ITs drive a fake.
 
 use std::sync::Arc;
 

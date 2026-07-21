@@ -1,7 +1,7 @@
-//! Integration: the JWKS verifier + identity routes against a LOCAL JWKS stub (oracle:
-//! `JwksTokenVerifierSpec` + `IdentityRoutesSpec`). Tokens are minted in-test with a committed
-//! TEST-ONLY RSA key (`tests/fixtures/test-only-rsa.pem` — generated for this suite, never a
-//! secret); the stub serves its public JWK exactly where a realm would.
+//! Integration: the JWKS verifier + identity routes against a LOCAL JWKS stub. Tokens are
+//! minted in-test with a committed TEST-ONLY RSA key (`tests/fixtures/test-only-rsa.pem` —
+//! generated for this suite, never a secret); the stub serves its public JWK exactly where a
+//! realm would.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -191,7 +191,7 @@ async fn an_unreachable_realm_is_503_never_401() {
     assert_eq!(body["error"], "Token verifier unavailable");
 }
 
-// ── account deletion (step 20) ───────────────────────────────────────────────
+// ── account deletion ──────────────────────────────────────────────────────────
 
 async fn delete_me(issuer: &str, bearer: Option<&str>) -> (StatusCode, Value) {
     let tmp = tempfile::tempdir().unwrap();

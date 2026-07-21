@@ -1,9 +1,7 @@
 ---
-// The guided-tour carousel (A10 tail; oracle: SynapseTour.scala via client/src/catalog/view/
-// tour.rs, byte-faithful class structure so tour.css applies unchanged). The Rust re-rendered
-// ONE slide per index; here all four SSR (slides 2–4 start display:none) and islands/tour.ts
-// only toggles visibility — same UX, and the library cards' hrefs resolve at REQUEST time
-// instead of reactively (the index is already fetched for the book grid below).
+// The guided-tour carousel. All four slides render server-side (slides 2–4 start display:none)
+// and islands/tour.ts only toggles visibility; the library cards' hrefs resolve at REQUEST time
+// since the index is already fetched for the book grid below.
 //
 // Slide 4 is the REAL widget: a planted `.viz-widget` carrying the hand-authored two-pointer
 // reverse (the same VizCases the Rust built in code, serialized to the tolerant authored wire —
@@ -24,7 +22,7 @@ function bookHref(slug: string): string {
   return path ? `/synapse/${path}` : "/";
 }
 
-// Two-pointer in-place reverse of [a, e, i, o, u] — three authored steps (tour.rs verbatim).
+// Two-pointer in-place reverse of [a, e, i, o, u] — three authored steps.
 const cell = (slot: number, label: string) => ({ id: String(slot), label, kind: "cell", slot });
 const step = (vals: string[], l: number, r: number, changed: number[], note: string) => ({
   nodes: vals.map((v, i) => cell(i, v)),

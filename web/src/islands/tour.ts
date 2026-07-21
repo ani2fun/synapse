@@ -1,10 +1,9 @@
 /**
- * The tour carousel's rotation (A10 tail; port of the stateful half of view/tour.rs — the
- * markup itself SSRs in components/Tour.astro). 7s auto-advance that pauses on hover and
- * wraps; dots + arrows jump; the foot label follows. Toggling is inline `display` — all four
- * slides are already in the DOM, and the viz loader's viewport observer turns slide 4's
- * hidden widget into a lazy wasm load the moment it first shows (display:none never
- * intersects).
+ * The tour carousel's rotation — the markup itself SSRs in components/Tour.astro. 7s
+ * auto-advance that pauses on hover and wraps; dots + arrows jump; the foot label follows.
+ * Toggling is inline `display` — all four slides are already in the DOM, and the viz loader's
+ * viewport observer turns slide 4's hidden widget into a lazy wasm load the moment it first
+ * shows (display:none never intersects).
  */
 import * as log from "../lib/log";
 

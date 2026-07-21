@@ -191,42 +191,6 @@ jobs:
       - if: always()
         run: docker rm -f go-judge || true
 
-  # COMPILE-ONLY since migration step A12: the old client is the rollback path, not the
-  # product — this job proves it still BUILDS (the wasm compiles, Vite resolves the @aliases
-  # that now point into web/) without paying the wasm-release + wasm-opt + budget minutes the
-  # Astro e2e job spends on the serve that actually ships. The 700 KiB budget gate retired with
-  # the production build here; the per-page gate lives in the e2e job. The Docker image still
-  # runs the full old-client build + old gate until A13 reworks it. Rollback REHEARSAL (not
-  # just compilation) is `E2E_LEGACY=1 dev-tools/e2e reader.spec.ts mobile.spec.ts` — run it
-  # locally before leaning on the rollback.
-  client-build:
-    timeout-minutes: 30
-    needs: conventions
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: wasm-bindgen@0.2.126
-      - name: npm ci
-        working-directory: client
-        run: npm ci
-      - name: npm ci (web — the vite build resolves web/tsconfig's `extends` and the
-          single-sourced islands through web/node_modules; third appearance of this trap,
-          after the Docker build and the e2e job)
-        working-directory: web
-        run: npm ci
-      - name: vitest (the TS-island suites + the stylesheet gate)
-        working-directory: client
-        run: npm test
-      - name: wasm (dev profile) + vite build — compiles and resolves, nothing more
-        working-directory: client
-        run: npm run wasm && npx vite build
-
   # ── The Astro app (migration step A01, wire types + client step A02) ─────────────
   # Builds and type-checks web/ so the branch cannot rot the new front end while the old one
   # still serves. `astro build` needs no running API: output is "server", so pages fetch at
@@ -405,7 +369,7 @@ jobs:
   docker:
     timeout-minutes: 30
     if: github.event_name != 'push' || github.ref != 'refs/heads/main'
-    needs: [conventions, build-test, client-build]
+    needs: [conventions, build-test, web]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -438,7 +402,7 @@ jobs:
     if: >-
       github.event_name == 'push' && github.ref == 'refs/heads/main'
       && needs.changes.outputs.code != 'false'
-    needs: [changes, conventions, supply-chain, build-test, client-build, gojudge-it, e2e]
+    needs: [changes, conventions, supply-chain, build-test, web, gojudge-it, e2e]
     permissions:
       contents: read
       packages: write

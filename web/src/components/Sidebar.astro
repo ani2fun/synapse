@@ -1,8 +1,8 @@
 ---
-// The reader sidebar's Expanded face, server-rendered (oracle: sidebar.rs `ReaderSidebar` →
-// `book_children`). Structure only: the book title + description head and the reading-order
-// tree. The interactive faces — the filter box, the Learn-browse toggle, the Compact rail, the
-// three persisted modes — are deferred to A04/A05; what ships here is the navigable skeleton.
+// The reader sidebar's Expanded face, server-rendered. Structure only: the book title +
+// description head and the reading-order tree. The interactive faces — the filter box, the
+// Learn-browse toggle, the Compact rail, the three persisted modes — are layered on top by
+// islands/chrome.ts; this component ships the navigable skeleton it hydrates into.
 import SidebarTree from "./SidebarTree.astro";
 import { bookPrefix } from "../lib/catalog/tree";
 import type { components } from "../lib/api/schema.gen";

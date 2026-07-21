@@ -1,4 +1,4 @@
-//! The linked-list compartments widget (oracle: `ListRenderers.list`, step 33): each node a
+//! The linked-list compartments widget: each node a
 //! boxed value with NEXT (and PREV when doubly) field compartments, joined by coloured SVG
 //! arrows, closed by the ∅ terminator.
 

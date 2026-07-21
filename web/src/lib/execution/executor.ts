@@ -1,11 +1,10 @@
-// The `CodeExecutor` FSM (oracle: client/src/execution/logic/executor.rs, itself a port of
-// `shared/execution/CodeExecutor.scala`) — pure `State → State` transitions for one runnable
-// block. The staleness trick: there is no real HTTP cancel, so `cancel`/`started` bump the
-// opaque `RunHandle` and a late result whose handle no longer matches is a NO-OP (`completed`/
-// `failed` return the state unchanged).
+// The `CodeExecutor` FSM — pure `State → State` transitions for one runnable block. The
+// staleness trick: there is no real HTTP cancel, so `cancel`/`started` bump the opaque
+// `RunHandle` and a late result whose handle no longer matches is a NO-OP (`completed`/`failed`
+// return the state unchanged).
 //
 // Functions take the state as their first argument rather than living as methods on a class —
-// matching this codebase's other pure-logic ports (`catalog/progress.ts`, `catalog/prefs.ts`),
+// matching this codebase's other pure-logic modules (`catalog/progress.ts`, `catalog/prefs.ts`),
 // where state is plain data and behaviour is free functions over it.
 
 import type { components } from "../api/schema.gen";
@@ -19,10 +18,9 @@ export type RunState = "idle" | "running" | "done";
 export type EditMode = "readOnly" | "editing";
 
 // Opaque-ish, monotonic — a branded number rather than a bare one, so a raw number cannot be
-// assigned where a handle is expected by accident. The Rust oracle enforces true opacity via
-// module privacy (a private tuple field, no public constructor); TS has no equivalent module
-// boundary without a WeakMap/closure trick that would be overkill for an ID that only ever needs
-// `===` comparison, so this is a deliberate, lighter divergence — same intent, weaker guarantee.
+// assigned where a handle is expected by accident. True opacity would need a WeakMap/closure
+// trick (TS has no private-field module boundary for a numeric type); that would be overkill for
+// an ID that only ever needs `===` comparison, so this is a deliberate, lighter guarantee.
 declare const runHandleBrand: unique symbol;
 export type RunHandle = number & { readonly [runHandleBrand]: never };
 
@@ -52,7 +50,7 @@ export function initial(source: string): ExecutorState {
   };
 }
 
-/** Reset-to-starter: identical to `initial` (kept as its own verb, like the oracle). */
+/** Reset-to-starter: identical to `initial` (kept as its own verb for callers). */
 export function reset(source: string): ExecutorState {
   return initial(source);
 }

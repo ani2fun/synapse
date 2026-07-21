@@ -1,5 +1,5 @@
-//! Integration: `/api/admin/lesson-views` (step 49) — the admin gate and the read, through the
-//! REAL router over a fake store (the SQL side is the gated Postgres IT) and a local JWKS stub
+//! Integration: `/api/admin/lesson-views` — the admin gate and the read, through the REAL
+//! router over a fake store (the SQL side is the gated Postgres IT) and a local JWKS stub
 //! minting real tokens. Same shape as `admin_allowlist_it.rs`, which is the reference for
 //! driving a port fake through a generic router.
 
@@ -97,8 +97,8 @@ fn mint(issuer: &str, username: &str) -> String {
     jsonwebtoken::encode(&header, &claims, &key).unwrap()
 }
 
-/// The FULL app over the fake store (step 60 — `AppDeps` is generic over the port, so this
-/// IT no longer assembles its own sub-router; requests cross the real layer stack).
+/// The FULL app over the fake store (`AppDeps` is generic over the port, so this IT doesn't
+/// assemble its own sub-router; requests cross the real layer stack).
 fn views_app(issuer: &str, views: &'static FakeViews) -> Router {
     common::app_with_stores(
         issuer,

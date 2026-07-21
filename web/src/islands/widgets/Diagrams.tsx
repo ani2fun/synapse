@@ -1,12 +1,11 @@
 /**
- * Authored-diagram hydration (port of client/src/catalog/view/diagrams.rs — oracle:
- * `DiagramBlocks` + `MermaidView`/`D2View` + `DiagramZoom`): `.mermaid-block` AND
- * `.d2-block`/`.d2-slideshow` placeholders carry their RAW SOURCE and render through the lazy
- * `@diagram` island (now `lib/islands/diagram/`, A09) on the CLIENT at mount — each diagram
- * renders in its own task (concurrent), so a lesson's prose never waits on a sequential layout.
- * Every rendered figure gets the Enlarge affordance → the near-fullscreen zoom overlay (wheel
- * zoom · drag pan · − ⟲ + controls). House rule: the diagram chrome — Enlarge on the card AND
- * Close in the overlay — sits top-LEFT (LikeC4 owns top-right, see C4Embed.tsx).
+ * Authored-diagram hydration: `.mermaid-block` AND `.d2-block`/`.d2-slideshow` placeholders
+ * carry their RAW SOURCE and render through the lazy `@diagram` island (`lib/islands/diagram/`)
+ * on the CLIENT at mount — each diagram renders in its own task (concurrent), so a lesson's
+ * prose never waits on a sequential layout. Every rendered figure gets the Enlarge affordance →
+ * the near-fullscreen zoom overlay (wheel zoom · drag pan · − ⟲ + controls). House rule: the
+ * diagram chrome — Enlarge on the card AND Close in the overlay — sits top-LEFT (LikeC4 owns
+ * top-right, see C4Embed.tsx).
  */
 import { render, h } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
@@ -189,8 +188,8 @@ function D2Slideshow({ slides }: { slides: string[] }) {
         rendered.current[i] = svg;
         setBump((b) => b + 1); // re-run this effect to paint the freshly-cached slide
       } catch {
-        // A malformed slide fails quietly here (oracle parity) — the slideshow simply keeps
-        // showing whatever it last had; a lone bad fence would otherwise be authored as `.d2-block`.
+        // A malformed slide fails quietly here — the slideshow simply keeps showing whatever it
+        // last had; a lone bad fence would otherwise be authored as `.d2-block`.
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -1,6 +1,6 @@
-//! The uninterpreted on-disk tree (oracle: `ContentTree.scala`) — what the filesystem adapter
-//! materializes and hands to the walker. Metadata is pre-decoded (`book.json`/`category.json`);
-//! everything optional, lenient by design (ADR-0001).
+//! The uninterpreted on-disk tree — what the filesystem adapter materializes and hands to the
+//! walker. Metadata is pre-decoded (`book.json`/`category.json`); everything optional, lenient
+//! by design (ADR-0001).
 
 use serde::Deserialize;
 

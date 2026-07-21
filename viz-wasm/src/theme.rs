@@ -1,6 +1,6 @@
-//! The theme probe (A10): the modal's source-pane Monaco needs to know the CURRENT theme at
-//! mount. Both hosts stamp dark mode the same way — the `dark` CLASS on `<html>` (step 25's
-//! contract, which the Astro app kept) — so reading the class IS the seam; no store required.
+//! The theme probe: the modal's source-pane Monaco needs to know the CURRENT theme at
+//! mount. Both hosts stamp dark mode the same way — the `dark` CLASS on `<html>` — so
+//! reading the class IS the seam; no store required.
 
 /// Whether the document is currently in dark mode.
 #[must_use]

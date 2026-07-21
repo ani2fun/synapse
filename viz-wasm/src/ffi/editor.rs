@@ -1,4 +1,4 @@
-//! The `@editor` island (oracle: `MonacoEditor.scala` over `@editor/loader`). The extern binds
+//! The `@editor` island over `@editor/loader`. The extern binds
 //! the tiny loader; monaco core + its worker live in their own lazy chunk. The `MountedEditor`
 //! wrapper owns the JS callbacks — dropping it disposes the editor AND the closures, so a
 //! block unmount can't leave monaco listeners calling into freed wasm.
@@ -94,8 +94,7 @@ impl Drop for MountedEditor {
     }
 }
 
-/// The workbench verbs an editor wires (oracle: `Keymap`) — submit only where the surface has
-/// the verb.
+/// The workbench verbs an editor wires — submit only where the surface has the verb.
 pub struct EditorCallbacks {
     pub on_change: Box<dyn FnMut(String)>,
     pub on_run: Box<dyn FnMut()>,
@@ -103,7 +102,7 @@ pub struct EditorCallbacks {
     pub on_submit: Option<Box<dyn FnMut()>>,
 }
 
-/// Mount a Monaco editor into `container`. The oracle's default height rule is applied by the
+/// Mount a Monaco editor into `container`. The default height rule is applied by the
 /// caller (`clamp(lines*20+28, 64, 520)` px).
 pub async fn mount(
     container: &web_sys::HtmlElement,
@@ -138,7 +137,7 @@ pub async fn mount(
     })
 }
 
-/// The oracle's editor height rule.
+/// The editor height rule.
 pub fn default_height_px(source: &str) -> u32 {
     let lines = u32::try_from(source.lines().count()).unwrap_or(u32::MAX);
     lines.saturating_mul(20).saturating_add(28).clamp(64, 520)

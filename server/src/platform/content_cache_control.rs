@@ -1,4 +1,4 @@
-//! Edge caching for public content GETs (oracle: `ContentCacheControl`, ADR-S033):
+//! Edge caching for public content GETs:
 //! `public, max-age=60, stale-while-revalidate=600` — max-age matches the git-sync cadence,
 //! swr keeps far regions warm. GETs only, 200s only (errors must never be cached), and only
 //! the content routes — NEVER `/api/me`, `/api/auth`, `/api/run`, submissions, tutor, health.

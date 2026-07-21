@@ -1,4 +1,4 @@
-//! The Chain family (oracle: `ChainLayouts.scala`): nodes laid out left-to-right in
+//! The Chain family: nodes laid out left-to-right in
 //! `next`-chain order from the head (the node with no incoming `next`). `prev` edges are
 //! IGNORED for placement (the renderer draws them as back-arrows). A cycle stops the walk at
 //! the first repeat; nodes off the chain are appended. `graph_fallback` flags a cycle/merge

@@ -1,4 +1,4 @@
-//! One step's heap with reachability + sentinel logic (oracle: `HeapSnapshot.scala`).
+//! One step's heap with reachability + sentinel logic.
 //! Segmentation, rooting, and projection all read the SAME memoized, deterministic view.
 //! Reachability is ITERATIVE (explicit stack, reverse-pushed children) — no stack-overflow
 //! risk on deep structures — with a preorder IDENTICAL to a recursive DFS.

@@ -18,7 +18,7 @@ them separate:
 
 | Class | Traffic share | Character | Scaling lever |
 |---|---|---|---|
-| **Reads** (lessons, index, blog, media, SPA) | ~99% | public, cacheable, version-addressed | the CDN, not the origin |
+| **Reads** (lessons, index, blog, media, pages) | ~99% | public, cacheable, version-addressed | the CDN, not the origin |
 | **Runs** (`POST /api/run`) | ~1% | CPU-bound, interactive (sync), **untrusted code** | a sandbox fleet |
 | **Writes** (submissions, allowlist, account) | «1% | small rows, async judging, per-user | Postgres, barely |
 
@@ -63,7 +63,7 @@ Decisions already in the codebase that the plan leans on rather than revisits:
 
 ## Stage 0 — today (single node, hundreds of users)
 
-k3s on one node: origin pod (SPA + API + media, non-root) with the git-sync sidecar, go-judge pod,
+k3s on one node: origin pod (pages + API + media, non-root) with the git-sync sidecar, go-judge pod,
 Keycloak, Postgres, LikeC4 via the `/c4` proxy; Cloudflare in front; GitOps deploy loop
 (push → CI → ghcr → promote → ArgoCD). Fine as-is; the only Stage-0 action items are the ones
 already on the roadmap: the Cloudflare cache rule for `/api/synapse/*` + `/api/blog/*`, and a load
@@ -94,8 +94,8 @@ single-node availability incident that hurt.
 **Triggers:** origin read QPS > ~200/s despite the 60s TTL, run queueing observed at peak, DB
 connections/replication pressure, or a real abuse incident.
 
-1. **Version-addressed content → origin-less reads.** The SPA learns to fetch content at
-   SHA-addressed URLs (`/api/synapse/<sha>/…`, the SPA gets the current SHA once per session);
+1. **Version-addressed content → origin-less reads.** The web tier learns to fetch content at
+   SHA-addressed URLs (`/api/synapse/<sha>/…`, the client gets the current SHA once per session);
    those responses become immutable (`max-age=1y`). The origin then serves each lesson **once per
    content push per region** — reads scale to any audience the CDN can hold. Media moves to object
    storage (R2) behind the same CDN.

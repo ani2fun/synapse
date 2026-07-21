@@ -5,8 +5,9 @@
 // A ```mermaid fence is authored declarative-diagram text; mermaid is a
 // self-contained text→SVG renderer, so it's a lazy third-party island
 // exactly like Monaco (@editor) — NOT part of our viz engine (ADR-S026).
-// Scala reaches it through loader.ts; the multi-hundred-KB mermaid chunk
-// therefore lands only on lessons that actually contain a diagram.
+// `islands/widgets/Diagrams.tsx` dynamic-imports this module directly, so
+// the multi-hundred-KB mermaid chunk lands only on lessons that actually
+// contain a diagram.
 
 import type { MermaidConfig } from "mermaid";
 

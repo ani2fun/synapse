@@ -1,7 +1,7 @@
 /**
- * Viewport-lazy Monaco (port of client/src/execution/view/lazy.rs, step-40 semantics).
+ * Viewport-lazy Monaco.
  *
- * Two halves, same as the Rust:
+ * Two halves:
  *  - `watchNear`: an IntersectionObserver with a 600px vertical margin flips a callback when
  *    the block approaches the viewport. No-IO environments degrade to eagerly near.
  *  - the live-editor registry: at most MAX_LIVE_EDITORS Monaco instances exist at once; when a

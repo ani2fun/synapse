@@ -1,9 +1,8 @@
 /**
- * `/admin` (oracle: client/src/identity/view/admin_page.rs — `AdminPage`, step 35): the submit
- * allowlist panel on the account grammar — the grants table, the grant form, revoke per row,
- * one status banner. `me.admin` only gates the UI; every call is re-checked server-side, so a
- * non-admin who navigates here just sees the API's 403 in the banner. Anonymous / non-admin see
- * "Admin only".
+ * `/admin`: the submit allowlist panel on the account grammar — the grants table, the grant
+ * form, revoke per row, one status banner. `me.admin` only gates the UI; every call is
+ * re-checked server-side, so a non-admin who navigates here just sees the API's 403 in the
+ * banner. Anonymous / non-admin see "Admin only".
  */
 import { render, h } from "preact";
 import { useEffect, useState } from "preact/hooks";

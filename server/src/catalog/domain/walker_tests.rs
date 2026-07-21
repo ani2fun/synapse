@@ -1,4 +1,4 @@
-//! Oracle: `SynapseContentWalkerSpec` — the convention rules, pinned.
+//! Tests for the pure catalog assembler — the convention rules, pinned.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

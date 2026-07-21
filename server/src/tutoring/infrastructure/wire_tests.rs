@@ -1,4 +1,4 @@
-//! Oracle: `TutorWireSpec` — the request shape and the loud reply parse.
+//! Tests for the `TutorWire` shape — the request shape and the loud reply parse.
 
 #![allow(clippy::unwrap_used)]
 

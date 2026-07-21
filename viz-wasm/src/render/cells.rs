@@ -1,4 +1,4 @@
-//! The Cells family (oracle: `CellRenderers`): the array row (index labels below, pointer
+//! The Cells family: the array row (index labels below, pointer
 //! carets above) and the vertical LIFO stack (↑ TOP marker, cursors to the right). Layout
 //! once over the union; the step signal redraws presence + diff classes only.
 

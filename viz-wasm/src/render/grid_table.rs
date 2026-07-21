@@ -1,4 +1,4 @@
-//! The 2-D grid table (oracle: `GridRenderers.table`, step 33): shared-border cells with
+//! The 2-D grid table: shared-border cells with
 //! row/column index gutters; holes (a ragged inner list) stay dashed and faded.
 
 use crate::engine::graph::{VizGraph, VizStep};

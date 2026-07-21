@@ -1,7 +1,5 @@
 # build output
 target/
-client/pkg/
-client/dist/
 web/dist/
 web/.astro/
 node_modules/

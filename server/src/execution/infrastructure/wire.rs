@@ -1,5 +1,5 @@
-//! The go-judge wire protocol, pure string→JSON→string (oracle: `GoJudgeWire.scala`,
-//! golden-tested). One `POST /run` cmd runs compile+run in a single `/bin/sh -c` invocation;
+//! The go-judge wire protocol, pure string→JSON→string, golden-tested. One `POST /run` cmd
+//! runs compile+run in a single `/bin/sh -c` invocation;
 //! compile failures are detected via the `__cf_crc`/`__cf_cerr` marker files (the compiler
 //! step exits 0 WITHOUT running, go-judge reports "Accepted", and the parser reads the rc
 //! file) — never via HTTP status.

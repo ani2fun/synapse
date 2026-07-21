@@ -1,6 +1,5 @@
-//! LikeC4 component tutorial docs (oracle: `ComponentDoc.scala`, step 32) — co-located
-//! `_c4-docs/<leaf>.md` sidecars next to the lesson. Has its own `technology` field, which is
-//! why it does not reuse `LessonFrontmatter`.
+//! LikeC4 component tutorial docs — co-located `_c4-docs/<leaf>.md` sidecars next to the lesson.
+//! Has its own `technology` field, which is why it does not reuse `LessonFrontmatter`.
 
 use crate::catalog::domain::frontmatter;
 

@@ -1,11 +1,9 @@
 /**
- * The one observable primitive the stateful islands share (A06; A07/A08 reuse it).
+ * The one observable primitive the stateful islands share.
  *
- * Deliberately not a signals library: the four Preact islands need exactly "hold a value,
- * update it, re-render subscribers", and `useSyncExternalStore` is the platform-blessed way to
- * couple that to Preact without adding a reactivity runtime. The old client's RwSignal usage
- * maps 1:1 — `get_untracked` → `get()`, `set`/`update` likewise — which keeps the ports legible
- * against their Rust originals.
+ * Deliberately not a signals library: the Preact islands need exactly "hold a value, update it,
+ * re-render subscribers", and `useSyncExternalStore` is the platform-blessed way to couple that
+ * to Preact without adding a reactivity runtime.
  */
 import { useSyncExternalStore } from "preact/compat";
 

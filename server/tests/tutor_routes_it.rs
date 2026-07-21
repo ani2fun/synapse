@@ -1,6 +1,5 @@
-//! Integration: the tutor surface (oracle: `TutorRoutesSpec` + the end-to-end 404 pin) — the
-//! structural-404 mount gating, the error mapping, and the always-answering config, through
-//! the REAL router over a fake client.
+//! Integration: the tutor surface — the structural-404 mount gating, the error mapping, and
+//! the always-answering config, through the REAL router over a fake client.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -25,8 +24,8 @@ impl TutorClient for Scripted {
     }
 }
 
-/// The FULL app over the scripted client (step 60): the structural-404 pin now proves the
-/// disabled chat route is absent from the WHOLE router, not just a sub-router.
+/// The FULL app over the scripted client: the structural-404 pin proves the disabled chat
+/// route is absent from the WHOLE router, not just a sub-router.
 fn app(enabled: bool, outcome: Result<String, TutorError>) -> axum::Router {
     common::app_with_stores(
         "http://127.0.0.1:9/realms/synapse",

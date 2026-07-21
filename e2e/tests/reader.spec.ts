@@ -36,8 +36,9 @@ test("the server renders a per-page head, not the placeholder", async ({ page, r
   const response = await page.goto(path);
   const html = (await response?.text()) ?? "";
 
-  // Asserted on the RAW response, before any JS runs — this is what a crawler sees, and it is
-  // the whole point of step 50. A client-side title would pass a naive `page.title()` check.
+  // Asserted on the RAW response, before any JS runs — this is what a crawler sees, and that
+  // is exactly what this assertion exists to prove. A client-side title would pass a naive
+  // `page.title()` check.
   expect(html).toContain("<title>");
   expect(html).not.toContain("<title>Synapse</title>");
   expect(html).toMatch(/<meta name="description" content="[^"]+"/);
@@ -54,7 +55,7 @@ test("the lesson body renders and its prose hydrates", async ({ page, request })
 });
 
 test("the page does not scroll sideways", async ({ page, request }) => {
-  // Step 46: 161px of horizontal overflow threw the fixed FAB rail 141px off-screen, because
+  // A 161px horizontal overflow once threw the fixed FAB rail 141px off-screen, because
   // `position: fixed; right: 20px` resolves against a layout viewport the overflow had
   // stretched. One assertion that would have caught it before a phone did.
   await page.goto(await firstLessonPath(request));
@@ -79,7 +80,7 @@ test("the command palette opens and navigates", async ({ page }) => {
   const input = page.locator(".cmdk__input");
   await expect(input).toBeVisible();
 
-  // Step 40: the palette rendered at the page's bottom-left for a whole release because an
+  // The palette once rendered at the page's bottom-left for a whole release because an
   // orphaned declaration block swallowed `.cmdk-scrim`'s `position: fixed`. `toBeVisible` was
   // true the entire time — so assert it is actually placed, not merely present.
   const box = await input.boundingBox();
@@ -110,7 +111,7 @@ test("finishing a lesson is remembered across a reload", async ({ page, request 
   await page.goto(path);
   await waitForLessonBody(page);
 
-  // Step 51's auto-complete could not be exercised in the dev preview at all — it reports
+  // Auto-complete could not be exercised in the dev preview at all — it reports
   // `innerHeight: 0`, so the window cannot scroll. A real browser can, which is precisely the
   // gap this suite exists to close.
   //

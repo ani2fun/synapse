@@ -1,4 +1,4 @@
-//! Edge limits (step 45): a bound on how long a request may take and how large it may be.
+//! Edge limits: a bound on how long a request may take and how large it may be.
 //!
 //! Axum applies neither by default beyond a 2 MB body cap, so a hung handler or a slow client
 //! held a connection indefinitely. The application already caps what it will *process*

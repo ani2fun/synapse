@@ -1,5 +1,5 @@
 // ──────────────────────────────────────────────────────────────────
-// JAVA TRACER WRAP (step 31)
+// JAVA TRACER WRAP
 // ──────────────────────────────────────────────────────────────────
 // The JVM counterpart of python.ts. Embeds the user's Java source (base64,
 // UTF-8-safe) into the AST-rewrite harness (java-harness.java, imported ?raw) —

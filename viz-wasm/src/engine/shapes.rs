@@ -1,8 +1,7 @@
-//! The pure shape layer for the bespoke HTML families (oracle: `WidgetShapes.scala`,
-//! step 33). DOM-free projections from a `VizStep`/`VizGraph` into the little models the
-//! flow-layout renderers draw: hashmap buckets, the linked-list chain, the union-find
-//! forest, the 2-D grid, and the heap slot-tree. Natively testable — the specs below are
-//! the oracle's, case for case.
+//! The pure shape layer for the bespoke HTML families. DOM-free projections from a
+//! `VizStep`/`VizGraph` into the little models the flow-layout renderers draw: hashmap
+//! buckets, the linked-list chain, the union-find forest, the 2-D grid, and the heap
+//! slot-tree. Natively testable.
 
 use std::collections::{HashMap, HashSet};
 
@@ -111,7 +110,7 @@ pub fn buckets(step: &VizStep) -> Vec<Bucket> {
             }
         })
         .collect();
-    // Numeric first (ascending), then text (lexicographic) — the oracle's tri-key sort.
+    // Numeric first (ascending), then text (lexicographic) — a tri-key sort.
     out.sort_by(|a, b| {
         let na = a.index.parse::<f64>().ok();
         let nb = b.index.parse::<f64>().ok();
@@ -282,7 +281,7 @@ pub fn forest_graph(graph: &VizGraph) -> VizGraph {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Row-major cells; holes stay `None`. Nested rows follow the outer ref-cells when the
-/// trace is a list of lists; a flat row falls back to √n columns (mirrors `GridLayouts`).
+/// trace is a list of lists; a flat row falls back to √n columns.
 #[must_use]
 pub fn grid_cells(step: &VizStep) -> Vec<Vec<Option<VizNode>>> {
     let ids = by_id(step);
@@ -389,7 +388,7 @@ pub fn heap_tree(graph: &VizGraph) -> VizGraph {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TESTS (oracle: WidgetShapesSpec, case for case)
+// TESTS
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]

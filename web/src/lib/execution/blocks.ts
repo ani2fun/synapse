@@ -1,5 +1,4 @@
-// The placeholder decode contract (oracle: client/src/execution/logic/blocks.rs, itself a port
-// of `RunnableBlocks.scala`'s pure half). The markdown pipeline emits
+// The placeholder decode contract. The markdown pipeline emits
 // `<div class="workbench" data-variants="<uri-encoded JSON>">`; the JSON is
 // `[{lang, source, viz?}]`. Languages are trimmed, blank-lang variants dropped, and an empty
 // list means the block is skipped. URI decoding is the view/island's job (it needs the DOM) —
@@ -13,8 +12,7 @@ interface RawVariant {
   viz?: string | null;
 }
 
-/** One language rendition of a runnable block (oracle: shared `CodeVariant` + the
- *  positionally-paired `VizHints`). */
+/** One language rendition of a runnable block. */
 export interface Variant {
   language: string;
   source: string;
@@ -22,8 +20,7 @@ export interface Variant {
   viz: string | null;
 }
 
-/** Visualise needs a Python or Java variant with a `viz=` hint (oracle:
- *  `WorkbenchLogic.canVisualise`). */
+/** Visualise needs a Python or Java variant with a `viz=` hint. */
 export function canVisualise(variant: Variant): boolean {
   return variant.viz != null && ["python", "java"].includes(variant.language.toLowerCase());
 }
@@ -49,7 +46,7 @@ export function parseVariants(json: string): Variant[] | null {
   return variants.length === 0 ? null : variants;
 }
 
-/** Display name for a fence alias (oracle: `WorkbenchLogic.displayLang`). */
+/** Display name for a fence alias. */
 export function displayLang(alias: string): string {
   switch (alias.toLowerCase()) {
     case "cpp":
@@ -72,7 +69,7 @@ export function displayLang(alias: string): string {
   }
 }
 
-/** Seed the values grid from an authored case (oracle: `WorkbenchLogic.seedValues`). */
+/** Seed the values grid from an authored case. */
 export function seedValues(spec: TestSpec, caseIndex: number): Record<string, string> {
   return spec.cases[caseIndex]?.args ?? {};
 }

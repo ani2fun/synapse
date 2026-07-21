@@ -3,9 +3,9 @@
 import { expect, test } from "./fixtures";
 
 /**
- * Phone width. Four separate steps shipped mobile-layout bugs that desktop checks could not
- * see (33, 42, 43, 46), and one of them — the nav drawer sitting UNDER the fixed header, so its
- * close button was unclickable on every phone — survived from step 33 to step 42 because every
+ * Phone width. This project has repeatedly shipped mobile-layout bugs that desktop checks
+ * could not see, including the nav drawer sitting UNDER the fixed header so its close button
+ * was unclickable on every phone — a bug that survived multiple releases because every
  * verification pass was done on a desktop viewport.
  */
 
@@ -36,9 +36,9 @@ test("the nav drawer opens and its close button is actually clickable", async ({
   const drawer = page.locator(".reader-nav-drawer").first();
   await expect(drawer).toBeVisible();
 
-  // The step-42 bug precisely: the drawer rendered, looked fine, and `elementFromPoint` at the
-  // ✕ returned `header__mid` because the drawer sat under the fixed header. Visible was true;
-  // clickable was not. Assert what is actually on top at that point.
+  // The failure mode this guards against: the drawer rendered, looked fine, and
+  // `elementFromPoint` at the ✕ returned `header__mid` because the drawer sat under the fixed
+  // header. Visible was true; clickable was not. Assert what is actually on top at that point.
   const close = page.locator(".reader-nav-drawer__close").first();
   await expect(close).toBeVisible();
   const box = await close.boundingBox();

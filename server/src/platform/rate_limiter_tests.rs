@@ -1,4 +1,4 @@
-//! Oracle: `RateLimiterSpec` — driven-clock windows, independent keys, separate ledgers.
+//! Driven-clock windows, independent keys, separate ledgers.
 
 #![allow(clippy::unwrap_used)]
 

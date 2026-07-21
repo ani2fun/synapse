@@ -1,9 +1,9 @@
-//! Stage 3 (oracle: `RootResolution.scala`): which heap object is the structure's root.
+//! Stage 3: which heap object is the structure's root.
 //! Deliberately two-pass (NOT one orElse chain — the pass structure is semantic): the hint
 //! resolves as a dotted path, else a local, else an instance attribute; failing all,
 //! auto-detect. Plus the shared per-step queries and `step_root_for` — the per-step
 //! re-resolution with the one-directional guard that keeps a segment together through
-//! rotations (ADR-0027).
+//! rotations.
 
 use std::collections::BTreeMap;
 
@@ -127,8 +127,8 @@ fn auto_detect_root(steps: &[HeapStep], layout_hint: &str) -> Option<String> {
         } else {
             roots
         };
-        // Sorted first so ties break deterministically, then max by reachable size — Scala's
-        // `sorted.maxByOption` keeps the FIRST maximum, i.e. the smallest id among ties.
+        // Sorted first so ties break deterministically, then max by reachable size — this
+        // keeps the FIRST maximum, i.e. the smallest id among ties.
         let mut sorted = pool;
         sorted.sort();
         let mut best: Option<(&String, usize)> = None;
@@ -178,7 +178,7 @@ pub fn root_id_in_step(step: &HeapStep, hint: &str) -> Option<String> {
 
 /// Re-resolve the root for one step, adopting a re-bound target only if it still reaches the
 /// segment's original root (a rotation lifts a sibling above the root and still reaches it; a
-/// recursive descent doesn't reach back up, so the guard keeps the segment root). ADR-0027.
+/// recursive descent doesn't reach back up, so the guard keeps the segment root).
 #[must_use]
 pub fn step_root_for(step: &HeapStep, root_hint: Option<&str>, root_id: &str) -> String {
     root_hint
