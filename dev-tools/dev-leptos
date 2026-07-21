@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# ── DEV LOOP, Leptos edition (the OLD client — kept for parity checks until A14) ──
+# The whole loop: wasm dev build → server on :8280 (background) → Vite on
+# :5373 (foreground, proxies /api). Ctrl-C stops both.
+#
+# The ports are RECLAIMED first (step 53). Previously a stale server holding
+# :8280 meant the fresh bind died with "Address already in use (os error 48)"
+# while Vite carried on and proxied to the OLD binary — so the page looked
+# alive and served pre-edit code, which is a genuinely confusing way to lose an
+# afternoon. Both ports are fixed by design (Vite is --strictPort because the
+# Keycloak dev realm whitelists specific origins; a silent bump to another port
+# 403s the silent-SSO iframe), so "in use" always means a leftover, never a
+# legitimate neighbour we should tiptoe around.
+#
+# NOTE: the server reads SYNAPSE_PORT, never the bare PORT — preview tooling
+# injects PORT and must not hijack the bind (the oracle's launch.json gotcha;
+# here it is harmless by construction).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+# Say LOUDLY what this loop serves — the two loops share ports, starting one kills the
+# other's processes, and an old-client page in a leftover tab is indistinguishable from
+# "my changes aren't building" (a user hit exactly this).
+echo "──────────────────────────────────────────────────────────"
+echo "  synapse dev loop: OLD Leptos client (client/) — NOT the Astro app"
+echo "  branch: $(git branch --show-current)   server :${SYNAPSE_PORT:-8280}   client :5373"
+echo "──────────────────────────────────────────────────────────"
+
+
+SERVER_PORT="${SYNAPSE_PORT:-8280}"
+VITE_PORT=5373
+
+# shellcheck source=lib-ports.sh
+source "$(dirname "$0")/lib-ports.sh"
+
+reclaim "$SERVER_PORT" "synapse-server"
+reclaim "$VITE_PORT" "vite"
+
+(cd client && npm run wasm)
+
+cargo run -p synapse-server &
+SERVER_PID=$!
+trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+
+cd client && exec npx vite --port "$VITE_PORT" --strictPort

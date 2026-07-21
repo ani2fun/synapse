@@ -153,7 +153,7 @@ client vitest (must stay green, untouched): 83 tests, 3 files
 schema.gen.ts: regenerated twice back to back — byte-identical (dev-tools/gen-api-types.sh is
 deterministic given the same ApiDoc)
 
-live, through dev-tools/dev-astro (axum :8280 + astro dev :5373, real Postgres, real
+live, through dev-tools/dev (axum :8280 + astro dev :5373, real Postgres, real
 synapse-content checkout)
   GET /api/synapse/index    200, decoded through fetchIndex() + the generated SynapseIndex type
   /                          all 7 books rendered (Synapse Features, System Design from First

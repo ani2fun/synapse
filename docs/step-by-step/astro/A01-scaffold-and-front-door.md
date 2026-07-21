@@ -54,10 +54,17 @@ and imports `tokens.css`/`shell.css` **from `client/styles/`**: the stylesheets 
 single-sourced until A14 moves them, so there is no drift window. The head is native props;
 step 50's string-surgery machinery is not needed on any page Astro serves.
 
-Dev loop: `dev-tools/dev-astro` — axum on :8280 in the background, `astro dev` on **:5373**
+Dev loop: `dev-tools/dev` — axum on :8280 in the background, `astro dev` on **:5373**
 foreground with HMR, proxying `/api`/`/media`/`/c4`. :5373 because the Keycloak dev realm
 allowlists that origin; a silent port bump 403s the silent-SSO iframe (the step-39 scar). Port
 reclamation via the shared `lib-ports.sh`.
+
+*(Naming, revised after a real confusion: this script began life as `dev-astro` beside the old
+`dev`. Both loops reclaim the same ports, so starting the old one silently killed the Astro
+processes and served the Leptos client on :5373 — which is byte-identical to main's and read as
+"the branch is running main's code". The Astro loop is now `dev`, the old one is `dev-leptos`
+until A14 removes it, and both print a banner naming the client they serve, the branch, and the
+ports.)*
 
 ## What the placeholder page caught immediately
 
