@@ -7,6 +7,11 @@
 // selectors in them (verified by inventory), and single-sourced until A14 moves them here.
 import "../../../client/styles/tokens.css";
 import "../../../client/styles/shell.css";
+// The ⌘K palette's classes (A05) — global chrome, mounted on every page (see the palette
+// island import below), so its stylesheet belongs in the shared layout rather than any one
+// page. (Step-40's scar, exactly: without this the `.cmdk-scrim` fixed-centering rule never
+// applies and the palette renders in normal flow instead of as a centered overlay.)
+import "../../../client/styles/search.css";
 import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
 
@@ -68,5 +73,11 @@ const canonical = canonicalPath ? `${siteUrl}${canonicalPath}` : undefined;
     <Header />
     <slot />
     <Footer />
+    <!-- The ⌘K palette (A05): mounted from Base so it exists on EVERY page — the e2e palette
+         spec opens it from `/`, and the header's `.header__search` button (A03) has shipped
+         inert until now. Vanilla TS, lazy data load on first open (islands/palette.ts). -->
+    <script>
+      import "../islands/palette";
+    </script>
   </body>
 </html>
