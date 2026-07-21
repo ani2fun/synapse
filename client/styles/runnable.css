@@ -52,7 +52,12 @@
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  white-space: nowrap;
+  /* Long tips (the Submit why-copy) WRAP instead of running one nowrap line off the pane's
+     left edge — .pwb__right's overflow-y:auto computes overflow-x to auto too, so anything
+     wider than the pane was clipped mid-sentence. Short tips still sit on one line. */
+  width: max-content;
+  max-width: min(26rem, 70vw);
+  white-space: normal;
   background: hsl(var(--foreground));
   color: hsl(var(--muted) / 0.5);
   font-size: 0.72rem;

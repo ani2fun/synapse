@@ -35,6 +35,10 @@ import type { components } from "../../lib/api/schema.gen";
 
 import "../../../../client/styles/reader.css";
 import "../../../../client/styles/runnable.css";
+// viz.css carries MORE than the viz widgets: the workbench's language dropdown
+// (`.wb__lang-menu`/`-scrim`/`-opt`, step 38) lives there too — without it the menu renders
+// as bare stacked buttons (a real shipped bug: A06–A10 never imported it).
+import "../../../../client/styles/viz.css";
 import "../../../../client/styles/markdown.css";
 import "../../../../client/styles/practice.css";
 import "../../../../client/styles/diagrams.css";
@@ -341,6 +345,12 @@ const difficulty = payload?.frontmatter.difficulty ?? null;
             </aside>
           </div>
         )}
+        <!-- The drawer's mount host, PINNED (step 42): reader.css hides .reader-nav-scrim/-drawer
+             at >=1024px except under .reader-nav--pinned — a body-mounted drawer on this page
+             opened into display:none, which is why the Contents pill looked dead on desktop.
+             No FAB inside: the crumb-row pill is this page's only trigger (and --pinned hides
+             the FAB anyway). -->
+        <div class="reader-nav reader-nav--pinned"></div>
       </main>
     )
   }

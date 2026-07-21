@@ -22,6 +22,8 @@ import type { components } from "../lib/api/schema.gen";
 
 import "../../../client/styles/library.css";
 import "../../../client/styles/tour.css";
+// The tour's slide-4 widget is a real WidgetHost (A10) — its chrome lives in viz.css.
+import "../../../client/styles/viz.css";
 
 type Book = components["schemas"]["BookDto"];
 

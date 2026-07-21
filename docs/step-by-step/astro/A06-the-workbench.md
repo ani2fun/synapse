@@ -86,3 +86,13 @@ nine positional arguments were the right shape for wasm-bindgen and the wrong sh
 everyone else, and nothing said so until a second consumer arrived. The fix was not to fix the
 shim but to stop using it — the native `createEditor` options object was sitting underneath the
 whole time. Migrations surface these because they are second consumers of everything.
+
+## Fixed forward (user parity sweep, 2026-07-21)
+
+**viz.css was never imported by the Astro app** — the workbench's language dropdown
+(`.wb__lang-menu`, step 38's chrome) rendered as bare stacked buttons on every page, A06 through
+A10, because the classes were right and the stylesheet was absent. It rides [...path].astro and
+index.astro now (the tour's slide-4 widget needed it too). And the long Submit why-copy tooltip
+wraps (`max-width: min(26rem, 70vw)`) instead of running one nowrap line off the pane's left
+edge — `.pwb__right`'s `overflow-y: auto` computes overflow-x to auto as well, so anything wider
+than the pane was clipped mid-sentence.

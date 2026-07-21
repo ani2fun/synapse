@@ -63,8 +63,12 @@
    monitors). Reader pages keep the column; the two-pane workbench takes the viewport. */
 .shell-main:has(.reader-layout--problem) { max-width: none; padding-inline: 0.5rem; }
 /* The Astro problem page mounts .pwb directly under shell-main (no reader-layout wrapper) —
-   same lift, keyed on the workbench itself. Embedded practice cards must NOT trigger it. */
-.shell-main:has(> .pwb:not(.pwb--embedded)) { max-width: none; padding-inline: 0.5rem; padding-block: 0; }
+   same lift, keyed on the workbench itself. Embedded practice cards must NOT trigger it.
+   padding-block sums to EXACTLY the 92px the .pwb height rule subtracts (4.75rem clears the
+   fixed header so the crumb row is visible, 1rem below) — zeroing it hid the breadcrumbs
+   under the header; the default's 4.75rem+1.25rem overshoots 92 and scrolls the page 4px. */
+.shell-main:has(> .pwb:not(.pwb--embedded)) { max-width: none; padding-inline: 0.5rem;
+                                              padding-block: 4.75rem 1rem; }
 
 /* ── library ── the landing's own rules live in library.css/tour.css (step 32) ── */
 .badge { font-size: 0.75rem; color: hsl(var(--primary)); }

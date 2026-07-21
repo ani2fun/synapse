@@ -158,3 +158,14 @@ client never hit because the wasm boot was slower than the stylesheet — and th
 5,228px forever, pushing the tests panel 4,000px down an invisible scroll. `contain: size` on the
 fill container zeroes its intrinsic height, making the flex chain (min-height 220 + flex-grow) the
 ONLY input; the latch cannot form and any stale layout self-heals on the next resize observation.
+
+## Fixed forward (user parity sweep, 2026-07-21)
+
+Two more from the same report. **The breadcrumbs were hidden under the fixed header**: the
+height-chain fix's `padding-block: 0` slid the crumb row to y=0 behind the 65px translucent
+header — the padding now sums to EXACTLY the 92px the `.pwb` height rule subtracts (4.75rem
+above, 1rem below), so the crumbs clear the header and the page still doesn't scroll (the
+default padding overshoots 92 by 4px). **The Contents pill looked dead on desktop**: reader.css
+hides `.reader-nav-drawer` at ≥1024px except under `.reader-nav--pinned` (step 42), and the
+drawer was mounting on `document.body` — into `display: none`. The problem branch now SSRs the
+pinned `.reader-nav` host the island already prefers.

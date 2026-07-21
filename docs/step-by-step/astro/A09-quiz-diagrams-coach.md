@@ -172,3 +172,12 @@ actual bug. Ported code earns scrutiny by construction — it has an oracle to d
 glue code, even a single import statement with a comment, does not, and this is where an
 afternoon can disappear into a stack trace that lies about its own line number. The fix took
 thirty seconds once isolated; finding what to isolate took the bisection.
+
+## Fixed forward (user parity sweep, 2026-07-21)
+
+The fullscreen LikeC4 zoom dropped its bottom-centre − / % / + pill (user call): LikeC4's
+react-flow viewer renders its own zoom column, so the synthetic-wheel controls that earn their
+keep on the small inline embed were a duplicate on the fullscreen one — the poll now watches
+only the overlay state. And the ✕ Close became the shared teal `modal-btn` pill with the lucide
+✕ (the bare class was an unstyled stray next to every other overlay's Close — an inconsistency
+inherited faithfully from the old client's c4.rs, now fixed on the Astro side).

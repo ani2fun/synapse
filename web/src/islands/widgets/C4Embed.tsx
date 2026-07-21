@@ -61,17 +61,6 @@ function attachNodeBridge(doc: Document, onSelect: (id: string) => void): void {
   );
 }
 
-/** `"translate(12px, 3px) scale(1.25)"` → `125`. */
-function parseScalePct(transform: string): number | null {
-  const start = transform.indexOf("scale(");
-  if (start === -1) return null;
-  const rest = transform.slice(start + "scale(".length);
-  const end = rest.indexOf(")");
-  if (end === -1) return null;
-  const value = Number.parseFloat(rest.slice(0, end));
-  return Number.isFinite(value) ? Math.round(value * 100) : null;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // DISCOVERY
 // ─────────────────────────────────────────────────────────────────────────────
@@ -160,7 +149,6 @@ function C4Embed({
 // ─────────────────────────────────────────────────────────────────────────────
 
 function C4Zoom({ src, onClose, onSelect }: { src: string; onClose: () => void; onSelect: (id: string) => void }) {
-  const [scalePct, setScalePct] = useState<number | null>(null);
   const [overlay, setOverlay] = useState(false);
   const frameRef = useRef<HTMLIFrameElement>(null);
 
@@ -172,44 +160,21 @@ function C4Zoom({ src, onClose, onSelect }: { src: string; onClose: () => void; 
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // The one poll: live scale % (the viewport's `scale(N)` transform) + overlay state. A
-  // MutationObserver inside a live React canvas would fire every pan frame; one timer parsing
-  // one transform is cheaper and dies with the modal.
+  // The one poll: the overlay state (our chrome steps aside while LikeC4's dialog is up). A
+  // MutationObserver inside a live React canvas would fire every pan frame; one timer is
+  // cheaper and dies with the modal. NO ± / % pill of our own here (user call, 2026-07-21):
+  // LikeC4's react-flow viewer already renders its own zoom column bottom-left, so the
+  // synthetic-wheel controls duplicated it — the parity chrome that made sense on the small
+  // inline embed is noise on the fullscreen one.
   useEffect(() => {
     const id = window.setInterval(() => {
       const doc = frameRef.current?.contentDocument;
       if (!doc) return;
       injectScopeStyle(doc);
-      const style = doc.querySelector(".react-flow__viewport")?.getAttribute("style") ?? null;
-      setScalePct(style ? parseScalePct(style) : null);
       setOverlay(doc.querySelector(".likec4-overlay[open]") != null);
     }, 300);
     return () => window.clearInterval(id);
   }, []);
-
-  // ± steps ≈ ±25%: a synthetic ctrl+wheel pinch built from the IFRAME's OWN `WheelEvent`
-  // constructor, dispatched at the react-flow pane's centre (deltaY −16 in · +16 out).
-  const zoomStep = (zoomIn: boolean): void => {
-    const frame = frameRef.current;
-    const doc = frame?.contentDocument;
-    const win = frame?.contentWindow;
-    const pane = doc?.querySelector(".react-flow__pane");
-    if (!doc || !win || !pane) return;
-    const rect = pane.getBoundingClientRect();
-    // `Window` (lib.dom.d.ts) doesn't type its global constructors as instance properties, but
-    // every real Window object carries one — and the IFRAME's OWN constructor is the one that
-    // matters here (react-flow's handling runs in that realm).
-    const WheelEventCtor = (win as unknown as { WheelEvent: typeof WheelEvent }).WheelEvent;
-    const event = new WheelEventCtor("wheel", {
-      deltaY: zoomIn ? -16 : 16,
-      clientX: rect.left + rect.width / 2,
-      clientY: rect.top + rect.height / 2,
-      bubbles: true,
-      cancelable: true,
-      ctrlKey: true,
-    });
-    pane.dispatchEvent(event);
-  };
 
   return (
     <div class="diagram-zoom-scrim" onClick={onClose}>
@@ -217,8 +182,13 @@ function C4Zoom({ src, onClose, onSelect }: { src: string; onClose: () => void; 
         class={overlay ? "diagram-zoom diagram-zoom--fill diagram-zoom--c4-overlay" : "diagram-zoom diagram-zoom--fill"}
         onClick={(event) => event.stopPropagation()}
       >
-        <button class="diagram-zoom__close" aria-label="Close" onClick={onClose}>
-          ✕ Close
+        {/* modal-btn = the shared teal pill (step 39's chrome) — the bare class read as an
+            unstyled stray next to every other overlay's Close. */}
+        <button class="diagram-zoom__close modal-btn" aria-label="Close" onClick={onClose}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12"></path>
+          </svg>
+          Close
         </button>
         <div class="diagram-zoom__live">
           <iframe
@@ -231,16 +201,6 @@ function C4Zoom({ src, onClose, onSelect }: { src: string; onClose: () => void; 
               if (doc) attachNodeBridge(doc, onSelect);
             }}
           ></iframe>
-          <div class="diagram-zoom__controls">
-            <button class="diagram-zoom__ctl" aria-label="Zoom out" onClick={() => zoomStep(false)}>
-              −
-            </button>
-            <span class="diagram-zoom__level">{scalePct != null ? `${scalePct}%` : "—"}</span>
-            <button class="diagram-zoom__ctl" aria-label="Zoom in" onClick={() => zoomStep(true)}>
-              +
-            </button>
-            <span class="diagram-zoom__hint">or pinch / Ctrl+scroll to zoom · scroll or drag to pan</span>
-          </div>
         </div>
       </div>
     </div>
