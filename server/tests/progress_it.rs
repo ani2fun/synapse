@@ -72,7 +72,10 @@ async fn progress_marks_idempotently_lists_ordered_and_resets() {
 
     let removed = store.reset_for(&user).await.unwrap();
     assert_eq!(removed, 2, "reset returns the row count cleared");
-    assert!(store.list_for(&user).await.unwrap().is_empty(), "nothing left after a reset");
+    assert!(
+        store.list_for(&user).await.unwrap().is_empty(),
+        "nothing left after a reset"
+    );
 }
 
 /// The load-bearing guarantee: "reset progress" is NOT "erase my data" — it clears the progress
@@ -104,7 +107,10 @@ async fn resetting_progress_leaves_submissions_intact() {
 
     progress.reset_for(&user).await.unwrap();
 
-    assert!(progress.list_for(&user).await.unwrap().is_empty(), "progress is cleared");
+    assert!(
+        progress.list_for(&user).await.unwrap().is_empty(),
+        "progress is cleared"
+    );
     assert!(
         submissions.get(sub.id).await.unwrap().is_some(),
         "the submission survives a progress reset"
@@ -126,7 +132,12 @@ async fn anonymous_progress_lists_empty_and_cannot_write() {
 
     let res = app
         .clone()
-        .oneshot(Request::builder().uri("/api/progress").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/api/progress")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
