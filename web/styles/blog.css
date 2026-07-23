@@ -4,6 +4,9 @@
    ───────────────────────────────────────────────────────────────────────────── */
 
 .blog { max-width: 42rem; margin: 0 auto; }
+/* A single post runs wider than the listing: long-form bodies carry two-column card grids
+   and comparison tables that a 42rem column crushes. The listing keeps the narrow measure. */
+.blog--post { max-width: 60rem; }
 .blog-hero { margin: 0.5rem 0 1.5rem; }
 .blog-hero__eyebrow { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em;
                       text-transform: uppercase; color: hsl(var(--primary)); }

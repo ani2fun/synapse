@@ -23,6 +23,10 @@ import { renderLesson } from "../../lib/markdown/render";
 
 import "../../../styles/blog.css";
 import "../../../styles/markdown.css";
+// AFTER markdown.css, deliberately: the rich post blocks share element selectors with
+// `.synapse-prose` (`.blog-post p` and `.synapse-prose p` both score 0,1,1), so source order is
+// what decides the tie. Moving this line up would hand the body back to the prose defaults.
+import "../../../styles/blog-post.css";
 import "../../../styles/diagrams.css";
 import "../../../styles/codebench.css";
 
