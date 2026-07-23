@@ -32,6 +32,31 @@
   color: hsl(224 14% 16%);
 }
 
+/* The SAME leak as above, one property family over — and this one clipped text rather than
+   hiding it. mermaid 11 wraps every node and edge label in a <p>, sizes the surrounding
+   <foreignObject> from a measurement taken in a temp node under <body>, and sets its own
+   `line-height: 1.5` inline on the label wrapper. Injected into the article, `.synapse-prose p`
+   (0,1,1) outranks that inherited value and re-lays the text at the PROSE line-height —
+   measured live: 31.45px where mermaid had budgeted 24px. The foreignObject does not grow, so
+   every label lost 7px per line: single-line labels lost their descenders, two-line labels lost
+   the bottom half of the second line, and the extra width cost the last character or two.
+   Margins are zeroed for the same reason — a prose paragraph margin inside a box measured
+   without one pushes the text straight out of the bottom of the shape.
+
+   `inherit` rather than a literal: it takes whatever the renderer put on its own wrapper, so
+   this stays correct if mermaid changes its value and works unchanged for d2's titles. The
+   selector is (0,1,3) so it wins wherever the sheets land in the cascade — markdown.css is
+   unlayered, and a @layer here would lose to it. */
+.diagram__figure foreignObject :is(p, span, div, li, td, th) {
+  line-height: inherit;
+  margin: 0;
+  padding: 0;
+  text-indent: 0;
+  letter-spacing: normal;
+  word-spacing: normal;
+  font-size: inherit;
+}
+
 /* The shared modal-chrome pill (oracle: dialog.css .modal-btn) — the teal
    icon+label button both Enlarge (card) and Close (overlay) wear. */
 .modal-btn { display: inline-flex; align-items: center; gap: 6px; border-radius: 6px;
