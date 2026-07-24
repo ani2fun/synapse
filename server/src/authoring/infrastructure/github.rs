@@ -25,6 +25,9 @@ const USER_AGENT: &str = "synapse-rs";
 
 pub struct GitHubForge {
     client: reqwest::Client,
+    /// The API origin — `https://api.github.com` in production; a loopback mock in tests. It is a
+    /// genuine parameter (GitHub Enterprise serves a different origin too), not a test-only hook.
+    api_base: String,
     /// `owner/name`.
     repo: String,
     owner: String,
@@ -34,6 +37,11 @@ pub struct GitHubForge {
 
 impl GitHubForge {
     pub fn new(repo: &str, base_branch: &str, token: &str) -> Self {
+        Self::at(API, repo, base_branch, token)
+    }
+
+    /// Construct against an explicit API origin.
+    fn at(api_base: &str, repo: &str, base_branch: &str, token: &str) -> Self {
         let client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(10))
             .timeout(std::time::Duration::from_secs(30))
@@ -41,6 +49,7 @@ impl GitHubForge {
             .unwrap_or_default();
         Self {
             client,
+            api_base: api_base.trim_end_matches('/').to_owned(),
             repo: repo.to_owned(),
             owner: repo.split('/').next().unwrap_or(repo).to_owned(),
             base_branch: base_branch.to_owned(),
@@ -50,7 +59,7 @@ impl GitHubForge {
 
     fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
         self.client
-            .request(method, format!("{API}{path}"))
+            .request(method, format!("{}{path}", self.api_base))
             .bearer_auth(&self.token)
             .header(reqwest::header::ACCEPT, "application/vnd.github+json")
             .header(reqwest::header::USER_AGENT, USER_AGENT)
@@ -278,26 +287,5 @@ async fn failed(response: reqwest::Response, what: &str) -> AuthoringError {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_owner_is_split_off_the_repo_for_the_head_filter() {
-        let forge = GitHubForge::new("ani2fun/synapse-content", "main", "t");
-        assert_eq!(forge.owner, "ani2fun");
-        assert_eq!(forge.repo, "ani2fun/synapse-content");
-    }
-
-    #[test]
-    fn a_repo_without_a_slash_degrades_rather_than_panicking() {
-        // Misconfiguration should fail loudly at call time, not at construction.
-        let forge = GitHubForge::new("synapse-content", "main", "t");
-        assert_eq!(forge.owner, "synapse-content");
-    }
-
-    #[test]
-    fn the_mode_is_what_the_client_is_told() {
-        assert_eq!(GitHubForge::new("a/b", "main", "t").mode(), "github");
-    }
-}
+#[path = "github_tests.rs"]
+mod tests;

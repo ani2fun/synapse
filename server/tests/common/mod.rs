@@ -248,3 +248,82 @@ pub fn app_with_issuer(
 ) -> Router {
     synapse_server::app(deps_with(content_root, executor_url, pool, issuer))
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IDENTITY — a local JWKS stub that mints tokens the REAL verifier accepts
+// ─────────────────────────────────────────────────────────────────────────────
+// Any IT that drives an authenticated route needs a bearer the production
+// `JwksTokenVerifier` will validate. `stub_realm` serves the matching public key at
+// the realm's JWKS path; `mint` signs a token with its private half. No Keycloak, no
+// network beyond loopback — the same seam every authed IT shares.
+
+const TEST_PEM: &str = include_str!("../fixtures/test-only-rsa.pem");
+const TEST_KID: &str = "synapse-test";
+/// The modulus of the fixture key, base64url — the public half `stub_realm` publishes.
+const TEST_N_B64: &str = "zhViOX4PnOD51OW9MWknnaOwPKP1lodDI-BX4tk4Ulq6yj816CV89b9F-TXuUkHEXToXrheogf8gAIuYpx1PJD-e2spf9mIbKqmMFTSHZv36GIWsZ-afRr9vhSFhRkf8Jix9Yoo8au9JnbhkkkexXWg_j-w-ct5jTXwBBq-Sy72ijxKZ3Hrv0IkKIdYbwbVY57FLd7GM_cJOioCsqZuuw3HscaP33CUIpuXWam-q5tejXFlR7ldo9qrpuuPfcJUwh9Jgz4UA79asREpyyKkOv7IczvXODWYtSQYRK6bLgpuiIvwiDQ8M2K02OH-dYtIJ2euWYH6h2VNqabcZ36zDFw";
+
+/// Spawn a loopback realm serving the fixture key's JWKS; returns its issuer URL.
+#[allow(dead_code)]
+pub async fn stub_realm() -> String {
+    use axum::http::header;
+    use axum::routing::get;
+
+    let jwks = serde_json::json!({
+        "keys": [{ "kty": "RSA", "alg": "RS256", "use": "sig", "kid": TEST_KID, "n": TEST_N_B64, "e": "AQAB" }]
+    })
+    .to_string();
+    let app = Router::new().route(
+        "/realms/synapse/protocol/openid-connect/certs",
+        get(move || {
+            let jwks = jwks.clone();
+            async move { ([(header::CONTENT_TYPE, "application/json")], jwks) }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let issuer = format!("http://{}/realms/synapse", listener.local_addr().unwrap());
+    tokio::spawn(async move {
+        let _ = axum::serve(listener, app).await;
+    });
+    issuer
+}
+
+/// A REAL Postgres pool with migrations applied, or `None` when `POSTGRES_IT` is unset — the same
+/// gate `postgres_it` rides, so a store-backed IT skips (green) unless a database is present.
+#[allow(dead_code)]
+pub async fn gated_pool() -> Option<sqlx::PgPool> {
+    if std::env::var("POSTGRES_IT").is_err() {
+        eprintln!("skipped (set POSTGRES_IT=1 with docker compose db on :5532)");
+        return None;
+    }
+    let url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://synapse:synapse@localhost:5532/synapse_rs".to_owned());
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(4)
+        .connect(&url)
+        .await
+        .expect("POSTGRES_IT set but the database is unreachable");
+    sqlx::migrate!("../migrations").run(&pool).await.unwrap();
+    Some(pool)
+}
+
+/// A signed RS256 bearer for `username` on `issuer` — `sub` is `sub-<username>`, valid 5 minutes.
+#[allow(dead_code)]
+pub fn mint(issuer: &str, username: &str) -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use jsonwebtoken::{Algorithm, EncodingKey, Header};
+
+    let now = i64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()).unwrap();
+    let claims = serde_json::json!({
+        "sub": format!("sub-{username}"),
+        "iss": issuer,
+        "exp": now + 300,
+        "aud": "account",
+        "azp": "synapse-web",
+        "preferred_username": username,
+    });
+    let mut header = Header::new(Algorithm::RS256);
+    header.kid = Some(TEST_KID.to_owned());
+    let key = EncodingKey::from_rsa_pem(TEST_PEM.as_bytes()).unwrap();
+    jsonwebtoken::encode(&header, &claims, &key).unwrap()
+}

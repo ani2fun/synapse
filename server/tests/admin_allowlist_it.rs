@@ -7,21 +7,15 @@
 mod common;
 
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
-use axum::routing::get;
 use chrono::{TimeZone, Utc};
-use jsonwebtoken::{Algorithm, EncodingKey, Header};
-use serde_json::{Value, json};
+use common::{mint, stub_realm};
+use serde_json::Value;
 use synapse_server::submission::application::{AllowlistEntry, SubmissionAllowlist, SubmissionError};
 use tower::ServiceExt;
-
-const TEST_PEM: &str = include_str!("fixtures/test-only-rsa.pem");
-const KID: &str = "synapse-test";
-const N_B64: &str = "zhViOX4PnOD51OW9MWknnaOwPKP1lodDI-BX4tk4Ulq6yj816CV89b9F-TXuUkHEXToXrheogf8gAIuYpx1PJD-e2spf9mIbKqmMFTSHZv36GIWsZ-afRr9vhSFhRkf8Jix9Yoo8au9JnbhkkkexXWg_j-w-ct5jTXwBBq-Sy72ijxKZ3Hrv0IkKIdYbwbVY57FLd7GM_cJOioCsqZuuw3HscaP33CUIpuXWam-q5tejXFlR7ldo9qrpuuPfcJUwh9Jgz4UA79asREpyyKkOv7IczvXODWYtSQYRK6bLgpuiIvwiDQ8M2K02OH-dYtIJ2euWYH6h2VNqabcZ36zDFw";
 
 /// A fake allowlist recording grants/revokes, seeded with fixed rows.
 #[derive(Default)]
@@ -73,42 +67,6 @@ impl SubmissionAllowlist for &'static FakeAllowlist {
         rows.retain(|e| e.username != username);
         Ok(rows.len() < before)
     }
-}
-
-async fn stub_realm() -> String {
-    let jwks = json!({
-        "keys": [{ "kty": "RSA", "alg": "RS256", "use": "sig", "kid": KID, "n": N_B64, "e": "AQAB" }]
-    })
-    .to_string();
-    let app = Router::new().route(
-        "/realms/synapse/protocol/openid-connect/certs",
-        get(move || {
-            let jwks = jwks.clone();
-            async move { ([(header::CONTENT_TYPE, "application/json")], jwks) }
-        }),
-    );
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let issuer = format!("http://{}/realms/synapse", listener.local_addr().unwrap());
-    tokio::spawn(async move {
-        let _ = axum::serve(listener, app).await;
-    });
-    issuer
-}
-
-fn mint(issuer: &str, username: &str) -> String {
-    let now = i64::try_from(SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()).unwrap();
-    let claims = json!({
-        "sub": format!("sub-{username}"),
-        "iss": issuer,
-        "exp": now + 300,
-        "aud": "account",
-        "azp": "synapse-web",
-        "preferred_username": username,
-    });
-    let mut header = Header::new(Algorithm::RS256);
-    header.kid = Some(KID.to_owned());
-    let key = EncodingKey::from_rsa_pem(TEST_PEM.as_bytes()).unwrap();
-    jsonwebtoken::encode(&header, &claims, &key).unwrap()
 }
 
 /// The FULL app over the fake allowlist (`AppDeps` is generic over the port, so this IT

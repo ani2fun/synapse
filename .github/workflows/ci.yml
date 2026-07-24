@@ -191,6 +191,58 @@ jobs:
       - if: always()
         run: docker rm -f go-judge || true
 
+  # ── Coverage ratchet (server + shared) ────────────────────────────────────────
+  # A floor under the SERVER + SHARED production code, so a change that ships an untested
+  # module fails here instead of quietly eroding the number. Deliberately server-scoped:
+  # viz-wasm's renderer/DOM layer is browser-only and cannot run natively (it would drag the
+  # figure down for a reason no test can fix), and main.rs is the composition root, exercised
+  # by running the binary. The excluded set and the floor live in dev-tools/coverage.sh — one
+  # source of truth for the local `coverage.sh --check` and this job.
+  #
+  # `needs: build-test` so coverage compute is only spent once the suite is green (it re-runs the
+  # tests instrumented). Same Postgres service as build-test — the store adapters read as
+  # uncovered without a real database, so the honest number needs POSTGRES_IT.
+  coverage:
+    timeout-minutes: 30
+    needs: build-test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: synapse
+          POSTGRES_PASSWORD: synapse
+          POSTGRES_DB: synapse_rs
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      POSTGRES_IT: 1
+      DATABASE_URL: postgres://synapse:synapse@localhost:5432/synapse_rs
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - name: coverage (server + shared lines ≥ floor)
+        # The web half of the script skips here (no web/node_modules) — the gate is the Rust
+        # crates; web coverage is report-only and rides the `web` job's vitest run.
+        run: dev-tools/coverage.sh --check
+      - name: upload the coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: target/coverage/
+          retention-days: 14
+
   # ── The Astro app (migration step A01, wire types + client step A02) ─────────────
   # Builds and type-checks web/ so the branch cannot rot the new front end while the old one
   # still serves. `astro build` needs no running API: output is "server", so pages fetch at

@@ -315,7 +315,13 @@ async fn readership_counts_and_orders_by_views() {
     store.record(&popular, true).await.unwrap();
     store.record(&quiet, false).await.unwrap();
 
-    let top = store.top(50).await.unwrap();
+    // Fetch EVERY grouped path, not the global top-50: `top` ranks across the whole table, and a
+    // shared dev database carries real readership (hundreds of paths outranking this test's two),
+    // so a small limit lists none of ours and the assertion sees zero. The store has no per-prefix
+    // query and adding one for a test would be wrong, so we page in everything and rank within the
+    // namespace ourselves — a fresh CI table and a well-used dev one now agree. The counts stay
+    // exact because `views_pool` scrubbed `{ns}/%` first.
+    let top = store.top(i64::MAX).await.unwrap();
     // Match on the namespace BOUNDARY, not the bare prefix. `it-rs-views-limit` starts with
     // `it-rs-views`, so a plain `starts_with(&ns)` pulls the sibling test's rows in whenever the
     // two run concurrently — the same cleanup-boundary lesson as `scoped_pool`, one level down:
