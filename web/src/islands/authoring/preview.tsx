@@ -17,51 +17,55 @@ import * as log from "../../lib/log";
 import { splitFrontmatter, titleOf, summaryOf } from "../../lib/markdown/frontmatter";
 import { VIZ_RESCAN } from "../workbench/contracts";
 
-/** The header the reader shows above the body — eyebrow is omitted here (the preview has no book
- *  context), title and lede come from the EDITED frontmatter so a `title:` change shows at once. */
-function renderHeader(host: HTMLElement, source: string): void {
-  const title = titleOf(source) ?? "Untitled";
-  const summary = summaryOf(source);
-  host.replaceChildren();
-  const h1 = document.createElement("h1");
-  h1.className = "reader-prose__title";
-  h1.textContent = title;
-  host.append(h1);
-  if (summary) {
-    const lede = document.createElement("p");
-    lede.className = "reader-prose__lede";
-    lede.textContent = summary;
-    host.append(lede);
-  }
+export interface PreviewHtml {
+  /** The reader header (title + optional lede) as an HTML string. */
+  readonly headerHtml: string;
+  /** The rendered lesson body as an HTML string — `renderLesson` output. */
+  readonly bodyHtml: string;
 }
 
-let vizRequested = false;
+/** Minimal HTML escape for the header text — the title/summary are plain frontmatter values that
+ *  land in `textContent` positions, so only the five markup characters need handling. */
+function escape(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 /**
- * Render `source` into the preview panes and hydrate the result. `header` and `body` are the two
- * hosts the edit page lays out; both are filled here so the preview matches the reader's header +
- * body structure exactly.
+ * Render `source` to the header + body HTML the reader shows. Deliberately returns STRINGS rather
+ * than touching the DOM: the caller hands them to Preact via `dangerouslySetInnerHTML`, so the
+ * rendered markup is opaque to reconciliation and a re-render cannot wipe it (a raw
+ * `body.innerHTML =` into a Preact-managed node does — the bug the signed-in e2e caught). Hydrate
+ * with `hydratePreview` AFTER Preact has committed the body.
  */
-export async function renderPreview(header: HTMLElement, body: HTMLElement, source: string): Promise<void> {
-  renderHeader(header, source);
+export async function renderPreview(source: string): Promise<PreviewHtml> {
+  const title = titleOf(source) ?? "Untitled";
+  const summary = summaryOf(source);
+  const headerHtml =
+    `<h1 class="reader-prose__title">${escape(title)}</h1>` +
+    (summary ? `<p class="reader-prose__lede">${escape(summary)}</p>` : "");
 
   // Only the body below the frontmatter is prose — the reader strips the fence before rendering,
   // and so must the preview, or the raw `--- title: … ---` block shows up as text.
   const { body: markdown } = splitFrontmatter(source);
   const { renderLesson } = await import("../../lib/markdown/render");
-  const html = await renderLesson(markdown);
-  body.innerHTML = html;
-
-  await hydrate(body);
-  log.debug("preview: rendered and hydrated");
+  const bodyHtml = await renderLesson(markdown);
+  log.debug("preview: rendered");
+  return { headerHtml, bodyHtml };
 }
 
+let vizRequested = false;
 let codebenchMounted = false;
 
 /** Run the reader's own hydrators, scoped to the preview body — never the document-wide pass, so
  *  no page-level singletons fire. Every hydrator is imported by its own MODULE, not through
- *  `islands/widgets`, whose import would trigger that module's whole-document auto-hydration. */
-async function hydrate(body: HTMLElement): Promise<void> {
+ *  `islands/widgets`, whose import would trigger that module's whole-document auto-hydration.
+ *  Call this AFTER the body's HTML is in the DOM (Preact committed it). */
+export async function hydratePreview(body: HTMLElement): Promise<void> {
   const [{ hydrateQuizzes }, { hydrateDiagrams }, { hydrateC4Embeds }, { hydrateWorkbenches }, { hydratePractices }] =
     await Promise.all([
       import("../widgets/Quiz"),
@@ -93,6 +97,7 @@ async function hydrate(body: HTMLElement): Promise<void> {
     }
     window.dispatchEvent(new Event(VIZ_RESCAN));
   }
+  log.debug("preview: hydrated");
 }
 
 async function mountCodebench(): Promise<void> {

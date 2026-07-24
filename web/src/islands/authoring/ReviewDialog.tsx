@@ -9,7 +9,8 @@
 
 import { useEffect, useRef, useState } from "preact/hooks";
 
-import { renderPreview } from "./preview";
+import { hydratePreview, renderPreview } from "./preview";
+import type { PreviewHtml } from "./preview";
 import { diffLines } from "./diff";
 import type { Finding } from "./lint";
 import { hasBlocker } from "./lint";
@@ -103,23 +104,28 @@ function PreviewStep({
   findings: Finding[];
   onGotoLine: (line: number) => void;
 }) {
-  const headerRef = useRef<HTMLDivElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const [rendering, setRendering] = useState(true);
+  // The rendered HTML is handed to Preact via dangerouslySetInnerHTML (opaque to reconciliation)
+  // rather than injected with `body.innerHTML =` — Preact would wipe the latter on its next
+  // re-render, leaving a blank preview (the bug the signed-in e2e caught). `null` = still rendering.
+  const [html, setHtml] = useState<PreviewHtml | null>(null);
 
   useEffect(() => {
     let live = true;
-    setRendering(true);
+    setHtml(null);
     void (async () => {
-      if (headerRef.current && bodyRef.current) {
-        await renderPreview(headerRef.current, bodyRef.current, source);
-      }
-      if (live) setRendering(false);
+      const rendered = await renderPreview(source);
+      if (live) setHtml(rendered);
     })();
     return () => {
       live = false;
     };
   }, [source]);
+
+  // Hydrate the reader's islands into the body only AFTER Preact has committed its HTML.
+  useEffect(() => {
+    if (html !== null && bodyRef.current) void hydratePreview(bodyRef.current);
+  }, [html]);
 
   const blockers = findings.filter((f) => f.severity === "error");
   return (
@@ -142,11 +148,10 @@ function PreviewStep({
         </div>
       )}
       <p class="edit-review__hint">This is how the page will look. Read it through — a reviewer sees the same thing.</p>
+      {html === null && <p class="edit-review__rendering">Rendering…</p>}
       <div class="edit-review__page synapse-prose">
-        <header class="lesson-header" ref={headerRef} />
-        <div class="lesson-body" ref={bodyRef}>
-          {rendering && <p class="edit-review__rendering">Rendering…</p>}
-        </div>
+        <header class="lesson-header" dangerouslySetInnerHTML={{ __html: html?.headerHtml ?? "" }} />
+        <div class="lesson-body" ref={bodyRef} dangerouslySetInnerHTML={{ __html: html?.bodyHtml ?? "" }} />
       </div>
     </div>
   );

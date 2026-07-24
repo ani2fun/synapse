@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# ── SIGNED-IN E2E ──────────────────────────────────────────────────────────────
+# Runs the one browser path the hermetic tests cannot reach: a REAL Keycloak sign-in driving the
+# full content-edit click-path (suggest an edit → Monaco → review dialog → submit). See
+# e2e/tests/authoring-authed.spec.ts.
+#
+# It targets the DEV server on :5373 — the ONLY origin the Keycloak dev realm allowlists for the
+# OAuth redirect (a silent port bump 403s the silent-SSO iframe, the scar CLAUDE.md records). That
+# is why this is a separate runner from `dev-tools/e2e` (which serves the production-shaped stack on
+# :8280, unallowlisted for sign-in).
+#
+# Needs the content platform's backing services up — Keycloak (:8181, tester/tester) and the
+# dedicated `synapse_rs` database:
+#   cd ~/Development/homelab/synapse && docker compose up -d
+# Real content by default (the default lesson lives there); override SYNAPSE_ROOT together with
+# E2E_AUTH_LESSON to point at another tree. Extra args pass through to `playwright test`.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+export SYNAPSE_DATABASE_URL="${SYNAPSE_DATABASE_URL:-postgres://synapse:synapse@localhost:5532/synapse_rs}"
+# The e2e FIXTURE by default: its intro lesson is prose, has frontmatter, and carries no diagram
+# fences, so the preview stays deterministic and pulls no extra lazy renderers. Point SYNAPSE_ROOT
+# + E2E_AUTH_LESSON at real content to spot-check that tree.
+export SYNAPSE_ROOT="${SYNAPSE_ROOT:-e2e/fixture-content}"
+export SYNAPSE_PORT="${SYNAPSE_PORT:-8280}"
+WEB_PORT=5373
+
+# Sign-in is impossible without Keycloak — fail early with the fix rather than deep in a browser
+# timeout.
+if ! curl -sf -o /dev/null "http://localhost:8181/realms/synapse/.well-known/openid-configuration"; then
+  echo "✗ Keycloak is not up on :8181 — the browser sign-in needs it. Start the platform services:"
+  echo "    cd ~/Development/homelab/synapse && docker compose up -d"
+  exit 1
+fi
+
+# shellcheck source=lib-ports.sh
+source "$(dirname "$0")/lib-ports.sh"
+reclaim "$SYNAPSE_PORT" "synapse-server"
+reclaim "$WEB_PORT" "astro-dev"
+
+# The lazy viz island imports the gitignored pkg — astro dev cannot resolve an import that was
+# never built.
+[[ -f web/src/lib/viz-wasm/pkg/viz_wasm.js ]] || ./dev-tools/build-viz-wasm.sh dev
+
+echo "→ building + starting the API on :$SYNAPSE_PORT (content: $SYNAPSE_ROOT, forge: dry-run)"
+cargo build -p synapse-server --quiet
+./target/debug/synapse-server >/tmp/e2e-auth-server.log 2>&1 &
+SERVER_PID=$!
+export SYNAPSE_API_URL="http://localhost:$SYNAPSE_PORT"
+
+echo "→ starting astro dev on :$WEB_PORT (the Keycloak-allowlisted origin)"
+(cd web && exec npx astro dev --port "$WEB_PORT" >/tmp/e2e-auth-web.log 2>&1) &
+WEB_PID=$!
+trap 'kill "$SERVER_PID" "$WEB_PID" 2>/dev/null || true' EXIT
+
+for _ in $(seq 1 60); do curl -sf "http://localhost:$SYNAPSE_PORT/api/health" >/dev/null && break; sleep 1; done
+curl -sf "http://localhost:$SYNAPSE_PORT/api/health" >/dev/null || {
+  echo "✗ the API never became ready — its log:"; sed 's/^/    /' /tmp/e2e-auth-server.log; exit 1;
+}
+for _ in $(seq 1 60); do curl -sf "http://localhost:$WEB_PORT/" >/dev/null && break; sleep 1; done
+curl -sf "http://localhost:$WEB_PORT/" >/dev/null || {
+  echo "✗ astro dev never came up — its log:"; sed 's/^/    /' /tmp/e2e-auth-web.log; exit 1;
+}
+
+cd e2e
+[[ -d node_modules ]] || npm ci
+echo "→ signed-in click-path against http://localhost:$WEB_PORT"
+E2E_AUTH=1 E2E_BASE_URL="http://localhost:$WEB_PORT" npx playwright test authoring-authed "$@"
