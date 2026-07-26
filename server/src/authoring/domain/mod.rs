@@ -5,4 +5,4 @@ pub mod branch;
 pub mod edit;
 pub mod validation;
 
-pub use edit::{EditRequest, EditRequestId, EditRequestState, PullRequestRef};
+pub use edit::{EditRequest, EditRequestId, EditRequestState, ProposalLocation, PullRequestRef};

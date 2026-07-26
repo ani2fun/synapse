@@ -136,6 +136,69 @@ pub struct ComponentDocDto {
     pub body: String,
 }
 
+/// A registered content repository, as the admin panel sees it. The sync fields are read-only —
+/// they are the fetch loop's report, and they are what turns "I registered it" into "it landed".
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct ContentSourceDto {
+    /// Derived from the repository name; names the checkout on disk and never changes.
+    pub id: String,
+    /// `owner/name`.
+    pub repo: String,
+    pub branch: String,
+    /// `/`-joined category slug path; empty string is the top level.
+    pub grouping: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub order: Option<i32>,
+    pub enabled: bool,
+    /// The commit currently on disk. Absent until the first fetch lands.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_sha: Option<String>,
+    /// ISO-8601 instant of the last fetch ATTEMPT, successful or not.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_synced_at: Option<String>,
+    /// Set when the last attempt failed. `lastSha` may still be present — a broken push degrades
+    /// the book to stale, not to absent, and the panel should say which.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_error: Option<String>,
+}
+
+/// One repository the merged LikeC4 workspace should pull `.c4` files from.
+///
+/// Deliberately unauthenticated and deliberately minimal: the consumer is a CI job with no token,
+/// and every repository named here is already public. It carries no sync state and no grouping —
+/// the build wants sources, not the library.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct C4SourceDto {
+    /// `owner/name`.
+    pub repo: String,
+    pub branch: String,
+}
+
+/// Register or re-register a repository. Keyed server-side on the id derived from `repo`, so
+/// posting the same repository twice edits its row rather than adding a second.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct RegisterContentSourceDto {
+    pub repo: String,
+    /// Defaults to `main` when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    /// `/`-joined category slug path; absent or empty is the top level.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grouping: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub order: Option<i32>,
+    /// Defaults to `true`. Registering disabled lets a repository be staged and verified before
+    /// it joins the library.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {

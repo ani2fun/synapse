@@ -1,0 +1,140 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   SYNAPSE LOGIN — brand layer over keycloak.v2 (PatternFly v5).
+   Tokens mirror the app (web/styles/tokens.css): warm paper + teal (light),
+   cool slate + brighter teal (dark), Noto Sans + JetBrains Mono. It follows the
+   OS colour scheme, the same first-paint default the app uses.
+   ───────────────────────────────────────────────────────────────────────────── */
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+:root {
+  --syn-bg: hsl(45 44% 96%);
+  --syn-card: hsl(0 0% 100%);
+  --syn-text: hsl(224 14% 16%);
+  --syn-muted: hsl(221 8% 45%);
+  --syn-primary: hsl(169 82% 27%);
+  --syn-primary-fg: #ffffff;
+  --syn-border: hsl(43 26% 86%);
+  --syn-ring: hsl(169 82% 27% / 0.35);
+  --syn-font: "Noto Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --syn-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --syn-radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --syn-bg: hsl(223 15% 9%);
+    --syn-card: hsl(222 15% 13%);
+    --syn-text: hsl(60 6% 90%);
+    --syn-muted: hsl(220 7% 66%);
+    --syn-primary: hsl(166 63% 48%);
+    --syn-primary-fg: hsl(168 71% 8%);
+    --syn-border: hsl(220 15% 20%);
+    --syn-ring: hsl(166 63% 48% / 0.4);
+  }
+}
+
+/* the page — replace keycloak.v2's background image with the paper/slate fill */
+html.login-pf,
+.login-pf body,
+#keycloak-bg {
+  background: var(--syn-bg) !important;
+  font-family: var(--syn-font);
+  color: var(--syn-text);
+}
+
+/* the brand header: the Synapse chip above the wordmark (the realm displayName) */
+#kc-header-wrapper {
+  font-family: var(--syn-mono);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--syn-text);
+  text-transform: none;
+  padding-top: 8px;
+}
+#kc-header-wrapper::before {
+  content: "";
+  display: block;
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 12px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='44' viewBox='0 0 30 30'%3E%3Crect width='30' height='30' rx='7' fill='%230C7D69'/%3E%3Cg stroke='%23fff' stroke-width='1.6' stroke-linecap='round'%3E%3Cline x1='10' y1='19' x2='15' y2='10'/%3E%3Cline x1='15' y1='10' x2='20' y2='19'/%3E%3Cline x1='10' y1='19' x2='20' y2='19'/%3E%3C/g%3E%3Cg fill='%23fff'%3E%3Ccircle cx='15' cy='10' r='2.4'/%3E%3Ccircle cx='10' cy='19' r='2.4'/%3E%3Ccircle cx='20' cy='19' r='2.4'/%3E%3C/g%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+/* the card */
+.pf-v5-c-login__main {
+  background: var(--syn-card);
+  border: 1px solid var(--syn-border);
+  border-radius: var(--syn-radius);
+  box-shadow:
+    0 1px 0 rgb(18 20 28 / 0.05),
+    0 8px 24px -12px rgb(18 20 28 / 0.18);
+}
+
+/* headings + body text */
+#kc-page-title,
+.pf-v5-c-login__main-header,
+.pf-v5-c-title {
+  font-family: var(--syn-font);
+  color: var(--syn-text);
+}
+.pf-v5-c-login__main-body,
+.pf-v5-c-form__label-text,
+label {
+  color: var(--syn-text);
+}
+
+/* inputs */
+.pf-v5-c-form-control,
+input.pf-v5-c-form-control,
+.pf-v5-c-form-control > input,
+input[type="text"],
+input[type="password"],
+input[type="email"] {
+  background: var(--syn-card);
+  border-radius: 10px;
+  border: 1px solid var(--syn-border) !important;
+  color: var(--syn-text);
+  font-family: var(--syn-font);
+}
+.pf-v5-c-form-control:focus-within,
+.pf-v5-c-form-control:focus,
+input.pf-v5-c-form-control:focus,
+input:focus {
+  border-color: var(--syn-primary) !important;
+  box-shadow: 0 0 0 3px var(--syn-ring) !important;
+  outline: none;
+}
+
+/* the primary "Sign In" button */
+#kc-login,
+.pf-v5-c-button.pf-m-primary {
+  background: var(--syn-primary) !important;
+  color: var(--syn-primary-fg) !important;
+  border-color: var(--syn-primary) !important;
+  border-radius: 10px;
+  font-family: var(--syn-font);
+  font-weight: 600;
+}
+#kc-login:hover,
+.pf-v5-c-button.pf-m-primary:hover {
+  filter: brightness(1.06);
+}
+
+/* links + muted text */
+a,
+.pf-v5-c-login__main a,
+.pf-v5-c-button.pf-m-link {
+  color: var(--syn-primary) !important;
+}
+#kc-info-message,
+.pf-v5-c-login__footer,
+.pf-v5-c-form__helper-text,
+.pf-v5-c-login__main-footer-band {
+  color: var(--syn-muted);
+}
+
+/* checkbox accent (Remember me) */
+input[type="checkbox"] {
+  accent-color: var(--syn-primary);
+}

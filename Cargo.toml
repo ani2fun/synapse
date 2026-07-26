@@ -27,7 +27,11 @@ regex = "1"
 # The GitHub Contents API takes file bodies base64-encoded. Already in the tree via
 # jsonwebtoken, so naming it directly costs no new transitive dependency.
 base64 = "0.22"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "time"] }
+# Satellite content arrives as a GitHub tarball rather than a git clone — the same "REST, no git
+# binary, no working copy" stance the authoring forge takes. Both are MIT/Apache-2.0 and pure Rust.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+tar = "0.4"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 figment = { version = "0.10", features = ["env"] }

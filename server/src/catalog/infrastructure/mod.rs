@@ -1,8 +1,16 @@
-//! The catalog's outbound adapters — the filesystem repository over `SYNAPSE_ROOT` and the
-//! git-SHA content version.
+//! The catalog's outbound adapters — the filesystem repository over the mounted checkouts, the
+//! git-SHA content version, and the Postgres source registry.
 
 mod commit_sha;
+mod content_cache;
 mod filesystem;
+mod github_fetcher;
+mod postgres;
+mod sync;
 
 pub use commit_sha::read_commit_sha;
-pub use filesystem::FileSystemContentRepository;
+pub use content_cache::ContentCache;
+pub use filesystem::{FileSystemContentRepository, MountedSources, SourceRoot};
+pub use github_fetcher::GitHubFetcher;
+pub use postgres::PostgresContentSources;
+pub use sync::{ContentSync, DEFAULT_INTERVAL, run as run_content_sync};

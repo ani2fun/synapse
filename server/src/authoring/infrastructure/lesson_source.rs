@@ -12,16 +12,23 @@
 //! with the fence stripped; saving that back would delete the frontmatter.
 
 use crate::authoring::application::{AuthoringError, LessonFile, LessonSource};
-use crate::catalog::application::{ContentError, ContentRepository};
-use crate::catalog::domain::{resolver, walker};
+use crate::catalog::application::{ContentError, ContentRepository, Placements};
+use crate::catalog::domain::{merge, resolver, walker};
 
 pub struct FsLessonSource<R> {
     repo: R,
+    /// The same handle the catalog resolves through: a satellite's lesson path includes the
+    /// grouping its placement gives it, so resolving without this finds nothing.
+    placements: Placements,
 }
 
 impl<R> FsLessonSource<R> {
     pub fn new(repo: R) -> Self {
-        Self { repo }
+        Self::with_placements(repo, Placements::default())
+    }
+
+    pub fn with_placements(repo: R, placements: Placements) -> Self {
+        Self { repo, placements }
     }
 }
 
@@ -34,8 +41,8 @@ impl<R: ContentRepository> LessonSource for FsLessonSource<R> {
         if lesson_path.is_empty() || !lesson_path.iter().all(|s| walker::slug_like(s)) {
             return Ok(None);
         }
-        let tree = self.repo.load_tree().await.map_err(|e| unreadable(&e))?;
-        let walk = walker::walk(&tree)
+        let sources = self.repo.load_sources().await.map_err(|e| unreadable(&e))?;
+        let walk = merge::assemble(&sources, &self.placements.snapshot())
             .map_err(|error| AuthoringError::ContentUnreadable(format!("catalog index invalid: {error}")))?;
         let Some((book, in_book_path, _)) = resolver::resolve_lesson(&walk.catalog, lesson_path) else {
             return Ok(None);
@@ -47,17 +54,35 @@ impl<R: ContentRepository> LessonSource for FsLessonSource<R> {
         else {
             return Ok(None);
         };
+        if is_local_only(&file_path.path) {
+            // Reachable only under `render-local-only`, which puts study material in the catalog
+            // for a local reader. Editing it would COMMIT a gitignored file — the one action that
+            // turns "kept for private study" into "published", and the exact outcome ADR-RS002
+            // exists to prevent. Unconditional here rather than behind the same feature: a guard
+            // that only exists in the build that needs it is one refactor from being absent.
+            tracing::warn!(path = %file_path.path, "edit refused — local-only content is never editable");
+            return Ok(None);
+        }
         // Re-read rather than reuse the tree's copy: the walk may be a moment old, and the
         // fingerprint the editor is handed must describe the bytes on disk right now.
-        match self.repo.read_lesson(file_path).await {
+        match self.repo.read_lesson(&file_path.source_id, &file_path.path).await {
             Ok(source) => Ok(Some(LessonFile {
-                file_path: file_path.clone(),
+                source_id: file_path.source_id.clone(),
+                file_path: file_path.path.clone(),
                 source,
             })),
             Err(ContentError::NotFound(_)) => Ok(None),
             Err(error) => Err(unreadable(&error)),
         }
     }
+}
+
+/// The gitignored study trees, under either spelling, order prefix or not.
+fn is_local_only(path: &str) -> bool {
+    path.split('/')
+        .next()
+        .map(walker::strip_order_prefix)
+        .is_some_and(|head| head == "local-only-content" || head == "local-only")
 }
 
 fn unreadable(error: &ContentError) -> AuthoringError {

@@ -7,5 +7,7 @@ pub mod component_doc;
 pub mod content_tree;
 pub mod frontmatter;
 pub mod lesson;
+pub mod lint;
+pub mod merge;
 pub mod resolver;
 pub mod walker;

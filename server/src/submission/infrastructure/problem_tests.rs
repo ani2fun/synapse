@@ -10,8 +10,8 @@ use std::sync::LazyLock;
 use regex::Regex;
 use synapse_shared::execution::TestSpec;
 
-use crate::catalog::application::{ContentError, ContentRepository};
-use crate::catalog::domain::{resolver, walker};
+use crate::catalog::application::{ContentError, ContentRepository, Placements};
+use crate::catalog::domain::{merge, resolver};
 use crate::submission::application::{ProblemTests, SubmissionError};
 
 static TESTCASES_FENCE: LazyLock<Regex> = LazyLock::new(|| {
@@ -20,19 +20,26 @@ static TESTCASES_FENCE: LazyLock<Regex> = LazyLock::new(|| {
 
 pub struct FsProblemTests<R> {
     repo: R,
+    /// The same handle the catalog resolves through: a satellite's lesson path includes the
+    /// grouping its placement gives it, so resolving without this finds nothing.
+    placements: Placements,
 }
 
 impl<R> FsProblemTests<R> {
     pub fn new(repo: R) -> Self {
-        Self { repo }
+        Self::with_placements(repo, Placements::default())
+    }
+
+    pub fn with_placements(repo: R, placements: Placements) -> Self {
+        Self { repo, placements }
     }
 }
 
 impl<R: ContentRepository> ProblemTests for FsProblemTests<R> {
     async fn suite_for(&self, lesson_path: &[String]) -> Result<Option<TestSpec>, SubmissionError> {
         let joined = lesson_path.join("/");
-        let tree = self.repo.load_tree().await.map_err(|e| content_failed(&e))?;
-        let walk = walker::walk(&tree)
+        let sources = self.repo.load_sources().await.map_err(|e| content_failed(&e))?;
+        let walk = merge::assemble(&sources, &self.placements.snapshot())
             .map_err(|error| SubmissionError::StoreFailed(format!("catalog index invalid: {error}")))?;
         let Some((book, in_book_path, _)) = resolver::resolve_lesson(&walk.catalog, lesson_path) else {
             return Ok(None);
@@ -46,16 +53,15 @@ impl<R: ContentRepository> ProblemTests for FsProblemTests<R> {
         };
 
         // Tier 1 — the sidecar is authoritative.
-        if let Some(stem) = file.strip_suffix(".md") {
-            match self.repo.read_lesson(&format!("{stem}.tests.json")).await {
-                Ok(raw) => return decode(&raw, &joined).map(Some),
-                Err(ContentError::NotFound(_)) => {}
-                Err(error) => return Err(content_failed(&error)),
-            }
+        let suite = file.sidecar(".tests.json");
+        match self.repo.read_lesson(&suite.source_id, &suite.path).await {
+            Ok(raw) => return decode(&raw, &joined).map(Some),
+            Err(ContentError::NotFound(_)) => {}
+            Err(error) => return Err(content_failed(&error)),
         }
 
         // Tier 2 — a testcases fence inside the lesson itself.
-        let markdown = match self.repo.read_lesson(file).await {
+        let markdown = match self.repo.read_lesson(&file.source_id, &file.path).await {
             Ok(markdown) => markdown,
             Err(ContentError::NotFound(_)) => return Ok(None),
             Err(error) => return Err(content_failed(&error)),

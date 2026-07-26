@@ -2,6 +2,8 @@
 //! mapping done ONLY here. Concrete over the filesystem adapter — the wiring boundary is
 //! `main`, and nothing else varies.
 
+pub mod admin;
+pub mod c4;
 mod dto;
 pub mod routes;
 

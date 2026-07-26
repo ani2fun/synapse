@@ -4,16 +4,24 @@
 
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
-use synapse_server::authoring::application::{ForgeTarget, ProposeEdit};
+use synapse_server::authoring::application::ProposeEdit;
 use synapse_server::authoring::http::AuthoringRoutesState;
 use synapse_server::authoring::infrastructure::{
-    ConfiguredForge, FsLessonSource, PostgresContentEditors, PostgresEditRequests,
+    ConfiguredForges, FsLessonSource, PostgresContentEditors, PostgresEditRequests,
 };
 use synapse_server::blog::application::BlogService;
 use synapse_server::blog::infrastructure::FileSystemBlogRepository;
 use synapse_server::catalog::application::CatalogService;
-use synapse_server::catalog::infrastructure::FileSystemContentRepository;
+use synapse_server::catalog::application::{Placements, grouping_from_str};
+use synapse_server::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
+use synapse_server::catalog::domain::merge::Placement;
+use synapse_server::catalog::http::admin::ContentSourceRoutesState;
+use synapse_server::catalog::infrastructure::{
+    ContentCache, ContentSync, FileSystemContentRepository, GitHubFetcher, MountedSources,
+    PostgresContentSources, SourceRoot, run_content_sync,
+};
 use synapse_server::execution::application::RunCodeService;
 use synapse_server::execution::infrastructure::GoJudgeRunner;
 use synapse_server::identity::application::IdentityService;
@@ -59,8 +67,9 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("postgres connected + migrations applied");
 
     // The wiring graph, in one place: config → adapters → services → the router.
-    let repo = FileSystemContentRepository::new(&cfg.content_root, cfg.auto_reload);
-    let catalog = Arc::new(CatalogService::new(repo));
+    let content = ContentHandles::for_primary(&cfg.content_root, &cfg)?;
+    let repo = content.repository(cfg.auto_reload);
+    let catalog = Arc::new(CatalogService::with_placements(repo, content.placements.clone()));
     let runner = Arc::new(RunCodeService::new(GoJudgeRunner::new(&cfg.executor_url)));
     let allowlist = Arc::new(PostgresSubmissionAllowlist::new(pool.clone()));
     let views = Arc::new(synapse_server::insights::PostgresLessonViews::new(pool.clone()));
@@ -68,12 +77,15 @@ async fn main() -> anyhow::Result<()> {
     let progress = Arc::new(PostgresProblemProgress::new(pool.clone()));
     let editors = Arc::new(PostgresContentEditors::new(pool.clone()));
     let edit_requests = Arc::new(PostgresEditRequests::new(pool.clone()));
+    // Kept back: the submission store takes `pool` by value below, and the source registry is
+    // wired later, once identity exists to gate it.
+    let content_sources = Arc::new(PostgresContentSources::new(pool.clone()));
     let submit = Arc::new(SubmitSolution::new(
         Arc::new(PostgresSubmissionRepository::new(pool)),
-        Arc::new(FsProblemTests::new(FileSystemContentRepository::new(
-            &cfg.content_root,
-            cfg.auto_reload,
-        ))),
+        Arc::new(FsProblemTests::with_placements(
+            content.repository(cfg.auto_reload),
+            content.placements.clone(),
+        )),
         Arc::clone(&runner),
         Arc::clone(&allowlist),
         cfg.submission_allowlist_enforced,
@@ -82,17 +94,16 @@ async fn main() -> anyhow::Result<()> {
     ));
 
     let identity = identity_state(&cfg);
-    let limiter = Arc::new(RateLimiter::new(
-        RateLimitBucket {
-            window_seconds: cfg.rate_limit_anon_window_seconds,
-            limit: cfg.rate_limit_anon_limit,
-        },
-        RateLimitBucket {
-            window_seconds: cfg.rate_limit_auth_window_seconds,
-            limit: cfg.rate_limit_auth_limit,
-        },
-    ));
-    let authoring = authoring_state(&cfg, &identity, &limiter, editors, edit_requests);
+    let limiter = Arc::new(rate_limiter(&cfg));
+    let authoring = authoring_state(
+        &cfg,
+        &identity,
+        &limiter,
+        editors,
+        edit_requests,
+        Arc::clone(&content_sources),
+        &content,
+    );
     let tutor = TutorRoutesState {
         service: Arc::new(TutoringService::new(OllamaTutorClient::new(
             &cfg.tutor_url,
@@ -127,6 +138,8 @@ async fn main() -> anyhow::Result<()> {
         "synapse-rs server started"
     );
 
+    let source_admin = content_source_state(Arc::clone(&content_sources), &identity);
+    spawn_content_sync(&cfg, &source_admin, &content);
     let app = synapse_server::app(synapse_server::AppDeps {
         catalog,
         run: runner,
@@ -139,6 +152,7 @@ async fn main() -> anyhow::Result<()> {
         progress,
         tutor,
         authoring,
+        content_sources: Some(source_admin),
         astro_url: cfg.astro_url,
         site_url: cfg.site_url,
         content_root: cfg.content_root.clone(),
@@ -151,6 +165,107 @@ async fn main() -> anyhow::Result<()> {
         .await?;
     tracing::info!("drained — bye");
     Ok(())
+}
+
+/// The two per-caller budgets, anonymous and signed-in. Extracted from `main` for the same reason
+/// as its neighbours: the wiring point stays under the per-function line cap.
+fn rate_limiter(cfg: &synapse_server::config::AppConfig) -> RateLimiter {
+    RateLimiter::new(
+        RateLimitBucket {
+            window_seconds: cfg.rate_limit_anon_window_seconds,
+            limit: cfg.rate_limit_anon_limit,
+        },
+        RateLimitBucket {
+            window_seconds: cfg.rate_limit_auth_window_seconds,
+            limit: cfg.rate_limit_auth_limit,
+        },
+    )
+}
+
+/// The two handles every content reader shares. Both are republished by the sync loop as
+/// satellites are registered, so they are PASSED AROUND rather than rebuilt: the catalog, the
+/// editor's lesson source, the judge's suite lookup and `/media` must all see the same answer, and
+/// a second `MountedSources` would silently freeze one of them at boot.
+struct ContentHandles {
+    mounted: MountedSources,
+    placements: Placements,
+}
+
+impl ContentHandles {
+    /// The primary checkout first — always — then any locally-mounted satellites. The sync loop
+    /// republishes both lists on its next tick and preserves the same ordering, so a local source
+    /// and a fetched one behave identically once mounted.
+    fn for_primary(content_root: &str, cfg: &synapse_server::config::AppConfig) -> anyhow::Result<Self> {
+        let local = cfg.local_sources()?;
+        let mut roots = vec![SourceRoot::new(PRIMARY_SOURCE_ID, content_root)];
+        let mut placements = Vec::new();
+        for source in &local {
+            tracing::info!(id = %source.id, root = %source.root, grouping = %source.grouping, "mounting a LOCAL content source");
+            roots.push(SourceRoot::new(&source.id, &source.root));
+            placements.push(Placement {
+                source_id: source.id.clone(),
+                grouping: grouping_from_str(&source.grouping),
+                order: source.order,
+            });
+        }
+        let handles = Self {
+            mounted: MountedSources::new(roots),
+            placements: Placements::default(),
+        };
+        handles.placements.publish(placements);
+        Ok(handles)
+    }
+
+    fn repository(&self, auto_reload: bool) -> FileSystemContentRepository {
+        FileSystemContentRepository::mounted(self.mounted.clone(), auto_reload)
+    }
+}
+
+/// The reconcile loop owns disk: it fetches registered satellites, unpacks them under the cache,
+/// and republishes what is mounted and where each book grafts. Interval `0` disables it, leaving
+/// the primary checkout as the whole library — the pre-satellite behaviour, and what the ITs run.
+fn spawn_content_sync(
+    cfg: &synapse_server::config::AppConfig,
+    admin: &ContentSourceRoutesState<PostgresContentSources>,
+    content: &ContentHandles,
+) {
+    if cfg.content_sync_seconds == 0 {
+        tracing::info!("content sync loop disabled — the primary checkout is the whole library");
+        return;
+    }
+    let sync = ContentSync::new(
+        Arc::clone(&admin.sources),
+        Arc::new(GitHubFetcher::new(cfg.github_token.clone())),
+        ContentCache::new(&cfg.content_cache),
+        content.mounted.clone(),
+        content.placements.clone(),
+        // Pinned: the primary plus any LOCAL satellites. Neither is a registry row, so a reconcile
+        // rebuilt from the registry alone would drop them — it has to be additive over these.
+        content.mounted.snapshot(),
+        content.placements.snapshot(),
+    );
+    tracing::info!(
+        cache = %cfg.content_cache,
+        interval_seconds = cfg.content_sync_seconds,
+        "content sync loop starting"
+    );
+    tokio::spawn(run_content_sync(
+        sync,
+        Duration::from_secs(cfg.content_sync_seconds),
+    ));
+}
+
+/// The source registry's admin state — which repositories feed the library. Extracted from `main`
+/// for the same reason as its neighbours: the wiring point stays under the per-function line cap.
+fn content_source_state(
+    sources: Arc<PostgresContentSources>,
+    identity: &IdentityRoutesState,
+) -> ContentSourceRoutesState<PostgresContentSources> {
+    ContentSourceRoutesState {
+        sources,
+        identity: Arc::clone(&identity.identity),
+        admin_users: Arc::clone(&identity.admin_users),
+    }
 }
 
 /// The identity routes-state: the JWKS token verifier + the Keycloak admin client, plus the
@@ -185,30 +300,31 @@ fn authoring_state(
     limiter: &Arc<synapse_server::platform::rate_limiter::RateLimiter>,
     editors: Arc<PostgresContentEditors>,
     requests: Arc<PostgresEditRequests>,
+    sources: Arc<PostgresContentSources>,
+    content: &ContentHandles,
 ) -> Option<AuthoringRoutesState> {
     if cfg.content_forge == "off" {
         tracing::info!("content editing: off — /api/edits is not mounted");
         return None;
     }
-    let forge = ConfiguredForge::select(
+    // The forge is chosen PER EDIT, from the registry: a satellite guide repo's lesson opens its
+    // pull request against that repository, not the monorepo.
+    let forges = ConfiguredForges::new(
+        sources,
         &cfg.content_forge,
+        &cfg.github_token,
+        &cfg.site_url,
         &cfg.content_repo,
         &cfg.content_repo_branch,
-        &cfg.github_token,
     );
     let service = ProposeEdit::new(
-        Arc::new(FsLessonSource::new(FileSystemContentRepository::new(
-            &cfg.content_root,
-            cfg.auto_reload,
-        ))),
+        Arc::new(FsLessonSource::with_placements(
+            content.repository(cfg.auto_reload),
+            content.placements.clone(),
+        )),
         Arc::clone(&editors),
         requests,
-        Arc::new(forge),
-        ForgeTarget {
-            repo: cfg.content_repo.clone(),
-            base_branch: cfg.content_repo_branch.clone(),
-            site_url: cfg.site_url.clone(),
-        },
+        Arc::new(forges),
     );
     Some(AuthoringRoutesState {
         service: Arc::new(service),

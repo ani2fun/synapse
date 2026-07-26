@@ -18,6 +18,8 @@ pub fn to_source(source: EditableSource) -> EditSourceDto {
         file_path: source.file_path,
         source: source.source,
         fingerprint: source.fingerprint,
+        repo: source.repo,
+        base_branch: source.base_branch,
         content_version: source.content_version,
     }
 }

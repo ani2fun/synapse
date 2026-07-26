@@ -4,6 +4,7 @@
 
 mod configured;
 mod dry_run;
+mod forges;
 mod github;
 mod github_wire;
 mod lesson_source;
@@ -11,6 +12,7 @@ mod postgres;
 
 pub use configured::ConfiguredForge;
 pub use dry_run::DryRunForge;
+pub use forges::ConfiguredForges;
 pub use github::GitHubForge;
 pub use lesson_source::FsLessonSource;
 pub use postgres::{PostgresContentEditors, PostgresEditRequests};

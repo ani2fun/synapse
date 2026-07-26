@@ -5,10 +5,10 @@ use std::sync::Arc;
 
 use axum::Router;
 use synapse_server::AppDeps;
-use synapse_server::authoring::application::{ForgeTarget, ProposeEdit};
+use synapse_server::authoring::application::ProposeEdit;
 use synapse_server::authoring::http::AuthoringRoutesState;
 use synapse_server::authoring::infrastructure::{
-    ConfiguredForge, FsLessonSource, PostgresContentEditors, PostgresEditRequests,
+    ConfiguredForges, FsLessonSource, PostgresContentEditors, PostgresEditRequests,
 };
 use synapse_server::blog::application::BlogService;
 use synapse_server::blog::infrastructure::FileSystemBlogRepository;
@@ -99,6 +99,7 @@ where
         allowlist,
         views,
         tutor,
+        content_sources: None,
         catalog: base.catalog,
         run: base.run,
         submit: base.submit,
@@ -166,12 +167,13 @@ pub fn deps_with(
             ))),
             Arc::clone(&editors),
             edit_requests,
-            Arc::new(ConfiguredForge::select("dry-run", "test/content", "main", "")),
-            ForgeTarget {
-                repo: "test/content".to_owned(),
-                base_branch: "main".to_owned(),
-                site_url: "https://synapse.test".to_owned(),
-            },
+            Arc::new(ConfiguredForges::single(
+                "dry-run",
+                "",
+                "https://synapse.test",
+                "test/content",
+                "main",
+            )),
         )),
         identity: Arc::clone(&ident.identity),
         editors,
@@ -206,6 +208,7 @@ pub fn deps_with(
         likec4_url: "http://127.0.0.1:9".to_owned(),
         readiness,
         authoring,
+        content_sources: None,
     }
 }
 

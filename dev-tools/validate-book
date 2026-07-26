@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# ── VALIDATE A CONTENT REPOSITORY ─────────────────────────────────────────────
+# Runs the SERVER'S OWN walker over a book directory and reports what would and would not render.
+# The same code the site runs, so this cannot drift from it — which is the point: the authoring
+# contract lives in code, and until now the only way to find you had broken a rule was to push.
+#
+# Exit 0 on clean or warnings-only, 1 on any error, so a satellite repo's CI can just run it:
+#   dev-tools/validate-book .
+set -euo pipefail
+cd "$(dirname "$0")/.."
+TARGET="$(cd "${1:-.}" && pwd)"
+cargo build --quiet -p synapse-server --bin validate_book
+exec ./target/debug/validate_book "$TARGET"

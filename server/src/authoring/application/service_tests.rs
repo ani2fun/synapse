@@ -329,3 +329,51 @@ async fn mine_lists_only_the_callers_own_requests() {
     assert_eq!(mine.len(), 1);
     assert_eq!(mine[0].username, "ani2fun");
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ROUTING — which repository a proposal lands in
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A fresh proposal records the repository it targeted, so the row can be followed later.
+#[tokio::test]
+async fn a_new_proposal_records_the_repository_it_targeted() {
+    let h = harness();
+    let proposal = h
+        .service
+        .propose(Some(&ani2fun()), &page(), EDITED, &base(), None)
+        .await
+        .unwrap();
+    assert_eq!(proposal.request.repo, "ani2fun/synapse-content");
+}
+
+/// A revision follows the repository the branch was OPENED against, not whatever currently serves
+/// the page. The two diverge exactly when a book migrates out of the monorepo mid-review — and the
+/// open branch is still in the repository it was created in.
+#[tokio::test]
+async fn a_revision_follows_the_repository_recorded_on_its_row() {
+    let h = harness();
+    h.service
+        .propose(Some(&ani2fun()), &page(), EDITED, &base(), None)
+        .await
+        .unwrap();
+    let opened = h.repo.all().first().cloned().expect("a row was saved");
+    assert_eq!(opened.repo, "ani2fun/synapse-content");
+
+    let again = h
+        .service
+        .propose(
+            Some(&ani2fun()),
+            &page(),
+            &revision("Sharper still."),
+            &base(),
+            None,
+        )
+        .await
+        .unwrap();
+
+    assert!(again.reused, "the open proposal is revised, not re-opened");
+    assert_eq!(
+        again.request.repo, opened.repo,
+        "a revision must stay in the repository its branch lives in"
+    );
+}

@@ -7,11 +7,11 @@ use synapse_shared::execution::TestSpec;
 use tokio::sync::RwLock;
 
 use crate::catalog::application::content_repository::{ContentError, ContentRepository};
-use crate::catalog::domain::catalog::SynapseContentCatalog;
-use crate::catalog::domain::catalog::WalkResult;
+use crate::catalog::application::content_sources::Placements;
+use crate::catalog::domain::catalog::{LessonFileRef, SynapseContentCatalog, WalkResult};
 use crate::catalog::domain::component_doc::ComponentDoc;
 use crate::catalog::domain::lesson::LessonContent;
-use crate::catalog::domain::{frontmatter, resolver, walker};
+use crate::catalog::domain::{frontmatter, merge, resolver, walker};
 
 /// LikeC4 element ids: dotted FQNs of `[A-Za-z0-9_-]` segments.
 fn element_id_like(id: &str) -> bool {
@@ -23,15 +23,25 @@ fn element_id_like(id: &str) -> bool {
 
 pub struct CatalogService<R> {
     repo: R,
+    /// Where each satellite's book grafts. Shared with the sync loop, which republishes it as
+    /// registrations change — a satellite's URL includes its grouping, so resolving without this
+    /// would look the book up at the wrong path.
+    placements: Placements,
     /// `(content version, walk)` — rebuilt only when the version moves. A concurrent double
     /// rebuild is harmless because the walk is idempotent.
     cache: RwLock<Option<(String, Arc<WalkResult>)>>,
 }
 
 impl<R: ContentRepository> CatalogService<R> {
+    /// The single-checkout deployment: no satellites, so no placements.
     pub fn new(repo: R) -> Self {
+        Self::with_placements(repo, Placements::default())
+    }
+
+    pub fn with_placements(repo: R, placements: Placements) -> Self {
         Self {
             repo,
+            placements,
             cache: RwLock::new(None),
         }
     }
@@ -74,7 +84,10 @@ impl<R: ContentRepository> CatalogService<R> {
             .and_then(|files| files.get(&in_book_path))
             .ok_or_else(|| ContentError::NotFound(format!("no source for '{in_book_path}'")))?;
 
-        let source = self.repo.read_lesson(file_path).await?;
+        let source = self
+            .repo
+            .read_lesson(&file_path.source_id, &file_path.path)
+            .await?;
         let parsed = frontmatter::parse(&source, &lesson.title);
         let editorial = self
             .editorial_for(file_path, parsed.frontmatter.kind.as_deref())
@@ -133,11 +146,8 @@ impl<R: ContentRepository> CatalogService<R> {
             .ok_or_else(|| ContentError::NotFound(format!("no source for '{in_book_path}'")))?;
 
         let leaf = element_id.rsplit('.').next().unwrap_or(element_id);
-        let sidecar = match file_path.rsplit_once('/') {
-            Some((dir, _)) => format!("{dir}/_c4-docs/{leaf}.md"),
-            None => format!("_c4-docs/{leaf}.md"),
-        };
-        let raw = self.repo.read_lesson(&sidecar).await?;
+        let sidecar = file_path.neighbour(&format!("_c4-docs/{leaf}.md"));
+        let raw = self.repo.read_lesson(&sidecar.source_id, &sidecar.path).await?;
         Ok(ComponentDoc::parse(&raw))
     }
 
@@ -145,14 +155,14 @@ impl<R: ContentRepository> CatalogService<R> {
     /// normal, other repo failures propagate.
     async fn editorial_for(
         &self,
-        lesson_file: &str,
+        lesson_file: &LessonFileRef,
         kind: Option<&str>,
     ) -> Result<Option<String>, ContentError> {
         if kind != Some("problem") {
             return Ok(None);
         }
-        let stem = lesson_file.strip_suffix(".md").unwrap_or(lesson_file);
-        match self.repo.read_lesson(&format!("{stem}.editorial.md")).await {
+        let editorial = lesson_file.sidecar(".editorial.md");
+        match self.repo.read_lesson(&editorial.source_id, &editorial.path).await {
             Ok(text) => Ok(Some(text)),
             Err(ContentError::NotFound(_)) => Ok(None),
             Err(other) => Err(other),
@@ -165,17 +175,17 @@ impl<R: ContentRepository> CatalogService<R> {
     /// → `None`; a malformed sidecar is a loud `Io` error, the same authoring bug the judge hits.
     async fn sample_tests_for(
         &self,
-        lesson_file: &str,
+        lesson_file: &LessonFileRef,
         kind: Option<&str>,
     ) -> Result<Option<TestSpec>, ContentError> {
         if kind != Some("problem") {
             return Ok(None);
         }
-        let stem = lesson_file.strip_suffix(".md").unwrap_or(lesson_file);
-        match self.repo.read_lesson(&format!("{stem}.tests.json")).await {
+        let tests = lesson_file.sidecar(".tests.json");
+        match self.repo.read_lesson(&tests.source_id, &tests.path).await {
             Ok(text) => {
                 let spec: TestSpec = serde_json::from_str(&text)
-                    .map_err(|err| ContentError::Io(format!("invalid {stem}.tests.json: {err}")))?;
+                    .map_err(|err| ContentError::Io(format!("invalid {}: {err}", tests.path)))?;
                 Ok(Some(spec.samples()))
             }
             Err(ContentError::NotFound(_)) => Ok(None),
@@ -191,8 +201,12 @@ impl<R: ContentRepository> CatalogService<R> {
         {
             return Ok(Arc::clone(walk));
         }
-        let tree = self.repo.load_tree().await?;
-        let walk = Arc::new(walker::walk(&tree).map_err(ContentError::IndexInvalid)?);
+        let sources = self.repo.load_sources().await?;
+        let placements = self.placements.snapshot();
+        let walk = Arc::new(merge::assemble(&sources, &placements).map_err(ContentError::IndexInvalid)?);
+        for warning in &walk.warnings {
+            tracing::warn!(?warning, "catalog: cross-source conflict resolved");
+        }
         *self.cache.write().await = Some((version, Arc::clone(&walk)));
         Ok(walk)
     }

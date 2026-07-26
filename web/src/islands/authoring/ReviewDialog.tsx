@@ -23,6 +23,9 @@ export interface ReviewDialogProps {
   readonly original: string;
   readonly source: string;
   readonly lessonPath: string;
+  /** `owner/name` of the repository this page's pull request lands in, and the branch it targets. */
+  readonly repo: string;
+  readonly baseBranch: string;
   readonly findings: Finding[];
   /** Non-null while a submit is in flight — disables the controls and shows the message. */
   readonly submitting: string | null;
@@ -64,7 +67,9 @@ export function ReviewDialog(props: ReviewDialogProps) {
         <div class="edit-review__body">
           {step === "preview" && <PreviewStep source={props.source} lessonPath={props.lessonPath} findings={props.findings} onGotoLine={(l) => { props.onClose(); props.onGotoLine(l); }} />}
           {step === "changes" && <ChangesStep original={props.original} source={props.source} />}
-          {step === "details" && <DetailsStep summary={summary} setSummary={setSummary} />}
+          {step === "details" && (
+            <DetailsStep summary={summary} setSummary={setSummary} repo={props.repo} baseBranch={props.baseBranch} />
+          )}
         </div>
 
         <footer class="edit-review__foot">
@@ -179,7 +184,17 @@ function ChangesStep({ original, source }: { original: string; source: string })
 }
 
 /** Step 3 — the PR title context and the "what and why" summary. */
-function DetailsStep({ summary, setSummary }: { summary: string; setSummary: (v: string) => void }) {
+function DetailsStep({
+  summary,
+  setSummary,
+  repo,
+  baseBranch,
+}: {
+  summary: string;
+  setSummary: (v: string) => void;
+  repo: string;
+  baseBranch: string;
+}) {
   return (
     <div class="edit-review__details">
       <label class="edit-review__label" for="edit-summary">
@@ -196,6 +211,11 @@ function DetailsStep({ summary, setSummary }: { summary: string; setSummary: (v:
         value={summary}
         onInput={(e) => setSummary((e.target as HTMLTextAreaElement).value)}
       />
+      {/* Books live in their own repositories now, so the target is not something a contributor
+          can read off the URL. Say it plainly, next to the button that acts on it. */}
+      <p class="edit-review__sub">
+        Opens a pull request in <code>{repo}</code>, against <code>{baseBranch}</code>.
+      </p>
     </div>
   );
 }

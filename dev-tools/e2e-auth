@@ -9,9 +9,9 @@
 # is why this is a separate runner from `dev-tools/e2e` (which serves the production-shaped stack on
 # :8280, unallowlisted for sign-in).
 #
-# Needs the content platform's backing services up — Keycloak (:8181, tester/tester) and the
-# dedicated `synapse_rs` database:
-#   cd ~/Development/homelab/synapse && docker compose up -d
+# Needs this repo's backing services up — Keycloak (:8181, tester/tester) and the `synapse_rs`
+# database:
+#   docker compose up -d
 # Real content by default (the default lesson lives there); override SYNAPSE_ROOT together with
 # E2E_AUTH_LESSON to point at another tree. Extra args pass through to `playwright test`.
 set -euo pipefail
@@ -22,14 +22,21 @@ export SYNAPSE_DATABASE_URL="${SYNAPSE_DATABASE_URL:-postgres://synapse:synapse@
 # fences, so the preview stays deterministic and pulls no extra lazy renderers. Point SYNAPSE_ROOT
 # + E2E_AUTH_LESSON at real content to spot-check that tree.
 export SYNAPSE_ROOT="${SYNAPSE_ROOT:-e2e/fixture-content}"
+# A SATELLITE in the library, mounted straight off disk. The registry cannot express a local path
+# and the fetcher would reach GitHub, so this is the only way to exercise the multi-source path in
+# CI — and it is the same code an author uses to see a guide repo they are editing.
+SATELLITE='[{"id":"java-guide","root":"e2e/fixture-java-guide","grouping":"programming-languages","order":7}]'
+export SYNAPSE_LOCAL_SOURCES="${SYNAPSE_LOCAL_SOURCES:-$SATELLITE}"
+# The reconcile loop is OFF: nothing here is registered, and a tick would only reach the network.
+export SYNAPSE_CONTENT_SYNC_SECONDS="${SYNAPSE_CONTENT_SYNC_SECONDS:-0}"
 export SYNAPSE_PORT="${SYNAPSE_PORT:-8280}"
 WEB_PORT=5373
 
 # Sign-in is impossible without Keycloak — fail early with the fix rather than deep in a browser
 # timeout.
 if ! curl -sf -o /dev/null "http://localhost:8181/realms/synapse/.well-known/openid-configuration"; then
-  echo "✗ Keycloak is not up on :8181 — the browser sign-in needs it. Start the platform services:"
-  echo "    cd ~/Development/homelab/synapse && docker compose up -d"
+  echo "✗ Keycloak is not up on :8181 — the browser sign-in needs it. Start the backing services:"
+  echo "    docker compose up -d"
   exit 1
 fi
 

@@ -421,12 +421,16 @@ const EDIT_GATED_TIP =
   }
 
   {
-    /* ONE hoisted script, runtime-branched. Two conditional `<script>` blocks do NOT survive
-       Astro's static hoisting — the compiler bundles both and Rollup can hand a page the wrong
-       one (a problem page loaded the workbench auto-hydrator, which then double-claimed the first
-       workbench). A single block with a `.pwb[data-problem]` runtime check picks the right island
+    /* ONE hoisted script, runtime-branched. Two conditional script blocks do NOT survive
+       static hoisting in Astro: the compiler bundles both and Rollup can hand a page the wrong
+       one (a problem page then loads the workbench auto-hydrator, which double-claims the first
+       workbench). A single block with a .pwb[data-problem] runtime check picks the right island
        and keeps each page lean: prose lessons never pull the problem code, and a problem page
-       never loads the auto-hydrator that races its extraction. */
+       never loads the auto-hydrator that races its extraction.
+       Keep this comment free of the literal script tag, of apostrophes and of backticks: the
+       vite dependency pre-scan finds script blocks by regex, so a script tag written inside a
+       JSX comment starts the hoisted module HERE and drags prose into it, and a lone quote in
+       that prose then fails a cold scan with Unterminated string literal. */
     isLesson && payload && (
       <script>
         import "../../islands/reader";

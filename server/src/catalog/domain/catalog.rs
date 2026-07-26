@@ -83,14 +83,84 @@ pub struct SynapseContentCatalog {
     pub entries: Vec<CatalogEntry>,
 }
 
+/// Where a lesson's source file lives: which content source owns it, and the path within that
+/// source's root (order prefixes and real folder names intact — that is what the adapter opens).
+///
+/// The source id travels WITH the path because a bare path is ambiguous once more than one
+/// checkout is mounted: two books with the same interior layout would otherwise cross-serve each
+/// other's bodies, editorials and judge suites. Deriving a sidecar therefore goes through
+/// `sidecar`/`neighbour`, which carry the source across by construction.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct LessonFileRef {
+    pub source_id: String,
+    pub path: String,
+}
+
+impl LessonFileRef {
+    pub fn new(source_id: impl Into<String>, path: impl Into<String>) -> Self {
+        Self {
+            source_id: source_id.into(),
+            path: path.into(),
+        }
+    }
+
+    /// A stem sidecar: `…/two-sum.md` + `.tests.json` → `…/two-sum.tests.json`.
+    #[must_use]
+    pub fn sidecar(&self, suffix: &str) -> Self {
+        let stem = self.path.strip_suffix(".md").unwrap_or(&self.path);
+        Self::new(&self.source_id, format!("{stem}{suffix}"))
+    }
+
+    /// A file in the lesson's own directory: `a/b/x.md` + `_c4-docs/y.md` → `a/b/_c4-docs/y.md`.
+    #[must_use]
+    pub fn neighbour(&self, relative: &str) -> Self {
+        match self.path.rsplit_once('/') {
+            Some((dir, _)) => Self::new(&self.source_id, format!("{dir}/{relative}")),
+            None => Self::new(&self.source_id, relative),
+        }
+    }
+}
+
 /// The walk's full output: the catalog plus, per book slug, the map from in-book lesson
-/// slug-path to the content-root-relative file path (order prefixes and real folder names
-/// intact — that is what the adapter opens).
+/// slug-path to the source and file that back it.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct WalkResult {
     pub catalog: SynapseContentCatalog,
-    pub lesson_files: BTreeMap<String, BTreeMap<String, String>>,
+    pub lesson_files: BTreeMap<String, BTreeMap<String, LessonFileRef>>,
+    /// Cross-source conflicts, as DATA rather than log lines. Two reasons: the domain stays free
+    /// of `tracing`, and the walk runs uncached on every edit-source fetch and every submit — a
+    /// warn inside it would fire per request instead of once per content version. The caller with
+    /// the cache logs them; the admin panel shows them.
+    pub warnings: Vec<CatalogWarning>,
 }
+
+/// A conflict the merge resolved rather than failed on. Within one source these would be errors;
+/// across sources they are survivable, because refusing to serve the whole library over one
+/// clashing satellite is worse than serving the winner and saying so.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CatalogWarning {
+    /// Two sources claim one book slug. The earlier source wins — and since the primary checkout
+    /// is always first, a book being migrated out of it keeps serving until it is deleted there.
+    DuplicateBookSlug {
+        slug: String,
+        kept_source: String,
+        skipped_source: String,
+    },
+    /// Two sources ship a `category.json` for the same slug. The first declaration wins; a
+    /// category the merge SYNTHESIZED does not count as a declaration and is still upgradable.
+    CategoryRedeclared {
+        slug: String,
+        kept_source: String,
+        ignored_source: String,
+    },
+    /// A source whose root is a book carries no `slug` in `book.json`, so its URL fell back to the
+    /// source id. Loud because the fallback silently moves every lesson in that book.
+    BookSourceWithoutSlug { source_id: String },
+}
+
+#[cfg(test)]
+#[path = "catalog_tests.rs"]
+mod tests;
 
 /// Convention violations the walk refuses to paper over.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

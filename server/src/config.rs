@@ -3,6 +3,18 @@
 //! hijack the server (the launch.json `unset PORT` gotcha, qna). Fields join one slice at a time,
 //! one per feature area, so config grows alongside the features that need it.
 
+/// One satellite mounted from a local directory rather than fetched.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LocalSource {
+    pub id: String,
+    pub root: String,
+    /// `/`-joined category slug path; absent is the top level.
+    #[serde(default)]
+    pub grouping: String,
+    #[serde(default)]
+    pub order: Option<i32>,
+}
+
 use figment::Figment;
 use figment::providers::{Env, Serialized};
 use serde::{Deserialize, Serialize};
@@ -77,6 +89,25 @@ pub struct AppConfig {
     /// `CONTENT_REPO` / `CONTENT_REPO_BRANCH`.
     pub content_repo: String,
     pub content_repo_branch: String,
+    /// Where fetched satellite checkouts live. One directory per registered source, each holding
+    /// its commits and a `current` symlink — git-sync's layout, because a reader must never see a
+    /// half-written tree. An `emptyDir` in production: a cold boot simply refetches. Env:
+    /// `SYNAPSE_CONTENT_CACHE`.
+    pub content_cache: String,
+    /// Satellites mounted straight off local disk, as JSON:
+    /// `[{"id":"java","root":"../java-guide","grouping":"programming-languages","order":7}]`.
+    ///
+    /// DEV AND TEST ONLY, and it earns its place twice. An author working on a guide repository
+    /// wants to see it in the running app without pushing and waiting for a fetch; and the e2e
+    /// suite needs a satellite in the library without reaching the network, which no registry row
+    /// can give it. A local path cannot live in a shared registry, so this is the one thing the
+    /// database genuinely cannot express. Env: `SYNAPSE_LOCAL_SOURCES`.
+    pub local_sources: String,
+    /// Seconds between reconciles of the source registry against disk. Matches git-sync's cadence
+    /// for the primary checkout, which is what the content `max-age` is tuned to. `0` disables the
+    /// loop entirely — satellites then never sync, which is the right shape for tests.
+    /// Env: `SYNAPSE_CONTENT_SYNC_SECONDS`.
+    pub content_sync_seconds: u64,
     /// The fine-grained PAT the forge commits with — `contents: write` +
     /// `pull_requests: write` on `content_repo` ALONE. Never logged, never returned, never sent
     /// anywhere but api.github.com. Empty with `content_forge = "github"` degrades LOUDLY to a
@@ -115,6 +146,9 @@ impl Default for AppConfig {
             content_forge: "dry-run".to_owned(),
             content_repo: "ani2fun/synapse-content".to_owned(),
             content_repo_branch: "main".to_owned(),
+            content_cache: "../.synapse-content-cache".to_owned(),
+            content_sync_seconds: 60,
+            local_sources: String::new(),
             github_token: String::new(),
         }
     }
@@ -122,6 +156,15 @@ impl Default for AppConfig {
 
 impl AppConfig {
     /// `ADMIN_USERS` as the canonical set: split on `,`, trim, lowercase, drop empties.
+    /// The locally-mounted satellites. Blank is none; malformed is a BOOT FAILURE rather than a
+    /// silent skip — half a library served as if it were whole is the worse outcome.
+    pub fn local_sources(&self) -> Result<Vec<LocalSource>, serde_json::Error> {
+        if self.local_sources.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+        serde_json::from_str(&self.local_sources)
+    }
+
     pub fn admin_user_set(&self) -> std::collections::HashSet<String> {
         self.admin_users
             .split(',')

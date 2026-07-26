@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::catalog::domain::content_tree::{BookMeta, ContentEntry};
+use crate::catalog::domain::content_tree::{BookMeta, ContentEntry, PRIMARY_SOURCE_ID, SourceTree};
 
 use super::*;
 
@@ -18,10 +18,15 @@ impl ContentRepository for FakeContent {
     async fn content_version(&self) -> String {
         "v1".to_owned()
     }
-    async fn load_tree(&self) -> Result<Vec<ContentEntry>, ContentError> {
-        Ok(self.tree.clone())
+    async fn load_sources(&self) -> Result<Vec<SourceTree>, ContentError> {
+        Ok(vec![SourceTree {
+            id: PRIMARY_SOURCE_ID.to_owned(),
+            book_meta: None,
+            category_meta: None,
+            children: self.tree.clone(),
+        }])
     }
-    async fn read_lesson(&self, path: &str) -> Result<String, ContentError> {
+    async fn read_lesson(&self, _source_id: &str, path: &str) -> Result<String, ContentError> {
         self.files
             .get(path)
             .cloned()

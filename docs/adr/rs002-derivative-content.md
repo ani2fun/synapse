@@ -1,6 +1,6 @@
 # RS002 — Derivative study material never reaches the served catalog
 
-**Status:** accepted · 2026-07-19
+**Status:** accepted · 2026-07-19 · **amended 2026-07-27** (see *Amendment* below)
 
 ## Context
 
@@ -67,3 +67,32 @@ right fix is different content, not different plumbing.
 - Anything added to that list is invisible to the catalog with no other signal. A directory that
   silently produces no books is confusing if you have forgotten the rule, which is why the
   comment in `walker.rs` is long and points here.
+
+---
+
+## Amendment — 2026-07-27
+
+Two changes, made together because the second is only safe given the first.
+
+**The directory is now `local-only-content/`.** Both spellings stay in `RESERVED_AUX_DIRS`. A
+checkout that has not caught up with the rename must not start serving 66 lessons because of it,
+and one extra array entry is not a trade worth deliberating.
+
+**A `render-local-only` cargo feature renders it — locally.** Studying from material you cannot
+open is a poor arrangement, and the dev loop is the one place where reading it is exactly right.
+
+The gate is a cargo feature and NOT an env var, which is the whole point. An env var would turn
+this decision's guarantee — unservable *by construction*, in the repository that does the serving —
+back into a deployment-config promise, which is the shape this ADR was written to reject. The
+production binary does not contain the branch at all:
+
+- `dev-tools/dev` is the only thing that enables it.
+- `check-conventions.sh` fails if `Dockerfile` or `start.sh` ever does (verified in both
+  directions, not merely written down).
+- `dev-tools/e2e` stays on the prod-shaped binary, without the feature.
+
+One consequence needed closing. Under the feature the study trees ARE in the catalog, so the
+editor's resolver finds them — and committing one would *publish* a gitignored file, which is
+precisely the outcome this decision prevents. `FsLessonSource` therefore refuses them
+unconditionally, not behind the same feature: a guard that exists only in the build that needs it
+is one refactor away from not existing.

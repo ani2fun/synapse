@@ -100,6 +100,7 @@ fn reserved_aux_dirs_and_hidden_files_are_skipped_inside_books() {
 // ── local-only is never content ────────────────────────────────────────────────
 
 #[test]
+#[cfg(not(feature = "render-local-only"))]
 fn a_local_only_dir_yields_no_books_however_well_formed() {
     // The content tree really does carry one of these, holding two complete books — lessons
     // adapted from a commercial course plus a SQL book — kept for personal study (ADR-RS002).
@@ -139,6 +140,47 @@ fn a_local_only_dir_yields_no_books_however_well_formed() {
 }
 
 #[test]
+#[cfg(not(feature = "render-local-only"))]
+fn the_renamed_directory_is_excluded_too() {
+    // Renamed `local-only` → `local-only-content`; both spellings stay reserved so a checkout
+    // that has not caught up cannot start serving commercial material.
+    let result = walk(&[dir(
+        "local-only-content",
+        vec![book_dir(
+            "swiftly",
+            BookMeta {
+                title: Some("Swiftly".to_owned()),
+                ..Default::default()
+            },
+            vec![file("01-intro.md", "---\ntitle: Intro\n---\nbody")],
+        )],
+    )])
+    .unwrap();
+    assert!(result.catalog.entries.is_empty(), "{:?}", result.catalog.entries);
+}
+
+/// The dev-only escape hatch, pinned from the other side: under the feature it DOES render, so
+/// the two builds are known to differ in exactly this way and nothing else.
+#[test]
+#[cfg(feature = "render-local-only")]
+fn the_feature_renders_local_only_content() {
+    let result = walk(&[dir(
+        "local-only-content",
+        vec![book_dir(
+            "swiftly",
+            BookMeta {
+                title: Some("Swiftly".to_owned()),
+                ..Default::default()
+            },
+            vec![file("01-intro.md", "---\ntitle: Intro\n---\nbody")],
+        )],
+    )])
+    .unwrap();
+    assert_eq!(result.catalog.entries.len(), 1);
+}
+
+#[test]
+#[cfg(not(feature = "render-local-only"))]
 fn the_order_prefix_does_not_smuggle_local_only_back_in() {
     // RESERVED_AUX_DIRS is checked order-prefix-stripped, so `01-local-only` is excluded too —
     // adding an ordering prefix must not quietly re-publish 66 lessons.
@@ -157,5 +199,32 @@ fn the_order_prefix_does_not_smuggle_local_only_back_in() {
     assert!(
         result.catalog.entries.is_empty(),
         "an order prefix must not defeat the exclusion"
+    );
+}
+
+#[test]
+fn repo_furniture_never_becomes_a_lesson() {
+    // A satellite guide repo's ROOT is the book, so its README sits INSIDE the book tree. Without
+    // this rule it would render as a lesson called "Readme" and land in the sitemap.
+    let result = walk(&[book_dir(
+        "java",
+        BookMeta {
+            title: Some("Java".to_owned()),
+            ..Default::default()
+        },
+        vec![
+            file("README.md", "how to contribute"),
+            file("CLAUDE.md", "authoring contract"),
+            file("LICENSE.md", "MIT"),
+            file("01-intro.md", "---\ntitle: Intro\n---\nbody"),
+        ],
+    )])
+    .unwrap();
+
+    let files = &result.lesson_files["java"];
+    assert_eq!(
+        files.keys().collect::<Vec<_>>(),
+        vec!["intro"],
+        "only the real lesson survives"
     );
 }

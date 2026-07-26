@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::*;
-use crate::catalog::domain::content_tree::{BookMeta, ContentEntry};
+use crate::catalog::domain::content_tree::{BookMeta, ContentEntry, PRIMARY_SOURCE_ID, SourceTree};
 
 // ── the instrumented stub ─────────────────────────────────────────────────────
 
@@ -31,12 +31,17 @@ impl ContentRepository for StubRepo {
         self.version.lock().unwrap().clone()
     }
 
-    async fn load_tree(&self) -> Result<Vec<ContentEntry>, ContentError> {
+    async fn load_sources(&self) -> Result<Vec<SourceTree>, ContentError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
-        Ok(self.tree.clone())
+        Ok(vec![SourceTree {
+            id: PRIMARY_SOURCE_ID.to_owned(),
+            book_meta: None,
+            category_meta: None,
+            children: self.tree.clone(),
+        }])
     }
 
-    async fn read_lesson(&self, path: &str) -> Result<String, ContentError> {
+    async fn read_lesson(&self, _source_id: &str, path: &str) -> Result<String, ContentError> {
         self.reads.fetch_add(1, Ordering::SeqCst);
         self.files
             .get(path)

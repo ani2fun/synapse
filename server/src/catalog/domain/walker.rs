@@ -5,9 +5,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::catalog::domain::catalog::{
-    Book, BookEntry, CatalogEntry, Category, Lesson, SynapseContentCatalog, SynapseContentError, WalkResult,
+    Book, BookEntry, CatalogEntry, CatalogWarning, Category, Lesson, LessonFileRef, SynapseContentCatalog,
+    SynapseContentError, WalkResult,
 };
-use crate::catalog::domain::content_tree::{BookMeta, CategoryMeta, ContentEntry};
+use crate::catalog::domain::content_tree::{
+    BookMeta, CategoryMeta, ContentEntry, PRIMARY_SOURCE_ID, SourceTree,
+};
 use crate::catalog::domain::frontmatter;
 
 pub const MAX_CHAPTER_DEPTH: usize = 6;
@@ -17,8 +20,8 @@ pub const DEFAULT_ESSENTIAL: bool = true;
 ///
 /// `examples` and `c4` are aux dirs a book may carry alongside its chapters.
 ///
-/// `local-only` is different in kind and is here for a REASON WORTH KNOWING. The content tree
-/// carries material that must never be served — most of it adapted from a commercial course,
+/// `local-only-content` is different in kind and is here for a REASON WORTH KNOWING. The content
+/// tree carries material that must never be served — most of it adapted from a commercial course,
 /// kept for personal study (ADR-RS002). Relying solely on a `.gitignore` rule in the CONTENT
 /// repository would put the protection in a different repo, a different layer, and a different
 /// moment (push time) from the thing it protects: a stray `git add -f`, a blanket `git add -A`,
@@ -29,7 +32,22 @@ pub const DEFAULT_ESSENTIAL: bool = true;
 /// Naming it here makes it unservable by construction, in the repo that does the serving. The
 /// `_`-prefix rule above is the other half; either alone suffices, and having both is
 /// deliberate.
-const RESERVED_AUX_DIRS: [&str; 3] = ["examples", "c4", "local-only"];
+///
+/// BOTH spellings stay reserved. The directory was renamed `local-only` → `local-only-content`,
+/// and a checkout that has not caught up must not start serving commercial material because of
+/// it — one extra array entry against a silent republish is not a trade worth thinking about.
+#[cfg(not(feature = "render-local-only"))]
+const RESERVED_AUX_DIRS: [&str; 4] = ["examples", "c4", "local-only", "local-only-content"];
+
+/// Under `render-local-only`, the study material renders — for a LOCAL reader only.
+///
+/// A cargo feature rather than an env var, deliberately. An env var would make ADR-RS002's
+/// guarantee a deployment-config promise, which is exactly the weakening the ADR was written to
+/// avoid; the production binary simply does not contain this branch, so no misconfiguration can
+/// turn it on. `dev-tools/dev` is the only thing that enables it, and `check-conventions.sh`
+/// asserts the image build does not.
+#[cfg(feature = "render-local-only")]
+const RESERVED_AUX_DIRS: [&str; 2] = ["examples", "c4"];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NAMING RULES — the public helpers the whole context leans on
@@ -100,22 +118,43 @@ fn order_prefix(s: &str) -> Option<i32> {
 }
 
 /// Eligible content dir: slug-like, not `_*`/`.*`, and not a reserved aux dir.
-fn includes_as_content(name: &str) -> bool {
+pub fn includes_as_content(name: &str) -> bool {
     slug_like(name)
         && !name.starts_with('_')
         && !name.starts_with('.')
         && !RESERVED_AUX_DIRS.contains(&strip_order_prefix(name))
 }
 
-/// A lesson source: `.md`, not the `.editorial.md` sidecar, not `_*`/`.*`.
-/// Case-sensitive on purpose: content extensions are lowercase by convention, and `.MD` should
-/// NOT silently become a lesson.
+/// Markdown that is repo furniture, never a lesson — matched case-insensitively on the stem.
+///
+/// This became load-bearing with the satellite shape: when a repo ROOT is the book, its `README.md`
+/// sits inside the book rather than beside it, and would otherwise render as a lesson called
+/// "Readme" complete with a sitemap entry. The authoring contract already tells authors not to put
+/// these in a book tree; enforcing it here makes that unservable by construction instead of by
+/// convention, the same argument as `RESERVED_AUX_DIRS`.
+const REPO_FURNITURE: [&str; 9] = [
+    "readme",
+    "claude",
+    "agents",
+    "license",
+    "licence",
+    "contributing",
+    "code_of_conduct",
+    "security",
+    "changelog",
+];
+
+/// A lesson source: `.md`, not the `.editorial.md` sidecar, not `_*`/`.*`, not repo furniture.
+/// Case-sensitive on the EXTENSION on purpose: content extensions are lowercase by convention, and
+/// `.MD` should NOT silently become a lesson.
 #[allow(clippy::case_sensitive_file_extension_comparisons)]
-fn is_lesson_file(name: &str) -> bool {
+pub fn is_lesson_file(name: &str) -> bool {
+    let stem = name.strip_suffix(".md").unwrap_or(name).to_lowercase();
     name.ends_with(".md")
         && !name.ends_with(".editorial.md")
         && !name.starts_with('_')
         && !name.starts_with('.')
+        && !REPO_FURNITURE.contains(&stem.as_str())
 }
 
 /// Book-interior sort key: `index(.md)` first, then numeric prefixes, then the rest.
@@ -130,21 +169,60 @@ fn interior_order(name: &str) -> i32 {
 // THE WALK
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Assemble the catalog from the raw tree. Lenient about missing metadata (ADR-0001), strict
+/// Assemble the catalog from one source's tree. Lenient about missing metadata (ADR-0001), strict
 /// about convention violations (duplicate slugs, over-deep chapters, non-slug lesson paths).
-pub fn walk(roots: &[ContentEntry]) -> Result<WalkResult, SynapseContentError> {
-    let mut state = WalkState::default();
-    let entries = build_level(roots, &[], &[], &mut state)?;
+///
+/// A root carrying `book.json` IS one book — a satellite guide repo, chapters straight at the
+/// root. Everything else is a collection, walked by directory nesting. Where the resulting book
+/// SITS in the library is not decided here: a source-root book comes out at the top level and
+/// `merge` grafts it into its configured grouping.
+pub fn walk_source(source: &SourceTree) -> Result<WalkResult, SynapseContentError> {
+    let mut state = WalkState::new(&source.id);
+    let entries = match &source.book_meta {
+        Some(meta) => vec![CatalogEntry::Book(build_book(
+            None,
+            meta,
+            &source.children,
+            &[],
+            &[],
+            &mut state,
+        )?)],
+        None => build_level(&source.children, &[], &[], &mut state)?,
+    };
     Ok(WalkResult {
         catalog: SynapseContentCatalog { entries },
         lesson_files: state.lesson_files,
+        warnings: state.warnings,
     })
 }
 
-#[derive(Default)]
-struct WalkState {
+/// The single-source convenience: walk a bare root listing as the primary checkout.
+pub fn walk(roots: &[ContentEntry]) -> Result<WalkResult, SynapseContentError> {
+    walk_source(&SourceTree {
+        id: PRIMARY_SOURCE_ID.to_owned(),
+        book_meta: None,
+        category_meta: None,
+        children: roots.to_vec(),
+    })
+}
+
+struct WalkState<'a> {
+    /// Stamped onto every `LessonFileRef` this walk emits — one walk covers exactly one source.
+    source_id: &'a str,
     seen_book_slugs: BTreeSet<String>,
-    lesson_files: BTreeMap<String, BTreeMap<String, String>>,
+    lesson_files: BTreeMap<String, BTreeMap<String, LessonFileRef>>,
+    warnings: Vec<CatalogWarning>,
+}
+
+impl<'a> WalkState<'a> {
+    fn new(source_id: &'a str) -> Self {
+        Self {
+            source_id,
+            seen_book_slugs: BTreeSet::new(),
+            lesson_files: BTreeMap::new(),
+            warnings: Vec::new(),
+        }
+    }
 }
 
 /// One library level (the root or a category's children): books and sub-categories, sorted by
@@ -154,7 +232,7 @@ fn build_level(
     children: &[ContentEntry],
     category_path: &[String],
     dir_path: &[String],
-    state: &mut WalkState,
+    state: &mut WalkState<'_>,
 ) -> Result<Vec<CatalogEntry>, SynapseContentError> {
     let mut level: Vec<(i32, String, CatalogEntry)> = Vec::new();
     for child in children {
@@ -171,7 +249,7 @@ fn build_level(
             continue;
         }
         if let Some(meta) = book_meta {
-            let book = build_book(name, meta, children, category_path, dir_path, state)?;
+            let book = build_book(Some(name), meta, children, category_path, dir_path, state)?;
             level.push((
                 book.order.unwrap_or(i32::MAX),
                 name.to_lowercase(),
@@ -203,7 +281,7 @@ fn build_category(
     children: &[ContentEntry],
     category_path: &[String],
     dir_path: &[String],
-    state: &mut WalkState,
+    state: &mut WalkState<'_>,
 ) -> Result<Option<Category>, SynapseContentError> {
     let slug = slugify(strip_order_prefix(name));
     let mut inner_categories = category_path.to_vec();
@@ -227,13 +305,16 @@ fn build_category(
     }))
 }
 
+/// `dir_name` is `None` when the SOURCE ROOT is the book (a satellite guide repo): there is no
+/// folder to derive a slug, title or order from, so `book.json` has to carry them and the source
+/// id is the last resort.
 fn build_book(
-    name: &str,
+    dir_name: Option<&str>,
     meta: &BookMeta,
     children: &[ContentEntry],
     category_path: &[String],
     dir_path: &[String],
-    state: &mut WalkState,
+    state: &mut WalkState<'_>,
 ) -> Result<Book, SynapseContentError> {
     // An explicit book.json slug overrides the folder-derived one; file paths keep the folder.
     let slug = meta
@@ -241,16 +322,29 @@ fn build_book(
         .as_deref()
         .map(slugify)
         .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| slugify(strip_order_prefix(name)));
+        .or_else(|| dir_name.map(|name| slugify(strip_order_prefix(name))))
+        .unwrap_or_else(|| {
+            state.warnings.push(CatalogWarning::BookSourceWithoutSlug {
+                source_id: state.source_id.to_owned(),
+            });
+            slugify(state.source_id)
+        });
     if !state.seen_book_slugs.insert(slug.clone()) {
         return Err(SynapseContentError::DuplicateBookSlug(slug));
     }
 
     let mut book_dirs = dir_path.to_vec();
-    book_dirs.push(name.to_owned());
-    let mut files: BTreeMap<String, String> = BTreeMap::new();
+    book_dirs.extend(dir_name.map(ToOwned::to_owned));
+    let mut files: BTreeMap<String, LessonFileRef> = BTreeMap::new();
     let mut duplicates: BTreeSet<String> = BTreeSet::new();
-    let entries = build_book_entries(children, &[], &book_dirs, &mut files, &mut duplicates)?;
+    let entries = build_book_entries(
+        state.source_id,
+        children,
+        &[],
+        &book_dirs,
+        &mut files,
+        &mut duplicates,
+    )?;
     if !duplicates.is_empty() {
         return Err(SynapseContentError::DuplicateLessonSlug {
             book_slug: slug,
@@ -261,11 +355,14 @@ fn build_book(
 
     Ok(Book {
         slug,
-        title: meta.title.clone().unwrap_or_else(|| humanise(name)),
+        title: meta
+            .title
+            .clone()
+            .unwrap_or_else(|| humanise(dir_name.unwrap_or(state.source_id))),
         description: meta.description.clone().unwrap_or_default(),
         tags: meta.tags.clone().unwrap_or_default(),
         estimated_reading_minutes: meta.estimated_reading_minutes,
-        order: meta.order.or_else(|| order_prefix(name)),
+        order: meta.order.or_else(|| dir_name.and_then(order_prefix)),
         category_path: category_path.to_vec(),
         entries,
     })
@@ -274,10 +371,11 @@ fn build_book(
 /// One book-interior level: chapters (eligible dirs) and lessons (eligible `.md` files),
 /// sorted by `(index-first/numeric-prefix, name lowercased)`.
 fn build_book_entries(
+    source_id: &str,
     children: &[ContentEntry],
     chapter_slugs: &[String],
     dir_path: &[String],
-    files: &mut BTreeMap<String, String>,
+    files: &mut BTreeMap<String, LessonFileRef>,
     duplicates: &mut BTreeSet<String>,
 ) -> Result<Vec<BookEntry>, SynapseContentError> {
     let mut level: Vec<(i32, String, BookEntry)> = Vec::new();
@@ -292,7 +390,7 @@ fn build_book_entries(
                 }
                 let mut dirs = dir_path.to_vec();
                 dirs.push(name.to_owned());
-                let entries = build_book_entries(children, &slugs, &dirs, files, duplicates)?;
+                let entries = build_book_entries(source_id, children, &slugs, &dirs, files, duplicates)?;
                 level.push((
                     interior_order(name),
                     name.to_lowercase(),
@@ -318,7 +416,8 @@ fn build_book_entries(
                 }
                 let mut file_path = dir_path.to_vec();
                 file_path.push(name.to_owned());
-                if files.insert(slug_path.clone(), file_path.join("/")).is_some() {
+                let file = LessonFileRef::new(source_id, file_path.join("/"));
+                if files.insert(slug_path.clone(), file).is_some() {
                     duplicates.insert(slug_path);
                     continue;
                 }

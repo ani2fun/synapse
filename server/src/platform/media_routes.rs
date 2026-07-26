@@ -12,43 +12,67 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 
+use crate::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
+use crate::catalog::infrastructure::{MountedSources, SourceRoot};
+
 const MEDIA_CACHE: &str = "public, max-age=3600";
 
+/// Every mounted checkout's `_media/` tree, probed in mount order.
+///
+/// Collisions cannot arise in practice: the convention is `_media/<book-slug>/…` and book slugs
+/// are globally unique, so at most one source can own any given path. Probing in mount order
+/// nonetheless matches the catalog's own first-wins rule, so a book being migrated serves its
+/// media from the same repository that serves its prose.
+#[derive(Clone)]
 pub struct MediaRoutes {
-    root: PathBuf,
+    sources: MountedSources,
 }
 
 impl MediaRoutes {
-    /// The media root is the content checkout's `_media/` tree.
+    /// The single-checkout deployment: one `_media/` tree.
     pub fn new(content_root: impl AsRef<Path>) -> Self {
         Self {
-            root: content_root.as_ref().join("_media"),
+            sources: MountedSources::new(vec![SourceRoot::new(PRIMARY_SOURCE_ID, content_root.as_ref())]),
         }
+    }
+
+    /// Share the live mounted set, so a satellite registered at runtime serves its media too.
+    pub fn mounted(sources: MountedSources) -> Self {
+        Self { sources }
     }
 
     pub fn routes(&self) -> Router {
         Router::new()
             .route("/media/{*rest}", get(media))
-            .with_state(self.root.clone())
+            .with_state(self.sources.clone())
     }
 }
 
 async fn media(
-    state: axum::extract::State<PathBuf>,
+    state: axum::extract::State<MountedSources>,
     axum::extract::Path(rest): axum::extract::Path<String>,
     headers: HeaderMap,
 ) -> Response {
-    let root = state.0.clone();
+    let roots: Vec<PathBuf> = state
+        .0
+        .snapshot()
+        .into_iter()
+        .map(|source| source.root.join("_media"))
+        .collect();
     let bytes = tokio::task::spawn_blocking(move || {
-        let root_real = root.canonicalize().ok()?;
-        let target = root.join(&rest).canonicalize().ok()?;
-        if target.starts_with(&root_real) && target.is_file() {
-            std::fs::read(&target)
-                .ok()
-                .map(|bytes| (bytes, content_type_of(&target)))
-        } else {
-            None
-        }
+        // Guarded per root, exactly as before: the realpath of the target must stay under the
+        // realpath of THAT root, so probing several never widens what any one of them exposes.
+        roots.iter().find_map(|root| {
+            let root_real = root.canonicalize().ok()?;
+            let target = root.join(&rest).canonicalize().ok()?;
+            if target.starts_with(&root_real) && target.is_file() {
+                std::fs::read(&target)
+                    .ok()
+                    .map(|bytes| (bytes, content_type_of(&target)))
+            } else {
+                None
+            }
+        })
     })
     .await
     .ok()

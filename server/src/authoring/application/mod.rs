@@ -17,17 +17,23 @@ use uuid::Uuid;
 
 use crate::authoring::domain::branch::branch_for;
 use crate::authoring::domain::validation::{fingerprint, normalise, validate};
-use crate::authoring::domain::{EditRequest, EditRequestId};
+use crate::authoring::domain::{EditRequest, EditRequestId, ProposalLocation};
+use crate::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
 
 pub use ports::{
     AuthoringError, ContentEditorEntry, ContentEditors, ContentForge, EditRequestRepository, Editor,
-    ForgePrState, LessonFile, LessonSource,
+    ForgePrState, Forges, LessonFile, LessonSource,
 };
 
 /// A lesson's source plus the provenance the editor shows and hands back on submit.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EditableSource {
     pub lesson_path: String,
+    /// Which repository an edit to THIS page opens a pull request against. Per-lesson because a
+    /// satellite's book is edited in its own repository — a contributor cannot infer it from the
+    /// URL, so the editor has to say.
+    pub repo: String,
+    pub base_branch: String,
     pub file_path: String,
     pub source: String,
     pub fingerprint: String,
@@ -44,7 +50,7 @@ pub struct Proposal {
 }
 
 /// Where the deployment proposes changes.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ForgeTarget {
     /// `owner/name`.
     pub repo: String,
@@ -57,8 +63,9 @@ pub struct ProposeEdit<Source, Editors, Repo, Forge> {
     source: Arc<Source>,
     editors: Arc<Editors>,
     repo: Arc<Repo>,
-    forge: Arc<Forge>,
-    target: ForgeTarget,
+    /// Every configured forge, selected per edit. A satellite guide repo's lesson opens its pull
+    /// request against THAT repository, not the monorepo.
+    forges: Arc<Forge>,
 }
 
 impl<Source, Editors, Repo, Forge> ProposeEdit<Source, Editors, Repo, Forge>
@@ -66,30 +73,49 @@ where
     Source: LessonSource,
     Editors: ContentEditors,
     Repo: EditRequestRepository,
-    Forge: ContentForge,
+    Forge: Forges,
 {
-    pub fn new(
-        source: Arc<Source>,
-        editors: Arc<Editors>,
-        repo: Arc<Repo>,
-        forge: Arc<Forge>,
-        target: ForgeTarget,
-    ) -> Self {
+    /// The forge a stored proposal's branch lives in. A row whose repository is no longer
+    /// configured is an honest failure: the branch exists somewhere we can no longer reach.
+    async fn forge_at(&self, repo: &str) -> Result<Forge::Forge, AuthoringError> {
+        self.forges
+            .forge_for(repo)
+            .await
+            .ok_or_else(|| AuthoringError::ContentUnreadable(format!("no forge configured for '{repo}'")))
+    }
+
+    /// Where a source's edits go.
+    async fn target_of(&self, source_id: &str) -> Result<ForgeTarget, AuthoringError> {
+        self.forges.target_for(source_id).await.ok_or_else(|| {
+            AuthoringError::ContentUnreadable(format!("no forge configured for source '{source_id}'"))
+        })
+    }
+
+    pub fn new(source: Arc<Source>, editors: Arc<Editors>, repo: Arc<Repo>, forges: Arc<Forge>) -> Self {
         Self {
             source,
             editors,
             repo,
-            forge,
-            target,
+            forges,
         }
     }
 
-    pub fn target(&self) -> &ForgeTarget {
-        &self.target
+    /// The DEFAULT target, for `/api/edits/config` — the primary checkout's repository. A given
+    /// lesson's actual target rides its `EditSourceDto`, because it depends on which source owns
+    /// the page.
+    pub async fn target(&self) -> ForgeTarget {
+        self.forges
+            .target_for(PRIMARY_SOURCE_ID)
+            .await
+            .unwrap_or_default()
     }
 
-    pub fn mode(&self) -> &'static str {
-        self.forge.mode()
+    pub async fn mode(&self) -> &'static str {
+        let repo = self.target().await.repo;
+        match self.forges.forge_for(&repo).await {
+            Some(forge) => forge.mode(),
+            None => "off",
+        }
     }
 
     /// The UX bit behind `/api/edits/config`'s `canEdit`. Anonymous is `false`, never an error —
@@ -126,8 +152,11 @@ where
             .file_for(lesson_path)
             .await?
             .ok_or_else(|| AuthoringError::NotEditable(joined.clone()))?;
+        let target = self.target_of(&file.source_id).await?;
         Ok(EditableSource {
             lesson_path: joined,
+            repo: target.repo,
+            base_branch: target.base_branch,
             file_path: file.file_path,
             fingerprint: fingerprint(&file.source),
             source: file.source,
@@ -188,7 +217,7 @@ where
         match self.reusable(&username, &joined).await? {
             Some(existing) => self.revise(existing, &content, &message).await,
             None => {
-                self.open_new(&username, &joined, &file.file_path, &content, &message, summary)
+                self.open_new(&username, &joined, &file, &content, &message, summary)
                     .await
             }
         }
@@ -209,7 +238,11 @@ where
         let Some(number) = existing.pull_request.as_ref().map(|pr| pr.number) else {
             return Ok(Some(existing));
         };
-        let state = self.forge.pull_request_state(number).await?;
+        let state = self
+            .forge_at(&existing.repo)
+            .await?
+            .pull_request_state(number)
+            .await?;
         if state == ForgePrState::Open {
             return Ok(Some(existing));
         }
@@ -230,7 +263,8 @@ where
         content: &str,
         message: &str,
     ) -> Result<Proposal, AuthoringError> {
-        self.forge
+        let forge = self.forge_at(&existing.repo).await?;
+        forge
             .commit_file(&existing.branch, &existing.file_path, content, message)
             .await?;
         let revised = existing.revised(Utc::now());
@@ -243,7 +277,7 @@ where
         Ok(Proposal {
             request: revised,
             reused: true,
-            mode: self.forge.mode(),
+            mode: forge.mode(),
         })
     }
 
@@ -253,33 +287,36 @@ where
         &self,
         username: &str,
         lesson_path: &str,
-        file_path: &str,
+        file: &LessonFile,
         content: &str,
         message: &str,
         summary: Option<&str>,
     ) -> Result<Proposal, AuthoringError> {
+        let file_path = file.file_path.as_str();
+        let target = self.target_of(&file.source_id).await?;
+        let forge = self.forge_at(&target.repo).await?;
         let attempt = self
             .repo
             .highest_attempt(username, lesson_path)
             .await?
             .saturating_add(1);
         let branch = branch_for(username, lesson_path, attempt);
-        self.forge
-            .commit_file(&branch, file_path, content, message)
-            .await?;
+        forge.commit_file(&branch, file_path, content, message).await?;
 
         let title = message::pull_request_title(lesson_path);
-        let body =
-            message::pull_request_body(&self.target.site_url, lesson_path, file_path, username, summary);
-        let pull_request = self.forge.open_pull_request(&branch, &title, &body).await?;
+        let body = message::pull_request_body(&target.site_url, lesson_path, file_path, username, summary);
+        let pull_request = forge.open_pull_request(&branch, &title, &body).await?;
 
         let now = Utc::now();
         let mut request = EditRequest::opened(
             EditRequestId(Uuid::new_v4()),
             username.to_owned(),
-            lesson_path.to_owned(),
-            file_path.to_owned(),
-            branch,
+            ProposalLocation {
+                lesson_path: lesson_path.to_owned(),
+                file_path: file_path.to_owned(),
+                repo: target.repo.clone(),
+                branch,
+            },
             attempt,
             now,
         );
@@ -288,6 +325,7 @@ where
         }
         self.repo.save(&request).await?;
         tracing::info!(
+            repo = %target.repo,
             branch = request.branch,
             attempt,
             pr = request.pull_request.as_ref().map(|pr| pr.number),
@@ -296,7 +334,7 @@ where
         Ok(Proposal {
             request,
             reused: false,
-            mode: self.forge.mode(),
+            mode: forge.mode(),
         })
     }
 }

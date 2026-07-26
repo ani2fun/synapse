@@ -19,9 +19,10 @@ pub struct EditConfigDto {
     /// `"github"` (real pull requests) or `"dry-run"` (nothing leaves the process). The editor
     /// says which, plainly, rather than letting a contributor believe a dry run shipped.
     pub mode: String,
-    /// `owner/name` of the content repository.
+    /// `owner/name` of the PRIMARY content repository, and the branch it targets. A given
+    /// lesson's actual target rides its `EditSourceDto` — this is the default the editor shows
+    /// before a page is chosen.
     pub repo: String,
-    /// The branch pull requests target.
     pub base_branch: String,
     /// Whether THIS caller may propose edits — signed in and on the content-editor allowlist.
     /// UX only; every write re-checks server-side.
@@ -35,6 +36,11 @@ pub struct EditConfigDto {
 pub struct EditSourceDto {
     /// The URL path (`category…/book/chapter…/lesson`).
     pub lesson_path: String,
+    /// `owner/name` of the repository an edit to THIS page opens a pull request against, and the
+    /// branch it targets. Per-lesson, not per-deployment: a satellite guide's book is edited in
+    /// its own repository, and a contributor cannot infer that from the URL — so the editor says.
+    pub repo: String,
+    pub base_branch: String,
     /// The path INSIDE the content repository — real folders carry `NN-` order prefixes, so this
     /// is never derivable from `lesson_path` by the client.
     pub file_path: String,

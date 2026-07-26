@@ -104,7 +104,7 @@ impl PostgresEditRequests {
     }
 }
 
-const COLUMNS: &str = "id, username, lesson_path, file_path, branch, attempt, \
+const COLUMNS: &str = "id, username, lesson_path, file_path, repo, branch, attempt, \
                        pr_number, pr_url, state, commits, created_at, updated_at";
 
 /// `pr_number`/`pr_url` are nullable together — a dry-run row has a branch and no pull request —
@@ -125,6 +125,7 @@ fn request(row: &PgRow) -> EditRequest {
         username: row.get("username"),
         lesson_path: row.get("lesson_path"),
         file_path: row.get("file_path"),
+        repo: row.get("repo"),
         branch: row.get("branch"),
         attempt: row.get::<i32, _>("attempt").unsigned_abs(),
         pull_request,
@@ -172,14 +173,15 @@ impl EditRequestRepository for PostgresEditRequests {
     async fn save(&self, request: &EditRequest) -> Result<(), AuthoringError> {
         sqlx::query(
             "insert into content_edit_request \
-             (id, username, lesson_path, file_path, branch, attempt, pr_number, pr_url, state, \
-              commits, created_at, updated_at) \
-             values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)",
+             (id, username, lesson_path, file_path, repo, branch, attempt, pr_number, pr_url, \
+              state, commits, created_at, updated_at) \
+             values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
         )
         .bind(request.id.0)
         .bind(&request.username)
         .bind(&request.lesson_path)
         .bind(&request.file_path)
+        .bind(&request.repo)
         .bind(&request.branch)
         .bind(i32::try_from(request.attempt).unwrap_or(i32::MAX))
         .bind(

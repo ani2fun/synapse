@@ -11,10 +11,11 @@ use std::sync::{Arc, Mutex};
 
 use crate::authoring::application::{
     AuthoringError, ContentEditorEntry, ContentEditors, ContentForge, EditRequestRepository, Editor,
-    ForgePrState, ForgeTarget, LessonFile, LessonSource, ProposeEdit,
+    ForgePrState, ForgeTarget, Forges, LessonFile, LessonSource, ProposeEdit,
 };
 use crate::authoring::domain::validation::fingerprint;
 use crate::authoring::domain::{EditRequest, PullRequestRef};
+use crate::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
 
 pub const PAGE: &str = "system-design-from-first-principles/foundations/thinking-in-tradeoffs";
 pub const FILE: &str = "system-design-from-first-principles/01-foundations/01-thinking-in-tradeoffs.md";
@@ -67,6 +68,7 @@ impl FakeSource {
 impl LessonSource for FakeSource {
     async fn file_for(&self, _path: &[String]) -> Result<Option<LessonFile>, AuthoringError> {
         Ok(self.0.lock().unwrap().clone().map(|source| LessonFile {
+            source_id: PRIMARY_SOURCE_ID.to_owned(),
             file_path: FILE.to_owned(),
             source,
         }))
@@ -265,11 +267,27 @@ impl ContentForge for DeadForge {
 
 // ── assembly ──────────────────────────────────────────────────────────────────
 
-pub struct Harness<F> {
-    pub service: ProposeEdit<FakeSource, FakeEditors, FakeRepo, F>,
+pub struct Harness<F: ContentForge> {
+    pub service: ProposeEdit<FakeSource, FakeEditors, FakeRepo, OneForge<F>>,
     pub source: Arc<FakeSource>,
     pub repo: Arc<FakeRepo>,
     pub forge: Arc<F>,
+}
+
+/// One forge for every source — the single-repository shape the pre-satellite tests describe.
+/// `Arc` rather than a clone so the double keeps recording through whichever handle is used.
+pub struct OneForge<F>(Arc<F>, ForgeTarget);
+
+impl<F: ContentForge> Forges for OneForge<F> {
+    type Forge = Arc<F>;
+
+    async fn target_for(&self, _source_id: &str) -> Option<ForgeTarget> {
+        Some(self.1.clone())
+    }
+
+    async fn forge_for(&self, _repo: &str) -> Option<Self::Forge> {
+        Some(Arc::clone(&self.0))
+    }
 }
 
 pub fn harness_with<F: ContentForge>(source: FakeSource, forge: F, granted: &[&str]) -> Harness<F> {
@@ -281,12 +299,14 @@ pub fn harness_with<F: ContentForge>(source: FakeSource, forge: F, granted: &[&s
         Arc::clone(&source),
         editors,
         Arc::clone(&repo),
-        Arc::clone(&forge),
-        ForgeTarget {
-            repo: "ani2fun/synapse-content".to_owned(),
-            base_branch: "main".to_owned(),
-            site_url: "https://synapse.kakde.eu".to_owned(),
-        },
+        Arc::new(OneForge(
+            Arc::clone(&forge),
+            ForgeTarget {
+                repo: "ani2fun/synapse-content".to_owned(),
+                base_branch: "main".to_owned(),
+                site_url: "https://synapse.kakde.eu".to_owned(),
+            },
+        )),
     );
     Harness {
         service,

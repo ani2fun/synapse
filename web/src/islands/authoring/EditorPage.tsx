@@ -217,6 +217,8 @@ function Editor(props: EditorProps) {
           original={props.source.source}
           source={text}
           lessonPath={props.lessonPath}
+          repo={props.source.repo}
+          baseBranch={props.source.baseBranch}
           findings={findings}
           submitting={submitting}
           onSubmit={(summary) => void submit(summary)}

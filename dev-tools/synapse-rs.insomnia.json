@@ -566,6 +566,59 @@
       ],
       "_type": "request",
       "parentId": "fld_admin"
+    },
+    {
+      "_id": "req_content_sources_list",
+      "name": "GET /api/admin/content-sources",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/admin/content-sources",
+      "description": "Which repositories feed the library, in mount order, with the fetch loop's sync state. The primary checkout is absent: it arrives by git-sync and is always first.",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "_type": "request",
+      "parentId": "fld_admin"
+    },
+    {
+      "_id": "req_content_sources_register",
+      "name": "POST /api/admin/content-sources",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/admin/content-sources",
+      "description": "Register a satellite guide repo. Keyed on the id derived from `repo`, so posting the same repository again edits its row. The book appears once the next fetch lands it, not on this call.",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"repo\": \"ani2fun/java-guide\",\n  \"branch\": \"main\",\n  \"grouping\": \"programming-languages\",\n  \"order\": 7,\n  \"enabled\": true\n}"
+      },
+      "_type": "request",
+      "parentId": "fld_admin"
+    },
+    {
+      "_id": "req_content_sources_remove",
+      "name": "DELETE /api/admin/content-sources/{id}",
+      "method": "DELETE",
+      "url": "{{ _.base_url }}/api/admin/content-sources/java-guide",
+      "description": "Forget a repository. The cached checkout is reclaimed by the fetch loop; nothing is deleted on the forge.",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "_type": "request",
+      "parentId": "fld_admin"
     }
   ]
 }

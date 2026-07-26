@@ -3,9 +3,8 @@
 # compression) fronting the Node sidecar via SYNAPSE_ASTRO_URL — the same two processes the
 # production image runs. The per-page budget gate runs after the specs, on the same stack.
 #
-# Needs the content platform's backing services (this repo has no compose of its own):
-#   cd ~/Development/homelab/synapse && docker compose up -d db
-# and the DEDICATED `synapse_rs` database, never the platform's own `synapse`.
+# Needs the backing services from this repo's compose:
+#   docker compose up -d db
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -14,6 +13,13 @@ export SYNAPSE_DATABASE_URL="${SYNAPSE_DATABASE_URL:-postgres://synapse:synapse@
 # smoke suite pinned to real content means an unrelated edit in another repository can turn
 # this one red. Point SYNAPSE_ROOT at the real tree to spot-check against it.
 export SYNAPSE_ROOT="${SYNAPSE_ROOT:-e2e/fixture-content}"
+# A SATELLITE in the library, mounted straight off disk. The registry cannot express a local path
+# and the fetcher would reach GitHub, so this is the only way to exercise the multi-source path in
+# CI — and it is the same code an author uses to see a guide repo they are editing.
+SATELLITE='[{"id":"java-guide","root":"e2e/fixture-java-guide","grouping":"programming-languages","order":7}]'
+export SYNAPSE_LOCAL_SOURCES="${SYNAPSE_LOCAL_SOURCES:-$SATELLITE}"
+# The reconcile loop is OFF: nothing here is registered, and a tick would only reach the network.
+export SYNAPSE_CONTENT_SYNC_SECONDS="${SYNAPSE_CONTENT_SYNC_SECONDS:-0}"
 export SYNAPSE_PORT="${SYNAPSE_PORT:-8280}"
 SIDECAR_PORT="${SIDECAR_PORT:-4321}"
 

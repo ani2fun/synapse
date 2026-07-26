@@ -88,6 +88,12 @@ pub struct AppDeps<
     /// and its admin allowlist unmounted — the same structural 404 the coach gets, rather than a
     /// flag re-checked on every request.
     pub authoring: Option<authoring::http::AuthoringRoutesState>,
+    /// The source registry the admin panel manages: which repositories feed the library. `None`
+    /// leaves `/api/admin/content-sources` unmounted, the same structural 404 the coach gets.
+    /// Concrete, like `progress`: one Postgres store, and no test fakes it through the router.
+    pub content_sources: Option<
+        catalog::http::admin::ContentSourceRoutesState<catalog::infrastructure::PostgresContentSources>,
+    >,
 }
 
 /// The assembled HTTP surface. Contexts contribute their routers here; integration tests drive
@@ -151,6 +157,13 @@ where
     // `/api/edits` and its admin allowlist absent rather than gated.
     if let Some(state) = deps.authoring {
         api = api.merge(authoring::http::routes(state));
+    }
+    // The registry mounts wherever a store is wired; without it, satellites simply cannot be
+    // registered and the library is the primary checkout alone.
+    if let Some(state) = deps.content_sources {
+        api = api
+            .merge(catalog::http::c4::routes(state.clone()))
+            .merge(catalog::http::admin::routes(state));
     }
     let mut router = api
         .layer(axum::middleware::from_fn(platform::content_cache_control::stamp))
@@ -235,7 +248,11 @@ where
         authoring::http::list_mine,
         authoring::http::admin::list_content_editors,
         authoring::http::admin::grant_content_editor,
-        authoring::http::admin::revoke_content_editor
+        authoring::http::admin::revoke_content_editor,
+        catalog::http::admin::list_content_sources,
+        catalog::http::admin::register_content_source,
+        catalog::http::admin::remove_content_source,
+        catalog::http::c4::list_c4_sources
     ),
     components(schemas(
         HealthStatus,
@@ -279,7 +296,10 @@ where
         synapse_shared::authoring::EditConfigDto,
         synapse_shared::authoring::EditSourceDto,
         synapse_shared::authoring::ProposeEditRequestDto,
-        synapse_shared::authoring::EditRequestDto
+        synapse_shared::authoring::EditRequestDto,
+        synapse_shared::catalog::ContentSourceDto,
+        synapse_shared::catalog::RegisterContentSourceDto,
+        synapse_shared::catalog::C4SourceDto
     ))
 )]
 pub struct ApiDoc;

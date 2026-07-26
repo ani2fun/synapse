@@ -4,6 +4,25 @@
 
 use serde::Deserialize;
 
+/// The source id a single-checkout deployment walks under — the git-sync'd primary tree.
+pub const PRIMARY_SOURCE_ID: &str = "main";
+
+/// One content source's tree: a whole checkout, with the ROOT's own markers decoded.
+///
+/// The root markers are what tell the two source shapes apart. A checkout whose root carries a
+/// `book.json` IS one book — a satellite guide repo, its chapters directly at the root. One
+/// without is a collection, walked by directory nesting. The distinction has to live here because
+/// the adapter only decodes markers one level down: hand the walker a bare list of the root's
+/// children and the root's own `book.json` is unreachable.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceTree {
+    /// Unique across sources — what a `LessonFileRef` points back through to reach the right root.
+    pub id: String,
+    pub book_meta: Option<BookMeta>,
+    pub category_meta: Option<CategoryMeta>,
+    pub children: Vec<ContentEntry>,
+}
+
 /// One entry of the raw content tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContentEntry {

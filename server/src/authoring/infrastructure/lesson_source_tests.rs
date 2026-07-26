@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::catalog::domain::content_tree::{BookMeta, ContentEntry};
+use crate::catalog::domain::content_tree::{BookMeta, ContentEntry, PRIMARY_SOURCE_ID, SourceTree};
 
 use super::*;
 
@@ -21,10 +21,15 @@ impl ContentRepository for FakeContent {
     async fn content_version(&self) -> String {
         "v1".to_owned()
     }
-    async fn load_tree(&self) -> Result<Vec<ContentEntry>, ContentError> {
-        Ok(self.tree.clone())
+    async fn load_sources(&self) -> Result<Vec<SourceTree>, ContentError> {
+        Ok(vec![SourceTree {
+            id: PRIMARY_SOURCE_ID.to_owned(),
+            book_meta: None,
+            category_meta: None,
+            children: self.tree.clone(),
+        }])
     }
-    async fn read_lesson(&self, path: &str) -> Result<String, ContentError> {
+    async fn read_lesson(&self, _source_id: &str, path: &str) -> Result<String, ContentError> {
         self.files
             .get(path)
             .cloned()
@@ -99,6 +104,40 @@ async fn a_traversal_attempt_never_reaches_the_filesystem() {
         assert!(
             source().file_for(&hostile).await.unwrap().is_none(),
             "{hostile:?}"
+        );
+    }
+}
+
+/// Under `render-local-only` the study trees ARE in the catalog, so the resolver would find them
+/// — and committing one would publish a gitignored file. Refused regardless of the feature.
+#[tokio::test]
+async fn local_only_content_is_never_editable() {
+    for head in ["local-only-content", "local-only", "01-local-only-content"] {
+        let file = format!("{head}/01-swiftly/01-intro.md");
+        let mut files = BTreeMap::new();
+        files.insert(file.clone(), LESSON_SOURCE.to_owned());
+        let tree = vec![ContentEntry::Dir {
+            name: head.to_owned(),
+            book_meta: None,
+            category_meta: None,
+            children: vec![ContentEntry::Dir {
+                name: "01-swiftly".to_owned(),
+                book_meta: Some(BookMeta {
+                    slug: Some("swiftly".to_owned()),
+                    ..BookMeta::default()
+                }),
+                category_meta: None,
+                children: vec![ContentEntry::File {
+                    name: "01-intro.md".to_owned(),
+                    content: LESSON_SOURCE.to_owned(),
+                }],
+            }],
+        }];
+        let source = FsLessonSource::new(FakeContent { tree, files });
+        let path = ["swiftly".to_owned(), "intro".to_owned()];
+        assert!(
+            source.file_for(&path).await.unwrap().is_none(),
+            "{head} must not be editable"
         );
     }
 }

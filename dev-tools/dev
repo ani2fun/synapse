@@ -24,7 +24,17 @@ if [[ ! -f web/src/lib/viz-wasm/pkg/viz_wasm.js ]]; then
   ./dev-tools/build-viz-wasm.sh dev
 fi
 
-cargo build -p synapse-server --quiet
+# Vite's dependency pre-scan runs ONLY when web/node_modules/.vite/deps is absent, and it is the
+# one step that reads every .astro through a regex script-block extractor. A warm cache skips it,
+# so a file that breaks the scan boots fine here and explodes on the next machine to start cold.
+# Wiping it makes every dev start the cold path: the scan runs, and a break shows up now.
+rm -rf web/node_modules/.vite/deps
+
+# `render-local-only` renders `local-only-content/` — study material that is gitignored and must
+# never be served. A cargo feature rather than an env var on purpose: the production binary does
+# not contain the branch at all, so ADR-RS002's guarantee stays structural. Only this loop enables
+# it, and check-conventions.sh asserts the image build does not.
+cargo build -p synapse-server --features render-local-only --quiet
 ./target/debug/synapse-server &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT

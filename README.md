@@ -20,12 +20,13 @@ git sidecar in production (`SYNAPSE_ROOT` points at the checkout). Decisions liv
 ## Run
 
 ```sh
+docker compose up -d   # Postgres :5532, Keycloak :8181, go-judge :5150
 dev-tools/dev          # axum API on :8280 + Astro dev (HMR) on :5373
 curl localhost:8280/api/health
 ```
 
-Backing services (Postgres, go-judge, Keycloak, LikeC4) come from the content platform's
-docker-compose; the database is the dedicated `synapse_rs` on :5532.
+The database is `synapse_rs` on :5532. The LikeC4 viewer behind `/c4` is opt-in:
+`docker compose --profile c4 up -d`.
 
 ## Test & gates
 

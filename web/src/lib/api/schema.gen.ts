@@ -80,6 +80,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/content-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every registered repository, in mount order, with its sync state. */
+        get: operations["listContentSources"];
+        put?: never;
+        /** Register (upsert). The book appears once the next fetch lands it, not on this call. */
+        post: operations["registerContentSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/content-sources/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Forget a repository — 204 on removal, 404 when it was never registered. The cached checkout is
+         *     reclaimed by the fetch loop; nothing is deleted on the forge.
+         */
+        delete: operations["removeContentSource"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/lesson-views": {
         parameters: {
             query?: never;
@@ -143,6 +181,26 @@ export interface paths {
         };
         /** One post with body + publish-order neighbours. */
         get: operations["getBlogPost"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/c4/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Enabled sources only, in mount order. A disabled repository is one an admin has taken out of
+         *     the library, and its diagrams should leave the workspace with it.
+         */
+        get: operations["listC4Sources"];
         put?: never;
         post?: never;
         delete?: never;
@@ -536,6 +594,18 @@ export interface components {
             slug: string;
             title: string;
         };
+        /**
+         * @description One repository the merged LikeC4 workspace should pull `.c4` files from.
+         *
+         *     Deliberately unauthenticated and deliberately minimal: the consumer is a CI job with no token,
+         *     and every repository named here is already public. It carries no sync state and no grouping —
+         *     the build wants sources, not the library.
+         */
+        C4SourceDto: {
+            branch: string;
+            /** @description `owner/name`. */
+            repo: string;
+        };
         CatalogEntryDto: (components["schemas"]["CategoryDto"] & {
             /** @enum {string} */
             kind: "category";
@@ -570,6 +640,31 @@ export interface components {
             technology?: string | null;
             title?: string | null;
         };
+        /**
+         * @description A registered content repository, as the admin panel sees it. The sync fields are read-only —
+         *     they are the fetch loop's report, and they are what turns "I registered it" into "it landed".
+         */
+        ContentSourceDto: {
+            branch: string;
+            enabled: boolean;
+            /** @description `/`-joined category slug path; empty string is the top level. */
+            grouping: string;
+            /** @description Derived from the repository name; names the checkout on disk and never changes. */
+            id: string;
+            /**
+             * @description Set when the last attempt failed. `lastSha` may still be present — a broken push degrades
+             *     the book to stale, not to absent, and the panel should say which.
+             */
+            lastError?: string | null;
+            /** @description The commit currently on disk. Absent until the first fetch lands. */
+            lastSha?: string | null;
+            /** @description ISO-8601 instant of the last fetch ATTEMPT, successful or not. */
+            lastSyncedAt?: string | null;
+            /** Format: int32 */
+            order?: number | null;
+            /** @description `owner/name`. */
+            repo: string;
+        };
         /** @description Delete/erase result — 0/1 for a single delete, N for erase-all. */
         DeleteResultDto: {
             deleted: number;
@@ -579,7 +674,6 @@ export interface components {
          *     place to ask instead of inferring capability from a 404.
          */
         EditConfigDto: {
-            /** @description The branch pull requests target. */
             baseBranch: string;
             /**
              * @description Whether THIS caller may propose edits — signed in and on the content-editor allowlist.
@@ -593,7 +687,11 @@ export interface components {
              *     says which, plainly, rather than letting a contributor believe a dry run shipped.
              */
             mode: string;
-            /** @description `owner/name` of the content repository. */
+            /**
+             * @description `owner/name` of the PRIMARY content repository, and the branch it targets. A given
+             *     lesson's actual target rides its `EditSourceDto` — this is the default the editor shows
+             *     before a page is chosen.
+             */
             repo: string;
         };
         /** @description One proposed change, as stored — the `POST` answer and the rows behind "My change requests". */
@@ -626,6 +724,7 @@ export interface components {
         };
         /** @description `GET /api/edits/source/{*path}` — the file as it is on disk RIGHT NOW. */
         EditSourceDto: {
+            baseBranch: string;
             /** @description The content checkout's version (git SHA in prod) — shown as provenance. */
             contentVersion: string;
             /**
@@ -640,6 +739,12 @@ export interface components {
             fingerprint: string;
             /** @description The URL path (`category…/book/chapter…/lesson`). */
             lessonPath: string;
+            /**
+             * @description `owner/name` of the repository an edit to THIS page opens a pull request against, and the
+             *     branch it targets. Per-lesson, not per-deployment: a satellite guide's book is edited in
+             *     its own repository, and a contributor cannot infer that from the URL — so the editor says.
+             */
+            repo: string;
             /**
              * @description The WHOLE file, frontmatter fence included. Editing the reader's stripped body would
              *     delete the frontmatter on save.
@@ -752,6 +857,24 @@ export interface components {
             source: string;
             /** @description The contributor's own words — becomes the commit message body and the pull-request body. */
             summary?: string | null;
+        };
+        /**
+         * @description Register or re-register a repository. Keyed server-side on the id derived from `repo`, so
+         *     posting the same repository twice edits its row rather than adding a second.
+         */
+        RegisterContentSourceDto: {
+            /** @description Defaults to `main` when absent. */
+            branch?: string | null;
+            /**
+             * @description Defaults to `true`. Registering disabled lets a repository be staged and verified before
+             *     it joins the library.
+             */
+            enabled?: boolean | null;
+            /** @description `/`-joined category slug path; absent or empty is the top level. */
+            grouping?: string | null;
+            /** Format: int32 */
+            order?: number | null;
+            repo: string;
         };
         /** @description The run request. `language` is a fence alias (`py`, `cpp`, …), resolved server-side. */
         RunRequest: {
@@ -1124,6 +1247,143 @@ export interface operations {
             };
         };
     };
+    listContentSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Registered repositories, in mount order */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentSourceDto"][];
+                };
+            };
+            /** @description Anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    registerContentSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterContentSourceDto"];
+            };
+        };
+        responses: {
+            /** @description The stored registration */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentSourceDto"];
+                };
+            };
+            /** @description Malformed repo or grouping */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    removeContentSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The derived source id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description No such source */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     listLessonViews: {
         parameters: {
             query?: {
@@ -1251,6 +1511,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    listC4Sources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Repositories to gather .c4 files from */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["C4SourceDto"][];
                 };
             };
         };

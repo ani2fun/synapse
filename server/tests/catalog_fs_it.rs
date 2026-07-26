@@ -7,7 +7,8 @@ use std::path::Path;
 use std::time::{Duration, SystemTime};
 
 use synapse_server::catalog::application::{CatalogService, ContentError, ContentRepository};
-use synapse_server::catalog::infrastructure::{FileSystemContentRepository, read_commit_sha};
+use synapse_server::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
+use synapse_server::catalog::infrastructure::{FileSystemContentRepository, SourceRoot, read_commit_sha};
 
 const SHA: &str = "0123456789abcdef0123456789abcdef01234567";
 
@@ -65,14 +66,34 @@ async fn read_lesson_rejects_traversal_and_missing_files() {
         "nope.md",
     ] {
         assert!(
-            matches!(repo.read_lesson(bad).await, Err(ContentError::NotFound(_))),
+            matches!(
+                repo.read_lesson(PRIMARY_SOURCE_ID, bad).await,
+                Err(ContentError::NotFound(_))
+            ),
             "expected NotFound for {bad}"
         );
     }
     fs::remove_file(sibling).unwrap();
 
-    let ok = repo.read_lesson("01-learn/02-dsa/01-intro.md").await.unwrap();
+    let ok = repo
+        .read_lesson(PRIMARY_SOURCE_ID, "01-learn/02-dsa/01-intro.md")
+        .await
+        .unwrap();
     assert_eq!(ok, "# Intro\nwelcome");
+}
+
+/// Reads NEVER fall through to another source. Two satellites with the same interior layout would
+/// otherwise cross-serve each other's bodies and sidecars — the whole reason the id is carried.
+#[tokio::test]
+async fn read_lesson_refuses_an_unknown_source() {
+    let tmp = tempfile::tempdir().unwrap();
+    seed_content(tmp.path());
+    let repo = FileSystemContentRepository::new(tmp.path(), true);
+
+    assert!(matches!(
+        repo.read_lesson("java", "01-learn/02-dsa/01-intro.md").await,
+        Err(ContentError::NotFound(_))
+    ));
 }
 
 // ── the content version (a watermark: advances on edit/add, ignores hidden churn) ────────────
@@ -115,7 +136,76 @@ async fn prod_mode_reports_the_commit_sha_and_ignores_edits() {
     write(&tmp.path().join(".git/HEAD"), "ref: refs/heads/main\n");
     write(&tmp.path().join(".git/refs/heads/main"), &format!("{SHA}\n"));
     let repo = FileSystemContentRepository::new(tmp.path(), false);
-    assert_eq!(repo.content_version().await, SHA);
+    // The version NAMES its source: with several checkouts mounted, a bare SHA could not say
+    // which one moved, and the index cache is keyed on this string.
+    assert_eq!(repo.content_version().await, format!("{PRIMARY_SOURCE_ID}={SHA}"));
+}
+
+/// Any one source moving must invalidate the whole index — the cache holds one merged walk.
+#[tokio::test]
+async fn the_version_composes_every_mounted_source() {
+    let main = tempfile::tempdir().unwrap();
+    let java = tempfile::tempdir().unwrap();
+    seed_content(main.path());
+    write(&java.path().join("book.json"), r#"{"slug":"java"}"#);
+    write(&java.path().join("01-first-steps/01-intro.md"), "hello");
+
+    let repo = FileSystemContentRepository::over(
+        vec![
+            SourceRoot::new(PRIMARY_SOURCE_ID, main.path()),
+            SourceRoot::new("java", java.path()),
+        ],
+        true,
+    );
+
+    let before = repo.content_version().await;
+    assert!(before.contains("main="), "{before}");
+    assert!(before.contains("java="), "{before}");
+
+    write(&java.path().join("01-first-steps/02-more.md"), "added");
+    assert_ne!(repo.content_version().await, before);
+}
+
+/// The satellite shape: a root `book.json` makes the whole checkout one book, with its chapters
+/// straight at the root and no category wrapper.
+#[tokio::test]
+async fn a_root_book_json_makes_the_checkout_one_book() {
+    let tmp = tempfile::tempdir().unwrap();
+    write(&tmp.path().join("book.json"), r#"{"title":"Java","slug":"java"}"#);
+    write(
+        &tmp.path().join("01-first-steps/01-what-java-is.md"),
+        "# What Java is",
+    );
+
+    // The book's opening lesson sits at the ROOT, which a collection root would ignore.
+    write(&tmp.path().join("00-index.md"), "# Java");
+    // Repo furniture shares that root and must not become a lesson.
+    write(&tmp.path().join("README.md"), "how to contribute");
+
+    let repo = FileSystemContentRepository::over(vec![SourceRoot::new("java", tmp.path())], true);
+    let sources = repo.load_sources().await.unwrap();
+
+    assert_eq!(sources.len(), 1);
+    let root_meta = sources[0].book_meta.as_ref().expect("root book.json decoded");
+    assert_eq!(root_meta.slug.as_deref(), Some("java"));
+
+    let service = CatalogService::new(repo);
+    let index = service.index().await.unwrap();
+    assert_eq!(index.entries.len(), 1);
+    assert_eq!(index.entries[0].slug(), "java");
+
+    let opening = service
+        .lesson(&["java".to_owned(), "index".to_owned()])
+        .await
+        .expect("the root index.md is the book's first lesson");
+    assert_eq!(opening.raw, "# Java");
+    assert!(
+        service
+            .lesson(&["java".to_owned(), "readme".to_owned()])
+            .await
+            .is_err(),
+        "README.md must not render as a lesson"
+    );
 }
 
 // ── commit sha resolution ─────────────────────────────────────────────────────

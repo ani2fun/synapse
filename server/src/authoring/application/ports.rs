@@ -5,6 +5,9 @@
 //! a first-class citizen instead of a mock, and what would let a GitHub App (or a different forge
 //! entirely) slot in without the service noticing.
 
+use std::sync::Arc;
+
+use crate::authoring::application::ForgeTarget;
 use crate::authoring::domain::{EditRequest, EditRequestState, PullRequestRef};
 
 /// HTTP mapping (at `http/`): `NotEditable`→404, `RequiresSignIn`→401, `NotAllowed`→403,
@@ -45,7 +48,9 @@ pub struct Editor {
 /// is not a lesson the catalog serves, which is also what keeps `local-only/`, `_`-prefixed files
 /// and the reserved aux dirs structurally uneditable.
 pub struct LessonFile {
-    /// The path inside the content repository, order prefixes and all.
+    /// Which content source owns this lesson — what decides the repository an edit targets.
+    pub source_id: String,
+    /// The path inside that source's repository, order prefixes and all.
     pub file_path: String,
     pub source: String,
 }
@@ -61,6 +66,56 @@ pub trait LessonSource: Send + Sync {
     /// rather than being threaded in from the catalog service because it describes the same tree
     /// `file_for` reads, and one port answering both keeps them from ever disagreeing.
     fn content_version(&self) -> impl Future<Output = String> + Send;
+}
+
+/// A shared forge is still a forge. `Forges::forge_for` hands one back BY VALUE, and the adapters
+/// that mint a fresh one per call are cheap — but a recording test double is not, and neither is
+/// anything that wants to keep state across calls. Delegating through `Arc` lets those be shared
+/// instead of cloned.
+impl<T: ContentForge> ContentForge for Arc<T> {
+    fn mode(&self) -> &'static str {
+        T::mode(self)
+    }
+    fn commit_file(
+        &self,
+        branch: &str,
+        file_path: &str,
+        content: &str,
+        message: &str,
+    ) -> impl Future<Output = Result<String, AuthoringError>> + Send {
+        T::commit_file(self, branch, file_path, content, message)
+    }
+    fn open_pull_request(
+        &self,
+        branch: &str,
+        title: &str,
+        body: &str,
+    ) -> impl Future<Output = Result<Option<PullRequestRef>, AuthoringError>> + Send {
+        T::open_pull_request(self, branch, title, body)
+    }
+    fn pull_request_state(
+        &self,
+        number: u64,
+    ) -> impl Future<Output = Result<ForgePrState, AuthoringError>> + Send {
+        T::pull_request_state(self, number)
+    }
+}
+
+/// Which forge an edit goes to.
+///
+/// Two lookups rather than one, and the difference is load-bearing. A NEW proposal is routed by
+/// the source that currently owns the lesson; a REVISION follows the repository already recorded
+/// on its row. If a book migrates out of the monorepo while a pull request is open, those two
+/// disagree — and the open branch lives in the repository it was opened against, not the one that
+/// now serves the page.
+pub trait Forges: Send + Sync {
+    type Forge: ContentForge;
+
+    /// Where a content source's edits go. `None` for a source with no configured forge.
+    fn target_for(&self, source_id: &str) -> impl Future<Output = Option<ForgeTarget>> + Send;
+
+    /// The forge that commits to a repository.
+    fn forge_for(&self, repo: &str) -> impl Future<Output = Option<Self::Forge>> + Send;
 }
 
 /// One grant, as stored.

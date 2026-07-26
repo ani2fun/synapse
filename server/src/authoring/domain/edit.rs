@@ -62,8 +62,12 @@ pub struct EditRequest {
     pub username: String,
     /// The URL path, joined (`category…/book/chapter…/lesson`).
     pub lesson_path: String,
-    /// The path inside the content repository.
+    /// The path inside that repository.
     pub file_path: String,
+    /// The repository this proposal was opened against, `owner/name`. Recorded rather than
+    /// re-derived: a revision must follow the branch to where it actually lives, even if the book
+    /// has since moved to a different source.
+    pub repo: String,
     pub branch: String,
     /// 1 for the first proposal on this page, 2 after the first was merged or closed, and so on.
     /// It is what puts the `-2`/`-3` suffix on the branch.
@@ -76,23 +80,33 @@ pub struct EditRequest {
     pub updated_at: DateTime<Utc>,
 }
 
+/// Where a proposal lives: the page it edits, the file behind it, and the branch in the repository
+/// it was opened against. Grouped because they travel together and are only meaningful together —
+/// a branch without its repository does not identify anything now that a book can have its own.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProposalLocation {
+    pub lesson_path: String,
+    pub file_path: String,
+    pub repo: String,
+    pub branch: String,
+}
+
 impl EditRequest {
     /// A freshly-allocated proposal: one commit, open, no pull request attached yet.
     pub fn opened(
         id: EditRequestId,
         username: String,
-        lesson_path: String,
-        file_path: String,
-        branch: String,
+        location: ProposalLocation,
         attempt: u32,
         at: DateTime<Utc>,
     ) -> Self {
         Self {
             id,
             username,
-            lesson_path,
-            file_path,
-            branch,
+            lesson_path: location.lesson_path,
+            file_path: location.file_path,
+            repo: location.repo,
+            branch: location.branch,
             attempt,
             pull_request: None,
             state: EditRequestState::Open,

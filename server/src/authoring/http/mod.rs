@@ -21,9 +21,9 @@ use synapse_shared::authoring::{EditConfigDto, EditRequestDto, EditSourceDto, Pr
 
 use crate::authoring::application::{Editor, ProposeEdit};
 use crate::authoring::infrastructure::{
-    ConfiguredForge, FsLessonSource, PostgresContentEditors, PostgresEditRequests,
+    ConfiguredForges, FsLessonSource, PostgresContentEditors, PostgresEditRequests,
 };
-use crate::catalog::infrastructure::FileSystemContentRepository;
+use crate::catalog::infrastructure::{FileSystemContentRepository, PostgresContentSources};
 use crate::identity::http::LiveIdentityService;
 use crate::platform::client_ip::{Peer, client_ip};
 use crate::platform::rate_limiter::RateLimiter;
@@ -34,7 +34,7 @@ pub type LiveProposeEdit = ProposeEdit<
     FsLessonSource<FileSystemContentRepository>,
     PostgresContentEditors,
     PostgresEditRequests,
-    ConfiguredForge,
+    ConfiguredForges<PostgresContentSources>,
 >;
 
 pub struct AuthoringRoutesState {
@@ -111,10 +111,10 @@ pub(crate) async fn get_config(
         .may_edit(editor.as_ref())
         .await
         .map_err(|e| dto::to_error(&e))?;
-    let target = state.service.target();
+    let target = state.service.target().await;
     Ok(Json(EditConfigDto {
         enabled: true,
-        mode: state.service.mode().to_owned(),
+        mode: state.service.mode().await.to_owned(),
         repo: target.repo.clone(),
         base_branch: target.base_branch.clone(),
         can_edit,
@@ -208,7 +208,7 @@ pub(crate) async fn list_mine(
     headers: HeaderMap,
 ) -> ApiResult<Vec<EditRequestDto>> {
     let editor = caller(&state, &headers).await?;
-    let mode = state.service.mode();
+    let mode = state.service.mode().await;
     match state.service.mine(editor.as_ref()).await {
         // `reused: false` on a read: it describes the SUBMISSION that created the row, and this
         // is not one.

@@ -1,0 +1,91 @@
+# Synapse local backing services. The app itself runs from cargo + Astro during development
+# (dev-tools/dev), never in Docker — only the things it talks to live here.
+#
+#   docker compose up -d                  # db + keycloak + go-judge
+#   docker compose --profile c4 up -d     # ... plus the LikeC4 viewer behind /c4
+#
+# Host ports are offset +100 from the Cortex stack so both run side by side.
+#
+# The project name is pinned rather than derived from the directory: the named volumes carry the
+# local database, and a directory rename must not strand them under a new project prefix.
+name: synapse
+
+services:
+  # System of record. The DSN the server defaults to (server/src/config.rs) is
+  # postgres://synapse:synapse@localhost:5532/synapse_rs — POSTGRES_DB matches it so a fresh
+  # volume needs no manual createdb. Migrations are applied by the server at boot.
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: synapse
+      POSTGRES_PASSWORD: synapse
+      POSTGRES_DB: synapse_rs
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5532:5432"
+    healthcheck:
+      # No -d: the check is server liveness, which must not depend on which databases exist yet.
+      test: ["CMD-SHELL", "pg_isready -U synapse"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Identity provider. Dev mode is in-memory H2 with the committed realm re-imported on every boot
+  # — the realm is CODE (dev-tools/keycloak/), so auth state here is disposable. The server never
+  # needs Keycloak at boot: JWKS is fetched lazily per request.
+  #
+  # Admin console http://localhost:8181 (admin/admin). Realm `synapse`, SPA client `synapse-web`,
+  # test users tester/tester and test1/test1. The realm allowlists the dev origins :5373 (Astro)
+  # and :8280 (axum) — a silent port bump 403s the silent-SSO iframe.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    volumes:
+      - ./dev-tools/keycloak:/opt/keycloak/data/import:ro
+      # The Synapse-branded login theme, which the realm's `loginTheme` points at. Built-in themes
+      # live in the JAR, so this mount only adds ours.
+      - ./dev-tools/keycloak/themes:/opt/keycloak/themes:ro
+    ports:
+      - "8181:8080"
+
+  # Code-execution sandbox behind /api/run. Built from runner/go-judge/ — the stock criyle/go-judge
+  # image plus the language toolchains the sandbox runs (JDK 21 / Python / Node / Go / Rust /
+  # Kotlin / scala-cli / gcc / sqlite). See that Dockerfile for why they must live under /usr.
+  go-judge:
+    build: ./runner/go-judge
+    restart: unless-stopped
+    privileged: true
+    ports:
+      - "127.0.0.1:5150:5050"
+
+  # LikeC4 viewer for the LESSON C4 diagrams, opt-in via the c4 profile. The /c4 proxy fronts it and
+  # system-design lessons embed <iframe src="/c4/view/<id>">, so it builds the merged CONTENT c4
+  # workspace — every .c4 under synapse-content — NOT this repo's architecture model. That one is a
+  # separate host tool: `npx likec4 start docs/architecture/c4`.
+  likec4:
+    image: node:22-alpine
+    profiles: ["c4"]
+    working_dir: /c4
+    command:
+      - "sh"
+      - "-c"
+      # --base /c4/: the viewer is served THROUGH the app's /c4 proxy, so its own asset URLs must be
+      # /c4/assets/* (with --base /, the SPA's <script src="/assets/…"> resolves to the Synapse
+      # origin inside the iframe, the viewer JS never loads, and no diagram renders).
+      # --no-use-dot: use the WASM layouter — `likec4 build` otherwise auto-enables Graphviz `dot`
+      # in a container, which node:alpine lacks.
+      # serve, not `likec4 serve`: the latter binds localhost only, unreachable from the host.
+      - "npx -y likec4@latest build --base /c4/ --no-use-dot --output /dist . && npx -y serve --single --listen tcp://0.0.0.0:5173 /dist"
+    volumes:
+      - ../synapse-content:/c4:ro
+      - likec4-cache:/root/.npm
+    ports:
+      - "127.0.0.1:8190:5173"
+
+volumes:
+  pgdata:
+  likec4-cache:

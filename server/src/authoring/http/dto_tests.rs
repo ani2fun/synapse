@@ -18,6 +18,7 @@ fn row() -> EditRequest {
         username: "ani2fun".to_owned(),
         lesson_path: "book/chapter/lesson".to_owned(),
         file_path: "01-book/02-chapter/03-lesson.md".to_owned(),
+        repo: "ani2fun/synapse-content".to_owned(),
         branch: "edit/ani2fun/book/chapter/lesson".to_owned(),
         attempt: 1,
         pull_request: Some(PullRequestRef {

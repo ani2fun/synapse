@@ -1,0 +1,259 @@
+#!/usr/bin/env bash
+# ── SCAFFOLD A CONTENT REPOSITORY ─────────────────────────────────────────────
+# Lays out a satellite guide repo that Synapse can mount: the root IS the book, chapters sit
+# directly under it, and book.json carries the identity. The generated tree renders as-is and
+# passes dev-tools/validate-book, so a new maintainer starts from something that works rather
+# than from a contract they have to reverse-engineer.
+#
+#   dev-tools/new-book <slug> [target-dir]
+#
+# The slug is the URL segment and is IMMUTABLE once published — every link and media path embeds
+# it. Where the book sits in the library is not decided here: an admin registers the repository
+# and sets its grouping.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+SLUG="${1:-}"
+if [[ -z "$SLUG" ]]; then
+  echo "usage: dev-tools/new-book <slug> [target-dir]" >&2
+  exit 1
+fi
+if [[ ! "$SLUG" =~ ^[a-z0-9]([a-z0-9_-]*[a-z0-9])?$ ]]; then
+  echo "✗ '$SLUG' is not slug-like — lowercase alphanumerics, '-' and '_' only" >&2
+  exit 1
+fi
+DIR="${2:-../${SLUG}-guide}"
+if [[ -e "$DIR" ]]; then
+  echo "✗ $DIR already exists" >&2
+  exit 1
+fi
+TITLE="$(echo "$SLUG" | tr -- '-_' '  ' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)}1')"
+
+mkdir -p "$DIR"/{01-getting-started,02-problems/01-sum-of-array-elements,_media/"$SLUG"}
+
+cat > "$DIR/book.json" <<JSON
+{
+    "title": "$TITLE",
+    "description": "One paragraph. This is the blurb on the library card.",
+    "tags": ["$SLUG"],
+    "estimatedReadingMinutes": 60,
+    "slug": "$SLUG"
+}
+JSON
+
+cat > "$DIR/00-index.md" <<'MD'
+---
+title: Introduction
+summary: What this book is for, and how to read it.
+---
+
+# Introduction
+
+Open with the one idea the whole book is built on. A reader who stops here should still leave
+knowing what the subject is *for*.
+
+## How to read this
+
+- Chapters are directories, lessons are `.md` files, and both are ordered by their `NN-` prefix.
+- The prefix is stripped from the URL: `01-getting-started/02-variables.md` is served at
+  `…/getting-started/variables`.
+- `index.md` sorts first within its level; anything unnumbered sorts last, alphabetically.
+MD
+
+cat > "$DIR/01-getting-started/00-index.md" <<'MD'
+---
+title: Getting Started
+summary: The shortest path from nothing to a working example.
+---
+
+# Getting Started
+
+A chapter index is optional — delete this file and the chapter still renders.
+MD
+
+cat > "$DIR/01-getting-started/01-first-lesson.md" <<'MD'
+---
+title: Your First Lesson
+summary: The fence contracts, demonstrated — a diagram, a quiz, and a runnable block.
+---
+
+# Your First Lesson
+
+Every block below is real. Delete what you do not need.
+
+## A diagram
+
+```mermaid
+flowchart LR
+  Author -->|push| Repo
+  Repo -->|fetched| Synapse
+  Synapse -->|renders| Reader
+```
+
+## A callout
+
+The only sanctioned callout is an inline-styled `div`. The blank lines around the inner markdown
+are required, or it is not parsed as markdown.
+
+<div style="border-left:4px solid #195045;background:rgba(25,80,69,0.08);padding:0.6rem 1rem;border-radius:0 0.5rem 0.5rem 0;margin:1.25rem 0">
+
+💡 **Insight.** Body text with *markdown* inside.
+
+</div>
+
+## A quiz
+
+`answer` must equal one option **exactly**, or the card can never be got right.
+
+```quiz
+{"prompt": "Where does a book's slug live?", "options": ["book.json", "The repository name", "The admin panel"], "answer": "book.json"}
+```
+
+## A runnable block
+
+```python run
+print("Hello from the sandbox")
+```
+MD
+
+cat > "$DIR/02-problems/01-sum-of-array-elements/sum-of-array-elements.md" <<'MD'
+---
+title: Sum of Array Elements
+summary: Return the sum of every element in an array.
+kind: problem
+difficulty: easy
+topics: [arrays, loops]
+---
+
+# Sum of Array Elements
+
+Given an array of integers `arr`, return the sum of its elements.
+
+A problem is a DIRECTORY holding three co-named files: this statement, the judged suite, and the
+editorial. The stems must match exactly — a rename that misses one silently unhooks it.
+MD
+
+cat > "$DIR/02-problems/01-sum-of-array-elements/sum-of-array-elements.tests.json" <<'JSON'
+{
+  "args": [
+    { "id": "arr", "label": "arr", "type": "int[]", "placeholder": "[1, 2, 3]" }
+  ],
+  "cases": [
+    { "args": { "arr": "[1, 2, 3, 4, 5]" }, "expected": "15", "sample": true },
+    { "args": { "arr": "[7]" }, "expected": "7", "sample": true },
+    { "args": { "arr": "[]" }, "expected": "0" },
+    { "args": { "arr": "[-1, 1]" }, "expected": "0" }
+  ]
+}
+JSON
+
+cat > "$DIR/02-problems/01-sum-of-array-elements/sum-of-array-elements.editorial.md" <<'MD'
+# Editorial
+
+Spoiler-safe: this is revealed behind a tab, so it may give the answer away.
+
+Walk the array once, accumulating. O(n) time, O(1) space — there is nothing to optimise, and
+saying so is worth more than a clever alternative.
+MD
+
+touch "$DIR/_media/$SLUG/.gitkeep"
+
+cat > "$DIR/.gitignore" <<'IGNORE'
+# Adapted / commercial study material must never reach a published tree. The Synapse walker also
+# excludes these names by construction (ADR-RS002), so the protection does not rest on git alone.
+local-only-content/
+local-only/
+
+.DS_Store
+IGNORE
+
+cat > "$DIR/README.md" <<MD
+# $TITLE
+
+A [Synapse](https://synapse.kakde.eu) book. **This repository is the book**: the chapters sit at
+the root, and \`book.json\` carries the identity.
+
+## The contract
+
+- \`book.json\` holds \`title\`, \`description\`, \`tags\` and the \`slug\` that fixes the URL.
+  Treat the slug as immutable once published — every link and media path embeds it.
+- **Chapters are directories, lessons are \`.md\` files.** Ordering comes from the \`NN-\` prefix,
+  which is stripped from the URL. \`index.md\` sorts first; unnumbered sorts last.
+- **Every lesson needs frontmatter** with \`title\` and \`summary\`.
+- **A problem** is a directory of three co-named files: \`<stem>.md\` with \`kind: problem\`,
+  \`<stem>.tests.json\` (cases marked \`"sample": true\` are the only ones the browser sees), and
+  \`<stem>.editorial.md\`.
+- **Media** lives at \`_media/$SLUG/<lesson-slug>/…\`, referenced as
+  \`![alt](/media/$SLUG/<lesson-slug>/file.svg)\`.
+- Names starting with \`_\` or \`.\`, and the \`examples/\` and \`c4/\` directories, never render.
+  Neither does this README.
+
+Where the book sits in the library is set when the repository is registered, not here.
+
+## Before you push
+
+\`\`\`sh
+dev-tools/validate-book .   # from a synapse checkout, pointed at this directory
+\`\`\`
+
+It runs the server's own walker, so what it reports is what the site will do.
+MD
+
+mkdir -p "$DIR/.github/workflows"
+cat > "$DIR/.github/workflows/validate.yml" <<'YAML'
+name: validate
+
+# The book has to render before it is merged. This runs the SERVER'S walker, so the gate and the
+# site agree by construction rather than by review.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: book
+      - uses: actions/checkout@v4
+        with:
+          repository: ani2fun/synapse
+          path: synapse
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: synapse
+      - name: validate-book
+        working-directory: synapse
+        run: ./dev-tools/validate-book ../book
+
+  # The /c4 viewer is ONE merged workspace built in the spine repository, so a diagram changed
+  # HERE still has to rebuild it there. Skipped when the token is absent — the spine also rebuilds
+  # nightly, which bounds the staleness to a day rather than forever.
+  rebuild-diagrams:
+    needs: validate
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: changed
+        run: |
+          if git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" | grep -q '\.c4$'; then
+            echo "c4=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: dispatch the merged workspace rebuild
+        if: steps.changed.outputs.c4 == 'true' && env.TOKEN != ''
+        env:
+          TOKEN: ${{ secrets.SPINE_DISPATCH_TOKEN }}
+        run: |
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/ani2fun/synapse-content/dispatches \
+            -d '{"event_type":"c4-changed"}'
+YAML
+
+echo "✓ scaffolded $TITLE at $DIR"
+echo "  next: dev-tools/validate-book $DIR"

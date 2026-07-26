@@ -76,6 +76,17 @@ check_caps() {
   return $over
 }
 
+# ── 4 · The dev-only content feature must never reach the image ───────────────
+# `render-local-only` renders study material that must not be published (ADR-RS002). It is a
+# cargo feature so the production binary cannot contain the branch — which only holds while the
+# image build declines to enable it.
+echo "→ render-local-only stays out of the production image"
+if grep -nE -- "--features[^\"]*render-local-only" Dockerfile dev-tools/start.sh 2>/dev/null; then
+  echo "  ✗ the image build enables render-local-only — that publishes local-only-content/"
+  exit 1
+fi
+echo "  ok"
+
 echo "→ file-size caps (server/shared ≤ 500 · viz-wasm/web ≤ 800 · *.gen.ts exempt)"
 server_ok=0
 check_caps 500 find server shared -name "*.rs" -not -path "*/target/*" || server_ok=1

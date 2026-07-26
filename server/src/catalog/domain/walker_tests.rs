@@ -357,7 +357,7 @@ fn explicit_book_json_slug_overrides_folder_but_file_paths_keep_it() {
             .lesson_files
             .get("pretty-slug")
             .and_then(|m| m.get("a"))
-            .map(String::as_str),
+            .map(|f| f.path.as_str()),
         Some("01-ugly-folder/01-a.md")
     );
 }
@@ -397,7 +397,7 @@ fn lesson_files_round_trip_real_folder_names() {
             .lesson_files
             .get("dsa")
             .and_then(|m| m.get("lists/singly"))
-            .map(String::as_str),
+            .map(|f| f.path.as_str()),
         Some("01-learn/02-dsa/03-lists/04-singly.md")
     );
 }
