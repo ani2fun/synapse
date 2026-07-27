@@ -26,7 +26,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 regex = "1"
 # The GitHub Contents API takes file bodies base64-encoded. Already in the tree via
 # jsonwebtoken, so naming it directly costs no new transitive dependency.
-base64 = "0.22"
+base64 = "0.23"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "signal", "time"] }
 # Satellite content arrives as a GitHub tarball rather than a git clone — the same "REST, no git
 # binary, no working copy" stance the authoring forge takes. Both are MIT/Apache-2.0 and pure Rust.
