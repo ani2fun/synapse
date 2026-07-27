@@ -8,6 +8,11 @@
 #                       renderer layer is browser-only and cannot run natively, so it would
 #                       drag the number down for a reason no test can fix.
 #   · server/src/main.rs — the composition root; exercised by running the binary, not by tests.
+#   · server/src/bin/     — CLI entry points (dump_openapi, validate_book). Same argument as
+#     main.rs: they are argument parsing and printing over library code that IS covered, and they
+#     are exercised by RUNNING them — gen-api-types.sh runs one on every schema change, and
+#     validate-book runs in each content repository's CI. Unit-testing a `println!` would raise the
+#     number without raising the confidence.
 #   · *_tests.rs, service_fakes.rs, tests/*, dump_openapi.rs — test code and the openapi dumper,
 #                       which are not the production surface being measured.
 #
@@ -28,7 +33,7 @@ OUT="target/coverage"
 mkdir -p "$OUT"
 
 # `_tests\.rs` / `service_fakes\.rs` / `/tests/` cover the test code; `/main\.rs` the wiring point.
-IGNORE='(^|/)(viz-wasm)/|/main\.rs$|_tests\.rs$|/tests/|service_fakes\.rs$|dump_openapi\.rs$'
+IGNORE='(^|/)(viz-wasm)/|/main\.rs$|_tests\.rs$|/tests/|service_fakes\.rs$|/src/bin/'
 
 if ! command -v cargo-llvm-cov >/dev/null 2>&1; then
   echo "✗ cargo-llvm-cov not installed — run: cargo install cargo-llvm-cov --locked"

@@ -89,7 +89,11 @@ impl<S: ContentSources> ConfiguredForges<S> {
         if repo == self.primary.repo {
             return Some(self.primary.base_branch.clone());
         }
-        match self.sources.as_ref()?.list().await {
+        // No registry means no satellites, so there is nothing else a repository could be.
+        let Some(sources) = self.sources.as_ref() else {
+            return Some(self.primary.base_branch.clone());
+        };
+        match sources.list().await {
             Ok(rows) => rows
                 .into_iter()
                 .find(|row| row.repo == repo)
@@ -109,7 +113,12 @@ impl<S: ContentSources> Forges for ConfiguredForges<S> {
         if source_id == PRIMARY_SOURCE_ID {
             return Some(self.primary.clone());
         }
-        match self.sources.as_ref()?.list().await {
+        // Same reasoning: without a registry every source IS the primary, so answering `None`
+        // here would refuse edits in a perfectly ordinary single-repository deployment.
+        let Some(sources) = self.sources.as_ref() else {
+            return Some(self.primary.clone());
+        };
+        match sources.list().await {
             Ok(rows) => rows
                 .into_iter()
                 .find(|row| row.id == source_id)
@@ -126,3 +135,7 @@ impl<S: ContentSources> Forges for ConfiguredForges<S> {
         Some(ConfiguredForge::select(&self.mode, repo, &branch, &self.token))
     }
 }
+
+#[cfg(test)]
+#[path = "forges_tests.rs"]
+mod tests;

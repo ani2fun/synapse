@@ -17,7 +17,7 @@ use synapse_server::catalog::infrastructure::FileSystemContentRepository;
 use synapse_server::execution::application::RunCodeService;
 use synapse_server::execution::infrastructure::GoJudgeRunner;
 use synapse_server::identity::application::IdentityService;
-use synapse_server::identity::http::IdentityRoutesState;
+use synapse_server::identity::http::{IdentityRoutesState, LiveIdentityService};
 use synapse_server::identity::infrastructure::{JwksTokenVerifier, KeycloakAdminClient};
 use synapse_server::platform::rate_limiter::{RateLimitBucket, RateLimiter};
 use synapse_server::progress::PostgresProblemProgress;
@@ -288,6 +288,16 @@ pub async fn stub_realm() -> String {
         let _ = axum::serve(listener, app).await;
     });
     issuer
+}
+
+/// The identity service an IT that assembles its OWN sub-router needs — the same verifier the
+/// full app builds, pointed at a stub realm.
+#[allow(dead_code)]
+pub fn identity_for(issuer: &str) -> Arc<LiveIdentityService> {
+    Arc::new(IdentityService::new(
+        JwksTokenVerifier::new(issuer, "synapse-web"),
+        KeycloakAdminClient::new(issuer, "synapse-admin", "dev-admin-secret"),
+    ))
 }
 
 /// A REAL Postgres pool with migrations applied, or `None` when `POSTGRES_IT` is unset — the same
