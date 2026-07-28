@@ -98,6 +98,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/content-sources/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask the reconcile loop to run now. `202`, not `200`: the fetch is the loop's, and a repository
+         *     that is slow or unreachable must not hold this request open.
+         */
+        post: operations["syncContentSources"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/content-sources/{id}": {
         parameters: {
             query?: never;
@@ -113,6 +133,26 @@ export interface paths {
          *     reclaimed by the fetch loop; nothing is deleted on the forge.
          */
         delete: operations["removeContentSource"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/content-warnings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What the merge resolved across sources. The signal that makes a migration safe: while a book
+         *     exists in two repositories this names the one actually serving.
+         */
+        get: operations["listContentWarnings"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -613,6 +653,23 @@ export interface components {
             /** @enum {string} */
             kind: "book";
         });
+        /**
+         * @description A conflict the merge resolved across sources, flattened for display.
+         *
+         *     Deliberately not a tagged union of the domain enum: the panel's job is to show an admin what
+         *     the library did and which repository won, not to reproduce the merge's rules. `detail` is the
+         *     sentence; `kind` is there so a UI can style or filter without parsing it.
+         */
+        CatalogWarningDto: {
+            /** @description A complete sentence, safe to render as-is. */
+            detail: string;
+            /** @description `duplicateBookSlug` · `categoryRedeclared` · `bookSourceWithoutSlug`. */
+            kind: string;
+            /** @description The book or category slug at issue; absent when the warning is about a source itself. */
+            slug?: string | null;
+            /** @description Source ids involved, in the order the merge saw them — so the first is the one serving. */
+            sources: string[];
+        };
         CategoryDto: {
             description?: string | null;
             entries: components["schemas"]["CatalogEntryDto"][];
@@ -1336,6 +1393,51 @@ export interface operations {
             };
         };
     };
+    syncContentSources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A reconcile was requested */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The reconcile loop is not running */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     removeContentSource: {
         parameters: {
             query?: never;
@@ -1375,6 +1477,44 @@ export interface operations {
             };
             /** @description No such source */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    listContentWarnings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Conflicts the current catalog resolved */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogWarningDto"][];
+                };
+            };
+            /** @description Anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Not an admin */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

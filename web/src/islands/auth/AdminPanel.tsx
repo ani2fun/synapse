@@ -1,5 +1,6 @@
 /**
- * `/admin`: the two allowlists, stacked. `me.admin` only gates the UI; every call is re-checked
+ * `/admin`: the two allowlists and the content repositories. `me.admin` only gates the UI; every
+ * call is re-checked
  * server-side, so a non-admin who navigates here just sees the API's 403 in each section's banner.
  * Anonymous / non-admin see "Admin only".
  *
@@ -21,6 +22,7 @@ import {
 } from "../../lib/api/client";
 import * as log from "../../lib/log";
 import { AllowlistSection } from "./AllowlistSection";
+import { ContentSourcesSection } from "./ContentSourcesSection";
 import { useAuthState } from "./Chip";
 import { signIn } from "./store";
 
@@ -61,6 +63,7 @@ export function AdminPanel() {
               grant={contentEditorGrant}
               revoke={contentEditorRevoke}
             />
+            <ContentSourcesSection />
           </>
         )}
       </div>

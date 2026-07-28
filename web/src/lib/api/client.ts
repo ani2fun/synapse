@@ -29,6 +29,9 @@ export type BlogSummary = components["schemas"]["BlogSummaryDto"];
 export type BlogPost = components["schemas"]["BlogPostDto"];
 export type AllowlistEntry = components["schemas"]["AllowlistEntryDto"];
 export type GrantRequest = components["schemas"]["GrantRequestDto"];
+export type ContentSource = components["schemas"]["ContentSourceDto"];
+export type RegisterContentSource = components["schemas"]["RegisterContentSourceDto"];
+export type CatalogWarning = components["schemas"]["CatalogWarningDto"];
 export type EditConfig = components["schemas"]["EditConfigDto"];
 export type EditSource = components["schemas"]["EditSourceDto"];
 export type ProposeEditRequest = components["schemas"]["ProposeEditRequestDto"];
@@ -269,6 +272,35 @@ export function allowlistGrant(request: GrantRequest): Promise<AllowlistEntry> {
 /** `undefined` on 204; a 404 surfaces as an `ApiFailure`. */
 export function allowlistRevoke(username: string): Promise<void> {
   return del<void>(`/api/admin/allowlist/${username}`);
+}
+
+// ── content repositories ────────────────────────────────────────────────────────────────────
+// Which repositories feed the library. The primary checkout is deliberately absent: it arrives by
+// git-sync, is always mounted and is always first, which is what makes a book safe to migrate.
+
+/** Every registered repository, in mount order, with its sync state. */
+export function contentSources(): Promise<ContentSource[]> {
+  return get<ContentSource[]>("/api/admin/content-sources");
+}
+
+/** Register or re-register. Keyed on the id derived from `repo`, so posting twice edits the row. */
+export function contentSourceRegister(request: RegisterContentSource): Promise<ContentSource> {
+  return post<ContentSource>("/api/admin/content-sources", request);
+}
+
+/** Unregister. The checkout is reclaimed on the next reconcile, after the mount is recomputed. */
+export function contentSourceRemove(id: string): Promise<void> {
+  return del<void>(`/api/admin/content-sources/${id}`);
+}
+
+/** Ask the reconcile loop to run now rather than on its next tick. 503 when it is not running. */
+export function contentSourcesSync(): Promise<void> {
+  return post<void>("/api/admin/content-sources/sync", {});
+}
+
+/** What the merge resolved across sources — which copy of a duplicated book is actually serving. */
+export function contentWarnings(): Promise<CatalogWarning[]> {
+  return get<CatalogWarning[]>("/api/admin/content-warnings");
 }
 
 // ── content editing ─────────────────────────────────────────────────────────────────────────

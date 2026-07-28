@@ -20,7 +20,7 @@ use synapse_server::catalog::domain::merge::Placement;
 use synapse_server::catalog::http::admin::ContentSourceRoutesState;
 use synapse_server::catalog::infrastructure::{
     ContentCache, ContentSync, FileSystemContentRepository, GitHubFetcher, MountedSources,
-    PostgresContentSources, SourceRoot, run_content_sync,
+    PostgresContentSources, SourceRoot, SyncTrigger, run_content_sync,
 };
 use synapse_server::execution::application::RunCodeService;
 use synapse_server::execution::infrastructure::GoJudgeRunner;
@@ -80,18 +80,7 @@ async fn main() -> anyhow::Result<()> {
     // Kept back: the submission store takes `pool` by value below, and the source registry is
     // wired later, once identity exists to gate it.
     let content_sources = Arc::new(PostgresContentSources::new(pool.clone()));
-    let submit = Arc::new(SubmitSolution::new(
-        Arc::new(PostgresSubmissionRepository::new(pool)),
-        Arc::new(FsProblemTests::with_placements(
-            content.repository(cfg.auto_reload),
-            content.placements.clone(),
-        )),
-        Arc::clone(&runner),
-        Arc::clone(&allowlist),
-        cfg.submission_allowlist_enforced,
-        // An accepted submission marks the lesson done in the caller's progress.
-        Arc::new(ProgressRecorderAdapter::new(Arc::clone(&progress))),
-    ));
+    let submit = submit_service(&cfg, pool, &content, &runner, &allowlist, &progress);
 
     let identity = identity_state(&cfg);
     let limiter = Arc::new(rate_limiter(&cfg));
@@ -138,8 +127,13 @@ async fn main() -> anyhow::Result<()> {
         "synapse-rs server started"
     );
 
-    let source_admin = content_source_state(Arc::clone(&content_sources), &identity);
-    spawn_content_sync(&cfg, &source_admin, &content);
+    let source_admin = content_registry(
+        &cfg,
+        &identity,
+        Arc::clone(&content_sources),
+        Arc::clone(&catalog),
+        &content,
+    );
     let app = synapse_server::app(synapse_server::AppDeps {
         catalog,
         run: runner,
@@ -259,11 +253,12 @@ fn spawn_content_sync(
     cfg: &synapse_server::config::AppConfig,
     admin: &ContentSourceRoutesState<PostgresContentSources>,
     content: &ContentHandles,
+    trigger: Option<SyncTrigger>,
 ) {
-    if cfg.content_sync_seconds == 0 {
+    let Some(trigger) = trigger else {
         tracing::info!("content sync loop disabled — the primary checkout is the whole library");
         return;
-    }
+    };
     let sync = ContentSync::new(
         Arc::clone(&admin.sources),
         Arc::new(GitHubFetcher::new(cfg.github_token.clone())),
@@ -283,7 +278,49 @@ fn spawn_content_sync(
     tokio::spawn(run_content_sync(
         sync,
         Duration::from_secs(cfg.content_sync_seconds),
+        trigger,
     ));
+}
+
+/// The judge: the submission store, the hidden suites resolved through the catalog's own file map,
+/// the runner and the allowlist. Extracted for the same reason as its neighbours — `main` is the
+/// wiring graph and stays readable as one.
+fn submit_service(
+    cfg: &synapse_server::config::AppConfig,
+    pool: sqlx::PgPool,
+    content: &ContentHandles,
+    runner: &Arc<synapse_server::execution::http::LiveRunService>,
+    allowlist: &Arc<PostgresSubmissionAllowlist>,
+    progress: &Arc<PostgresProblemProgress>,
+) -> Arc<synapse_server::submission::http::LiveSubmitSolution> {
+    Arc::new(SubmitSolution::new(
+        Arc::new(PostgresSubmissionRepository::new(pool)),
+        Arc::new(FsProblemTests::with_placements(
+            content.repository(cfg.auto_reload),
+            content.placements.clone(),
+        )),
+        Arc::clone(runner),
+        Arc::clone(allowlist),
+        cfg.submission_allowlist_enforced,
+        // An accepted submission marks the lesson done in the caller's progress.
+        Arc::new(ProgressRecorderAdapter::new(Arc::clone(progress))),
+    ))
+}
+
+/// The registry's admin surface and the loop that feeds it, joined by one trigger: the loop waits
+/// on it, "sync now" notifies it, and it is `None` exactly when the loop is not running — so the
+/// route can answer honestly instead of accepting work nobody will do.
+fn content_registry(
+    cfg: &synapse_server::config::AppConfig,
+    identity: &IdentityRoutesState,
+    sources: Arc<PostgresContentSources>,
+    catalog: Arc<synapse_server::catalog::http::routes::LiveCatalogService>,
+    content: &ContentHandles,
+) -> ContentSourceRoutesState<PostgresContentSources> {
+    let trigger = (cfg.content_sync_seconds > 0).then(SyncTrigger::default);
+    let state = content_source_state(sources, identity, catalog, trigger.clone());
+    spawn_content_sync(cfg, &state, content, trigger);
+    state
 }
 
 /// The source registry's admin state — which repositories feed the library. Extracted from `main`
@@ -291,11 +328,15 @@ fn spawn_content_sync(
 fn content_source_state(
     sources: Arc<PostgresContentSources>,
     identity: &IdentityRoutesState,
+    catalog: Arc<synapse_server::catalog::http::routes::LiveCatalogService>,
+    sync: Option<SyncTrigger>,
 ) -> ContentSourceRoutesState<PostgresContentSources> {
     ContentSourceRoutesState {
         sources,
         identity: Arc::clone(&identity.identity),
         admin_users: Arc::clone(&identity.admin_users),
+        catalog,
+        sync,
     }
 }
 

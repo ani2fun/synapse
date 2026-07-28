@@ -255,5 +255,35 @@ jobs:
             -d '{"event_type":"c4-changed"}'
 YAML
 
-echo "✓ scaffolded $TITLE at $DIR"
-echo "  next: dev-tools/validate-book $DIR"
+cat <<NEXT
+
+✓ scaffolded $TITLE at $DIR
+
+The whole path from here, in order. Nothing below needs a redeploy — publishing a book is a push,
+and adding one is a row.
+
+  1. Write something, then check it renders:
+
+       dev-tools/validate-book $DIR
+
+     This runs the SERVER'S walker, so it and the site cannot disagree. The repository's CI runs
+     the same command on every push.
+
+  2. Create the repository and push. The convention is ani2fun/<topic>-guide.
+
+  3. Register it: /admin → Content repositories → paste the repository (owner/name or its GitHub
+     URL), give it a grouping and an order, Register.
+
+       grouping   where it sits — a category slug path, or blank for the top level
+       order      position within that grouping
+       slug       NOT here. book.json owns it, because the slug IS the URL: an admin typo
+                  would move every lesson, and so would renaming the repository.
+
+  4. It appears within a minute — or press "Sync now" and don't wait. The row shows the commit it
+     fetched; if the fetch failed, the row shows why.
+
+If you are MOVING a book that already exists somewhere else, register it first and leave the old
+copy in place. The first source wins, so the old copy keeps serving while you check the new one at
+its real URL — and the panel's warnings name which copy is live. Delete the old one only once that
+URL is confirmed. That order is what keeps every link, sitemap entry and progress row intact.
+NEXT

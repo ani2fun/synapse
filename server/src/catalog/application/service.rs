@@ -8,7 +8,7 @@ use tokio::sync::RwLock;
 
 use crate::catalog::application::content_repository::{ContentError, ContentRepository};
 use crate::catalog::application::content_sources::Placements;
-use crate::catalog::domain::catalog::{LessonFileRef, SynapseContentCatalog, WalkResult};
+use crate::catalog::domain::catalog::{CatalogWarning, LessonFileRef, SynapseContentCatalog, WalkResult};
 use crate::catalog::domain::component_doc::ComponentDoc;
 use crate::catalog::domain::lesson::LessonContent;
 use crate::catalog::domain::{frontmatter, merge, resolver, walker};
@@ -191,6 +191,16 @@ impl<R: ContentRepository> CatalogService<R> {
             Err(ContentError::NotFound(_)) => Ok(None),
             Err(other) => Err(other),
         }
+    }
+
+    /// What the merge had to resolve across sources, for the admin panel.
+    ///
+    /// These are the signal that makes a content migration safe: while a book exists both in the
+    /// spine and in its own repository, `DuplicateBookSlug` names which copy is actually serving.
+    /// Until now that only reached the pod's log, where the person doing the migration is not
+    /// looking. Costs a version check — the walk itself is the cached one every read already uses.
+    pub async fn warnings(&self) -> Result<Vec<CatalogWarning>, ContentError> {
+        Ok(self.current_walk().await?.warnings.clone())
     }
 
     /// The version-gated cache: hit iff the cached version equals the repo's current one.

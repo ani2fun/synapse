@@ -17,9 +17,11 @@ use axum::http::{Request, StatusCode, header};
 use common::{mint, stub_realm};
 use serde_json::Value;
 use synapse_server::catalog::application::{
-    ContentSourceDraft, ContentSourceRecord, ContentSources, RegistryError, SyncOutcome, grouping_from_str,
+    CatalogService, ContentSourceDraft, ContentSourceRecord, ContentSources, RegistryError, SyncOutcome,
+    grouping_from_str,
 };
 use synapse_server::catalog::http::admin::ContentSourceRoutesState;
+use synapse_server::catalog::infrastructure::{FileSystemContentRepository, SyncTrigger};
 use tower::ServiceExt;
 
 #[derive(Default)]
@@ -81,11 +83,22 @@ fn record(id: &str, grouping: &str, enabled: bool) -> ContentSourceRecord {
 }
 
 /// The two routers the app mounts for the registry, over the same state.
-fn app(issuer: &str, registry: Arc<FakeRegistry>) -> Router {
+///
+/// The catalog is a REAL service over an empty temp directory: warnings are a property of a walk,
+/// and faking the walk would test the fake. Empty means no conflicts, which is the answer the
+/// warnings test wants anyway.
+fn app(issuer: &str, registry: Arc<FakeRegistry>, sync: Option<SyncTrigger>) -> Router {
+    let root = tempfile::tempdir().expect("temp content root");
+    let repo = FileSystemContentRepository::new(root.path(), true);
+    // Deliberately leaked: the router outlives this call and must keep the directory alive for as
+    // long as it might walk it. A test process is the one place that is simply free.
+    std::mem::forget(root);
     let state = ContentSourceRoutesState {
         sources: registry,
         identity: common::identity_for(issuer),
         admin_users: Arc::new(std::collections::HashSet::from(["tester".to_owned()])),
+        catalog: Arc::new(CatalogService::new(repo)),
+        sync,
     };
     synapse_server::catalog::http::admin::routes(state.clone())
         .merge(synapse_server::catalog::http::c4::routes(state))
@@ -133,7 +146,7 @@ async fn the_registry_is_admin_only() {
         ("DELETE", "/api/admin/content-sources/java-guide"),
     ] {
         let (status, _) = call(
-            app(&issuer, Arc::clone(&registry)),
+            app(&issuer, Arc::clone(&registry), None),
             method,
             uri,
             None,
@@ -149,7 +162,7 @@ async fn the_registry_is_admin_only() {
 
     // A verified NON-admin is 403, not 401 — the caller is known, just not permitted.
     let (status, _) = call(
-        app(&issuer, registry),
+        app(&issuer, registry, None),
         "GET",
         "/api/admin/content-sources",
         Some(&mint(&issuer, "someone-else")),
@@ -165,7 +178,7 @@ async fn the_registry_is_admin_only() {
 async fn registering_derives_the_id_and_defaults_the_branch() {
     let issuer = stub_realm().await;
     let (status, body) = call(
-        app(&issuer, seeded(Vec::new())),
+        app(&issuer, seeded(Vec::new()), None),
         "POST",
         "/api/admin/content-sources",
         Some(&mint(&issuer, "tester")),
@@ -192,7 +205,7 @@ async fn a_malformed_grouping_or_repo_is_refused_with_a_reason() {
         r#"{"repo":"a/b/c"}"#,
     ] {
         let (status, answer) = call(
-            app(&issuer, seeded(Vec::new())),
+            app(&issuer, seeded(Vec::new()), None),
             "POST",
             "/api/admin/content-sources",
             Some(&mint(&issuer, "tester")),
@@ -214,7 +227,7 @@ async fn removing_reports_whether_anything_was_there() {
     let token = mint(&issuer, "tester");
 
     let (status, _) = call(
-        app(&issuer, Arc::clone(&registry)),
+        app(&issuer, Arc::clone(&registry), None),
         "DELETE",
         "/api/admin/content-sources/java-guide",
         Some(&token),
@@ -224,7 +237,7 @@ async fn removing_reports_whether_anything_was_there() {
     assert_eq!(status, StatusCode::NO_CONTENT);
 
     let (status, _) = call(
-        app(&issuer, registry),
+        app(&issuer, registry, None),
         "DELETE",
         "/api/admin/content-sources/java-guide",
         Some(&token),
@@ -241,6 +254,7 @@ async fn listing_reports_the_sync_state_the_panel_shows() {
         app(
             &issuer,
             seeded(vec![record("java-guide", "programming-languages", true)]),
+            None,
         ),
         "GET",
         "/api/admin/content-sources",
@@ -266,7 +280,7 @@ async fn the_c4_source_list_needs_no_credential_and_omits_disabled_sources() {
         record("parked-guide", "", false),
     ]);
 
-    let (status, body) = call(app(&issuer, registry), "GET", "/api/c4/sources", None, None).await;
+    let (status, body) = call(app(&issuer, registry, None), "GET", "/api/c4/sources", None, None).await;
 
     assert_eq!(status, StatusCode::OK);
     let repos: Vec<&str> = body
@@ -278,4 +292,82 @@ async fn the_c4_source_list_needs_no_credential_and_omits_disabled_sources() {
     assert_eq!(repos, vec!["ani2fun/system-design-guide"]);
     // Sync state is deliberately absent: the build wants sources, not the library.
     assert!(body[0].get("lastSha").is_none(), "{body}");
+}
+
+// ── sync now ─────────────────────────────────────────────────────────────────
+
+/// The button exists so a corrected grouping applies now rather than on the next tick. It answers
+/// `202` because the fetch belongs to the loop — holding the request open behind an unreachable
+/// repository would make a slow satellite look like a broken panel.
+#[tokio::test]
+async fn sync_now_wakes_the_loop_and_says_so_when_there_is_none() {
+    let issuer = stub_realm().await;
+    let token = mint(&issuer, "tester");
+    let trigger = SyncTrigger::default();
+
+    let (status, _) = call(
+        app(&issuer, seeded(Vec::new()), Some(Arc::clone(&trigger))),
+        "POST",
+        "/api/admin/content-sources/sync",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::ACCEPTED);
+    // The permit outlives the call: a loop mid-tick when this arrived still reconciles afterwards.
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(200), trigger.notified())
+            .await
+            .is_ok(),
+        "the loop must have been woken"
+    );
+
+    // With no loop running, saying 202 would promise work nobody will do.
+    let (status, body) = call(
+        app(&issuer, seeded(Vec::new()), None),
+        "POST",
+        "/api/admin/content-sources/sync",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert!(body["hint"].is_string(), "{body}");
+}
+
+#[tokio::test]
+async fn sync_now_and_warnings_are_admin_only() {
+    let issuer = stub_realm().await;
+    for (method, uri) in [
+        ("POST", "/api/admin/content-sources/sync"),
+        ("GET", "/api/admin/content-warnings"),
+    ] {
+        let (status, _) = call(app(&issuer, seeded(Vec::new()), None), method, uri, None, None).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{method} {uri}");
+        let (status, _) = call(
+            app(&issuer, seeded(Vec::new()), None),
+            method,
+            uri,
+            Some(&mint(&issuer, "someone-else")),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{method} {uri}");
+    }
+}
+
+/// A library with nothing to resolve reports nothing — the panel shows an empty list, not an error.
+#[tokio::test]
+async fn a_clean_catalog_has_no_warnings() {
+    let issuer = stub_realm().await;
+    let (status, body) = call(
+        app(&issuer, seeded(Vec::new()), None),
+        "GET",
+        "/api/admin/content-warnings",
+        Some(&mint(&issuer, "tester")),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body.as_array().map(Vec::len), Some(0), "{body}");
 }

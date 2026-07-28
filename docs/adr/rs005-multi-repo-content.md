@@ -89,9 +89,33 @@ The `/c4` viewer stays ONE workspace with exactly one `specification {}`. Its bu
 files from the registered sources rather than from one checkout. Keeping it merged is what lets
 every existing `<iframe src="/c4/view/…">` keep working untouched — view ids encode no repository.
 
+### Adding a book, end to end
+
+The path is deliberately short, and none of it is a deploy:
+
+1. `dev-tools/new-book <slug> <dir>` — scaffold. It prints these steps.
+2. `dev-tools/validate-book <dir>` — the gate, running the server's own walker so it and the site
+   cannot disagree. The scaffolded CI runs the same command on every push.
+3. Create the repository, push.
+4. **`/admin` → Content repositories** — paste `owner/name` or the repository's GitHub URL, set a
+   grouping and an order, Register.
+5. It appears within a minute, or immediately via **Sync now**. The row carries the commit it
+   fetched, or why the fetch failed.
+
+What lives where is the one rule worth repeating: **the row owns placement, `book.json` owns the
+slug.** The slug is the URL, so it must not depend on an admin field (a typo moves every lesson) or
+on the repository name (a rename does the same).
+
+**Moving an existing book** adds one rule: register first, delete second. First-source-wins means
+the old copy keeps serving while the new one is verified at its real URL, and the panel's warnings
+name the copy that is live. Deleting before that is what breaks links, sitemap entries and the
+`progress` and `lesson_view` rows keyed on lesson paths.
+
 ## Consequences
 
 - **URLs are unchanged**, which is the whole point. `/media` and the sitemap follow from that.
+- The admin panel is the interface, not a curl recipe. It surfaces the merge's warnings, which are
+  otherwise only in the pod's log — and they are precisely what a migration needs to read.
 - The catalog stays **one globally cached tree**. Nothing here makes a response per-reader.
 - `validate-book` becomes the gate a satellite maintainer runs, using the server's own walker so
   the gate and the site cannot disagree.

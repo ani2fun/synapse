@@ -8,7 +8,7 @@
       "_id": "wrk_synapse_rs",
       "_type": "workspace",
       "name": "Synapse-RS API",
-      "description": "Synapse-RS HTTP endpoints \u2014 maintained in dev-tools/, updated as endpoints land (same rule as the oracle repo: never let it drift).",
+      "description": "Synapse-RS HTTP endpoints — maintained in dev-tools/, updated as endpoints land (same rule as the oracle repo: never let it drift).",
       "scope": "collection"
     },
     {
@@ -31,7 +31,7 @@
       "_type": "request",
       "parentId": "fld_platform",
       "name": "GET /api/health",
-      "description": "Liveness check \u2014 200 with {\"status\": \"ok\"} while the server is up. Deliberately shallow: it must NOT check Postgres, or a store blip becomes a restart loop. Wire livenessProbe here. (step 01, split in 41)",
+      "description": "Liveness check — 200 with {\"status\": \"ok\"} while the server is up. Deliberately shallow: it must NOT check Postgres, or a store blip becomes a restart loop. Wire livenessProbe here. (step 01, split in 41)",
       "method": "GET",
       "url": "{{ _.base_url }}/api/health"
     },
@@ -40,7 +40,7 @@
       "_type": "request",
       "parentId": "fld_platform",
       "name": "GET /api/ready",
-      "description": "Readiness check \u2014 200 {\"status\":\"ready\"} when Postgres answers, 503 {\"status\":\"not ready\"} when it does not, so the orchestrator stops routing traffic here. The failure reason is logged, never returned (store errors name hosts and users). Wire readinessProbe here. (step 41)",
+      "description": "Readiness check — 200 {\"status\":\"ready\"} when Postgres answers, 503 {\"status\":\"not ready\"} when it does not, so the orchestrator stops routing traffic here. The failure reason is logged, never returned (store errors name hosts and users). Wire readinessProbe here. (step 41)",
       "method": "GET",
       "url": "{{ _.base_url }}/api/ready"
     },
@@ -55,7 +55,7 @@
       "_type": "request",
       "parentId": "fld_catalog",
       "name": "GET /api/synapse/index",
-      "description": "The browsable library index \u2014 kind-discriminated category/book tree. Carries the content cache header. (step 06)",
+      "description": "The browsable library index — kind-discriminated category/book tree. Carries the content cache header. (step 06)",
       "method": "GET",
       "url": "{{ _.base_url }}/api/synapse/index"
     },
@@ -63,8 +63,8 @@
       "_id": "req_catalog_lesson",
       "_type": "request",
       "parentId": "fld_catalog",
-      "name": "GET /api/synapse/{paths\u2026}",
-      "description": "A lesson payload by its directory-mirror path (category\u2026/book/chapter\u2026/lesson) \u2014 raw markdown + frontmatter + full prev/next. (step 06)",
+      "name": "GET /api/synapse/{paths…}",
+      "description": "A lesson payload by its directory-mirror path (category…/book/chapter…/lesson) — raw markdown + frontmatter + full prev/next. (step 06)",
       "method": "GET",
       "url": "{{ _.base_url }}/api/synapse/learn/dsa/lists/singly"
     },
@@ -99,7 +99,7 @@
       "_type": "request",
       "parentId": "fld_catalog",
       "name": "GET /api/synapse/c4-doc/{elementId}?lesson=",
-      "description": "A LikeC4 component's tutorial doc \u2014 the co-located _c4-docs/<leaf>.md sidecar next to the lesson. (step 06)",
+      "description": "A LikeC4 component's tutorial doc — the co-located _c4-docs/<leaf>.md sidecar next to the lesson. (step 06)",
       "method": "GET",
       "url": "{{ _.base_url }}/api/synapse/c4-doc/synapse.client.reader?lesson=learn/dsa/lists/singly"
     },
@@ -115,7 +115,7 @@
       "_type": "request_group",
       "parentId": "wrk_synapse_rs",
       "name": "progress",
-      "description": "Per-user completion (the reader's \u2713 ticks). Mark/reset require a bearer; GET is [] when anonymous. Reset clears progress ONLY \u2014 submissions survive."
+      "description": "Per-user completion (the reader's ✓ ticks). Mark/reset require a bearer; GET is [] when anonymous. Reset clears progress ONLY — submissions survive."
     },
     {
       "_id": "req_progress_mark",
@@ -145,7 +145,7 @@
       "_type": "request",
       "parentId": "fld_progress",
       "name": "GET /api/progress",
-      "description": "The caller's completed lesson paths (anonymous \u2192 []).",
+      "description": "The caller's completed lesson paths (anonymous → []).",
       "method": "GET",
       "url": "{{ _.base_url }}/api/progress",
       "headers": [
@@ -160,7 +160,7 @@
       "_type": "request",
       "parentId": "fld_progress",
       "name": "DELETE /api/progress",
-      "description": "Reset the caller's progress \u2014 clears the \u2713 ticks; submissions are untouched. 401 when anonymous.",
+      "description": "Reset the caller's progress — clears the ✓ ticks; submissions are untouched. 401 when anonymous.",
       "method": "DELETE",
       "url": "{{ _.base_url }}/api/progress",
       "headers": [
@@ -175,7 +175,7 @@
       "_type": "request",
       "parentId": "fld_submissions",
       "name": "POST /api/submissions",
-      "description": "Submit a solution \u2014 202 + id; the suite judges in the background (step 14). 404 not-a-problem, 500 invalid suite.\n\nAllowlist (step 20): with SUBMISSION_ALLOWLIST_ENFORCED=true (prod), anonymous \u2192 401 'Sign in to submit', unlisted username \u2192 403 'Submitting is allow-listed on this deployment'. Dev default = open.",
+      "description": "Submit a solution — 202 + id; the suite judges in the background (step 14). 404 not-a-problem, 500 invalid suite.\n\nAllowlist (step 20): with SUBMISSION_ALLOWLIST_ENFORCED=true (prod), anonymous → 401 'Sign in to submit', unlisted username → 403 'Submitting is allow-listed on this deployment'. Dev default = open.",
       "method": "POST",
       "url": "{{ _.base_url }}/api/submissions",
       "body": {
@@ -227,7 +227,7 @@
       "_type": "request",
       "parentId": "fld_identity",
       "name": "GET /api/me",
-      "description": "Who am I \u2014 requires a bearer; 401 missing/invalid, 503 verifier down (step 16).",
+      "description": "Who am I — requires a bearer; 401 missing/invalid, 503 verifier down (step 16).",
       "method": "GET",
       "url": "{{ _.base_url }}/api/me",
       "headers": [
@@ -242,7 +242,7 @@
       "_type": "request",
       "parentId": "fld_submissions",
       "name": "DELETE /api/submissions/{id}",
-      "description": "Owner-only delete \u2014 401 anonymous, 403 someone else's (step 16).",
+      "description": "Owner-only delete — 401 anonymous, 403 someone else's (step 16).",
       "method": "DELETE",
       "url": "{{ _.base_url }}/api/submissions/00000000-0000-0000-0000-000000000000",
       "headers": [
@@ -257,7 +257,7 @@
       "_type": "request",
       "parentId": "fld_submissions",
       "name": "DELETE /api/submissions",
-      "description": "Erase every submission of the caller \u2014 reset my data (step 16).",
+      "description": "Erase every submission of the caller — reset my data (step 16).",
       "method": "DELETE",
       "url": "{{ _.base_url }}/api/submissions",
       "headers": [
@@ -281,7 +281,7 @@
       "name": "GET /api/blog",
       "method": "GET",
       "url": "{{ _.base_url }}/api/blog",
-      "description": "The listing: [{slug, title, summary, publishedAt, tags, readMinutes, eyebrow}], newest first (undated last). Public content read \u2014 carries the edge cache header.",
+      "description": "The listing: [{slug, title, summary, publishedAt, tags, readMinutes, eyebrow}], newest first (undated last). Public content read — carries the edge cache header.",
       "headers": [],
       "body": {},
       "parameters": []
@@ -317,7 +317,7 @@
       "name": "DELETE /api/me",
       "method": "DELETE",
       "url": "{{ _.base_url }}/api/me",
-      "description": "Delete the caller's sign-in via the SCOPED synapse-admin service-account client (client_credentials, realm-management:manage-users only \u2014 never the master admin). Bearer required. App data is the separate DELETE /api/submissions verb; the account page orchestrates erase \u2192 delete \u2192 sign-out. Keycloak-admin-down \u2192 503, never a swallowed success.",
+      "description": "Delete the caller's sign-in via the SCOPED synapse-admin service-account client (client_credentials, realm-management:manage-users only — never the master admin). Bearer required. App data is the separate DELETE /api/submissions verb; the account page orchestrates erase → delete → sign-out. Keycloak-admin-down → 503, never a swallowed success.",
       "headers": [],
       "body": {},
       "parameters": []
@@ -336,7 +336,7 @@
       "name": "GET /api/admin/allowlist",
       "method": "GET",
       "url": "{{ _.base_url }}/api/admin/allowlist",
-      "description": "Every grant, newest first. Anonymous \u2192 401; verified non-admin \u2192 403 'Admin only'.",
+      "description": "Every grant, newest first. Anonymous → 401; verified non-admin → 403 'Admin only'.",
       "headers": [],
       "parameters": [],
       "body": {}
@@ -348,7 +348,7 @@
       "name": "GET /api/admin/lesson-views",
       "method": "GET",
       "url": "{{ _.base_url }}/api/admin/lesson-views",
-      "description": "Readership (step 49): most-read lessons first. limit defaults to 50, clamps to 1..500. Anonymous \u2192 401; verified non-admin \u2192 403 'Admin only'. Counts only \u2014 no reader, no session, no IP is ever recorded.",
+      "description": "Readership (step 49): most-read lessons first. limit defaults to 50, clamps to 1..500. Anonymous → 401; verified non-admin → 403 'Admin only'. Counts only — no reader, no session, no IP is ever recorded.",
       "headers": [],
       "parameters": [
         {
@@ -366,7 +366,7 @@
       "name": "POST /api/admin/allowlist",
       "method": "POST",
       "url": "{{ _.base_url }}/api/admin/allowlist",
-      "description": "Grant (upsert): username trimmed + lowercased server-side; blank \u2192 400; returns the stored row.",
+      "description": "Grant (upsert): username trimmed + lowercased server-side; blank → 400; returns the stored row.",
       "headers": [
         {
           "name": "Content-Type",
@@ -386,7 +386,7 @@
       "name": "DELETE /api/admin/allowlist/{username}",
       "method": "DELETE",
       "url": "{{ _.base_url }}/api/admin/allowlist/newbie",
-      "description": "Revoke \u2192 204; unknown grant \u2192 404.",
+      "description": "Revoke → 204; unknown grant → 404.",
       "headers": [],
       "parameters": [],
       "body": {}
@@ -405,7 +405,7 @@
       "name": "GET /api/tutor/config",
       "method": "GET",
       "url": "{{ _.base_url }}/api/tutor/config",
-      "description": "Always answers: {enabled, model} \u2014 200 even when the coach is off.",
+      "description": "Always answers: {enabled, model} — 200 even when the coach is off.",
       "headers": [],
       "parameters": [],
       "body": {}
@@ -417,7 +417,7 @@
       "name": "POST /api/tutor/chat",
       "method": "POST",
       "url": "{{ _.base_url }}/api/tutor/chat",
-      "description": "One coaching turn: the FULL transcript up, one reply back. Backend down \u2192 503 + TUTOR_URL hint; backend error \u2192 502. 404 while disabled.",
+      "description": "One coaching turn: the FULL transcript up, one reply back. Backend down → 503 + TUTOR_URL hint; backend error → 502. 404 while disabled.",
       "headers": [
         {
           "name": "Content-Type",
@@ -557,7 +557,7 @@
       "name": "DELETE /api/admin/content-editors/{username}",
       "method": "DELETE",
       "url": "{{ _.base_url }}/api/admin/content-editors/tester",
-      "description": "Revoke \u2014 204 on removal, 404 when the grant never existed. Change requests already open are untouched; closing those is a reviewer's call.",
+      "description": "Revoke — 204 on removal, 404 when the grant never existed. Change requests already open are untouched; closing those is a reviewer's call.",
       "headers": [
         {
           "name": "Authorization",
@@ -619,6 +619,40 @@
       ],
       "_type": "request",
       "parentId": "fld_admin"
+    },
+    {
+      "_id": "req_content_sources_sync",
+      "name": "POST /api/admin/content-sources/sync",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/admin/content-sources/sync",
+      "description": "Ask the reconcile loop to run now instead of on its next tick. 202 when it was asked; 503 when the loop is not running (SYNAPSE_CONTENT_SYNC_SECONDS=0).",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "_type": "request",
+      "parentId": "fld_admin",
+      "body": {},
+      "metaSortKey": 1
+    },
+    {
+      "_id": "req_content_warnings",
+      "name": "GET /api/admin/content-warnings",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/admin/content-warnings",
+      "description": "What the merge resolved across sources. While a book exists in two repositories, duplicateBookSlug names the copy actually serving — read this before deleting either.",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "_type": "request",
+      "parentId": "fld_admin",
+      "body": {},
+      "metaSortKey": 1
     }
   ]
 }

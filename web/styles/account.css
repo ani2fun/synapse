@@ -91,6 +91,16 @@
 .admin__revoke { padding: 0.25rem 0.7rem; border: 1px solid hsl(var(--status-err) / 0.35); border-radius: 0.4rem;
                  background: hsl(var(--status-err-bg) / 0.1); color: hsl(var(--status-err)); font-size: 0.78rem; cursor: pointer; }
 .admin__revoke:hover { background: hsl(var(--status-err-bg) / 0.18); }
+/* The content-repository form carries a third field. An order is one or two digits, so it does not
+   earn a share of the row the way a repository name and a grouping do. */
+.admin__input--order { flex: 0 0 5.5rem; }
+/* Cross-source conflicts, under the table. Advisory, not failures — the library is serving; these
+   say which copy won — so they read as notes rather than as the error banner above them. */
+.admin__warnings { margin: 0.75rem 0 0; padding: 0.6rem 0.85rem; list-style: none;
+                   border: 1px solid hsl(var(--status-warn, var(--border)) / 0.35); border-radius: 0.6rem;
+                   background: hsl(var(--status-warn-bg, var(--muted)) / 0.12);
+                   font-size: 0.82rem; color: hsl(var(--foreground) / 0.85); }
+.admin__warnings li + li { margin-top: 0.4rem; }
 
 /* Two allowlist sections stacked on /admin (submit · content editors) — each its own heading and
    a rule between them. Same table/form grammar above; this only spaces the pair. */

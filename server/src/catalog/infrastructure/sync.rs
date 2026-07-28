@@ -27,6 +27,11 @@ use crate::catalog::infrastructure::filesystem::{MountedSources, SourceRoot};
 
 pub const DEFAULT_INTERVAL: Duration = Duration::from_mins(1);
 
+/// Wakes the loop early. Registering a repository or fixing a typo in its grouping should show up
+/// now, not on the next tick — a minute of staring at a stale row is how someone concludes the
+/// feature is broken and starts editing the database by hand.
+pub type SyncTrigger = Arc<tokio::sync::Notify>;
+
 pub struct ContentSync<R, F> {
     registry: Arc<R>,
     fetcher: Arc<F>,
@@ -157,17 +162,23 @@ impl<R: ContentSources, F: ContentFetcher> ContentSync<R, F> {
     }
 }
 
-/// Run forever, one reconcile per interval. The first tick happens immediately so a boot does not
-/// wait a full period before satellites appear.
+/// Run forever, one reconcile per interval — or sooner, when `trigger` is notified. The first tick
+/// happens immediately so a boot does not wait a full period before satellites appear.
 pub async fn run<R: ContentSources + 'static, F: ContentFetcher + 'static>(
     sync: ContentSync<R, F>,
     interval: Duration,
+    trigger: SyncTrigger,
 ) {
     loop {
         let landed = sync.tick().await;
         if landed > 0 {
             tracing::info!(landed, "content sync: sources updated");
         }
-        tokio::time::sleep(interval).await;
+        // A notify that arrives DURING a tick is not lost: `Notify` stores one permit, so the
+        // wait below returns immediately and the next reconcile sees the change that prompted it.
+        tokio::select! {
+            () = tokio::time::sleep(interval) => {}
+            () = trigger.notified() => tracing::info!("content sync: reconcile requested"),
+        }
     }
 }

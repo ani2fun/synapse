@@ -199,6 +199,26 @@ pub struct RegisterContentSourceDto {
     pub enabled: Option<bool>,
 }
 
+/// A conflict the merge resolved across sources, flattened for display.
+///
+/// Deliberately not a tagged union of the domain enum: the panel's job is to show an admin what
+/// the library did and which repository won, not to reproduce the merge's rules. `detail` is the
+/// sentence; `kind` is there so a UI can style or filter without parsing it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogWarningDto {
+    /// `duplicateBookSlug` · `categoryRedeclared` · `bookSourceWithoutSlug`.
+    pub kind: String,
+    /// The book or category slug at issue; absent when the warning is about a source itself.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slug: Option<String>,
+    /// Source ids involved, in the order the merge saw them — so the first is the one serving.
+    pub sources: Vec<String>,
+    /// A complete sentence, safe to render as-is.
+    pub detail: String,
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {

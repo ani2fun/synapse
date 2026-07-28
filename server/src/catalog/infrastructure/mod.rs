@@ -13,4 +13,4 @@ pub use content_cache::ContentCache;
 pub use filesystem::{FileSystemContentRepository, MountedSources, SourceRoot};
 pub use github_fetcher::GitHubFetcher;
 pub use postgres::PostgresContentSources;
-pub use sync::{ContentSync, DEFAULT_INTERVAL, run as run_content_sync};
+pub use sync::{ContentSync, DEFAULT_INTERVAL, SyncTrigger, run as run_content_sync};

@@ -252,6 +252,8 @@ where
         catalog::http::admin::list_content_sources,
         catalog::http::admin::register_content_source,
         catalog::http::admin::remove_content_source,
+        catalog::http::admin::sync_now,
+        catalog::http::admin::content_warnings,
         catalog::http::c4::list_c4_sources
     ),
     components(schemas(
@@ -299,7 +301,8 @@ where
         synapse_shared::authoring::EditRequestDto,
         synapse_shared::catalog::ContentSourceDto,
         synapse_shared::catalog::RegisterContentSourceDto,
-        synapse_shared::catalog::C4SourceDto
+        synapse_shared::catalog::C4SourceDto,
+        synapse_shared::catalog::CatalogWarningDto
     ))
 )]
 pub struct ApiDoc;
