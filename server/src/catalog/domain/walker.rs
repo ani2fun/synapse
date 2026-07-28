@@ -36,18 +36,18 @@ pub const DEFAULT_ESSENTIAL: bool = true;
 /// BOTH spellings stay reserved. The directory was renamed `local-only` → `local-only-content`,
 /// and a checkout that has not caught up must not start serving commercial material because of
 /// it — one extra array entry against a silent republish is not a trade worth thinking about.
-#[cfg(not(feature = "render-local-only"))]
-const RESERVED_AUX_DIRS: [&str; 4] = ["examples", "c4", "local-only", "local-only-content"];
-
-/// Under `render-local-only`, the study material renders — for a LOCAL reader only.
 ///
-/// A cargo feature rather than an env var, deliberately. An env var would make ADR-RS002's
-/// guarantee a deployment-config promise, which is exactly the weakening the ADR was written to
-/// avoid; the production binary simply does not contain this branch, so no misconfiguration can
-/// turn it on. `dev-tools/dev` is the only thing that enables it, and `check-conventions.sh`
-/// asserts the image build does not.
-#[cfg(feature = "render-local-only")]
-const RESERVED_AUX_DIRS: [&str; 2] = ["examples", "c4"];
+/// The exclusion is UNCONDITIONAL, including under `render-local-only`. That feature does not
+/// release the directory here; it mounts `local-only-content/` as its own content source, so the
+/// books inside it land where they would if the directory did not exist — `learn-french/` at
+/// `/synapse/learn-french/…`, and a book under `programming-languages/` merged into the spine's
+/// real category. A directory that exists to keep material out of production has no business
+/// being a level in anyone's URL, and material staged there is written for the home it will have
+/// when it is published, not for a staging path it would have to be rewritten out of.
+///
+/// Releasing it here instead would also double-mount it: walked inside the primary AND mounted as
+/// a source, every book in it duplicated, which is a hard error.
+const RESERVED_AUX_DIRS: [&str; 4] = ["examples", "c4", "local-only", "local-only-content"];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NAMING RULES — the public helpers the whole context leans on
@@ -302,6 +302,7 @@ fn build_category(
     }
     Ok(Some(Category {
         slug,
+        declared: meta.is_some(),
         title: meta
             .and_then(|m| m.title.clone())
             .unwrap_or_else(|| humanise(name)),

@@ -40,6 +40,7 @@ fn fixture() -> SynapseContentCatalog {
     };
     SynapseContentCatalog {
         entries: vec![CatalogEntry::Category(Category {
+            declared: true,
             slug: "learn".to_owned(),
             title: "Learn".to_owned(),
             description: None,

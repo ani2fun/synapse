@@ -27,6 +27,11 @@ pub struct Category {
     pub description: Option<String>,
     pub icon: Option<String>,
     pub order: Option<i32>,
+    /// Whether a `category.json` furnished this, as opposed to the title being humanised from the
+    /// slug. Only a real declaration can contest another one — without this, two sources that
+    /// merely happen to nest the same grouping look to the merge like two authors claiming it, and
+    /// the resulting warning names a conflict that does not exist.
+    pub declared: bool,
     pub entries: Vec<CatalogEntry>,
 }
 

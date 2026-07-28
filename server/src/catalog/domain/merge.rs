@@ -50,9 +50,13 @@ struct Merge {
     out: WalkResult,
     /// Book slug → the source that won it, for the duplicate warning.
     owner: BTreeMap<String, String>,
-    /// Category slug path → the source whose `category.json` furnished it. A path absent here was
-    /// SYNTHESIZED and is still upgradable by a real declaration.
+    /// Category slug path → the source whose `category.json` DECLARED it. Only these contest each
+    /// other; a path absent here is still upgradable by a real declaration.
     declared: BTreeMap<Vec<String>, String>,
+    /// Category slug paths whose metadata has already been applied, declared or not. A directory
+    /// name furnishes a title and an `NN-` order too, and the first source to supply them wins —
+    /// but supplying them is not a claim, so it must not make the next source look like a rival.
+    furnished: BTreeSet<Vec<String>>,
     /// Levels a later source inserted into, and which therefore need re-sorting.
     touched: BTreeSet<Vec<String>>,
 }
@@ -139,23 +143,36 @@ impl Merge {
         self.level_at(path).push(CatalogEntry::Book(book));
     }
 
-    /// First `category.json` wins, whole-node: per-field merging would make "which repo owns this
+    /// First metadata wins, whole-node: per-field merging would make "which repo owns this
     /// category's icon" unanswerable.
+    ///
+    /// Two rules, deliberately separate. A real `category.json` OUTRANKS whatever a directory name
+    /// furnished, so a declaration arriving after a synthesized node upgrades it. But only two
+    /// declarations are a conflict — two sources that merely nest the same grouping are just
+    /// agreeing about where a book lives, and warning about that would report a dispute nobody is
+    /// having.
     fn adopt_declaration(&mut self, source_id: &str, path: &[String], category: &Category) {
-        if let Some(kept) = self.declared.get(path) {
-            self.out.warnings.push(CatalogWarning::CategoryRedeclared {
-                slug: category.slug.clone(),
-                kept_source: kept.clone(),
-                ignored_source: source_id.to_owned(),
-            });
+        if category.declared {
+            if let Some(kept) = self.declared.get(path) {
+                self.out.warnings.push(CatalogWarning::CategoryRedeclared {
+                    slug: category.slug.clone(),
+                    kept_source: kept.clone(),
+                    ignored_source: source_id.to_owned(),
+                });
+                return;
+            }
+            self.declared.insert(path.to_vec(), source_id.to_owned());
+        } else if self.furnished.contains(path) {
             return;
         }
-        self.declared.insert(path.to_vec(), source_id.to_owned());
+
+        self.furnished.insert(path.to_vec());
         if let Some(node) = self.category_at(path) {
             node.title.clone_from(&category.title);
             node.description.clone_from(&category.description);
             node.icon.clone_from(&category.icon);
             node.order = category.order;
+            node.declared = category.declared;
         }
     }
 
@@ -208,6 +225,7 @@ fn category_index(entries: &mut Vec<CatalogEntry>, slug: &str) -> usize {
     }
     entries.push(CatalogEntry::Category(Category {
         slug: slug.to_owned(),
+        declared: false,
         title: humanise(slug),
         description: None,
         icon: None,

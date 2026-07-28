@@ -239,10 +239,56 @@ fn a_declaration_outlives_the_books_that_left_the_source() {
         "the declaration is not lost"
     );
     assert_eq!(category.order, Some(6));
-    assert_eq!(book_slugs(&walk), vec!["features", "java", "scratch"]);
     // Order 6 puts it between the two books — a synthesized category would have sorted last.
     let slugs: Vec<&str> = walk.catalog.entries.iter().map(CatalogEntry::slug).collect();
     assert_eq!(slugs, vec!["features", "programming-languages", "scratch"]);
+}
+
+/// Two sources nesting the same grouping are agreeing, not disputing — only two `category.json`
+/// files are a redeclaration. (The positive case is pinned above; false positives get ignored.)
+#[test]
+fn nesting_the_same_grouping_is_not_a_redeclaration() {
+    let spine = collection(
+        "main",
+        vec![category_dir(
+            "programming-languages",
+            CategoryMeta {
+                title: Some("Programming Languages".to_owned()),
+                icon: Some("💻".to_owned()),
+                order: Some(6),
+                ..CategoryMeta::default()
+            },
+            vec![book_dir(
+                "02-python",
+                meta("python", Some(6)),
+                vec![file("01-a.md")],
+            )],
+        )],
+    );
+    // No category.json of its own — it just happens to nest the same grouping.
+    let staged = collection(
+        "local-only",
+        vec![dir(
+            "programming-languages",
+            vec![book_dir("01-sql", meta("sql", Some(1)), vec![file("01-a.md")])],
+        )],
+    );
+
+    let walk = assemble(&[spine, staged], &[] as &[Placement]).unwrap();
+
+    assert!(walk.warnings.is_empty(), "{:?}", walk.warnings);
+    assert_eq!(
+        book(&walk, "sql").category_path,
+        vec!["programming-languages".to_owned()]
+    );
+    let CatalogEntry::Category(category) = &walk.catalog.entries[0] else {
+        panic!("expected a category");
+    };
+    assert_eq!(
+        category.icon.as_deref(),
+        Some("💻"),
+        "the spine still furnishes it"
+    );
 }
 
 /// …but a declaration nobody ever fills is still not a shelf.

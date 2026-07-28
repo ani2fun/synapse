@@ -199,6 +199,7 @@ impl ContentHandles {
         let local = cfg.local_sources()?;
         let mut roots = vec![SourceRoot::new(PRIMARY_SOURCE_ID, content_root)];
         let mut placements = Vec::new();
+        mount_local_only(content_root, &mut roots, &mut placements);
         for source in &local {
             tracing::info!(id = %source.id, root = %source.root, grouping = %source.grouping, "mounting a LOCAL content source");
             roots.push(SourceRoot::new(&source.id, &source.root));
@@ -220,6 +221,36 @@ impl ContentHandles {
         FileSystemContentRepository::mounted(self.mounted.clone(), auto_reload)
     }
 }
+
+/// `local-only-content/` mounted as its own source, so its books render at the paths they will
+/// have when published rather than under the name of the directory that hides them. AFTER the
+/// primary, so the spine wins any contested slug and owns every category declaration.
+///
+/// A cargo feature rather than an env var, deliberately: an env var would make ADR-RS002's
+/// guarantee a deployment-config promise, which is the weakening that ADR was written to avoid.
+/// The production binary does not contain this function's body, so no misconfiguration reaches
+/// the material. `dev-tools/dev` is the only thing that enables it, and `check-conventions.sh`
+/// asserts the image build does not.
+#[cfg(feature = "render-local-only")]
+fn mount_local_only(content_root: &str, roots: &mut Vec<SourceRoot>, placements: &mut Vec<Placement>) {
+    let root = std::path::Path::new(content_root).join("local-only-content");
+    if !root.is_dir() {
+        return;
+    }
+    tracing::warn!(
+        root = %root.display(),
+        "render-local-only: mounting local-only-content — this build must never be deployed"
+    );
+    roots.push(SourceRoot::new("local-only", &root));
+    placements.push(Placement {
+        source_id: "local-only".to_owned(),
+        grouping: Vec::new(),
+        order: None,
+    });
+}
+
+#[cfg(not(feature = "render-local-only"))]
+fn mount_local_only(_content_root: &str, _roots: &mut Vec<SourceRoot>, _placements: &mut Vec<Placement>) {}
 
 /// The reconcile loop owns disk: it fetches registered satellites, unpacks them under the cache,
 /// and republishes what is mounted and where each book grafts. Interval `0` disables it, leaving
