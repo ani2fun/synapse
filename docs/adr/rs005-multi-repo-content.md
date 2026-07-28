@@ -97,8 +97,15 @@ every existing `<iframe src="/c4/view/…">` keep working untouched — view ids
   the gate and the site cannot disagree.
 - **The migration precondition is exact**: a satellite's grouping and `book.json.slug` must
   reproduce the path the book had in the monorepo. Get it wrong and deletion day moves every URL.
-- `.c4` in a satellite renders nothing until the gathering build is deployed, and it fails
-  *silently* — a blank iframe. The split of a diagram-carrying book is gated on it.
+- `.c4` in a satellite renders nothing until the gathering build is deployed; the iframe carries
+  LikeC4's "does not exist or contains errors" panel, and every route answers 200 with the same
+  shell, so only a rendered page tells the truth. The split of a diagram-carrying book is gated
+  on the gathering build.
+- **A migrating book's diagrams overlap in a way its prose does not.** First-source-wins settles
+  duplicate books; the merged C4 workspace has no such rule, and `likec4 build` accepts duplicate
+  elements and views without complaint. The spine's workflow therefore runs `likec4 validate` on
+  the merged workspace before building, so the window between registering a satellite and deleting
+  its `.c4` from the spine is a red build rather than a quietly wrong diagram.
 - The spine repository does not become obsolete. It keeps the blog, the category declarations and
   the shared C4 specification, and sheds books over time.
 
