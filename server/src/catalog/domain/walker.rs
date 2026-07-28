@@ -274,7 +274,14 @@ fn build_level(
     Ok(level.into_iter().map(|(_, _, entry)| entry).collect())
 }
 
-/// A category exists only if at least one book lives beneath it.
+/// A category exists if a book lives beneath it, or if it DECLARES itself.
+///
+/// The second case is what lets a grouping outlive its books. Once every language guide has moved
+/// to its own repository, `programming-languages/` in the spine holds nothing but its
+/// `category.json` — and that file is the only statement of the grouping's title, icon and order
+/// anywhere. Dropped here, the merge would synthesize the category from its slug instead: no icon,
+/// no order, sorted last. A bare empty directory still declares nothing and is still nothing; the
+/// merge prunes a declared category that no source ever fills.
 fn build_category(
     name: &str,
     meta: Option<&CategoryMeta>,
@@ -290,7 +297,7 @@ fn build_category(
     inner_dirs.push(name.to_owned());
 
     let entries = build_level(children, &inner_categories, &inner_dirs, state)?;
-    if entries.is_empty() {
+    if entries.is_empty() && meta.is_none() {
         return Ok(None);
     }
     Ok(Some(Category {

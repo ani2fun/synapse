@@ -197,6 +197,69 @@ fn a_grouping_no_source_declares_is_synthesized_and_sorts_last() {
     assert_eq!(book(&walk, "sql").category_path, vec!["databases".to_owned()]);
 }
 
+/// The end state of a migration: every book in a grouping has moved to its own repository, so the
+/// spine holds the grouping's `category.json` and nothing else. That file is the only statement of
+/// the title, icon and order anywhere — losing it silently demotes a real category to a synthesized
+/// one, which sorts last and has no icon.
+#[test]
+fn a_declaration_outlives_the_books_that_left_the_source() {
+    let spine = collection(
+        "main",
+        vec![
+            book_dir("01-features", meta("features", Some(1)), vec![file("01-a.md")]),
+            category_dir(
+                "programming-languages",
+                CategoryMeta {
+                    title: Some("Programming Languages".to_owned()),
+                    icon: Some("💻".to_owned()),
+                    order: Some(6),
+                    ..CategoryMeta::default()
+                },
+                vec![],
+            ),
+            book_dir("09-scratch", meta("scratch", Some(9)), vec![file("01-a.md")]),
+        ],
+    );
+    let java = book_source("java", meta("java", Some(7)), vec![file("01-a.md")]);
+
+    let walk = assemble(&[spine, java], &[at(&["programming-languages"], "java", None)]).unwrap();
+
+    let CatalogEntry::Category(category) = walk
+        .catalog
+        .entries
+        .iter()
+        .find(|e| e.slug() == "programming-languages")
+        .expect("the declared category survives having no books of its own")
+    else {
+        panic!("expected a category");
+    };
+    assert_eq!(
+        category.icon.as_deref(),
+        Some("💻"),
+        "the declaration is not lost"
+    );
+    assert_eq!(category.order, Some(6));
+    assert_eq!(book_slugs(&walk), vec!["features", "java", "scratch"]);
+    // Order 6 puts it between the two books — a synthesized category would have sorted last.
+    let slugs: Vec<&str> = walk.catalog.entries.iter().map(CatalogEntry::slug).collect();
+    assert_eq!(slugs, vec!["features", "programming-languages", "scratch"]);
+}
+
+/// …but a declaration nobody ever fills is still not a shelf.
+#[test]
+fn a_declared_category_no_source_fills_is_pruned() {
+    let spine = collection(
+        "main",
+        vec![
+            book_dir("01-features", meta("features", Some(1)), vec![file("01-a.md")]),
+            category_dir("empty-shelf", CategoryMeta::default(), vec![]),
+        ],
+    );
+    let walk = assemble(&[spine], &[] as &[Placement]).unwrap();
+    let slugs: Vec<&str> = walk.catalog.entries.iter().map(CatalogEntry::slug).collect();
+    assert_eq!(slugs, vec!["features"]);
+}
+
 #[test]
 fn a_placement_order_overrides_the_books_own() {
     let java = book_source("java", meta("java", Some(7)), vec![file("01-a.md")]);
