@@ -41,17 +41,29 @@ done
 # Get either wrong and deletion day moves every URL, orphaning the readership and progress rows
 # keyed on them — so the verification below is not a formality.
 #
-# system-design-guide is deliberately absent: its 14 .c4 files need the spine's gathering build to
-# have run at least once, or its diagrams render as blank iframes. Add it once that has shipped.
+# system-design-guide carries 14 .c4 files, so its window is not like the others: while it is
+# registered AND the spine still holds the book, the merged LikeC4 workspace contains both copies
+# and every element and view in it is duplicated. `likec4 build` accepts that silently, which is
+# why the spine's workflow runs `likec4 validate` first — the window is a red /c4 build, the
+# deployed image keeps serving, and deleting from the spine clears it. Keep the window short.
 SOURCES=(
   "java-guide|ani2fun/java-guide|programming-languages|7|/api/synapse/programming-languages/java/first-steps/what-java-is-and-running-code"
   "python-guide|ani2fun/python-guide|programming-languages|6|/api/synapse/programming-languages/python/first-steps/variables-and-types"
   "dsa-guide|ani2fun/dsa-guide||5|/api/synapse/dsa/basics/coding"
   "low-level-design-guide|ani2fun/low-level-design-guide||4|/api/synapse/low-level-design/basics/intro"
+  "system-design-guide|ani2fun/system-design-guide||2|/api/synapse/system-design-from-first-principles/index"
 )
 
 if [[ -z "${SYNAPSE_ADMIN_TOKEN:-}" ]]; then
   echo "✗ SYNAPSE_ADMIN_TOKEN is unset — see the header of this script for how to get one" >&2
+  exit 1
+fi
+
+# A --only that matches nothing used to skip the whole loop and then report success, which is the
+# worst thing this script can say: its closing message invites deleting from the spine.
+if [[ -n "$ONLY" ]] && ! printf '%s\n' "${SOURCES[@]}" | cut -d'|' -f1 | grep -qx "$ONLY"; then
+  echo "✗ --only $ONLY matches no source. Known ids:" >&2
+  printf '%s\n' "${SOURCES[@]}" | cut -d'|' -f1 | sed 's/^/    /' >&2
   exit 1
 fi
 
