@@ -24,11 +24,13 @@ cd "$(dirname "$0")/.."
 BASE="${SYNAPSE_BASE:-https://synapse.kakde.eu}"
 ONLY=""
 DRY=""
+STATUS=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --base) BASE="$2"; shift 2 ;;
     --only) ONLY="$2"; shift 2 ;;
     --dry-run) DRY="1"; shift ;;
+    --status) STATUS="1"; shift ;;
     *) echo "unknown argument: $1" >&2; exit 1 ;;
   esac
 done
@@ -74,6 +76,22 @@ case "$(tail -1 <<<"$probe")" in
   *)   echo "✗ unexpected: $probe" >&2; exit 1 ;;
 esac
 
+# What every registered source is doing right now, and nothing else — the first thing to reach for
+# when one of them stops moving.
+if [[ -n "$STATUS" ]]; then
+  echo
+  api GET /api/admin/content-sources | sed '$d' | python3 -c "
+import json,sys
+for r in json.load(sys.stdin):
+    where = '/'.join(r.get('grouping') or []) or '(top level)'
+    print(f\"  {r['id']:<26} {r['repo']:<36} {where}\")
+    print(f\"    {'enabled' if r['enabled'] else 'DISABLED':<10} sha={(r.get('lastSha') or '—')[:7]:<8} synced={r.get('lastSyncedAt') or '—'}\")
+    if r.get('lastError'):
+        print(f\"    ✗ {r['lastError']}\")
+" || { echo "✗ could not read the registry" >&2; exit 1; }
+  exit 0
+fi
+
 failed=0
 for entry in "${SOURCES[@]}"; do
   IFS='|' read -r id repo grouping order url <<<"$entry"
@@ -103,24 +121,38 @@ for entry in "${SOURCES[@]}"; do
   fi
   echo "   registered"
 
-  # The fetch is a background loop, so this is a wait, not a call.
+  # The fetch is a background loop, so this is a wait, not a call. The row carries its own reason
+  # for standing still, so read it every time round rather than reporting a bare timeout: "never
+  # landed" is not a diagnosis, and the row already holds one.
   sha=""
+  reason=""
   for _ in $(seq 1 30); do
     sleep 5
     row="$(api GET /api/admin/content-sources | sed '$d')"
-    sha="$(python3 -c "
+    # Two lines, not two fields: the sha is empty exactly when there is something to report, and a
+    # leading empty field is the one thing `read` cannot be told to keep.
+    state="$(python3 -c "
 import json,sys
 rows=json.load(sys.stdin)
-r=next((r for r in rows if r['id']=='$id'), None)
-print((r or {}).get('lastSha') or '')
-err=(r or {}).get('lastError')
-if err: print('ERR:'+err, file=sys.stderr)
-" <<<"$row" 2>/dev/null || true)"
+r=next((r for r in rows if r['id']=='$id'), None) or {}
+print(r.get('lastSha') or '')
+print((r.get('lastError') or '').replace('\n',' '))
+" <<<"$row" || printf '\n\n')"
+    { read -r sha; read -r reason || reason=""; } <<<"$state"
     [[ -n "$sha" ]] && break
   done
 
   if [[ -z "$sha" ]]; then
-    echo "   ✗ never landed — check lastError on the row" >&2
+    echo "   ✗ never landed: ${reason:-no error recorded yet — the loop may not have reached it}" >&2
+    case "$reason" in
+      *"not found"*|*"access denied"*)
+        echo "     the repository is public and resolves anonymously, so this is the token:" >&2
+        echo "     add $repo to GITHUB_TOKEN's repository scope" >&2 ;;
+      *"rate limited"*)
+        echo "     wait for the reset and re-run — GITHUB_TOKEN may be unset, which caps at 60/hour" >&2 ;;
+      *"archive"*)
+        echo "     the tarball was refused by the unpacker's caps or guards" >&2 ;;
+    esac
     failed=1
     continue
   fi
