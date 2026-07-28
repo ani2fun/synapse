@@ -1,0 +1,154 @@
+#!/usr/bin/env bash
+# ── REGISTER SATELLITE BOOKS, AND PROVE THE CUTOVER IS SAFE ───────────────────
+#
+# Registers each guide repository against a running Synapse, waits for the fetch loop to land it,
+# and then VERIFIES the pre-split URLs still resolve — which is the whole point. Deleting a book
+# from the spine is what actually moves readers; this is the step that earns the right to do it.
+#
+#   dev-tools/cutover [--base URL] [--only <id>] [--dry-run]
+#
+# Needs an admin bearer in SYNAPSE_ADMIN_TOKEN. To get one against production: sign in at
+# https://synapse.kakde.eu, open the browser console and run
+#
+#   copy(window.__synapseVizToken())
+#
+# (that seam is installed on every page by islands/auth/store.ts). Tokens are short-lived; if a
+# call 401s, take a fresh one. NEVER paste it into a file or a commit.
+#
+# The registry is a Postgres table, so a direct INSERT is possible too — but it would bypass
+# `ContentSourceDraft::validate`, which is the only thing standing between a malformed grouping
+# and a broken `<loc>` in the sitemap. Go through the API; that is what it is for.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+BASE="${SYNAPSE_BASE:-https://synapse.kakde.eu}"
+ONLY=""
+DRY=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --base) BASE="$2"; shift 2 ;;
+    --only) ONLY="$2"; shift 2 ;;
+    --dry-run) DRY="1"; shift ;;
+    *) echo "unknown argument: $1" >&2; exit 1 ;;
+  esac
+done
+
+# id | repo | grouping | order | a pre-split URL that MUST still resolve afterwards
+#
+# The grouping and the book.json slug together reproduce the path the book had inside the spine.
+# Get either wrong and deletion day moves every URL, orphaning the readership and progress rows
+# keyed on them — so the verification below is not a formality.
+#
+# system-design-guide is deliberately absent: its 14 .c4 files need the spine's gathering build to
+# have run at least once, or its diagrams render as blank iframes. Add it once that has shipped.
+SOURCES=(
+  "java-guide|ani2fun/java-guide|programming-languages|7|/api/synapse/programming-languages/java/first-steps/what-java-is-and-running-code"
+  "python-guide|ani2fun/python-guide|programming-languages|6|/api/synapse/programming-languages/python/first-steps/variables-and-types"
+  "dsa-guide|ani2fun/dsa-guide||5|/api/synapse/dsa/basics/coding"
+  "low-level-design-guide|ani2fun/low-level-design-guide||4|/api/synapse/low-level-design/basics/intro"
+)
+
+if [[ -z "${SYNAPSE_ADMIN_TOKEN:-}" ]]; then
+  echo "✗ SYNAPSE_ADMIN_TOKEN is unset — see the header of this script for how to get one" >&2
+  exit 1
+fi
+
+api() {
+  local method="$1" path="$2" body="${3:-}"
+  local args=(-sS -X "$method" -H "Authorization: Bearer $SYNAPSE_ADMIN_TOKEN" -w '\n%{http_code}')
+  [[ -n "$body" ]] && args+=(-H 'Content-Type: application/json' -d "$body")
+  curl "${args[@]}" --max-time 30 "$BASE$path"
+}
+
+echo "──────────────────────────────────────────────────────────"
+echo "  cutover against $BASE"
+echo "──────────────────────────────────────────────────────────"
+
+# Fail fast and clearly rather than 401-ing four times over.
+probe="$(api GET /api/admin/content-sources)"
+case "$(tail -1 <<<"$probe")" in
+  200) echo "→ admin access ok" ;;
+  401) echo "✗ the token is not valid (or has expired) — take a fresh one" >&2; exit 1 ;;
+  403) echo "✗ that account is not in ADMIN_USERS" >&2; exit 1 ;;
+  404) echo "✗ this deployment predates the source registry — is it on the new image?" >&2; exit 1 ;;
+  *)   echo "✗ unexpected: $probe" >&2; exit 1 ;;
+esac
+
+failed=0
+for entry in "${SOURCES[@]}"; do
+  IFS='|' read -r id repo grouping order url <<<"$entry"
+  [[ -n "$ONLY" && "$ONLY" != "$id" ]] && continue
+
+  echo
+  echo "── $repo → ${grouping:-(top level)}"
+
+  # BEFORE. The spine is still serving this book; that is what makes registering safe.
+  before="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$BASE$url")"
+  echo "   pre-split URL before: $before"
+  if [[ "$before" != "200" ]]; then
+    echo "   ! not 200 before registering — check the URL in this script, not the feature" >&2
+  fi
+
+  if [[ -n "$DRY" ]]; then
+    echo "   (dry run — not registering)"
+    continue
+  fi
+
+  body="$(printf '{"repo":"%s","grouping":"%s","order":%s}' "$repo" "$grouping" "$order")"
+  answer="$(api POST /api/admin/content-sources "$body")"
+  if [[ "$(tail -1 <<<"$answer")" != "200" ]]; then
+    echo "   ✗ register failed: $answer" >&2
+    failed=1
+    continue
+  fi
+  echo "   registered"
+
+  # The fetch is a background loop, so this is a wait, not a call.
+  sha=""
+  for _ in $(seq 1 30); do
+    sleep 5
+    row="$(api GET /api/admin/content-sources | sed '$d')"
+    sha="$(python3 -c "
+import json,sys
+rows=json.load(sys.stdin)
+r=next((r for r in rows if r['id']=='$id'), None)
+print((r or {}).get('lastSha') or '')
+err=(r or {}).get('lastError')
+if err: print('ERR:'+err, file=sys.stderr)
+" <<<"$row" 2>/dev/null || true)"
+    [[ -n "$sha" ]] && break
+  done
+
+  if [[ -z "$sha" ]]; then
+    echo "   ✗ never landed — check lastError on the row" >&2
+    failed=1
+    continue
+  fi
+  echo "   fetched ${sha:0:7}"
+
+  # AFTER. Both copies now exist and the spine wins, so this must be UNCHANGED. If it is not,
+  # something is wrong with the grouping or the slug — stop before deleting anything.
+  after="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$BASE$url")"
+  echo "   pre-split URL after:  $after"
+  [[ "$after" == "200" ]] || { echo "   ✗ the URL broke — DO NOT delete from the spine" >&2; failed=1; }
+done
+
+echo
+if [[ "$failed" != "0" ]]; then
+  echo "✗ at least one source is not ready — nothing should be deleted from synapse-content yet"
+  exit 1
+fi
+cat <<'NEXT'
+✓ every registered book fetched, and every pre-split URL still resolves.
+
+Both copies exist right now and the spine is the one serving (first source wins), so nothing has
+changed for readers yet. The handover is the NEXT step, and it is the destructive one:
+
+  1. In synapse-content, delete the books that now have their own repository.
+  2. Commit and push. git-sync picks it up within ~60s.
+  3. Re-run:  dev-tools/cutover --dry-run
+     Every pre-split URL must still be 200 — now served by the satellite.
+
+If a URL 404s at step 3, restore the directory in synapse-content and push: the spine wins again
+the moment it is back, and the satellite's copy sits behind it harmlessly.
+NEXT
