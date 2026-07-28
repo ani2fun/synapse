@@ -17,6 +17,35 @@ source "$(dirname "$0")/lib-ports.sh"
 reclaim "${SYNAPSE_PORT:-8280}" "synapse-server"
 reclaim 5373 "astro-dev"
 
+# ── PREFLIGHT: POSTGRES ──────────────────────────────────────────────────────
+# Postgres is the system of record and the server applies migrations at boot, so a DSN that
+# refuses the connection is a hard boot failure (server/src/config.rs) — not a degraded start.
+# Checked before the ~30s cargo build rather than after it, and named here rather than left to
+# the server's own panic, because the fix is a docker command this script cannot assume.
+db_dsn="${DATABASE_URL:-${SYNAPSE_DATABASE_URL:-postgres://synapse:synapse@localhost:5532/synapse_rs}}"
+db_hostport="${db_dsn#*://}"      # drop the scheme
+db_hostport="${db_hostport#*@}"   # drop credentials — a no-op when the DSN carries none
+db_hostport="${db_hostport%%\?*}" # drop the query string
+db_hostport="${db_hostport%%/*}"  # drop /dbname
+db_host="${db_hostport%%:*}"
+db_port="${db_hostport##*:}"
+[[ "$db_port" == "$db_host" ]] && db_port=5432 # the DSN named no port
+
+# bash's own /dev/tcp rather than nc: no external binary, and a refused connection on a loopback
+# host returns immediately.
+if ! (exec 3<>"/dev/tcp/$db_host/$db_port") 2>/dev/null; then
+  echo
+  echo "✗ Postgres is not accepting connections on $db_host:$db_port"
+  echo "    DSN: $db_dsn"
+  echo
+  echo "  Start the backing services (the project name is pinned, so the pgdata volume"
+  echo "  and your local database survive):"
+  echo
+  echo "      docker compose up -d"
+  echo
+  exit 1
+fi
+
 # The viz wasm bundle (A10): Vite resolves the lazy import on demand, so a missing pkg only
 # explodes the first time a page actually loads viz — build it up front (dev profile, seconds
 # when warm) so the loop never serves that surprise.
@@ -38,5 +67,29 @@ cargo build -p synapse-server --features render-local-only --quiet
 ./target/debug/synapse-server &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+
+# ── WAIT FOR THE API ─────────────────────────────────────────────────────────
+# The server is backgrounded and Astro holds the foreground, so a boot failure otherwise scrolls
+# past under Vite's banner: the loop survives, and the first symptom is an SSR fetch to :8280
+# refusing — surfacing on the page as "The library failed to load: fetch failed" rather than as
+# the startup error it is. Block until the port answers, and name a death for what it was.
+api_port="${SYNAPSE_PORT:-8280}"
+api_ready=""
+for _ in $(seq 1 150); do
+  if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+    echo "✗ synapse-server exited during boot — its error is above."
+    exit 1
+  fi
+  if (exec 3<>"/dev/tcp/127.0.0.1/$api_port") 2>/dev/null; then
+    api_ready=1
+    break
+  fi
+  sleep 0.2
+done
+if [[ -z "$api_ready" ]]; then
+  echo "✗ synapse-server is alive but never bound :$api_port after 30s — giving up."
+  exit 1
+fi
+echo "→ api :$api_port up"
 
 cd web && exec npx astro dev
