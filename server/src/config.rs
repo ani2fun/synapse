@@ -27,8 +27,13 @@ pub struct AppConfig {
     /// 5373/8280, kept separate from other local dev services). Env:
     /// `SYNAPSE_PORT`.
     pub port: u16,
-    /// The synapse-content checkout. Env: `SYNAPSE_ROOT` (mapped
-    /// in `load`) or `SYNAPSE_CONTENT_ROOT`.
+    /// The spine checkout — the git-sync'd `synapse-content`, mounted first and always. Env:
+    /// `SYNAPSE_ROOT` (mapped in `load`) or `SYNAPSE_CONTENT_ROOT`.
+    ///
+    /// The default is a DEV convenience and assumes the sibling layout every content repository
+    /// now shares: `synapse-content-github/` holding the spine beside each satellite guide. Prod
+    /// sets `SYNAPSE_ROOT` at git-sync's mount, and `dev-tools/e2e` points at its own fixture, so
+    /// nothing but a local `dev-tools/dev` reads this value.
     pub content_root: String,
     /// Dev re-checks the content watermark so live edits show; prod builds the index
     /// once per git SHA. Env: `SYNAPSE_AUTO_RELOAD`.
@@ -119,7 +124,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             port: 8280,
-            content_root: "../synapse-content".to_owned(),
+            content_root: "../synapse-content-github/synapse-content".to_owned(),
             auto_reload: true,
             executor_url: "http://localhost:5150".to_owned(),
             database_url: "postgres://synapse:synapse@localhost:5532/synapse_rs".to_owned(),

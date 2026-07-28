@@ -81,7 +81,9 @@ services:
       # serve, not `likec4 serve`: the latter binds localhost only, unreachable from the host.
       - "npx -y likec4@latest build --base /c4/ --no-use-dot --output /dist . && npx -y serve --single --listen tcp://0.0.0.0:5173 /dist"
     volumes:
-      - ../synapse-content:/c4:ro
+      # The spine's own .c4 only. The merged workspace CI builds also gathers each satellite's,
+      # which this dev service cannot do — it has no registry to ask.
+      - ../synapse-content-github/synapse-content:/c4:ro
       - likec4-cache:/root/.npm
     ports:
       - "127.0.0.1:8190:5173"
