@@ -6,8 +6,9 @@ use std::fs;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
-use synapse_server::catalog::application::{CatalogService, ContentError, ContentRepository};
+use synapse_server::catalog::application::{CatalogService, ContentError, ContentRepository, Placements};
 use synapse_server::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
+use synapse_server::catalog::domain::merge::Placement;
 use synapse_server::catalog::infrastructure::{FileSystemContentRepository, SourceRoot, read_commit_sha};
 
 const SHA: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -164,6 +165,145 @@ async fn the_version_composes_every_mounted_source() {
 
     write(&java.path().join("01-first-steps/02-more.md"), "added");
     assert_ne!(repo.content_version().await, before);
+}
+
+/// The same invariant on the PROD path, for the checkout shape that has no git metadata at all.
+///
+/// The test above passes with `auto_reload = true`, where the version is an mtime watermark that
+/// notices any write. Prod reads commit SHAs instead, and a FETCHED satellite is an unpacked
+/// tarball: `ContentCache` names each commit directory after its SHA and flips `current` onto it,
+/// which is the only commit id on disk. A satellite that could not report one answered `static`
+/// before and after every fetch, so the joined version never moved, the version-gated index cache
+/// never rebuilt, and content that had genuinely landed stayed invisible until the process
+/// restarted. This is that hole, closed.
+#[tokio::test]
+async fn prod_mode_moves_when_a_fetched_satellite_lands_a_new_commit() {
+    const LANDED: &str = "d2dad749889b3dd4471356da8e47fba9fae42e21";
+
+    let main = tempfile::tempdir().unwrap();
+    let cache = tempfile::tempdir().unwrap();
+    seed_content(main.path());
+    write(&main.path().join(".git/HEAD"), "ref: refs/heads/main\n");
+    write(&main.path().join(".git/refs/heads/main"), &format!("{SHA}\n"));
+
+    // The cache layout, exactly as `ContentCache::publish` leaves it.
+    let checkout = |sha: &str| {
+        let commit_dir = cache.path().join("dsa-guide").join(sha);
+        write(&commit_dir.join("book.json"), r#"{"slug":"dsa"}"#);
+        let link = cache.path().join("dsa-guide/current");
+        let _ = fs::remove_file(&link);
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&commit_dir, &link).unwrap();
+        link
+    };
+
+    let link = checkout("4ecf01b5a5acc83dd2b64ebd2c9f054de868aa53");
+    let repo = FileSystemContentRepository::over(
+        vec![
+            SourceRoot::new(PRIMARY_SOURCE_ID, main.path()),
+            // The mounted root is the STABLE `current` path — it is identical across fetches, so
+            // the mount itself can never signal that anything moved.
+            SourceRoot::new("dsa-guide", &link),
+        ],
+        false,
+    );
+
+    let before = repo.content_version().await;
+    assert!(before.contains(&format!("{PRIMARY_SOURCE_ID}={SHA}")), "{before}");
+    assert!(before.contains("dsa-guide="), "{before}");
+    assert!(
+        !before.contains("dsa-guide=static"),
+        "a satellite must report the commit it is serving, not the fallback: {before}"
+    );
+
+    checkout(LANDED);
+
+    let after = repo.content_version().await;
+    assert!(after.contains(&format!("dsa-guide={LANDED}")), "{after}");
+    assert_ne!(
+        after, before,
+        "a landed commit must move the version, or the index cache never rebuilds"
+    );
+}
+
+/// The symptom itself, end to end: a satellite lands a lesson and a reader can open it, with no
+/// restart. `CatalogService` memoises one merged walk behind the content version, so this passes
+/// only if the version moved — it is the reason the version has to.
+#[tokio::test]
+async fn a_lesson_landed_by_a_satellite_is_readable_without_a_restart() {
+    let main = tempfile::tempdir().unwrap();
+    let cache = tempfile::tempdir().unwrap();
+    // The spine carries no `dsa` book of its own: it is mounted first and wins the merge's
+    // first-wins rule, so a competing slug here would shadow the satellite and the assertions
+    // below would be measuring the wrong checkout.
+    write(&main.path().join(".git/HEAD"), &format!("{SHA}\n"));
+
+    let land = |sha: &str, lessons: &[(&str, &str)]| {
+        let commit_dir = cache.path().join("dsa-guide").join(sha);
+        write(&commit_dir.join("book.json"), r#"{"title":"DSA","slug":"dsa"}"#);
+        for (path, body) in lessons {
+            write(&commit_dir.join(path), body);
+        }
+        let link = cache.path().join("dsa-guide/current");
+        let _ = fs::remove_file(&link);
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&commit_dir, &link).unwrap();
+        link
+    };
+
+    let link = land(
+        "4ecf01b5a5acc83dd2b64ebd2c9f054de868aa53",
+        &[("04-strings/05-isomorphic-string.md", "isomorphic body")],
+    );
+    let placements = Placements::default();
+    placements.publish(vec![Placement {
+        source_id: "dsa-guide".to_owned(),
+        grouping: Vec::new(),
+        order: Some(5),
+    }]);
+    let service = CatalogService::with_placements(
+        FileSystemContentRepository::over(
+            vec![
+                SourceRoot::new(PRIMARY_SOURCE_ID, main.path()),
+                SourceRoot::new("dsa-guide", &link),
+            ],
+            false,
+        ),
+        placements,
+    );
+
+    let path = |lesson: &str| {
+        ["dsa", "strings", lesson]
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect::<Vec<String>>()
+    };
+    // The satellite is genuinely mounted and served before the flip — otherwise the assertion
+    // below would pass for the wrong reason.
+    assert_eq!(
+        service.lesson(&path("isomorphic-string")).await.unwrap().raw,
+        "isomorphic body"
+    );
+    let rotate = path("rotate-string");
+    assert!(
+        matches!(service.lesson(&rotate).await, Err(ContentError::NotFound(_))),
+        "the lesson does not exist yet"
+    );
+
+    // The push lands: same `current` path, new commit behind it.
+    land(
+        "d2dad749889b3dd4471356da8e47fba9fae42e21",
+        &[
+            ("04-strings/05-isomorphic-string.md", "isomorphic body"),
+            ("04-strings/06-rotate-string.md", "rotate body"),
+        ],
+    );
+
+    let lesson = service
+        .lesson(&rotate)
+        .await
+        .expect("the landed lesson must be readable without a restart");
+    assert_eq!(lesson.raw, "rotate body");
 }
 
 /// The satellite shape: a root `book.json` makes the whole checkout one book, with its chapters

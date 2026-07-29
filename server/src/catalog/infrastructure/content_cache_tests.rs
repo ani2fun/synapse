@@ -9,6 +9,7 @@ use flate2::Compression;
 use flate2::write::GzEncoder;
 
 use super::*;
+use crate::catalog::infrastructure::commit_sha::read_commit_sha;
 
 fn gzip(tar: &[u8]) -> Vec<u8> {
     let mut encoder = GzEncoder::new(Vec::new(), Compression::fast());
@@ -183,4 +184,39 @@ fn forgetting_a_source_reclaims_its_whole_cache() {
 
     cache.forget("gone");
     assert!(!tmp.path().join("gone").exists());
+}
+
+/// `checkout_of` is a STABLE path — `current` never changes name — so the mounted root cannot tell
+/// the catalog that anything moved. The content version has to, and for a tarball checkout the only
+/// commit id on disk is the directory `current` resolves to. Without this the version is identical
+/// before and after a publish, the version-gated index never rebuilds, and a satellite serves the
+/// commit it booted with no matter what lands.
+#[test]
+fn publishing_a_new_commit_moves_the_content_version() {
+    const FIRST: &str = "4ecf01b5a5acc83dd2b64ebd2c9f054de868aa53";
+    const SECOND: &str = "d2dad749889b3dd4471356da8e47fba9fae42e21";
+
+    let tmp = tempfile::tempdir().unwrap();
+    let cache = ContentCache::new(tmp.path());
+
+    cache
+        .publish("dsa-guide", FIRST, &archive(&[("w/book.json", "{}")]))
+        .unwrap();
+    let before = read_commit_sha(&cache.checkout_of("dsa-guide"));
+
+    cache
+        .publish(
+            "dsa-guide",
+            SECOND,
+            &archive(&[("w/book.json", "{}"), ("w/new-lesson.md", "# New")]),
+        )
+        .unwrap();
+    let after = read_commit_sha(&cache.checkout_of("dsa-guide"));
+
+    assert_eq!(before, FIRST);
+    assert_eq!(after, SECOND);
+    assert_ne!(
+        before, after,
+        "a landed commit must move the version, or the catalog cache never rebuilds"
+    );
 }
