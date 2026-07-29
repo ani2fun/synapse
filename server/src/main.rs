@@ -122,7 +122,7 @@ async fn main() -> anyhow::Result<()> {
         content_root = cfg.content_root,
         auto_reload = cfg.auto_reload,
         executor_url = cfg.executor_url,
-        astro_url = cfg.astro_url.as_deref().unwrap_or("(api only)"),
+        astro_url = cfg.astro_url().unwrap_or("(api only)"),
         likec4_url = cfg.likec4_url,
         "synapse-rs server started"
     );
@@ -147,7 +147,7 @@ async fn main() -> anyhow::Result<()> {
         tutor,
         authoring,
         content_sources: Some(source_admin),
-        astro_url: cfg.astro_url,
+        astro_url: cfg.astro_url().map(str::to_owned),
         site_url: cfg.site_url,
         content_root: cfg.content_root.clone(),
         likec4_url: cfg.likec4_url.clone(),

@@ -170,6 +170,21 @@ impl AppConfig {
         serde_json::from_str(&self.local_sources)
     }
 
+    /// The page tier's origin, or `None` when this deployment serves the API alone.
+    ///
+    /// BLANK IS ABSENT, and that is the whole point of reading it through here. figment
+    /// treats an unset variable as absent but an EMPTY one as `Some("")`, which mounts the
+    /// page proxy pointed at nowhere: every page 502s while `/api/health` stays green, so it
+    /// reads as a content outage rather than the config typo it is. `dev-tools/start.sh`
+    /// unsets the variable before exec'ing for exactly this reason — this is the same
+    /// guarantee for every other way the binary can be launched.
+    pub fn astro_url(&self) -> Option<&str> {
+        self.astro_url
+            .as_deref()
+            .map(str::trim)
+            .filter(|url| !url.is_empty())
+    }
+
     pub fn admin_user_set(&self) -> std::collections::HashSet<String> {
         self.admin_users
             .split(',')
@@ -279,6 +294,34 @@ mod tests {
             assert_eq!(cfg.rate_limit_anon_window_seconds, 60, "default stays");
             Ok(())
         });
+    }
+
+    #[test]
+    fn an_empty_astro_url_reads_as_no_page_tier() {
+        figment::Jail::expect_with(|jail| {
+            jail.set_env("SYNAPSE_ASTRO_URL", "");
+            let cfg = AppConfig::load().map_err(|e| *e)?;
+            assert_eq!(
+                cfg.astro_url,
+                Some(String::new()),
+                "figment reads an empty env var as Some(\"\") — the premise this guards"
+            );
+            assert_eq!(
+                cfg.astro_url(),
+                None,
+                "an empty origin must not mount a proxy pointed at nowhere"
+            );
+            Ok(())
+        });
+    }
+
+    #[test]
+    fn a_real_astro_url_survives_the_blank_check() {
+        let cfg = AppConfig {
+            astro_url: Some("  http://127.0.0.1:4321  ".to_owned()),
+            ..AppConfig::default()
+        };
+        assert_eq!(cfg.astro_url(), Some("http://127.0.0.1:4321"));
     }
 
     #[test]
