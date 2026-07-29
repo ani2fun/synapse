@@ -34,14 +34,16 @@ impl ContentSources for FakeRegistry {
         Ok(self.rows.lock().unwrap().clone())
     }
     async fn upsert(&self, draft: &ContentSourceDraft) -> Result<ContentSourceRecord, RegistryError> {
-        let id = draft.validate()?;
+        // No validate() here any more: a draft cannot be built unvalidated, so this fake
+        // behaves like the real store without having to remember to re-check.
+        let id = draft.id().to_owned();
         let record = ContentSourceRecord {
             id: id.clone(),
-            repo: draft.repo.clone(),
-            branch: draft.branch.clone(),
-            grouping: draft.grouping.clone(),
-            order: draft.order,
-            enabled: draft.enabled,
+            repo: draft.repo().to_owned(),
+            branch: draft.branch().to_owned(),
+            grouping: draft.grouping().to_vec(),
+            order: draft.order(),
+            enabled: draft.enabled(),
             last_sha: None,
             last_synced_at: None,
             last_error: None,

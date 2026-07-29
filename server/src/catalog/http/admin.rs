@@ -15,8 +15,7 @@ use synapse_shared::api::ApiError;
 use synapse_shared::catalog::{CatalogWarningDto, ContentSourceDto, RegisterContentSourceDto};
 
 use crate::catalog::application::{
-    ContentSourceDraft, ContentSourceRecord, ContentSources, RegistryError, grouping_from_str,
-    grouping_to_string,
+    ContentSourceDraft, ContentSourceRecord, ContentSources, RegistryError, grouping_to_string,
 };
 use crate::catalog::domain::catalog::CatalogWarning;
 use crate::catalog::http::routes::LiveCatalogService;
@@ -256,19 +255,16 @@ pub(crate) async fn register_content_source<S: ContentSources>(
     Json(request): Json<RegisterContentSourceDto>,
 ) -> Result<Json<ContentSourceDto>, Reject> {
     gate(&state, &headers).await?;
-    let draft = ContentSourceDraft {
-        repo: request.repo.trim().to_owned(),
-        branch: request
-            .branch
-            .as_deref()
-            .map(str::trim)
-            .filter(|b| !b.is_empty())
-            .unwrap_or("main")
-            .to_owned(),
-        grouping: grouping_from_str(request.grouping.as_deref().unwrap_or_default()),
-        order: request.order,
-        enabled: request.enabled.unwrap_or(true),
-    };
+    // DTO in, command out — what a blank branch or an absent `enabled` MEANS is the application's
+    // to decide, and `register` is where it decides it.
+    let draft = ContentSourceDraft::register(
+        &request.repo,
+        request.branch.as_deref(),
+        request.grouping.as_deref(),
+        request.order,
+        request.enabled,
+    )
+    .map_err(|error| to_error(&error))?;
     match state.sources.upsert(&draft).await {
         Ok(record) => Ok(Json(to_dto(&record))),
         Err(error) => Err(to_error(&error)),

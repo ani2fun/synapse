@@ -57,7 +57,7 @@ impl ContentSources for PostgresContentSources {
     /// second one. The sync columns are deliberately NOT reset: a placement change should not
     /// discard a good checkout and blank the book until the next tick.
     async fn upsert(&self, draft: &ContentSourceDraft) -> Result<ContentSourceRecord, RegistryError> {
-        let id = draft.validate()?;
+        let id = draft.id();
         let row = sqlx::query(&format!(
             "insert into content_source (id, repo, branch, grouping, sort_order, enabled) \
              values ($1, $2, $3, $4, $5, $6) \
@@ -66,20 +66,20 @@ impl ContentSources for PostgresContentSources {
                 sort_order = excluded.sort_order, enabled = excluded.enabled, updated_at = now() \
              returning {COLUMNS}"
         ))
-        .bind(&id)
-        .bind(draft.repo.trim())
-        .bind(draft.branch.trim())
-        .bind(grouping_to_string(&draft.grouping))
-        .bind(draft.order)
-        .bind(draft.enabled)
+        .bind(id)
+        .bind(draft.repo())
+        .bind(draft.branch())
+        .bind(grouping_to_string(draft.grouping()))
+        .bind(draft.order())
+        .bind(draft.enabled())
         .fetch_one(&self.pool)
         .await
         .map_err(|e| store_failed(&e))?;
         tracing::info!(
             id = %id,
-            repo = %draft.repo,
-            grouping = %grouping_to_string(&draft.grouping),
-            enabled = draft.enabled,
+            repo = %draft.repo(),
+            grouping = %grouping_to_string(draft.grouping()),
+            enabled = draft.enabled(),
             "content source registered"
         );
         Ok(record(&row))

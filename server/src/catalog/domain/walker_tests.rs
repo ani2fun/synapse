@@ -425,3 +425,34 @@ fn helper_edge_cases() {
     assert!(!slug_like("has space"));
     assert!(!slug_like(""));
 }
+
+/// `strip_order_prefix` accepts `.` as an order separator, so a chapter may be named `1.recursion`
+/// — but the eligibility check used to test the RAW name, which `slug_like` fails on the dot. A
+/// book whose every chapter used that form walked to zero lessons, silently, because an excluded
+/// directory is skipped rather than reported.
+#[test]
+fn a_dot_separated_order_prefix_is_still_a_chapter() {
+    for name in ["1.recursion", "10.graph", "01-foo", "10_baz", "plain"] {
+        assert!(includes_as_content(name), "{name} should be content");
+    }
+    // Only the NUMERIC prefix form. A dot anywhere else is still not a slug.
+    for name in ["foo.bar", "_media", ".git", "examples", "c4", "1.2.3"] {
+        assert!(!includes_as_content(name), "{name} should not be content");
+    }
+
+    let result = walk(&[dir(
+        "1.recursion",
+        vec![book_dir(
+            "02-nested",
+            BookMeta::default(),
+            vec![file("a.md", "x")],
+        )],
+    )])
+    .unwrap();
+    let slugs: Vec<&str> = result.catalog.entries.iter().map(CatalogEntry::slug).collect();
+    assert_eq!(
+        slugs,
+        vec!["recursion"],
+        "the dot is an order separator, not a slug"
+    );
+}

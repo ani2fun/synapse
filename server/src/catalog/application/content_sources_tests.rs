@@ -5,14 +5,8 @@
 
 use super::*;
 
-fn draft(repo: &str, grouping: &str) -> ContentSourceDraft {
-    ContentSourceDraft {
-        repo: repo.to_owned(),
-        branch: "main".to_owned(),
-        grouping: grouping_from_str(grouping),
-        order: None,
-        enabled: true,
-    }
+fn draft(repo: &str, grouping: &str) -> Result<ContentSourceDraft, RegistryError> {
+    ContentSourceDraft::register(repo, None, Some(grouping), None, None)
 }
 
 #[test]
@@ -23,8 +17,8 @@ fn the_id_comes_from_the_repository_name() {
 
 #[test]
 fn a_well_formed_registration_yields_its_id() {
-    let ok = draft("ani2fun/java-guide", "programming-languages").validate();
-    assert_eq!(ok.unwrap(), "java-guide");
+    let ok = draft("ani2fun/java-guide", "programming-languages").unwrap();
+    assert_eq!(ok.id(), "java-guide");
 }
 
 #[test]
@@ -37,25 +31,35 @@ fn the_top_level_is_an_empty_grouping() {
 #[test]
 fn a_grouping_segment_that_is_not_slug_like_is_refused() {
     // Unchecked, this reaches <loc> in the sitemap by way of the book's category path.
-    let error = draft("ani2fun/x-guide", "not a slug").validate().unwrap_err();
+    let error = draft("ani2fun/x-guide", "not a slug").unwrap_err();
     assert!(matches!(error, RegistryError::Invalid(_)), "{error:?}");
 }
 
 #[test]
 fn a_repo_that_is_not_owner_slash_name_is_refused() {
     for repo in ["java-guide", "ani2fun/", "/java-guide", "a/b/c"] {
-        assert!(
-            draft(repo, "").validate().is_err(),
-            "expected '{repo}' to be refused"
-        );
+        assert!(draft(repo, "").is_err(), "expected '{repo}' to be refused");
     }
 }
 
+/// Silence is not an error. The route used to compute this default for itself, which left the
+/// meaning of an omitted branch stated in the handler, in the schema, and nowhere in between.
 #[test]
-fn a_blank_branch_is_refused() {
-    let mut d = draft("ani2fun/java-guide", "");
-    d.branch = "  ".to_owned();
-    assert!(d.validate().is_err());
+fn a_blank_or_absent_branch_means_the_default() {
+    for branch in [None, Some(""), Some("   ")] {
+        let d = ContentSourceDraft::register("ani2fun/java-guide", branch, None, None, None).unwrap();
+        assert_eq!(d.branch(), DEFAULT_BRANCH, "branch: {branch:?}");
+    }
+    let named = ContentSourceDraft::register("ani2fun/java-guide", Some(" next "), None, None, None).unwrap();
+    assert_eq!(named.branch(), "next", "a real branch is trimmed, not defaulted");
+}
+
+#[test]
+fn an_absent_enabled_registers_the_source_enabled() {
+    let d = ContentSourceDraft::register("ani2fun/java-guide", None, None, None, None).unwrap();
+    assert!(d.enabled(), "registering a repository means wanting it served");
+    let off = ContentSourceDraft::register("ani2fun/java-guide", None, None, None, Some(false)).unwrap();
+    assert!(!off.enabled());
 }
 
 #[test]

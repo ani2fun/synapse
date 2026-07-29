@@ -42,14 +42,25 @@ impl ContentSourceRecord {
     }
 }
 
-/// What the admin panel supplies. The id is derived, not typed.
+/// The branch a registration means when it does not say. Declared here rather than only in the
+/// schema: what a registration MEANS is this layer's business, and the SQL default is a backstop.
+pub const DEFAULT_BRANCH: &str = "main";
+
+/// A registration with this layer's defaults applied and its rules already enforced.
+///
+/// [`ContentSourceDraft::register`] is the only door, so an adapter receives nothing it has to
+/// re-check. That used to be the adapter's job, and it showed: the Postgres store validated and
+/// then re-trimmed every field on the way to SQL, and the route suite's fake registry had to
+/// replicate the same `validate` call to behave like the real one. Both are what an invariant
+/// looks like when it lives in the adapters instead of the type they share.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContentSourceDraft {
-    pub repo: String,
-    pub branch: String,
-    pub grouping: Vec<String>,
-    pub order: Option<i32>,
-    pub enabled: bool,
+    id: String,
+    repo: String,
+    branch: String,
+    grouping: Vec<String>,
+    order: Option<i32>,
+    enabled: bool,
 }
 
 impl ContentSourceDraft {
@@ -60,34 +71,78 @@ impl ContentSourceDraft {
         slugify(repo.rsplit('/').next().unwrap_or(repo))
     }
 
-    /// Reject what the catalog cannot serve, at the door rather than at render time. The grouping
-    /// matters most: it is not slug-checked anywhere downstream, and it reaches `<loc>` in
-    /// `/sitemap.xml` by way of the book's category path.
-    pub fn validate(&self) -> Result<String, RegistryError> {
-        let (owner, name) = self
-            .repo
+    /// Apply what a registration means when it is silent, then refuse what the catalog cannot
+    /// serve — at the door rather than at render time. The grouping matters most: nothing
+    /// downstream slug-checks it, and it reaches `<loc>` in `/sitemap.xml` by way of the book's
+    /// category path.
+    ///
+    /// A blank branch is not an error, it is silence: it means [`DEFAULT_BRANCH`], the same
+    /// answer the route used to compute for itself.
+    pub fn register(
+        repo: &str,
+        branch: Option<&str>,
+        grouping: Option<&str>,
+        order: Option<i32>,
+        enabled: Option<bool>,
+    ) -> Result<Self, RegistryError> {
+        let repo = repo.trim();
+        let (owner, name) = repo
             .split_once('/')
             .ok_or_else(|| RegistryError::Invalid("repo must be owner/name".to_owned()))?;
         if owner.trim().is_empty() || name.trim().is_empty() || name.contains('/') {
             return Err(RegistryError::Invalid("repo must be owner/name".to_owned()));
         }
-        if self.branch.trim().is_empty() {
-            return Err(RegistryError::Invalid("branch must not be blank".to_owned()));
-        }
-        if !self.grouping.iter().all(|segment| slug_like(segment)) {
+        let grouping = grouping_from_str(grouping.unwrap_or_default());
+        if !grouping.iter().all(|segment| slug_like(segment)) {
             return Err(RegistryError::Invalid(format!(
                 "grouping segments must be slug-like: '{}'",
-                self.grouping.join("/")
+                grouping.join("/")
             )));
         }
-        let id = Self::derive_id(&self.repo);
+        let id = Self::derive_id(repo);
         if !slug_like(&id) {
             return Err(RegistryError::Invalid(format!(
-                "'{}' yields no usable source id",
-                self.repo
+                "'{repo}' yields no usable source id"
             )));
         }
-        Ok(id)
+        Ok(Self {
+            id,
+            repo: repo.to_owned(),
+            branch: branch
+                .map(str::trim)
+                .filter(|b| !b.is_empty())
+                .unwrap_or(DEFAULT_BRANCH)
+                .to_owned(),
+            grouping,
+            order,
+            enabled: enabled.unwrap_or(true),
+        })
+    }
+
+    /// The derived id — already computed and checked at construction, never re-derived downstream.
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+    #[must_use]
+    pub fn repo(&self) -> &str {
+        &self.repo
+    }
+    #[must_use]
+    pub fn branch(&self) -> &str {
+        &self.branch
+    }
+    #[must_use]
+    pub fn grouping(&self) -> &[String] {
+        &self.grouping
+    }
+    #[must_use]
+    pub fn order(&self) -> Option<i32> {
+        self.order
+    }
+    #[must_use]
+    pub fn enabled(&self) -> bool {
+        self.enabled
     }
 }
 

@@ -117,12 +117,20 @@ fn order_prefix(s: &str) -> Option<i32> {
     }
 }
 
-/// Eligible content dir: slug-like, not `_*`/`.*`, and not a reserved aux dir.
+/// Eligible content dir: slug-like once its order prefix is off, not `_*`/`.*`, not a reserved
+/// aux dir.
+///
+/// The check is on the STEM, not the raw name, and that distinction is load-bearing.
+/// `strip_order_prefix` accepts `.` as an order separator — `1.recursion` is a documented,
+/// supported chapter name — but `slug_like` rejects a dot, so testing the raw name threw those
+/// directories out. Nothing said so: an excluded directory is simply skipped, so a book whose
+/// every chapter used that form walked to zero lessons with no error naming the cause.
+///
+/// Only the numeric-prefix form is admitted. `foo.bar` strips to itself, still fails `slug_like`,
+/// and is still not content.
 pub fn includes_as_content(name: &str) -> bool {
-    slug_like(name)
-        && !name.starts_with('_')
-        && !name.starts_with('.')
-        && !RESERVED_AUX_DIRS.contains(&strip_order_prefix(name))
+    let stem = strip_order_prefix(name);
+    slug_like(stem) && !name.starts_with('_') && !name.starts_with('.') && !RESERVED_AUX_DIRS.contains(&stem)
 }
 
 /// Markdown that is repo furniture, never a lesson — matched case-insensitively on the stem.

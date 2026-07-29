@@ -7,9 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use sqlx::PgPool;
-use synapse_server::catalog::application::{
-    ContentSourceDraft, ContentSources, SyncOutcome, grouping_from_str,
-};
+use synapse_server::catalog::application::{ContentSourceDraft, ContentSources, SyncOutcome};
 use synapse_server::catalog::infrastructure::PostgresContentSources;
 
 async fn gated_pool(namespace: &str) -> Option<PgPool> {
@@ -34,13 +32,7 @@ async fn gated_pool(namespace: &str) -> Option<PgPool> {
 }
 
 fn draft(repo: &str, grouping: &str, order: Option<i32>) -> ContentSourceDraft {
-    ContentSourceDraft {
-        repo: repo.to_owned(),
-        branch: "main".to_owned(),
-        grouping: grouping_from_str(grouping),
-        order,
-        enabled: true,
-    }
+    ContentSourceDraft::register(repo, None, Some(grouping), order, None).unwrap()
 }
 
 #[tokio::test]
@@ -184,8 +176,14 @@ async fn listing_is_enabled_first_then_configured_order() {
         .upsert(&draft(&format!("{namespace}/alpha-guide"), "", Some(1)))
         .await
         .unwrap();
-    let mut off = draft(&format!("{namespace}/off-guide"), "", Some(0));
-    off.enabled = false;
+    let off = ContentSourceDraft::register(
+        &format!("{namespace}/off-guide"),
+        None,
+        None,
+        Some(0),
+        Some(false),
+    )
+    .unwrap();
     registry.upsert(&off).await.unwrap();
 
     let ids: Vec<String> = registry
