@@ -126,19 +126,26 @@ jobs:
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: tests (unit + integration + contract lock + the Postgres IT)
         run: cargo test --workspace
-      - name: prove the Postgres IT actually RAN (a skip reports green)
+      - name: prove the Postgres ITs actually RAN (a skip reports green)
         # The gated ITs print "skipped (set POSTGRES_IT=1 …)" and still pass, which is the
         # standard Rust workaround for having no native skip — and the reason this gap went
         # unnoticed for so long. Assert on a test that only exists behind the gate, so a
         # broken service block fails loudly instead of silently reverting to the old state.
+        #
+        # EVERY gated suite, not just the first one written: the registry and progress ITs
+        # are behind the same env var, and asserting only on postgres_it left them free to
+        # skip in silence — which is the very failure this step exists to make impossible.
+        # A new POSTGRES_IT-gated suite belongs in this list.
         run: |
-          cargo test --workspace --test postgres_it -- --nocapture 2>&1 | tee /tmp/pg.log
-          if grep -q "skipped (set POSTGRES_IT" /tmp/pg.log; then
-            echo "::error::the Postgres IT SKIPPED — the service or DATABASE_URL is wrong"
-            exit 1
-          fi
-          grep -qE "test result: ok\. [1-9]" /tmp/pg.log \
-            || { echo "::error::the Postgres IT ran no tests"; exit 1; }
+          for suite in postgres_it content_sources_it progress_it; do
+            cargo test --workspace --test "$suite" -- --nocapture 2>&1 | tee "/tmp/$suite.log"
+            if grep -q "skipped (set POSTGRES_IT" "/tmp/$suite.log"; then
+              echo "::error::$suite SKIPPED — the service or DATABASE_URL is wrong"
+              exit 1
+            fi
+            grep -qE "test result: ok\. [1-9]" "/tmp/$suite.log" \
+              || { echo "::error::$suite ran no tests"; exit 1; }
+          done
 
   # ── The live sandbox (step 45) ────────────────────────────────────────────────
   # GOJUDGE_IT was env-gated and, like the Postgres suite, therefore ran nowhere: the
@@ -182,12 +189,18 @@ jobs:
       - name: prove they RAN (a skip reports green)
         # Same trap as the Postgres suite: the gate prints "skipped" and passes. Assert on
         # the absence of that line, or a broken EXECUTOR_URL silently reverts to no coverage.
+        # Both suites, and a positive test count for each — absence of the skip line alone
+        # would also be satisfied by a suite that compiled to nothing.
         run: |
-          cargo test --test go_judge_it -- --nocapture 2>&1 | tee /tmp/gj.log
-          if grep -q "skipped (set GOJUDGE_IT" /tmp/gj.log; then
-            echo "::error::the go-judge IT SKIPPED — the sandbox or EXECUTOR_URL is wrong"
-            exit 1
-          fi
+          for suite in go_judge_it java_tracer_it; do
+            cargo test --test "$suite" -- --nocapture 2>&1 | tee "/tmp/$suite.log"
+            if grep -q "skipped (set GOJUDGE_IT" "/tmp/$suite.log"; then
+              echo "::error::$suite SKIPPED — the sandbox or EXECUTOR_URL is wrong"
+              exit 1
+            fi
+            grep -qE "test result: ok\. [1-9]" "/tmp/$suite.log" \
+              || { echo "::error::$suite ran no tests"; exit 1; }
+          done
       - if: always()
         run: docker rm -f go-judge || true
 
@@ -454,7 +467,10 @@ jobs:
     if: >-
       github.event_name == 'push' && github.ref == 'refs/heads/main'
       && needs.changes.outputs.code != 'false'
-    needs: [changes, conventions, supply-chain, build-test, web, gojudge-it, e2e]
+    # `coverage` is here deliberately: it runs on every push anyway, and a floor that cannot
+    # block a deploy is a report, not a ratchet. The cost is the coverage job's minutes on
+    # the release path; the alternative is shipping under a floor nobody has to respect.
+    needs: [changes, conventions, supply-chain, build-test, coverage, web, gojudge-it, e2e]
     permissions:
       contents: read
       packages: write
