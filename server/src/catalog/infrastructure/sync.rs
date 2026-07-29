@@ -21,9 +21,9 @@ use std::time::Duration;
 use crate::catalog::application::{
     ContentFetcher, ContentSourceRecord, ContentSources, FetchError, Fetched, Placements, SyncOutcome,
 };
-use crate::catalog::domain::merge::Placement;
 use crate::catalog::infrastructure::content_cache::ContentCache;
 use crate::catalog::infrastructure::filesystem::{MountedSources, SourceRoot};
+use crate::catalog::infrastructure::mount_order::MountOrder;
 
 pub const DEFAULT_INTERVAL: Duration = Duration::from_mins(1);
 
@@ -38,12 +38,10 @@ pub struct ContentSync<R, F> {
     cache: ContentCache,
     mounted: MountedSources,
     placements: Placements,
-    /// Mounted on every tick regardless of the registry, in this order and ahead of everything
-    /// fetched: the git-sync'd monorepo first, then any locally-mounted satellites. They are not
-    /// registry rows, so a reconcile that rebuilt the mount from the registry alone would drop
-    /// them — reconciling has to be additive over what the process was started with.
-    pinned: Vec<SourceRoot>,
-    pinned_placements: Vec<Placement>,
+    /// What the process booted with — the git-sync'd monorepo and any locally-mounted satellites.
+    /// They are not registry rows, so a reconcile rebuilt from the registry alone would drop them:
+    /// reconciling is additive over this set, and `MountOrder` is what keeps it in front.
+    pinned: MountOrder,
 }
 
 impl<R: ContentSources, F: ContentFetcher> ContentSync<R, F> {
@@ -53,8 +51,7 @@ impl<R: ContentSources, F: ContentFetcher> ContentSync<R, F> {
         cache: ContentCache,
         mounted: MountedSources,
         placements: Placements,
-        pinned: Vec<SourceRoot>,
-        pinned_placements: Vec<Placement>,
+        pinned: MountOrder,
     ) -> Self {
         Self {
             registry,
@@ -63,7 +60,6 @@ impl<R: ContentSources, F: ContentFetcher> ContentSync<R, F> {
             mounted,
             placements,
             pinned,
-            pinned_placements,
         }
     }
 
@@ -79,8 +75,9 @@ impl<R: ContentSources, F: ContentFetcher> ContentSync<R, F> {
         };
 
         let mut landed = 0;
-        let mut roots = self.pinned.clone();
-        let mut placements = self.pinned_placements.clone();
+        // Every tick starts from the booted set, so the primary checkout leads this list by
+        // construction rather than by the order the pushes below happen to run in.
+        let mut order = self.pinned.pinned_only();
         let mut known = BTreeSet::new();
 
         for source in registered.iter().filter(|s| s.enabled) {
@@ -90,11 +87,10 @@ impl<R: ContentSources, F: ContentFetcher> ContentSync<R, F> {
             }
             // Mounted whether or not THIS tick moved it: a source with a good checkout and a
             // failed refresh must keep serving.
-            roots.push(SourceRoot::new(
-                source.id.clone(),
-                self.cache.checkout_of(&source.id),
-            ));
-            placements.push(source.placement());
+            order.append(
+                SourceRoot::new(source.id.clone(), self.cache.checkout_of(&source.id)),
+                source.placement(),
+            );
         }
 
         // A disabled or removed source keeps its row's history but stops occupying disk.
@@ -103,6 +99,7 @@ impl<R: ContentSources, F: ContentFetcher> ContentSync<R, F> {
         }
         self.reclaim_unregistered(&known);
 
+        let (roots, placements) = order.into_parts();
         self.mounted.publish(roots);
         self.placements.publish(placements);
         landed

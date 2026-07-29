@@ -19,7 +19,7 @@ use synapse_server::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
 use synapse_server::catalog::domain::merge::Placement;
 use synapse_server::catalog::http::admin::ContentSourceRoutesState;
 use synapse_server::catalog::infrastructure::{
-    ContentCache, ContentSync, FileSystemContentRepository, GitHubFetcher, MountedSources,
+    ContentCache, ContentSync, FileSystemContentRepository, GitHubFetcher, MountOrder, MountedSources,
     PostgresContentSources, SourceRoot, SyncTrigger, run_content_sync,
 };
 use synapse_server::execution::application::RunCodeService;
@@ -181,6 +181,9 @@ fn rate_limiter(cfg: &synapse_server::config::AppConfig) -> RateLimiter {
 /// editor's lesson source, the judge's suite lookup and `/media` must all see the same answer, and
 /// a second `MountedSources` would silently freeze one of them at boot.
 struct ContentHandles {
+    /// What the process booted with. Kept whole so the sync loop reconciles additively over it,
+    /// rather than re-deriving "what was pinned" from whatever happens to be published by then.
+    pinned: MountOrder,
     mounted: MountedSources,
     placements: Placements,
 }
@@ -203,11 +206,13 @@ impl ContentHandles {
                 order: source.order,
             });
         }
+        let pinned = MountOrder::pinned(roots, placements);
         let handles = Self {
-            mounted: MountedSources::new(roots),
+            mounted: MountedSources::new(pinned.roots().to_vec()),
             placements: Placements::default(),
+            pinned,
         };
-        handles.placements.publish(placements);
+        handles.placements.publish(handles.pinned.placements().to_vec());
         Ok(handles)
     }
 
@@ -267,8 +272,7 @@ fn spawn_content_sync(
         content.placements.clone(),
         // Pinned: the primary plus any LOCAL satellites. Neither is a registry row, so a reconcile
         // rebuilt from the registry alone would drop them — it has to be additive over these.
-        content.mounted.snapshot(),
-        content.placements.snapshot(),
+        content.pinned.clone(),
     );
     tracing::info!(
         cache = %cfg.content_cache,

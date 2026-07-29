@@ -22,7 +22,7 @@ use synapse_server::catalog::application::{
 };
 use synapse_server::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
 use synapse_server::catalog::infrastructure::{
-    ContentCache, ContentSync, FileSystemContentRepository, MountedSources, SourceRoot,
+    ContentCache, ContentSync, FileSystemContentRepository, MountOrder, MountedSources, SourceRoot,
 };
 
 // ── fakes ────────────────────────────────────────────────────────────────────
@@ -187,8 +187,10 @@ async fn the_satellite_takes_over_at_the_identical_url_once_the_monorepo_lets_go
         ContentCache::new(cache.path()),
         mounted.clone(),
         placements.clone(),
-        vec![SourceRoot::new(PRIMARY_SOURCE_ID, primary.path())],
-        Vec::new(),
+        MountOrder::pinned(
+            vec![SourceRoot::new(PRIMARY_SOURCE_ID, primary.path())],
+            Vec::new(),
+        ),
     );
     let catalog = CatalogService::with_placements(
         FileSystemContentRepository::mounted(mounted.clone(), true),
@@ -261,8 +263,10 @@ async fn a_source_that_cannot_be_fetched_leaves_the_rest_of_the_library_serving(
         ContentCache::new(cache.path()),
         mounted.clone(),
         placements.clone(),
-        vec![SourceRoot::new(PRIMARY_SOURCE_ID, primary.path())],
-        Vec::new(),
+        MountOrder::pinned(
+            vec![SourceRoot::new(PRIMARY_SOURCE_ID, primary.path())],
+            Vec::new(),
+        ),
     );
     let catalog =
         CatalogService::with_placements(FileSystemContentRepository::mounted(mounted, true), placements);
