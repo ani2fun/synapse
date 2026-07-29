@@ -210,7 +210,7 @@
    An explicit size on the fragment beats the inherited scale without a specificity war. */
 .pwb-efrag { font-size: 15.5px; line-height: 1.72; }
 .pwb-esection__head { display: flex; align-items: baseline; gap: 11px; margin-bottom: 6px; }
-.pwb-esection__no { font-family: var(--font-mono); font-size: 13px; font-weight: 600;
+.pwb-esection__no { font-family: var(--font-mono); font-size: 18px; font-weight: 600;
                     color: hsl(var(--primary)); }
 .synapse-prose .pwb-esection__title { font-size: 19px; font-weight: 600; margin: 0;
                                       color: hsl(var(--foreground)); }
