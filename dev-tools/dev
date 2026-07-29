@@ -59,6 +59,29 @@ fi
 # Wiping it makes every dev start the cold path: the scan runs, and a break shows up now.
 rm -rf web/node_modules/.vite/deps
 
+# ── THE SATELLITES, FROM THEIR WORKING TREES ─────────────────────────────────
+# In production these are registry rows and the loop fetches each as a tarball. Locally there is
+# no such row — the registry lives in prod's Postgres — so without this the library is the spine
+# alone and every guide is missing.
+#
+# Mounted from the CHECKOUTS, not fetched, which is the point: an edit in one of these repositories
+# shows up on the next request, with no commit, no push and no wait. The registry cannot express a
+# local path, and a registered row would send the fetcher to the network for content already on
+# disk. Placements MATCH PRODUCTION so a URL checked here is the URL that ships.
+#
+# sql-guide is deliberately absent, exactly as in production (ADR-RS002).
+SATELLITES='[
+  {"id":"system-design-guide","root":"../synapse-content-github/system-design-guide","order":2},
+  {"id":"low-level-design-guide","root":"../synapse-content-github/low-level-design-guide","order":4},
+  {"id":"dsa-guide","root":"../synapse-content-github/dsa-guide","order":5},
+  {"id":"python-guide","root":"../synapse-content-github/python-guide","grouping":"programming-languages","order":6},
+  {"id":"java-guide","root":"../synapse-content-github/java-guide","grouping":"programming-languages","order":7}
+]'
+export SYNAPSE_LOCAL_SOURCES="${SYNAPSE_LOCAL_SOURCES:-$SATELLITES}"
+# Nothing is registered locally, so a tick would only reach the network for repositories already
+# mounted above.
+export SYNAPSE_CONTENT_SYNC_SECONDS="${SYNAPSE_CONTENT_SYNC_SECONDS:-0}"
+
 # `render-local-only` renders `local-only-content/` — study material that is gitignored and must
 # never be served. A cargo feature rather than an env var on purpose: the production binary does
 # not contain the branch at all, so ADR-RS002's guarantee stays structural. Only this loop enables

@@ -110,6 +110,20 @@
 .pwb__pane-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 18px 18px; }
 .pwb__pane.hidden { display: none; }
 
+/* ── ONE prose scale for every workbench pane ────────────────────────────────────────────
+   The workbench is a two-pane tool, not an article column: it carries its own typographic
+   scale (see .pwb-efrag), and the reader-size preference governs the LESSON page. The panes
+   that render markdown carry `.synapse-prose`, though, so they were picking up that page
+   preference — leaving Description at 18px beside an Editorial at 15.5px.
+
+   The `html[data-reader-size]` copy is what actually lands: reader.css sets the size through
+   `html[data-reader-size="md"] .synapse-prose` (0,2,1), which outranks a plain descendant
+   selector. Matching its shape at (0,3,1) wins without !important. The plain rule below it is
+   the fallback for the first paint, before prefs.ts stamps the attribute. */
+.pwb__panes { --pwb-prose: 15.5px; }
+.pwb__pane .synapse-prose { font-size: var(--pwb-prose); }
+html[data-reader-size] .pwb__pane .synapse-prose { font-size: var(--pwb-prose); }
+
 /* ── the problem page's pane host (step 57): each pane owns its own scroll region, so the
       editorial can put its stepper strip BETWEEN the tab bar and the scrolling content ── */
 .pwb__pane-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
@@ -207,8 +221,14 @@
 /* The editorial body reads at the design's own 15.5px, NOT the reader-size preference —
    the prefs scale the LESSON column via html[data-reader-size] on .synapse-prose, and at
    "lg" (18px) the prose sat level with the 19px section titles and the hierarchy vanished.
-   An explicit size on the fragment beats the inherited scale without a specificity war. */
-.pwb-efrag { font-size: 15.5px; line-height: 1.72; }
+   An explicit size on the fragment beats the inherited scale without a specificity war.
+
+   That argument is about the workbench, not about this pane, so the number now lives in
+   `--pwb-prose` on .pwb__panes and every pane reads from it. The description pane used to take
+   the reader preference instead — 18px at the default, against this pane's 15.5px — so moving
+   between the two tabs changed the typography under you. One variable means they cannot drift
+   apart again. */
+.pwb-efrag { font-size: var(--pwb-prose); line-height: 1.72; }
 .pwb-esection__head { display: flex; align-items: baseline; gap: 11px; margin-bottom: 6px; }
 .pwb-esection__no { font-family: var(--font-mono); font-size: 18px; font-weight: 600;
                     color: hsl(var(--primary)); }
@@ -250,7 +270,11 @@
 .pwb-ecx__value--space { color: hsl(var(--foreground)); }
 .synapse-prose .pwb-ecx__prose { margin: 0; font-size: 13.5px; line-height: 1.6;
                                  color: hsl(var(--foreground) / 0.78); }
-.pwb__md { font-size: 15px; line-height: 1.65; }
+/* The editorial's rendered markdown. Was a standalone 15px, half a pixel off the workbench
+   scale it sits in and the reason the two panes still did not match after the description
+   was brought down — the description resolved to 15.5px through .synapse-prose while this
+   overrode it here. Same variable, so there is one number for the whole workbench. */
+.pwb__md { font-size: var(--pwb-prose); line-height: 1.65; }
 .pwb__md :is(h1, h2, h3) { margin-top: 1.2em; }
 
 /* ── the splitter — a 9px col-resize rail with a 3-dot grip ── */
