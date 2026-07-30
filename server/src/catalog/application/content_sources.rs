@@ -7,7 +7,6 @@
 
 use chrono::{DateTime, Utc};
 
-use crate::catalog::application::content_repository::ContentError;
 use crate::catalog::domain::merge::Placement;
 use crate::catalog::domain::walker::{slug_like, slugify};
 
@@ -184,12 +183,6 @@ pub enum RegistryError {
     Invalid(String),
     #[error("content source store error: {0}")]
     StoreFailed(String),
-}
-
-impl From<RegistryError> for ContentError {
-    fn from(error: RegistryError) -> Self {
-        Self::Io(error.to_string())
-    }
 }
 
 /// Where each registered source's book grafts, as the catalog currently believes it.

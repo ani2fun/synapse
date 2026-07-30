@@ -207,11 +207,11 @@ where
             return Err(AuthoringError::SourceMoved(joined));
         }
 
-        let content = validate(&file.source, source).map_err(|e| AuthoringError::Invalid(e.to_string()))?;
+        // `?` rather than a `map_err` that stringifies: which rule was broken survives to the
+        // edge, where it becomes the sentence telling the contributor what to fix.
+        let content = validate(&file.source, source)?;
         if content == normalise(&file.source) {
-            return Err(AuthoringError::Invalid(
-                "the proposed file is identical to the current one".to_owned(),
-            ));
+            return Err(AuthoringError::NoChange);
         }
 
         // Past the gate the name is a plain string again: what follows formats it into a commit

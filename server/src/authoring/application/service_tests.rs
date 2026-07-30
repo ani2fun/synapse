@@ -12,6 +12,7 @@ use fakes::{
 };
 
 use crate::authoring::domain::EditRequestState;
+use crate::authoring::domain::validation::InvalidEdit;
 
 use super::*;
 
@@ -217,7 +218,8 @@ async fn a_proposal_that_loses_the_frontmatter_is_refused_before_the_forge() {
         .await
         .unwrap_err();
 
-    assert!(matches!(error, AuthoringError::Invalid(_)), "{error:?}");
+    // Which rule broke survives as a value, not as prose parsed back out of a string.
+    assert_eq!(error, AuthoringError::Rejected(InvalidEdit::FrontmatterLost));
 }
 
 #[tokio::test]
@@ -230,7 +232,7 @@ async fn a_proposal_identical_to_the_current_file_is_refused() {
         .await
         .unwrap_err();
 
-    assert!(matches!(error, AuthoringError::Invalid(_)), "{error:?}");
+    assert_eq!(error, AuthoringError::NoChange);
 }
 
 #[tokio::test]

@@ -8,11 +8,13 @@
 use std::sync::Arc;
 
 use crate::authoring::application::ForgeTarget;
+use crate::authoring::domain::validation::InvalidEdit;
 use crate::authoring::domain::{EditRequest, EditRequestState, PullRequestRef};
 use crate::identity::domain::Username;
 
 /// HTTP mapping (at `http/`): `NotEditable`→404, `RequiresSignIn`→401, `NotAllowed`→403,
-/// `Invalid`→400, `SourceMoved`→409, `ForgeUnavailable`→502, `StoreFailed`/`ContentUnreadable`→500.
+/// `Rejected`/`NoChange`→400, `SourceMoved`→409, `ForgeUnavailable`→502,
+/// `StoreFailed`/`ContentUnreadable`→500.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum AuthoringError {
     #[error("'{0}' is not an editable lesson")]
@@ -21,8 +23,18 @@ pub enum AuthoringError {
     RequiresSignIn,
     #[error("'{0}' is not on the content-editor allowlist")]
     NotAllowed(String),
+    /// A guardrail refused the text. The [`InvalidEdit`] is carried WHOLE rather than flattened
+    /// to a sentence here, because each rule has a different remedy and only the edge knows how
+    /// to say it: someone who deleted the frontmatter needs different words from someone who
+    /// pasted a 300 KiB file. Flattening at the point of failure would leave the edge with one
+    /// generic apology for four unrelated mistakes.
     #[error("the proposed edit is not valid: {0}")]
-    Invalid(String),
+    Rejected(#[from] InvalidEdit),
+    /// The proposal matches the file it started from. Not an [`InvalidEdit`] — that type judges a
+    /// proposal against the rules, and this compares it against the current file, which only the
+    /// use case can see.
+    #[error("the proposed file is identical to the current one")]
+    NoChange,
     /// The file changed on disk since the editor loaded it — committing would silently discard
     /// whatever landed in between, so the contributor is asked to reload instead.
     #[error("'{0}' changed since you started editing — reload the page and reapply your change")]

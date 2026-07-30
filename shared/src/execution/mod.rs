@@ -13,6 +13,17 @@ use serde::{Deserialize, Serialize};
 
 /// What a run produced, as vocabulary. A badly-running program is still a 200 with a
 /// non-`Accepted` status — only backend machinery failures use the error channel.
+///
+/// THESE VARIANT NAMES ARE ALSO A STORAGE FORMAT. A completed submission persists its
+/// `SuiteOutcome` into the `outcome jsonb` column, and a rejection carries the failing case's
+/// status inside it as the bare variant name (`…firstFailure.status = "Accepted"`). So renaming
+/// one is a data migration over every historical row, not an API tweak — old rows would decode
+/// as an unknown variant and the submission would stop reading back.
+///
+/// The INBOUND side is deliberately not coupled this way: go-judge's own status strings are
+/// translated by an explicit match in `execution::infrastructure::wire`, so the sandbox's
+/// vocabulary can change without touching this type, and this type can gain a variant without
+/// the sandbox knowing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub enum RunStatus {

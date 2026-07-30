@@ -9,6 +9,7 @@ use synapse_shared::submission::AllowlistEntryDto;
 
 use crate::authoring::application::{AuthoringError, ContentEditorEntry, EditableSource, Proposal};
 use crate::authoring::domain::EditRequest;
+use crate::authoring::domain::validation::InvalidEdit;
 
 pub type Reject = (StatusCode, Json<ApiError>);
 
@@ -75,7 +76,30 @@ pub fn to_error(error: &AuthoringError) -> Reject {
             "Not a content editor",
             Some("Ask an admin to add you to the content-editor list."),
         ),
-        AuthoringError::Invalid(_) => (StatusCode::BAD_REQUEST, "The proposed edit is not valid", None),
+        // One status, four remedies. This is what the typed `InvalidEdit` buys: a contributor who
+        // deleted the frontmatter fence needs different words from one who pasted a huge file, and
+        // a single "not valid" would have been the same unhelpful sentence for both.
+        AuthoringError::Rejected(rule) => (
+            StatusCode::BAD_REQUEST,
+            "The proposed edit is not valid",
+            Some(match rule {
+                InvalidEdit::Empty => "Write something first — an empty file cannot be proposed.",
+                InvalidEdit::TooLarge { .. } => {
+                    "Split the change into smaller edits, or trim what was pasted in."
+                }
+                InvalidEdit::FrontmatterLost => {
+                    "Restore the '---' block at the very top — it carries the page's title and summary."
+                }
+                InvalidEdit::TitleLost => {
+                    "Give the lesson a title: either 'title:' inside the '---' block or a '# ' heading."
+                }
+            }),
+        ),
+        AuthoringError::NoChange => (
+            StatusCode::BAD_REQUEST,
+            "Nothing changed",
+            Some("Edit the text before submitting — the file already reads exactly like this."),
+        ),
         AuthoringError::SourceMoved(_) => (
             StatusCode::CONFLICT,
             "The page changed while you were editing",

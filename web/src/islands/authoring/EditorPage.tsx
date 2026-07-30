@@ -89,6 +89,18 @@ export function EditorPage() {
   );
 }
 
+/**
+ * What a failed submit says. `.message` is the diagnosis (`error: detail`, formatted for parity
+ * with the Rust client), and the envelope's `hint` is the remedy — the server sends a different
+ * one per broken rule, and dropping it would leave a contributor told what is wrong but not what
+ * to do. Kept here rather than folded into `.message`, which is a cross-client parity contract.
+ */
+function submitFailureText(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  const hint = err instanceof ApiFailure ? err.envelope?.hint : null;
+  return hint ? `${message} — ${hint}` : message;
+}
+
 function phaseForError(error: unknown): Phase {
   if (error instanceof ApiFailure) {
     if (error.status === 401) return { kind: "denied", reason: "anonymous" };
@@ -176,7 +188,7 @@ function Editor(props: EditorProps) {
       log.info(`edit: submitted ${request.branch} (${request.mode})`);
       props.onDone(request);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = submitFailureText(err);
       setSubmitting(null);
       setReviewing(false);
       setError(message);

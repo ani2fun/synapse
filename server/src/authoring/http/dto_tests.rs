@@ -62,7 +62,11 @@ fn every_error_maps_to_the_status_its_client_branches_on() {
         (AuthoringError::NotEditable("x".to_owned()), StatusCode::NOT_FOUND),
         (AuthoringError::RequiresSignIn, StatusCode::UNAUTHORIZED),
         (AuthoringError::NotAllowed("x".to_owned()), StatusCode::FORBIDDEN),
-        (AuthoringError::Invalid("x".to_owned()), StatusCode::BAD_REQUEST),
+        (
+            AuthoringError::Rejected(InvalidEdit::FrontmatterLost),
+            StatusCode::BAD_REQUEST,
+        ),
+        (AuthoringError::NoChange, StatusCode::BAD_REQUEST),
         (AuthoringError::SourceMoved("x".to_owned()), StatusCode::CONFLICT),
         (
             AuthoringError::ForgeUnavailable("x".to_owned()),
@@ -93,5 +97,38 @@ fn the_errors_a_contributor_hits_mid_edit_say_what_to_do_next() {
         AuthoringError::RequiresSignIn,
     ] {
         assert!(to_error(&error).1.hint.is_some(), "{error:?} needs a next step");
+    }
+}
+
+/// What carrying `InvalidEdit` whole is FOR. Four rules, four remedies — a flattened string could
+/// only ever have produced one apology for all of them, and this fails if a new rule is added
+/// without giving the contributor something to do about it.
+#[test]
+fn each_broken_rule_gets_its_own_remedy() {
+    let rules = [
+        InvalidEdit::Empty,
+        InvalidEdit::TooLarge {
+            bytes: 400_000,
+            cap: 262_144,
+        },
+        InvalidEdit::FrontmatterLost,
+        InvalidEdit::TitleLost,
+    ];
+    let mut hints = std::collections::HashSet::new();
+    for rule in rules {
+        let (status, body) = to_error(&AuthoringError::Rejected(rule.clone()));
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{rule:?}");
+        let hint = body
+            .hint
+            .clone()
+            .unwrap_or_else(|| panic!("{rule:?} needs a remedy"));
+        assert!(hints.insert(hint), "{rule:?} repeats another rule's remedy");
+        // The rule's own wording still rides `detail`, so a bug report carries the numbers.
+        assert!(
+            body.detail
+                .clone()
+                .unwrap_or_default()
+                .contains(&rule.to_string())
+        );
     }
 }

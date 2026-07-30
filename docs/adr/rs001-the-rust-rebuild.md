@@ -1,6 +1,6 @@
 # RS001 — The Rust rebuild: scope, stack, and discipline
 
-**Status:** accepted · 2026-07-15
+**Status:** accepted · 2026-07-15 · **amended 2026-07-30** (see *Amendment* below)
 
 ## Context
 
@@ -60,3 +60,34 @@ oracle — no dual maintenance.
   `Signal`→`Memo`; the pure `logic/` layer stays native-testable.
 - Unchanged and out of scope: go-judge, Keycloak (+ realm, `synapse-admin` client), Postgres,
   LikeC4 + the `/c4` proxy contract, synapse-content + git-sync, the infra/GitOps layout.
+
+## Amendment — 2026-07-30
+
+The **Errors** row above says `thiserror` enum per context and stops there, which left the
+variants' PAYLOADS unruled. In practice the codebase had already discovered the rule twice and
+broken it twice, so it is worth stating.
+
+**An error payload is a `String` when only humans read it, and TYPED when anything branches on
+it — and it is flattened at the EDGE, never before.**
+
+`ContentError::IndexInvalid(SynapseContentError)` is the shape working: the merge failure travels
+whole through the application layer, and `catalog::http::dto` is the one place it becomes a
+sentence. Nothing upstream had to guess what the client could use.
+
+The failure mode is `map_err(|e| MyError::Thing(e.to_string()))` written inside an application
+layer. It reads as harmless — the text survives, after all — but it decides on the edge's behalf
+that the edge has nothing more to say than that one sentence. `AuthoringError` did this to
+`InvalidEdit` and the cost was concrete: four unrelated mistakes (empty file, oversized file,
+frontmatter deleted, title gone) reached a contributor mid-edit as one "not valid", because by the
+time the HTTP layer could offer a per-rule remedy the rule was gone. It now carries
+`Rejected(InvalidEdit)` and each rule gets its own next step.
+
+The rule cuts both ways, and `FetchError::RateLimited { seconds: u64 }` is the other edge of it.
+The field is typed for a consumer that was never written: `ContentSync::fail` records every
+variant identically, so a throttled source is refetched on the very next tick. Typing a payload
+does not create the branch that justifies it — and a doc comment promising the branch is worse
+than no comment, because it reads as a description instead of an intention.
+
+The rule is about crossing a LAYER, not crossing a process. Flattening at `http/` is correct and
+expected: that is the boundary where a client's vocabulary — a status code and two strings —
+genuinely is the whole contract.
