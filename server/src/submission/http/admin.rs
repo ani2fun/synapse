@@ -14,6 +14,7 @@ use chrono::SecondsFormat;
 use synapse_shared::api::ApiError;
 use synapse_shared::submission::{AllowlistEntryDto, GrantRequestDto};
 
+use crate::identity::domain::Username;
 use crate::identity::http::LiveIdentityService;
 use crate::platform::admin_gate::{Reject, require_admin as gate};
 use crate::submission::application::{AllowlistEntry, SubmissionAllowlist};
@@ -21,9 +22,9 @@ use crate::submission::application::{AllowlistEntry, SubmissionAllowlist};
 pub struct AdminRoutesState<L> {
     pub allowlist: Arc<L>,
     pub identity: Arc<LiveIdentityService>,
-    /// Lowercase usernames from `ADMIN_USERS` — compared against the verifier's canonical
-    /// lowercase output, apples to apples.
-    pub admin_users: Arc<HashSet<String>>,
+    /// `ADMIN_USERS`, canonical — the same type the verifier emits, so the gate's comparison
+    /// cannot be an apples-to-oranges one.
+    pub admin_users: Arc<HashSet<Username>>,
 }
 
 impl<L> Clone for AdminRoutesState<L> {
@@ -48,7 +49,7 @@ pub fn routes<L: SubmissionAllowlist + 'static>(state: AdminRoutesState<L>) -> R
 
 /// The gate itself lives in `platform::admin_gate`, shared with the readership read. The
 /// invariant it carries: ADMIN is config, re-checked here on every call.
-async fn require_admin<L>(state: &AdminRoutesState<L>, headers: &HeaderMap) -> Result<String, Reject> {
+async fn require_admin<L>(state: &AdminRoutesState<L>, headers: &HeaderMap) -> Result<Username, Reject> {
     gate(&state.identity, &state.admin_users, headers, "allowlist").await
 }
 

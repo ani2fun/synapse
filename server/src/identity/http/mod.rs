@@ -12,6 +12,7 @@ use synapse_shared::api::ApiError;
 use synapse_shared::identity::{AuthConfigDto, MeDto};
 
 use crate::identity::application::{AuthError, IdentityService};
+use crate::identity::domain::Username;
 use crate::identity::infrastructure::{JwksTokenVerifier, KeycloakAdminClient};
 
 pub type LiveIdentityService = IdentityService<JwksTokenVerifier, KeycloakAdminClient>;
@@ -21,8 +22,8 @@ pub struct IdentityRoutesState {
     pub identity: Arc<LiveIdentityService>,
     pub issuer: String,
     pub audience: String,
-    /// Lowercase `ADMIN_USERS` — feeds `MeDto.admin` (UX) and the admin route gate (enforced).
-    pub admin_users: Arc<std::collections::HashSet<String>>,
+    /// `ADMIN_USERS` — feeds `MeDto.admin` (UX) and the admin route gate (enforced).
+    pub admin_users: Arc<std::collections::HashSet<Username>>,
 }
 
 type ApiResult<T> = Result<Json<T>, (StatusCode, Json<ApiError>)>;
@@ -105,7 +106,7 @@ pub(crate) async fn get_me(State(state): State<IdentityRoutesState>, headers: He
     let admin = state.admin_users.contains(&user.username);
     Ok(Json(MeDto {
         id: user.id.0,
-        username: user.username,
+        username: user.username.into_string(),
         email: user.email,
         admin, // UX flag only — the admin routes re-check per call
     }))

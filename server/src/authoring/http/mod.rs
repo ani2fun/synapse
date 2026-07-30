@@ -42,7 +42,7 @@ pub struct AuthoringRoutesState {
     pub identity: Arc<LiveIdentityService>,
     /// The same store the service gates on — the admin panel manages it through this handle.
     pub editors: Arc<PostgresContentEditors>,
-    pub admin_users: Arc<std::collections::HashSet<String>>,
+    pub admin_users: Arc<std::collections::HashSet<crate::identity::domain::Username>>,
     pub limiter: Arc<RateLimiter>,
 }
 
@@ -78,7 +78,7 @@ pub fn routes(state: AuthoringRoutesState) -> Router {
 async fn caller(state: &AuthoringRoutesState, headers: &HeaderMap) -> Result<Option<Editor>, dto::Reject> {
     let user = crate::identity::http::optional_user(&state.identity, headers).await?;
     Ok(user.map(|user| Editor {
-        username: user.username,
+        username: user.username.into_string(),
     }))
 }
 

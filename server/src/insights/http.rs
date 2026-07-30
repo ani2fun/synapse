@@ -15,6 +15,7 @@ use serde::Deserialize;
 use synapse_shared::api::ApiError;
 use synapse_shared::insights::LessonViewDto;
 
+use crate::identity::domain::Username;
 use crate::identity::http::LiveIdentityService;
 use crate::insights::{LessonViewCount, LessonViewStore};
 use crate::platform::admin_gate::{Reject, require_admin};
@@ -26,7 +27,7 @@ const MAX_LIMIT: i64 = 500;
 pub struct InsightsRoutesState<V> {
     pub views: Arc<V>,
     pub identity: Arc<LiveIdentityService>,
-    pub admin_users: Arc<HashSet<String>>,
+    pub admin_users: Arc<HashSet<Username>>,
 }
 
 /// Hand-written: `#[derive(Clone)]` would demand `V: Clone`, which the port does not promise.

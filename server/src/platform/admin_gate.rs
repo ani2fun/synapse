@@ -11,25 +11,30 @@ use axum::Json;
 use axum::http::{HeaderMap, StatusCode};
 use synapse_shared::api::ApiError;
 
+use crate::identity::domain::Username;
 use crate::identity::http::{LiveIdentityService, optional_user};
 
 pub type Reject = (StatusCode, Json<ApiError>);
 
 /// Anonymous → 401; a verified non-admin → 403 "Admin only". Returns the caller's canonical
-/// (lowercase) username.
+/// username.
+///
+/// The comparison is a plain `contains` because both sides are [`Username`] — the config set
+/// and the verifier's output are canonicalised by the same constructor, so this gate has no
+/// spelling rule of its own to get wrong.
 ///
 /// `what` names the call in the audit line so the two callers stay distinguishable in the log —
 /// before the extraction the message was hardcoded to "allowlist call", which would have been
 /// quietly wrong the moment a second admin route existed.
 /// Generic over the hasher because clippy's `implicit_hasher` fires on a free function taking
-/// `&HashSet<String>` — a lint the previous shape hid, since the set was reached through
+/// `&HashSet<Username>` — a lint the previous shape hid, since the set was reached through
 /// `&self.admin_users` rather than passed.
 pub async fn require_admin<S: std::hash::BuildHasher + Sync>(
     identity: &LiveIdentityService,
-    admin_users: &HashSet<String, S>,
+    admin_users: &HashSet<Username, S>,
     headers: &HeaderMap,
     what: &str,
-) -> Result<String, Reject> {
+) -> Result<Username, Reject> {
     // The shared skeleton resolves the caller; only the POLICY (admin required) lives here.
     let Some(user) = optional_user(identity, headers).await? else {
         return Err((
@@ -42,7 +47,7 @@ pub async fn require_admin<S: std::hash::BuildHasher + Sync>(
         ));
     };
     if admin_users.contains(&user.username) {
-        tracing::info!(admin = user.username, what, "admin call");
+        tracing::info!(admin = %user.username, what, "admin call");
         Ok(user.username)
     } else {
         Err((

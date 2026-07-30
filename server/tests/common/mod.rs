@@ -17,6 +17,7 @@ use synapse_server::catalog::infrastructure::FileSystemContentRepository;
 use synapse_server::execution::application::RunCodeService;
 use synapse_server::execution::infrastructure::GoJudgeRunner;
 use synapse_server::identity::application::IdentityService;
+use synapse_server::identity::domain::Username;
 use synapse_server::identity::http::{IdentityRoutesState, LiveIdentityService};
 use synapse_server::identity::infrastructure::{JwksTokenVerifier, KeycloakAdminClient};
 use synapse_server::platform::rate_limiter::{RateLimitBucket, RateLimiter};
@@ -34,6 +35,12 @@ const TEST_BUCKET: RateLimitBucket = RateLimitBucket {
     window_seconds: 60,
     limit: 10_000,
 };
+
+/// An admin-set entry, built through the same constructor the verifier uses — a test that
+/// assembled the set from raw strings could assert a gate the running server does not have.
+pub fn admin_username(raw: &str) -> Username {
+    Username::parse(raw).expect("a non-blank admin name")
+}
 
 /// The default wiring over a content root — tests tweak fields before `synapse_server::app`.
 /// A nonexistent root is valid (empty catalog + blog); port 9 (discard) refuses connections,
@@ -154,7 +161,7 @@ pub fn deps_with(
         issuer: issuer.to_owned(),
         audience: "synapse-web".to_owned(),
         // The dev default ("tester") — the minted IT token IS tester, so admin ITs pass the gate.
-        admin_users: Arc::new(std::collections::HashSet::from(["tester".to_owned()])),
+        admin_users: Arc::new(std::collections::HashSet::from([admin_username("tester")])),
     };
     let limiter = Arc::new(RateLimiter::new(TEST_BUCKET, TEST_BUCKET));
     // Content editing MOUNTED, in dry-run — the routes, the gates and the error mapping are all

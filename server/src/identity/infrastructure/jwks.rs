@@ -15,7 +15,7 @@ use serde::Deserialize;
 use tokio::sync::RwLock;
 
 use crate::identity::application::{AuthError, TokenVerifier};
-use crate::identity::domain::{AuthenticatedUser, UserId};
+use crate::identity::domain::{AuthenticatedUser, UserId, Username};
 
 const CACHE_TTL: Duration = Duration::from_mins(5);
 const CLOCK_SKEW_SECONDS: u64 = 60;
@@ -114,7 +114,7 @@ impl TokenVerifier for JwksTokenVerifier {
         let data = jsonwebtoken::decode::<Claims>(token, &key, &validation)
             .map_err(|e| AuthError::InvalidToken(e.to_string()))?;
         check_audience(&data.claims, &self.audience)?;
-        Ok(to_user(data.claims))
+        to_user(data.claims)
     }
 }
 
@@ -135,16 +135,21 @@ fn check_audience(claims: &Claims, audience: &str) -> Result<(), AuthError> {
     }
 }
 
-/// Username: `preferred_username` (non-empty) else `sub` — then LOWERCASE, here, once.
-fn to_user(claims: Claims) -> AuthenticatedUser {
+/// Username: `preferred_username` else `sub`, canonicalised by [`Username::parse`] — here, once,
+/// which is what lets every downstream comparison be a plain equality.
+///
+/// A token carrying neither is refused rather than admitted nameless: the allowlists and the
+/// admin set all key on this name, so a blank one is a caller who can never be granted anything.
+fn to_user(claims: Claims) -> Result<AuthenticatedUser, AuthError> {
     let username = claims
         .preferred_username
-        .filter(|u| !u.is_empty())
-        .unwrap_or_else(|| claims.sub.clone())
-        .to_lowercase();
-    AuthenticatedUser {
+        .as_deref()
+        .and_then(Username::parse)
+        .or_else(|| Username::parse(&claims.sub))
+        .ok_or_else(|| AuthError::InvalidToken("token carries no usable username".to_owned()))?;
+    Ok(AuthenticatedUser {
         id: UserId(claims.sub),
         username,
         email: claims.email.filter(|e| !e.is_empty()),
-    }
+    })
 }

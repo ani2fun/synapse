@@ -32,7 +32,10 @@ pub fn routes(state: AuthoringRoutesState) -> Router {
         .with_state(state)
 }
 
-async fn gate(state: &AuthoringRoutesState, headers: &HeaderMap) -> Result<String, dto::Reject> {
+async fn gate(
+    state: &AuthoringRoutesState,
+    headers: &HeaderMap,
+) -> Result<crate::identity::domain::Username, dto::Reject> {
     require_admin(&state.identity, &state.admin_users, headers, "content-editors").await
 }
 

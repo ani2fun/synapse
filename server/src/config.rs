@@ -19,6 +19,8 @@ use figment::Figment;
 use figment::providers::{Env, Serialized};
 use serde::{Deserialize, Serialize};
 
+use crate::identity::domain::Username;
+
 /// The whole server configuration — fields join one slice at a time (the executor URL, the
 /// database, identity, rate limits, … arrive with their slices).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -185,12 +187,10 @@ impl AppConfig {
             .filter(|url| !url.is_empty())
     }
 
-    pub fn admin_user_set(&self) -> std::collections::HashSet<String> {
-        self.admin_users
-            .split(',')
-            .map(|u| u.trim().to_lowercase())
-            .filter(|u| !u.is_empty())
-            .collect()
+    /// `ADMIN_USERS` as the gate compares it. Canonicalisation is [`Username`]'s, not this
+    /// function's — a set built to a second recipe is a set that stops matching the verifier.
+    pub fn admin_user_set(&self) -> std::collections::HashSet<Username> {
+        self.admin_users.split(',').filter_map(Username::parse).collect()
     }
 }
 
@@ -262,7 +262,7 @@ impl AppConfig {
 // ─────────────────────────────────────────────────────────────────────────────
 // `result_large_err`: the Jail closure's signature is figment's, not ours.
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::result_large_err)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::result_large_err)]
 mod tests {
     use super::*;
 
@@ -332,7 +332,12 @@ mod tests {
         };
         let set = cfg.admin_user_set();
         assert_eq!(set.len(), 3);
-        assert!(set.contains("ada") && set.contains("grace") && set.contains("tester"));
+        // Looked up the way the gate looks up — through the type, so a caller arriving as
+        // "ADA" finds the entry configured as " Ada ".
+        for raw in ["ADA", "grace", " TeStEr "] {
+            let name = Username::parse(raw).expect("a non-blank name");
+            assert!(set.contains(&name), "{raw} should be an admin");
+        }
     }
 
     #[test]

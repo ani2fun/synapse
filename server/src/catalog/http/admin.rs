@@ -20,13 +20,14 @@ use crate::catalog::application::{
 use crate::catalog::domain::catalog::CatalogWarning;
 use crate::catalog::http::routes::LiveCatalogService;
 use crate::catalog::infrastructure::SyncTrigger;
+use crate::identity::domain::Username;
 use crate::identity::http::LiveIdentityService;
 use crate::platform::admin_gate::{Reject, require_admin};
 
 pub struct ContentSourceRoutesState<S> {
     pub sources: Arc<S>,
     pub identity: Arc<LiveIdentityService>,
-    pub admin_users: Arc<HashSet<String>>,
+    pub admin_users: Arc<HashSet<Username>>,
     /// The live catalog, for the conflicts it had to resolve. Concrete rather than generic: one
     /// implementation exists, and a type parameter here would spread through the C4 routes that
     /// share this state for no variation anyone uses.
@@ -210,7 +211,7 @@ fn to_error(error: &RegistryError) -> Reject {
 async fn gate<S: ContentSources>(
     state: &ContentSourceRoutesState<S>,
     headers: &HeaderMap,
-) -> Result<String, Reject> {
+) -> Result<Username, Reject> {
     require_admin(&state.identity, &state.admin_users, headers, "content-sources").await
 }
 
