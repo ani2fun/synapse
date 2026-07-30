@@ -113,7 +113,7 @@ impl FakeRepo {
     /// Every row, oldest attempt first.
     pub fn all(&self) -> Vec<EditRequest> {
         let mut rows: Vec<EditRequest> = self.rows.lock().unwrap().values().cloned().collect();
-        rows.sort_by_key(|r| r.attempt);
+        rows.sort_by_key(EditRequest::attempt);
         rows
     }
 }
@@ -129,7 +129,9 @@ impl EditRequestRepository for FakeRepo {
             .lock()
             .unwrap()
             .values()
-            .find(|r| r.username == username && r.lesson_path == lesson_path && r.state.is_open())
+            .find(|r| {
+                r.username() == username && r.location().lesson_path == lesson_path && r.state().is_open()
+            })
             .cloned())
     }
     async fn highest_attempt(&self, username: &str, lesson_path: &str) -> Result<u32, AuthoringError> {
@@ -138,8 +140,8 @@ impl EditRequestRepository for FakeRepo {
             .lock()
             .unwrap()
             .values()
-            .filter(|r| r.username == username && r.lesson_path == lesson_path)
-            .map(|r| r.attempt)
+            .filter(|r| r.username() == username && r.location().lesson_path == lesson_path)
+            .map(EditRequest::attempt)
             .max()
             .unwrap_or(0))
     }
@@ -147,14 +149,14 @@ impl EditRequestRepository for FakeRepo {
         self.rows
             .lock()
             .unwrap()
-            .insert(request.branch.clone(), request.clone());
+            .insert(request.location().branch.clone(), request.clone());
         Ok(())
     }
     async fn update(&self, request: &EditRequest) -> Result<(), AuthoringError> {
         self.rows
             .lock()
             .unwrap()
-            .insert(request.branch.clone(), request.clone());
+            .insert(request.location().branch.clone(), request.clone());
         Ok(())
     }
     async fn list_for(&self, username: &str) -> Result<Vec<EditRequest>, AuthoringError> {
@@ -163,10 +165,10 @@ impl EditRequestRepository for FakeRepo {
             .lock()
             .unwrap()
             .values()
-            .filter(|r| r.username == username)
+            .filter(|r| r.username() == username)
             .cloned()
             .collect();
-        rows.sort_by_key(|r| std::cmp::Reverse(r.created_at));
+        rows.sort_by_key(|r| std::cmp::Reverse(r.created_at()));
         Ok(rows)
     }
 }

@@ -132,12 +132,13 @@ jobs:
         # unnoticed for so long. Assert on a test that only exists behind the gate, so a
         # broken service block fails loudly instead of silently reverting to the old state.
         #
-        # EVERY gated suite, not just the first one written: the registry and progress ITs
-        # are behind the same env var, and asserting only on postgres_it left them free to
-        # skip in silence — which is the very failure this step exists to make impossible.
-        # A new POSTGRES_IT-gated suite belongs in this list.
+        # EVERY gated suite, not just the first one written: the registry, progress and
+        # authoring ITs are behind the same env var, and asserting only on postgres_it left
+        # them free to skip in silence — which is the very failure this step exists to make
+        # impossible. The list is exactly the callers of `common::gated_pool` (plus
+        # postgres_it's own copy); a new POSTGRES_IT-gated suite belongs in it.
         run: |
-          for suite in postgres_it content_sources_it progress_it; do
+          for suite in postgres_it content_sources_it progress_it authoring_routes_it; do
             cargo test --workspace --test "$suite" -- --nocapture 2>&1 | tee "/tmp/$suite.log"
             if grep -q "skipped (set POSTGRES_IT" "/tmp/$suite.log"; then
               echo "::error::$suite SKIPPED — the service or DATABASE_URL is wrong"

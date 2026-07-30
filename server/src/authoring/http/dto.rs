@@ -29,19 +29,20 @@ pub fn to_source(source: EditableSource) -> EditSourceDto {
 /// from the store (the account list) reports `reused: false` and the deployment's current mode —
 /// neither is a property of the row.
 pub fn to_request(request: &EditRequest, reused: bool, mode: &str) -> EditRequestDto {
+    let at = request.location();
     EditRequestDto {
-        id: request.id.to_string(),
-        lesson_path: request.lesson_path.clone(),
-        file_path: request.file_path.clone(),
-        branch: request.branch.clone(),
-        state: request.state.as_str().to_owned(),
-        pr_number: request.pull_request.as_ref().map(|pr| pr.number),
-        pr_url: request.pull_request.as_ref().map(|pr| pr.url.clone()),
-        commits: request.commits,
+        id: request.id().to_string(),
+        lesson_path: at.lesson_path.clone(),
+        file_path: at.file_path.clone(),
+        branch: at.branch.clone(),
+        state: request.state().as_str().to_owned(),
+        pr_number: request.pull_request().map(|pr| pr.number),
+        pr_url: request.pull_request().map(|pr| pr.url.clone()),
+        commits: request.commits(),
         reused,
         mode: mode.to_owned(),
-        created_at: request.created_at.to_rfc3339_opts(SecondsFormat::Millis, true),
-        updated_at: request.updated_at.to_rfc3339_opts(SecondsFormat::Millis, true),
+        created_at: request.created_at().to_rfc3339_opts(SecondsFormat::Millis, true),
+        updated_at: request.updated_at().to_rfc3339_opts(SecondsFormat::Millis, true),
     }
 }
 

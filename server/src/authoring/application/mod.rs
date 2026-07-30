@@ -239,11 +239,11 @@ where
         };
         // A dry-run row has no pull request to ask about; its branch is the only artifact, so it
         // stays reusable.
-        let Some(number) = existing.pull_request.as_ref().map(|pr| pr.number) else {
+        let Some(number) = existing.pull_request().map(|pr| pr.number) else {
             return Ok(Some(existing));
         };
         let state = self
-            .forge_at(&existing.repo)
+            .forge_at(&existing.location().repo)
             .await?
             .pull_request_state(number)
             .await?;
@@ -252,8 +252,8 @@ where
         }
         let settled = existing.settled(state.settled(), Utc::now());
         tracing::info!(
-            branch = settled.branch,
-            state = settled.state.as_str(),
+            branch = settled.location().branch,
+            state = settled.state().as_str(),
             "the open proposal for this page is settled — the next edit starts a new branch"
         );
         self.repo.update(&settled).await?;
@@ -267,15 +267,20 @@ where
         content: &str,
         message: &str,
     ) -> Result<Proposal, AuthoringError> {
-        let forge = self.forge_at(&existing.repo).await?;
+        let forge = self.forge_at(&existing.location().repo).await?;
         forge
-            .commit_file(&existing.branch, &existing.file_path, content, message)
+            .commit_file(
+                &existing.location().branch,
+                &existing.location().file_path,
+                content,
+                message,
+            )
             .await?;
         let revised = existing.revised(Utc::now());
         self.repo.update(&revised).await?;
         tracing::info!(
-            branch = revised.branch,
-            commits = revised.commits,
+            branch = revised.location().branch,
+            commits = revised.commits(),
             "revised an open change request"
         );
         Ok(Proposal {
@@ -330,9 +335,9 @@ where
         self.repo.save(&request).await?;
         tracing::info!(
             repo = %target.repo,
-            branch = request.branch,
+            branch = request.location().branch,
             attempt,
-            pr = request.pull_request.as_ref().map(|pr| pr.number),
+            pr = request.pull_request().map(|pr| pr.number),
             "opened a change request"
         );
         Ok(Proposal {

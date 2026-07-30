@@ -4,7 +4,7 @@
 
 use chrono::TimeZone;
 
-use crate::authoring::domain::{EditRequestId, EditRequestState, PullRequestRef};
+use crate::authoring::domain::{EditRequestId, EditRequestState, ProposalLocation, PullRequestRef};
 
 use super::*;
 
@@ -12,24 +12,36 @@ fn at(day: u32) -> chrono::DateTime<chrono::Utc> {
     chrono::Utc.with_ymd_and_hms(2026, 7, day, 12, 0, 0).unwrap()
 }
 
+/// A freshly-opened proposal: one commit, open, no pull request yet. This IS the dry-run shape —
+/// the forge opened nothing, so nothing was ever attached.
+fn opened_row() -> EditRequest {
+    EditRequest::opened(
+        EditRequestId(uuid::Uuid::nil()),
+        "ani2fun".to_owned(),
+        ProposalLocation {
+            lesson_path: "book/chapter/lesson".to_owned(),
+            file_path: "01-book/02-chapter/03-lesson.md".to_owned(),
+            repo: "ani2fun/synapse-content".to_owned(),
+            branch: "edit/ani2fun/book/chapter/lesson".to_owned(),
+        },
+        1,
+        at(20),
+    )
+}
+
+/// The same proposal as the store reads it back: a pull request attached and a second commit on
+/// it. Built through the aggregate's own doors, like the store does — a fixture able to assemble
+/// a shape `opened`/`restored` refuse would be testing a row the system cannot produce.
 fn row() -> EditRequest {
-    EditRequest {
-        id: EditRequestId(uuid::Uuid::nil()),
-        username: "ani2fun".to_owned(),
-        lesson_path: "book/chapter/lesson".to_owned(),
-        file_path: "01-book/02-chapter/03-lesson.md".to_owned(),
-        repo: "ani2fun/synapse-content".to_owned(),
-        branch: "edit/ani2fun/book/chapter/lesson".to_owned(),
-        attempt: 1,
-        pull_request: Some(PullRequestRef {
+    opened_row().restored(
+        Some(PullRequestRef {
             number: 42,
             url: "https://github.com/ani2fun/synapse-content/pull/42".to_owned(),
         }),
-        state: EditRequestState::Open,
-        commits: 2,
-        created_at: at(20),
-        updated_at: at(21),
-    }
+        EditRequestState::Open,
+        2,
+        at(21),
+    )
 }
 
 #[test]
@@ -45,9 +57,7 @@ fn a_request_projects_its_branch_pull_request_and_history() {
 
 #[test]
 fn a_dry_run_row_carries_no_pull_request_fields() {
-    let mut dry = row();
-    dry.pull_request = None;
-    let dto = to_request(&dry, false, "dry-run");
+    let dto = to_request(&opened_row(), false, "dry-run");
     assert_eq!(dto.pr_number, None);
     assert_eq!(dto.pr_url, None);
     assert_eq!(

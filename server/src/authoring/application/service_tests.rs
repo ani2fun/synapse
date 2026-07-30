@@ -27,16 +27,13 @@ async fn a_first_edit_opens_a_branch_and_a_pull_request() {
         .await
         .unwrap();
 
-    assert_eq!(proposal.request.branch, format!("edit/ani2fun/{PAGE}"));
-    assert_eq!(proposal.request.attempt, 1);
-    assert_eq!(proposal.request.commits, 1);
+    assert_eq!(proposal.request.location().branch, format!("edit/ani2fun/{PAGE}"));
+    assert_eq!(proposal.request.attempt(), 1);
+    assert_eq!(proposal.request.commits(), 1);
     assert!(!proposal.reused);
-    assert_eq!(proposal.request.state, EditRequestState::Open);
-    assert_eq!(
-        proposal.request.pull_request.as_ref().map(|pr| pr.number),
-        Some(1)
-    );
-    assert_eq!(h.forge.commits_on(&proposal.request.branch), 1);
+    assert_eq!(proposal.request.state(), EditRequestState::Open);
+    assert_eq!(proposal.request.pull_request().map(|pr| pr.number), Some(1));
+    assert_eq!(h.forge.commits_on(&proposal.request.location().branch), 1);
     assert_eq!(h.forge.opened_count(), 1);
 }
 
@@ -85,9 +82,9 @@ async fn a_second_edit_while_the_pull_request_is_open_adds_a_commit_not_a_pull_r
         .unwrap();
 
     assert!(second.reused);
-    assert_eq!(second.request.branch, first.request.branch);
-    assert_eq!(second.request.commits, 2);
-    assert_eq!(h.forge.commits_on(&first.request.branch), 2);
+    assert_eq!(second.request.location().branch, first.request.location().branch);
+    assert_eq!(second.request.commits(), 2);
+    assert_eq!(h.forge.commits_on(&first.request.location().branch), 2);
     assert_eq!(h.forge.opened_count(), 1, "still one pull request");
     assert_eq!(h.repo.all().len(), 1, "still one change request");
 }
@@ -100,7 +97,7 @@ async fn an_edit_after_the_pull_request_merged_starts_a_new_branch() {
         .propose(Some(&ani2fun()), &page(), EDITED, &base(), None)
         .await
         .unwrap();
-    h.forge.merge(first.request.pull_request.unwrap().number);
+    h.forge.merge(first.request.pull_request().unwrap().number);
 
     h.source.moves_to(EDITED);
     let second = h
@@ -116,14 +113,14 @@ async fn an_edit_after_the_pull_request_merged_starts_a_new_branch() {
         .unwrap();
 
     assert!(!second.reused);
-    assert_eq!(second.request.attempt, 2);
-    assert_eq!(second.request.branch, format!("edit/ani2fun/{PAGE}-2"));
+    assert_eq!(second.request.attempt(), 2);
+    assert_eq!(second.request.location().branch, format!("edit/ani2fun/{PAGE}-2"));
     assert_eq!(h.forge.opened_count(), 2);
 
     let rows = h.repo.all();
     assert_eq!(rows.len(), 2);
-    assert_eq!(rows[0].state, EditRequestState::Merged, "the first is settled");
-    assert_eq!(rows[1].state, EditRequestState::Open);
+    assert_eq!(rows[0].state(), EditRequestState::Merged, "the first is settled");
+    assert_eq!(rows[1].state(), EditRequestState::Open);
 }
 
 #[tokio::test]
@@ -134,7 +131,7 @@ async fn a_pull_request_that_vanished_from_the_forge_is_not_reused() {
         .propose(Some(&ani2fun()), &page(), EDITED, &base(), None)
         .await
         .unwrap();
-    h.forge.forget(first.request.pull_request.unwrap().number);
+    h.forge.forget(first.request.pull_request().unwrap().number);
 
     h.source.moves_to(EDITED);
     let second = h
@@ -150,7 +147,7 @@ async fn a_pull_request_that_vanished_from_the_forge_is_not_reused() {
         .unwrap();
 
     assert!(!second.reused);
-    assert_eq!(second.request.attempt, 2);
+    assert_eq!(second.request.attempt(), 2);
 }
 
 #[tokio::test]
@@ -177,9 +174,13 @@ async fn two_contributors_editing_one_page_get_their_own_branches() {
         .await
         .unwrap();
 
-    assert_eq!(one.request.branch, format!("edit/ani2fun/{PAGE}"));
-    assert_eq!(two.request.branch, format!("edit/ada/{PAGE}"));
-    assert_eq!(two.request.attempt, 1, "another person's attempt does not count");
+    assert_eq!(one.request.location().branch, format!("edit/ani2fun/{PAGE}"));
+    assert_eq!(two.request.location().branch, format!("edit/ada/{PAGE}"));
+    assert_eq!(
+        two.request.attempt(),
+        1,
+        "another person's attempt does not count"
+    );
 }
 
 // ── the drift guard ───────────────────────────────────────────────────────────
@@ -329,7 +330,7 @@ async fn mine_lists_only_the_callers_own_requests() {
 
     let mine = h.service.mine(Some(&ani2fun())).await.unwrap();
     assert_eq!(mine.len(), 1);
-    assert_eq!(mine[0].username, "ani2fun");
+    assert_eq!(mine[0].username(), "ani2fun");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -345,7 +346,7 @@ async fn a_new_proposal_records_the_repository_it_targeted() {
         .propose(Some(&ani2fun()), &page(), EDITED, &base(), None)
         .await
         .unwrap();
-    assert_eq!(proposal.request.repo, "ani2fun/synapse-content");
+    assert_eq!(proposal.request.location().repo, "ani2fun/synapse-content");
 }
 
 /// A revision follows the repository the branch was OPENED against, not whatever currently serves
@@ -359,7 +360,7 @@ async fn a_revision_follows_the_repository_recorded_on_its_row() {
         .await
         .unwrap();
     let opened = h.repo.all().first().cloned().expect("a row was saved");
-    assert_eq!(opened.repo, "ani2fun/synapse-content");
+    assert_eq!(opened.location().repo, "ani2fun/synapse-content");
 
     let again = h
         .service
@@ -375,7 +376,8 @@ async fn a_revision_follows_the_repository_recorded_on_its_row() {
 
     assert!(again.reused, "the open proposal is revised, not re-opened");
     assert_eq!(
-        again.request.repo, opened.repo,
+        again.request.location().repo,
+        opened.location().repo,
         "a revision must stay in the repository its branch lives in"
     );
 }

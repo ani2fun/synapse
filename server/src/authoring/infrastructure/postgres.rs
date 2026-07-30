@@ -10,7 +10,9 @@ use uuid::Uuid;
 use crate::authoring::application::{
     AuthoringError, ContentEditorEntry, ContentEditors, EditRequestRepository,
 };
-use crate::authoring::domain::{EditRequest, EditRequestId, EditRequestState, PullRequestRef};
+use crate::authoring::domain::{
+    EditRequest, EditRequestId, EditRequestState, ProposalLocation, PullRequestRef,
+};
 use crate::identity::domain::Username;
 
 fn store_failed(error: &sqlx::Error) -> AuthoringError {
@@ -125,20 +127,26 @@ fn request(row: &PgRow) -> EditRequest {
         }),
         _ => None,
     };
-    EditRequest {
-        id: EditRequestId(row.get::<Uuid, _>("id")),
-        username: row.get("username"),
-        lesson_path: row.get("lesson_path"),
-        file_path: row.get("file_path"),
-        repo: row.get("repo"),
-        branch: row.get("branch"),
-        attempt: row.get::<i32, _>("attempt").unsigned_abs(),
+    // Opened, then put back where history left it — the aggregate's own two doors, so a row
+    // cannot arrive in a shape the domain would refuse to construct.
+    EditRequest::opened(
+        EditRequestId(row.get::<Uuid, _>("id")),
+        row.get("username"),
+        ProposalLocation {
+            lesson_path: row.get("lesson_path"),
+            file_path: row.get("file_path"),
+            repo: row.get("repo"),
+            branch: row.get("branch"),
+        },
+        row.get::<i32, _>("attempt").unsigned_abs(),
+        row.get::<DateTime<Utc>, _>("created_at"),
+    )
+    .restored(
         pull_request,
-        state: EditRequestState::parse(&row.get::<String, _>("state")),
-        commits: row.get::<i32, _>("commits").unsigned_abs(),
-        created_at: row.get::<DateTime<Utc>, _>("created_at"),
-        updated_at: row.get::<DateTime<Utc>, _>("updated_at"),
-    }
+        EditRequestState::parse(&row.get::<String, _>("state")),
+        row.get::<i32, _>("commits").unsigned_abs(),
+        row.get::<DateTime<Utc>, _>("updated_at"),
+    )
 }
 
 impl EditRequestRepository for PostgresEditRequests {
@@ -182,24 +190,23 @@ impl EditRequestRepository for PostgresEditRequests {
               state, commits, created_at, updated_at) \
              values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
         )
-        .bind(request.id.0)
-        .bind(&request.username)
-        .bind(&request.lesson_path)
-        .bind(&request.file_path)
-        .bind(&request.repo)
-        .bind(&request.branch)
-        .bind(i32::try_from(request.attempt).unwrap_or(i32::MAX))
+        .bind(request.id().0)
+        .bind(request.username())
+        .bind(&request.location().lesson_path)
+        .bind(&request.location().file_path)
+        .bind(&request.location().repo)
+        .bind(&request.location().branch)
+        .bind(i32::try_from(request.attempt()).unwrap_or(i32::MAX))
         .bind(
             request
-                .pull_request
-                .as_ref()
+                .pull_request()
                 .map(|pr| i64::try_from(pr.number).unwrap_or(i64::MAX)),
         )
-        .bind(request.pull_request.as_ref().map(|pr| pr.url.clone()))
-        .bind(request.state.as_str())
-        .bind(i32::try_from(request.commits).unwrap_or(i32::MAX))
-        .bind(request.created_at)
-        .bind(request.updated_at)
+        .bind(request.pull_request().map(|pr| pr.url.clone()))
+        .bind(request.state().as_str())
+        .bind(i32::try_from(request.commits()).unwrap_or(i32::MAX))
+        .bind(request.created_at())
+        .bind(request.updated_at())
         .execute(&self.pool)
         .await
         .map_err(|e| store_failed(&e))?;
@@ -214,17 +221,16 @@ impl EditRequestRepository for PostgresEditRequests {
              set pr_number = $2, pr_url = $3, state = $4, commits = $5, updated_at = $6 \
              where id = $1",
         )
-        .bind(request.id.0)
+        .bind(request.id().0)
         .bind(
             request
-                .pull_request
-                .as_ref()
+                .pull_request()
                 .map(|pr| i64::try_from(pr.number).unwrap_or(i64::MAX)),
         )
-        .bind(request.pull_request.as_ref().map(|pr| pr.url.clone()))
-        .bind(request.state.as_str())
-        .bind(i32::try_from(request.commits).unwrap_or(i32::MAX))
-        .bind(request.updated_at)
+        .bind(request.pull_request().map(|pr| pr.url.clone()))
+        .bind(request.state().as_str())
+        .bind(i32::try_from(request.commits()).unwrap_or(i32::MAX))
+        .bind(request.updated_at())
         .execute(&self.pool)
         .await
         .map_err(|e| store_failed(&e))?;
