@@ -506,7 +506,31 @@ body:has(.reader-sticky[data-on="true"]) .reader-expand { top: 120px; }
 .reader-expand:hover { color: hsl(var(--primary)); border-color: hsl(var(--primary)); }
 .reader-expand__ic { width: 16px; height: 16px; }
 
+/* ── mark as read ──
+   The reader's own decision, at the end of the page. Sits directly above the pager and carries
+   the top rule, so the pager loses its own when they stack (see `.reader-read + .reader-pager`). */
+.reader-read { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid hsl(var(--border));
+               display: flex; align-items: center; gap: 14px; }
+.reader-read__label { font-size: 18px; font-weight: 700; color: hsl(var(--foreground)); }
+.reader-read__switch { width: 52px; height: 30px; flex: none; padding: 3px; cursor: pointer;
+                       border: 1px solid hsl(var(--border)); border-radius: 999px;
+                       background: hsl(var(--muted)); display: flex; align-items: center;
+                       transition: background-color 160ms, border-color 160ms; }
+.reader-read__switch:hover { border-color: hsl(var(--primary) / 0.5); }
+.reader-read__switch:focus-visible { outline: 2px solid hsl(var(--primary));
+                                     outline-offset: 2px; }
+.reader-read__knob { width: 22px; height: 22px; border-radius: 50%;
+                     background: hsl(var(--background));
+                     box-shadow: 0 1px 3px hsl(var(--foreground) / 0.35);
+                     transition: transform 160ms; }
+/* `aria-checked` IS the state — styling from it keeps the switch's look and the value assistive
+   tech announces from ever disagreeing. */
+.reader-read__switch[aria-checked="true"] { background: hsl(var(--primary));
+                                            border-color: hsl(var(--primary)); }
+.reader-read__switch[aria-checked="true"] .reader-read__knob { transform: translateX(22px); }
+
 /* ── pager cards ── */
+.reader-read + .reader-pager { margin-top: 1.5rem; padding-top: 0; border-top: none; }
 .reader-pager { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid hsl(var(--border));
                 display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .reader-pager__card { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px;

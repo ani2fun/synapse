@@ -18,26 +18,6 @@ import type { components } from "../api/schema.gen";
 
 type Book = components["schemas"]["BookDto"];
 
-/** How far down a lesson counts as "read to the end". Not 1.0: the last pixel is unreachable on
- *  many devices (rubber-banding, a footer inside the scroll container, sub-pixel rounding), and
- *  a threshold nobody can cross is a feature nobody has. */
-export const END_THRESHOLD = 0.98;
-
-/**
- * Has the reader reached the end, given the scroll offset and the scrollable track?
- *
- * Both traps are handled explicitly:
- * - `track <= 0` means the lesson is SHORTER than the viewport. A naive `scroll / track` ratio
- *   pins at 0 there and the reader can never finish a short lesson. There is nothing to scroll,
- *   which is precisely the case where it has all been seen.
- * - a non-finite ratio (0/0) is not "at the end" — it is a page that has not laid out yet.
- */
-export function isAtEnd(scroll: number, track: number): boolean {
-  if (track <= 0) return true;
-  const ratio = scroll / track;
-  return Number.isFinite(ratio) && ratio >= END_THRESHOLD;
-}
-
 /** Read the completed set. Absent or unreadable storage is an empty set — never an error, and
  *  never a partial parse: progress is a convenience, and losing it must not break the reader. */
 export function parse(stored: string | null | undefined): Set<string> {

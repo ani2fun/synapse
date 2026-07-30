@@ -191,6 +191,27 @@ const EDIT_GATED_TIP =
 
               <article class="lesson-body synapse-prose" set:html={html} />
 
+              {/* Marking is the READER'S call, made here at the end of the page. It used to
+                  happen on its own at 98% scroll, which marked pages skimmed for one paragraph
+                  and pages closed halfway down a long scroll container alike. Rendered
+                  unchecked and wired by islands/reader — SSR has no localStorage, so the true
+                  state arrives on hydration. */}
+              <div class="reader-read">
+                <span class="reader-read__label" id="reader-read-label">
+                  Mark as read
+                </span>
+                <button
+                  type="button"
+                  class="reader-read__switch"
+                  role="switch"
+                  aria-checked="false"
+                  aria-labelledby="reader-read-label"
+                  data-read-switch
+                >
+                  <span class="reader-read__knob" />
+                </button>
+              </div>
+
               <nav class="reader-pager">
                 <Pager target={payload.prev} label="Previous" next={false} />
                 <Pager target={payload.next} label="Next" next={true} />

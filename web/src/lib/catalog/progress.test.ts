@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { components } from "../api/schema.gen";
-import { completedCount, isAtEnd, nextUnread, parse, serialize } from "./progress";
+import { completedCount, nextUnread, parse, serialize } from "./progress";
 
 type Book = components["schemas"]["BookDto"];
 type BookEntry = components["schemas"]["BookEntryDto"];
@@ -65,27 +65,6 @@ describe("progress", () => {
 
   it("aPathFromAnotherBookDoesNotInflateTheCount", () => {
     expect(completedCount(book(), set(["learn/python/intro"]))).toBe(0);
-  });
-
-  it("aLessonShorterThanTheViewportCountsAsRead", () => {
-    // The trap: `scroll / track` pins at 0 when there is nothing to scroll, so a naive threshold
-    // means a short lesson can never be finished.
-    expect(isAtEnd(0, 0)).toBe(true);
-    expect(isAtEnd(0, -120)).toBe(true);
-  });
-
-  it("theEndIsJustShortOfTheBottom", () => {
-    const track = 1000;
-    expect(isAtEnd(0, track)).toBe(false);
-    expect(isAtEnd(970, track)).toBe(false);
-    expect(isAtEnd(980, track)).toBe(true);
-    expect(isAtEnd(1000, track)).toBe(true);
-    expect(isAtEnd(1200, track)).toBe(true);
-  });
-
-  it("aPageThatHasNotLaidOutIsNotFinished", () => {
-    expect(isAtEnd(Number.NaN, 1000)).toBe(false);
-    expect(isAtEnd(1, Number.POSITIVE_INFINITY)).toBe(false);
   });
 
   it("nextUnreadWalksReadingOrderAndEndsAtNone", () => {

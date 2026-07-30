@@ -6,9 +6,9 @@
 
 use std::sync::Arc;
 
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
-use axum::routing::post;
+use axum::routing::{delete, post};
 use axum::{Json, Router};
 use synapse_shared::api::ApiError;
 use synapse_shared::progress::{MarkProgressRequestDto, ProgressListDto};
@@ -31,6 +31,10 @@ pub fn routes(state: ProgressRoutesState) -> Router {
             "/api/progress",
             post(mark_progress).get(list_progress).delete(reset_progress),
         )
+        // A catch-all: a lesson path is `/`-joined slugs, so it spans several segments. One
+        // segment deeper than the reset route, which is what keeps "forget this page" and
+        // "forget everything" from ever being the same request.
+        .route("/api/progress/{*path}", delete(unmark_progress))
         .with_state(state)
 }
 
@@ -117,6 +121,42 @@ pub(crate) async fn list_progress(
             }),
         ));
     };
+    match state.progress.list_for(&user.id.0).await {
+        Ok(completed) => Ok((StatusCode::OK, Json(ProgressListDto { completed }))),
+        Err(error) => Err(store_error(&error)),
+    }
+}
+
+/// Un-mark ONE lesson, then return the caller's remaining completed list — the same authoritative
+/// snapshot `mark_progress` answers with, so the two verbs are mirror images and a client can
+/// trust one reply shape for both.
+///
+/// Idempotent: unmarking a lesson that was never marked is a 200 with the list unchanged, not a
+/// 404. The caller asked for it to be un-read, and it is.
+#[utoipa::path(
+    delete,
+    path = "/api/progress/{path}",
+    operation_id = "unmarkProgress",
+    params(("path" = String, Path, description = "The `/`-joined lesson path")),
+    responses(
+        (status = 200, description = "Un-marked; the caller's remaining completed paths", body = ProgressListDto),
+        (status = 401, description = "Anonymous", body = ApiError),
+        (status = 500, description = "Store failed", body = ApiError)
+    )
+)]
+pub(crate) async fn unmark_progress(
+    State(state): State<ProgressRoutesState>,
+    headers: HeaderMap,
+    Path(path): Path<String>,
+) -> ApiResult<ProgressListDto> {
+    let Some(user) = caller_user(&state, &headers).await? else {
+        return Err(needs_token("Un-marking progress"));
+    };
+    state
+        .progress
+        .unmark(&user.id.0, &path)
+        .await
+        .map_err(|e| store_error(&e))?;
     match state.progress.list_for(&user.id.0).await {
         Ok(completed) => Ok((StatusCode::OK, Json(ProgressListDto { completed }))),
         Err(error) => Err(store_error(&error)),

@@ -171,6 +171,21 @@
       ]
     },
     {
+      "_id": "req_progress_unmark",
+      "_type": "request",
+      "parentId": "fld_progress",
+      "name": "DELETE /api/progress/{path}",
+      "description": "Un-mark ONE lesson for the caller — the end-of-page \"Mark as read\" switch turned off. The path is the /-joined lesson path and spans several segments. Idempotent: un-marking a lesson that was never marked is a 200 with the list unchanged. Returns the caller's remaining completed paths, mirroring POST. 401 when anonymous.",
+      "method": "DELETE",
+      "url": "{{ _.base_url }}/api/progress/system-design-from-first-principles/foundations/api-design",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ]
+    },
+    {
       "_id": "req_submit",
       "_type": "request",
       "parentId": "fld_submissions",

@@ -78,6 +78,43 @@ async fn progress_marks_idempotently_lists_ordered_and_resets() {
     );
 }
 
+/// `unmark` is `mark`'s inverse and idempotent the same way, and — the part that matters — it
+/// takes ONE lesson while leaving the rest of the account's ✓ ticks alone. A reader undoing a
+/// mis-tap must not lose the book.
+#[tokio::test]
+async fn unmarking_forgets_one_lesson_and_only_that_one() {
+    let Some((pool, user)) = progress_pool("unmark").await else {
+        return;
+    };
+    let store = PostgresProblemProgress::new(pool);
+
+    store.mark(&user, "dsa/two-sum").await.unwrap();
+    store.mark(&user, "dsa/reverse").await.unwrap();
+
+    store.unmark(&user, "dsa/two-sum").await.unwrap();
+    assert_eq!(
+        store.list_for(&user).await.unwrap(),
+        vec!["dsa/reverse".to_owned()],
+        "the other lesson survives"
+    );
+
+    // Never marked, and already un-marked: neither is an error, because the caller's intent is
+    // satisfied in both cases.
+    store.unmark(&user, "dsa/two-sum").await.unwrap();
+    store.unmark(&user, "dsa/never-read").await.unwrap();
+    assert_eq!(
+        store.list_for(&user).await.unwrap(),
+        vec!["dsa/reverse".to_owned()]
+    );
+
+    // And it round-trips: a lesson un-marked can be marked again.
+    store.mark(&user, "dsa/two-sum").await.unwrap();
+    assert_eq!(
+        store.list_for(&user).await.unwrap(),
+        vec!["dsa/reverse".to_owned(), "dsa/two-sum".to_owned()]
+    );
+}
+
 /// The load-bearing guarantee: "reset progress" is NOT "erase my data" — it clears the progress
 /// rows and leaves the caller's submission history in place.
 #[tokio::test]
@@ -160,6 +197,7 @@ async fn anonymous_progress_lists_empty_and_cannot_write() {
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED, "anonymous cannot mark");
 
     let res = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("DELETE")
@@ -170,4 +208,20 @@ async fn anonymous_progress_lists_empty_and_cannot_write() {
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::UNAUTHORIZED, "anonymous cannot reset");
+
+    let res = app
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/api/progress/dsa/two-sum")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        res.status(),
+        StatusCode::UNAUTHORIZED,
+        "anonymous cannot un-mark either — and the multi-segment path still routes"
+    );
 }

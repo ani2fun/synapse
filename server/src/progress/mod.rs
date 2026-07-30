@@ -31,6 +31,18 @@ pub trait ProblemProgressStore: Send + Sync {
         lesson_path: &str,
     ) -> impl Future<Output = Result<(), ProgressError>> + Send;
 
+    /// Forget one lesson's completion — `mark`'s exact inverse, and idempotent in the same way:
+    /// unmarking a lesson that was never marked is not an error, it is already the desired state.
+    ///
+    /// Per-lesson rather than only `reset_for`, because a reader who marks a page by mistake needs
+    /// a way back that is not "clear everything". Without it the reader's ✓ is one-way, and a
+    /// client that hid the tick locally would watch the next sign-in restore it.
+    fn unmark(
+        &self,
+        user_id: &str,
+        lesson_path: &str,
+    ) -> impl Future<Output = Result<(), ProgressError>> + Send;
+
     /// Every lesson path the user has completed. Ordered by path so the result is total and the
     /// tests can pin it.
     fn list_for(&self, user_id: &str) -> impl Future<Output = Result<Vec<String>, ProgressError>> + Send;

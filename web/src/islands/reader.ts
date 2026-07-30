@@ -5,15 +5,18 @@ import * as log from "../lib/log";
 // reasoning as `islands/library.ts` — the SSR page is plain HTML and every job here is either
 // `localStorage` (no SSR equivalent) or a scroll/click listener, so there is nothing for a
 // component framework to hydrate INTO. This island loads on EVERY lesson page, including problem
-// pages (see the internal `.pwb[data-problem]` guard on scroll-driven progress below).
+// pages — which render no "Mark as read" switch, because the markup lives in the lesson branch of
+// the page template, so the exclusion is structural rather than a runtime guard.
 //
 // Built on the pure `progress.ts`/`prefs.ts` helpers:
 //   - done-ticks + the `--active`/`--done` classes (the exact class list, `.reader-sidebar__tick`
 //     span, `aria-label="Finished"`).
 //   - book-progress painting: the rail card + the sidebar bar, counted from the sidebar's links
 //     and the done-set, re-painted after each server sync.
-//   - progress WRITES (`reader-last`, `reader-progress`): idempotent — a re-mark of an
-//     already-finished lesson writes nothing — driven by a scroll recompute + `progress.isAtEnd`.
+//   - progress WRITES (`reader-last`, `reader-progress`): idempotent both ways — a re-mark of an
+//     already-finished lesson writes nothing, and so does un-marking one that was never marked —
+//     driven by the end-of-page "Mark as read" switch. The reader decides; nothing marks a page
+//     on their behalf.
 //   - the mobile drawer (FAB → scrim + drawer, closes on scrim/Escape/any nav-link tap via
 //     `closest("a")`).
 //   - prefs: the `applyToHtml` half only — the FAB editing UI itself lives in `islands/chrome.ts`.
@@ -64,6 +67,17 @@ function markLinkDone(link: HTMLAnchorElement): void {
   tick.setAttribute("aria-label", "Finished");
   tick.textContent = "✓";
   link.append(tick);
+}
+
+/** `markLinkDone`'s inverse, for one lesson: drop the class and the ✓ span from every sidebar
+ *  copy of that link — the desktop sidebar AND any drawer clone, hence `querySelectorAll` rather
+ *  than a single lookup. */
+function removeDoneTick(root: ParentNode, path: string): void {
+  root.querySelectorAll<HTMLAnchorElement>(".reader-sidebar__link--done").forEach((link) => {
+    if (lessonPathFromHref(link.getAttribute("href") ?? "") !== path) return;
+    link.classList.remove("reader-sidebar__link--done");
+    link.querySelector(".reader-sidebar__tick")?.remove();
+  });
 }
 
 /** Apply done-ticks to every sidebar link within `root` whose lesson is in the finished set —
@@ -144,6 +158,21 @@ function markDone(path: string): void {
   if (isAuthed()) void api.markProgress(path);
 }
 
+/** `markDone`'s inverse, idempotent the same way.
+ *
+ *  The server call is NOT optional for a signed-in reader: `syncFromServer` merges the account's
+ *  completed set down into the local one, so a tick removed only in localStorage comes straight
+ *  back on the next sync and the toggle appears to flip itself on. */
+function unmarkDone(path: string): void {
+  const done = readDone();
+  if (!done.delete(path)) return;
+  log.info(`lesson un-marked → reader-progress (${path})`);
+  storage.set(storage.READER_PROGRESS_KEY, progress.serialize(done));
+  removeDoneTick(document, path);
+  paintProgress(done);
+  if (isAuthed()) void api.unmarkProgress(path);
+}
+
 /** Reconcile the local ✓ set with the server for a signed-in reader: pull the account's completed
  *  paths down (mutating `done` IN PLACE so the nav-drawer closure that captured it still shows the
  *  new ticks), then push this browser's pre-sign-in ticks up. The push list drains to empty once
@@ -172,14 +201,27 @@ async function syncFromServer(done: Set<string>): Promise<void> {
   }
 }
 
-function wireProgress(path: string): void {
-  const recompute = (): void => {
-    const track = document.documentElement.scrollHeight - window.innerHeight;
-    const scroll = window.scrollY;
-    if (progress.isAtEnd(scroll, track)) markDone(path);
+/** The end-of-page "Mark as read" switch: the reader's own decision, replacing the scroll
+ *  threshold that used to make it for them.
+ *
+ *  Rendered unchecked by SSR because the server cannot know — the ✓ set lives in localStorage —
+ *  so the first job here is to show the truth. `paint` is also the re-sync hook: a signed-in
+ *  reader's account state lands after `syncFromServer`, and the switch has to follow it. */
+function wireReadToggle(path: string): () => void {
+  const button = document.querySelector<HTMLButtonElement>("[data-read-switch]");
+  if (!button) return () => {};
+  const paint = (): void => {
+    button.setAttribute("aria-checked", readDone().has(path) ? "true" : "false");
   };
-  recompute(); // a lesson shorter than the viewport is "read" the moment it paints
-  window.addEventListener("scroll", recompute, { passive: true });
+  button.addEventListener("click", () => {
+    // Read from storage rather than the attribute: the attribute is what the reader SEES, and a
+    // sync landing mid-click would make it the stale half of the pair.
+    if (readDone().has(path)) unmarkDone(path);
+    else markDone(path);
+    paint();
+  });
+  paint();
+  return paint;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -298,21 +340,21 @@ function init(): void {
   wireNavDrawer(done);
   wireSidebarViewToggle();
 
-  // Signed-in readers reconcile with the account's progress — now, and again whenever auth adopts
-  // late (the store fetches its config async, so `isAuthed()` is often false on first paint). A
-  // problem the reader was excluded from marking still gets its tick here, from an accepted submission.
-  if (isAuthed()) void syncFromServer(done);
-  window.addEventListener(AUTH_CHANGED, () => {
-    if (isAuthed()) void syncFromServer(done);
-  });
+  // Wired before the first sync so the switch shows local truth immediately; `repaintToggle` is
+  // how the ACCOUNT's answer reaches it once that lands. A problem page renders no switch — the
+  // markup is inside the lesson branch — so this is a no-op there, and a problem still earns its
+  // tick from an accepted submission rather than from a control nobody sees.
+  const repaintToggle = path ? wireReadToggle(path) : () => {};
 
-  if (path) {
-    visit(path);
-    // A problem page scrolls its PANES internally, not the window, so the page's own scroll
-    // track is ~0 and `isAtEnd` would mark it done the moment it paints. `visit` still records
-    // "last opened" (the library's resume card), but done-on-scroll stays off for problem pages.
-    if (!document.querySelector(".pwb[data-problem]")) wireProgress(path);
-  }
+  // Signed-in readers reconcile with the account's progress — now, and again whenever auth adopts
+  // late (the store fetches its config async, so `isAuthed()` is often false on first paint).
+  const sync = (): void => {
+    if (isAuthed()) void syncFromServer(done).then(repaintToggle);
+  };
+  sync();
+  window.addEventListener(AUTH_CHANGED, sync);
+
+  if (path) visit(path);
 }
 
 if (document.readyState === "loading") {

@@ -239,6 +239,7 @@ where
         insights::http::list_lesson_views,
         progress::http::mark_progress,
         progress::http::list_progress,
+        progress::http::unmark_progress,
         progress::http::reset_progress,
         tutoring::http::tutor_config,
         tutoring::http::tutor_chat,

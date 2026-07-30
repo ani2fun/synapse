@@ -238,7 +238,17 @@ export async function markProgress(path: string): Promise<string[]> {
   return (await post<ProgressList>("/api/progress", { path })).completed;
 }
 
-/** Reset the caller's progress — clears the ✓ ticks server-side; submissions are untouched. */
+/** Un-mark ONE lesson; returns the caller's remaining completed list, mirroring `markProgress`.
+ *
+ *  Segments are encoded individually so the `/` separators survive — the route is a catch-all
+ *  over a `/`-joined lesson path, and `encodeURIComponent` on the whole string would turn the
+ *  path into one escaped segment that matches nothing. */
+export async function unmarkProgress(path: string): Promise<string[]> {
+  const encoded = path.split("/").map(encodeURIComponent).join("/");
+  return (await del<ProgressList>(`/api/progress/${encoded}`)).completed;
+}
+
+/** Reset the caller's progress — clears every ✓ tick server-side; submissions are untouched. */
 export function resetProgress(): Promise<DeleteResult> {
   return del<DeleteResult>("/api/progress");
 }

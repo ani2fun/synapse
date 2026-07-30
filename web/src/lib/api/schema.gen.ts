@@ -379,6 +379,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/progress/{path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Un-mark ONE lesson, then return the caller's remaining completed list — the same authoritative
+         *     snapshot `mark_progress` answers with, so the two verbs are mirror images and a client can
+         *     trust one reply shape for both.
+         * @description Idempotent: unmarking a lesson that was never marked is a 200 with the list unchanged, not a
+         *     404. The caller asked for it to be un-read, and it is.
+         */
+        delete: operations["unmarkProgress"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ready": {
         parameters: {
             query?: never;
@@ -2051,6 +2074,47 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeleteResultDto"];
+                };
+            };
+            /** @description Anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Store failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    unmarkProgress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The `/`-joined lesson path */
+                path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Un-marked; the caller's remaining completed paths */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProgressListDto"];
                 };
             };
             /** @description Anonymous */

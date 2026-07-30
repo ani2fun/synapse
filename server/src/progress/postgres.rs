@@ -36,6 +36,18 @@ impl ProblemProgressStore for PostgresProblemProgress {
         Ok(())
     }
 
+    async fn unmark(&self, user_id: &str, lesson_path: &str) -> Result<(), ProgressError> {
+        // Deleting a row that is not there affects nothing and raises nothing, which is exactly
+        // the idempotence `mark`'s `do nothing` gives the other direction.
+        sqlx::query("delete from problem_progress where user_id = $1 and lesson_path = $2")
+            .bind(user_id)
+            .bind(lesson_path)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| store_failed(&e))?;
+        Ok(())
+    }
+
     async fn list_for(&self, user_id: &str) -> Result<Vec<String>, ProgressError> {
         let rows =
             sqlx::query("select lesson_path from problem_progress where user_id = $1 order by lesson_path")
