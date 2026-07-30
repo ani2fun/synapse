@@ -9,14 +9,18 @@
 //!
 //! - **A failing source must never take the library down.** Every failure is recorded on its row
 //!   and the tick moves on; a source that has never landed is simply an absent book, and one whose
-//!   fetch broke keeps serving the commit it already has.
+//!   fetch broke keeps serving the commit it already has. One failure also decides when to try
+//!   again: a rate limit says how long there is no point, and [`Throttle`] holds the source until
+//!   then rather than spending a tick — and a request off the recovering quota — proving it.
 //! - **The primary checkout is always mounted, and always first.** It is not in the registry, it
 //!   cannot be unregistered, and its position is what decides the merge's first-wins rule — so a
 //!   book being migrated out of the monorepo keeps serving from there until it is deleted there.
 
-use std::collections::BTreeSet;
-use std::sync::Arc;
+use std::collections::{BTreeSet, HashMap};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
+
+use tokio::time::Instant;
 
 use crate::catalog::application::{
     ContentFetcher, ContentSourceRecord, ContentSources, FetchError, Fetched, Placements, SyncOutcome,
@@ -42,6 +46,9 @@ pub struct ContentSync<R, F> {
     /// They are not registry rows, so a reconcile rebuilt from the registry alone would drop them:
     /// reconciling is additive over this set, and `MountOrder` is what keeps it in front.
     pinned: MountOrder,
+    /// Which sources are waiting out a rate limit. Internal state rather than a collaborator: it
+    /// is derived entirely from failures this loop has already seen.
+    throttle: Throttle,
 }
 
 impl<R: ContentSources, F: ContentFetcher> ContentSync<R, F> {
@@ -60,6 +67,7 @@ impl<R: ContentSources, F: ContentFetcher> ContentSync<R, F> {
             mounted,
             placements,
             pinned,
+            throttle: Throttle::default(),
         }
     }
 
@@ -107,6 +115,15 @@ impl<R: ContentSources, F: ContentFetcher> ContentSync<R, F> {
 
     /// Returns whether new content landed.
     async fn sync_one(&self, source: &ContentSourceRecord) -> bool {
+        if let Some(left) = self.throttle.remaining(&source.id) {
+            tracing::debug!(
+                id = %source.id,
+                seconds = left.as_secs(),
+                "content source is rate limited — skipping this tick"
+            );
+            return false;
+        }
+
         let known = source.last_sha.as_deref();
         // A row that claims a commit but has no checkout — a fresh pod on an empty cache volume —
         // must refetch, or the book would stay absent until someone happened to push.
@@ -125,20 +142,40 @@ impl<R: ContentSources, F: ContentFetcher> ContentSync<R, F> {
                     true
                 }
                 Err(error) => {
-                    self.fail(&source.id, &error).await;
+                    let backoff = self.fail(&source.id, &error).await;
+                    self.throttle.apply(&source.id, backoff);
                     false
                 }
             },
             Err(error) => {
-                self.fail(&source.id, &error).await;
+                let backoff = self.fail(&source.id, &error).await;
+                self.throttle.apply(&source.id, backoff);
                 false
             }
         }
     }
 
-    async fn fail(&self, id: &str, error: &FetchError) {
-        tracing::warn!(id, %error, "content source sync failed — serving the last good checkout");
+    /// Record how the attempt ended, and answer what it means for the NEXT tick.
+    ///
+    /// The answer is a [`Backoff`] rather than nothing because this is the one place a
+    /// `FetchError`'s payload is read instead of stringified: `RateLimited` knows something no
+    /// other variant does — how long there is no point trying — and losing that to
+    /// `error.to_string()` here is the flattening ADR-RS001's amendment on error payloads warns
+    /// about. The sentence still reaches the row; the deadline reaches the loop.
+    async fn fail(&self, id: &str, error: &FetchError) -> Backoff {
+        let backoff = if let FetchError::RateLimited { seconds } = error {
+            tracing::warn!(
+                id,
+                seconds,
+                "content source rate limited — holding off until the quota resets"
+            );
+            Backoff::Wait(Duration::from_secs(*seconds))
+        } else {
+            tracing::warn!(id, %error, "content source sync failed — serving the last good checkout");
+            Backoff::NextTick
+        };
         self.record(id, &SyncOutcome::Failed(error.to_string())).await;
+        backoff
     }
 
     async fn record(&self, id: &str, outcome: &SyncOutcome) {
@@ -155,6 +192,61 @@ impl<R: ContentSources, F: ContentFetcher> ContentSync<R, F> {
                 tracing::info!(id = %stale, "content source no longer registered — reclaiming its cache");
                 self.cache.forget(&stale);
             }
+        }
+    }
+}
+
+/// What a failed fetch means for the next tick.
+#[derive(Debug, Clone, Copy)]
+enum Backoff {
+    /// Try again on the usual cadence. A missing repository, a refused archive, a flaky
+    /// transport: the next tick may well succeed, and asking costs one cheap head request.
+    NextTick,
+    /// The forge's quota is spent for this long. Every fetch until then is a request that cannot
+    /// succeed — and that the forge counts anyway.
+    ///
+    /// A zero window is not special-cased: it means the reset instant has already passed, so the
+    /// next tick fetching is the right answer rather than a missing back-off.
+    Wait(Duration),
+}
+
+/// When each throttled source may be fetched again.
+///
+/// In memory rather than on the registry row. The loop is one process, so nothing else needs to
+/// read this; and `last_error` is a sentence written for an admin, so recovering a deadline would
+/// mean parsing one back out of prose — the same flattening, just in the other direction. The cost
+/// of holding it here is that a restart forgets: each throttled source spends one request
+/// discovering the limit again, which is the price of a deploy rather than of every tick.
+#[derive(Default)]
+struct Throttle {
+    /// Source id → the instant its quota resets. Absent means "fetch freely".
+    until: Mutex<HashMap<String, Instant>>,
+}
+
+impl Throttle {
+    /// How long this source must still wait, or `None` if it may be fetched now. Expired holds are
+    /// dropped as they are read, so the map only ever holds sources actually waiting.
+    fn remaining(&self, id: &str) -> Option<Duration> {
+        let mut until = self.until.lock().ok()?;
+        let left = until.get(id)?.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            until.remove(id);
+            return None;
+        }
+        Some(left)
+    }
+
+    /// Act on a failure's verdict. `NextTick` is a no-op rather than a clear: a source only reaches
+    /// [`ContentSync::fail`] when this said it could fetch, so there is no stale hold to lift.
+    ///
+    /// A poisoned lock degrades to no back-off — the pre-existing behaviour — rather than
+    /// panicking the loop that keeps every other source updating.
+    fn apply(&self, id: &str, backoff: Backoff) {
+        let Backoff::Wait(window) = backoff else {
+            return;
+        };
+        if let Ok(mut until) = self.until.lock() {
+            until.insert(id.to_owned(), Instant::now() + window);
         }
     }
 }

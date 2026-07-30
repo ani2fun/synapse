@@ -13,6 +13,7 @@
 use std::io::Write;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use flate2::Compression;
 use flate2::write::GzEncoder;
@@ -282,4 +283,93 @@ async fn a_source_that_cannot_be_fetched_leaves_the_rest_of_the_library_serving(
     let row = registry.list().await.unwrap().into_iter().next().unwrap();
     assert!(row.last_error.is_some(), "the failure must be recorded");
     assert_eq!(row.last_sha, None);
+}
+
+/// A rate limit is the one failure where retrying on the usual cadence makes things worse: each
+/// tick spends a request that cannot succeed, off the quota that is trying to refill. The clock is
+/// paused, so the five-minute window is stepped over rather than slept through.
+#[tokio::test(start_paused = true)]
+async fn a_rate_limited_source_is_left_alone_until_its_window_has_passed() {
+    const WINDOW: u64 = 300;
+
+    /// Rate-limits the FIRST fetch and serves the archive on every one after it — so the attempt
+    /// count reads back exactly what the loop decided, with no second clock to keep in step.
+    struct RateLimitedOnce {
+        archive: Vec<u8>,
+        attempts: Mutex<usize>,
+    }
+
+    impl ContentFetcher for RateLimitedOnce {
+        async fn fetch(&self, _: &str, _: &str, _: Option<&str>) -> Result<Fetched, FetchError> {
+            let attempt = {
+                let mut attempts = self.attempts.lock().unwrap();
+                *attempts += 1;
+                *attempts
+            };
+            if attempt == 1 {
+                return Err(FetchError::RateLimited { seconds: WINDOW });
+            }
+            Ok(Fetched::Archive {
+                sha: "abc1234".to_owned(),
+                bytes: self.archive.clone(),
+            })
+        }
+    }
+
+    let primary = tempfile::tempdir().unwrap();
+    let cache = tempfile::tempdir().unwrap();
+    seed_primary(primary.path());
+
+    let registry = Arc::new(FakeRegistry::with(record(&["programming-languages"])));
+    let fetcher = Arc::new(RateLimitedOnce {
+        archive: guide_archive(
+            "java",
+            "---\ntitle: What Java Is\nsummary: s\n---\nFROM THE SATELLITE",
+        ),
+        attempts: Mutex::new(0),
+    });
+    let mounted = MountedSources::new(vec![SourceRoot::new(PRIMARY_SOURCE_ID, primary.path())]);
+    let sync = ContentSync::new(
+        Arc::clone(&registry),
+        Arc::clone(&fetcher),
+        ContentCache::new(cache.path()),
+        mounted,
+        Placements::default(),
+        MountOrder::pinned(
+            vec![SourceRoot::new(PRIMARY_SOURCE_ID, primary.path())],
+            Vec::new(),
+        ),
+    );
+
+    // ── 1. The forge says the quota is spent, with WINDOW seconds to go.
+    sync.tick().await;
+    assert_eq!(*fetcher.attempts.lock().unwrap(), 1);
+    let row = registry.list().await.unwrap().into_iter().next().unwrap();
+    assert_eq!(
+        row.last_error.as_deref(),
+        Some("rate limited, resets in 300s"),
+        "backing off must not cost the admin the reason"
+    );
+
+    // ── 2. The next tick falls inside the window. The source must be skipped outright.
+    sync.tick().await;
+    assert_eq!(
+        *fetcher.attempts.lock().unwrap(),
+        1,
+        "refetching inside the window is what keeps a throttled source throttled"
+    );
+    assert!(!cache.path().join("java-guide/current").exists());
+
+    // ── 3. The window passes. One tick, one fetch, and the satellite lands.
+    tokio::time::advance(Duration::from_secs(WINDOW + 1)).await;
+    sync.tick().await;
+    assert_eq!(
+        *fetcher.attempts.lock().unwrap(),
+        2,
+        "the hold expires on its own — nothing else prompts the retry"
+    );
+    let row = registry.list().await.unwrap().into_iter().next().unwrap();
+    assert_eq!(row.last_sha.as_deref(), Some("abc1234"));
+    assert_eq!(row.last_error, None);
+    assert!(cache.path().join("java-guide/current/book.json").exists());
 }

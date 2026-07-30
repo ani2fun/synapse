@@ -34,9 +34,10 @@ pub enum FetchError {
     NotFound(String),
     #[error("access denied: {0}")]
     Denied(String),
-    /// Seconds until the quota resets. NOTHING ACTS ON IT: `ContentSync::fail` records every
-    /// variant the same way, so the next tick refetches immediately and stays throttled. Backing
-    /// off is the correct response and is not implemented — the field is here, the branch is not.
+    /// Seconds until the quota resets. This is the variant the sync loop BRANCHES on rather than
+    /// only recording: `ContentSync::fail` turns it into a hold, and the source is skipped
+    /// entirely until the window has passed. Without that, every 60-second tick spends a request
+    /// on a source that cannot answer — off the very quota that is trying to refill.
     #[error("rate limited, resets in {seconds}s")]
     RateLimited { seconds: u64 },
     /// The archive exceeded the size or entry cap. Refused loudly rather than unpacked partially.

@@ -82,11 +82,13 @@ frontmatter deleted, title gone) reached a contributor mid-edit as one "not vali
 time the HTTP layer could offer a per-rule remedy the rule was gone. It now carries
 `Rejected(InvalidEdit)` and each rule gets its own next step.
 
-The rule cuts both ways, and `FetchError::RateLimited { seconds: u64 }` is the other edge of it.
-The field is typed for a consumer that was never written: `ContentSync::fail` records every
-variant identically, so a throttled source is refetched on the very next tick. Typing a payload
-does not create the branch that justifies it — and a doc comment promising the branch is worse
-than no comment, because it reads as a description instead of an intention.
+The rule cuts both ways, and `FetchError::RateLimited { seconds: u64 }` was the other edge of it.
+The field was typed for a consumer nobody had written: `ContentSync::fail` recorded every variant
+identically, so a throttled source was refetched on the very next tick and stayed throttled.
+Typing a payload does not create the branch that justifies it — and a doc comment promising the
+branch is worse than no comment, because it reads as a description instead of an intention. The
+branch has since been written: `fail` returns a `Backoff`, and the loop skips the source until its
+reset has passed. That is what the type was for; until it existed, the type was a claim.
 
 The rule is about crossing a LAYER, not crossing a process. Flattening at `http/` is correct and
 expected: that is the boundary where a client's vocabulary — a status code and two strings —

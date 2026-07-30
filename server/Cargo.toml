@@ -42,6 +42,10 @@ flate2 = { workspace = true }
 tar = { workspace = true }
 
 [dev-dependencies]
+# `test-util` is what makes the sync loop's rate-limit back-off testable: it holds a deadline on
+# `tokio::time::Instant`, and a paused clock lets a test step over a five-minute window without
+# sleeping through it. Dev-only — resolver 2 keeps the feature out of the shipped binary.
+tokio = { workspace = true, features = ["test-util"] }
 figment = { workspace = true, features = ["test"] }
 tempfile = { workspace = true }
 tower = { workspace = true }
