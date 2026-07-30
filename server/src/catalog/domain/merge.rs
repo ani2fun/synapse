@@ -30,8 +30,35 @@ pub struct Placement {
     pub source_id: String,
     /// Category slug path to graft under; empty means the top level.
     pub grouping: Vec<String>,
-    /// Overrides `book.json`'s `order` when set.
+    /// The registered book's position, and the ONLY thing that decides it — see [`OrderedBy`].
     pub order: Option<i32>,
+}
+
+/// Who decides where a book sits. Exactly one authority per book, never a fallback between two.
+///
+/// The two used to blur together: a placement's `order` overrode `book.json` when present, and
+/// silently deferred to it when absent. A registration that said nothing about position therefore
+/// inherited whatever number the repository last happened to carry — so the library's order had
+/// two sources of truth that could disagree, with nothing to report when they did. Since a book
+/// can migrate between repositories, the stale one is exactly the one nobody thinks to look at.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OrderedBy {
+    /// The source's own `book.json`. Two cases: the walked spine, whose directory nesting IS the
+    /// library, and any book nested inside a category a satellite brought with it — a placement
+    /// positions the source, not the shelves inside it.
+    BookJson,
+    /// The registration row, whatever it says — INCLUDING nothing. A row without an order means
+    /// unpositioned, not "whatever the repository last said", which is what makes deleting a
+    /// satellite's `order` field a no-op rather than a reshuffle.
+    Row(Option<i32>),
+}
+
+impl OrderedBy {
+    fn apply(self, book: &mut Book) {
+        if let Self::Row(order) = self {
+            book.order = order;
+        }
+    }
 }
 
 /// Walk every source, then compose. Per-source rules stay strict; cross-source ones warn.
@@ -71,10 +98,12 @@ impl Merge {
     ) {
         self.out.warnings.extend(walk.warnings);
         let grouping = placement.map(|p| p.grouping.clone()).unwrap_or_default();
-        let order = placement.and_then(|p| p.order);
+        // A placement IS a registration row, and its absence IS the walked spine — so which
+        // authority applies is already settled here, once, rather than re-derived per book.
+        let ordered_by = placement.map_or(OrderedBy::BookJson, |p| OrderedBy::Row(p.order));
         let mut files = walk.lesson_files;
         for entry in walk.catalog.entries {
-            self.absorb(source_id, &grouping, &mut files, order, entry, is_first);
+            self.absorb(source_id, &grouping, &mut files, ordered_by, entry, is_first);
         }
     }
 
@@ -83,15 +112,13 @@ impl Merge {
         source_id: &str,
         path: &[String],
         files: &mut BookFiles,
-        order: Option<i32>,
+        ordered_by: OrderedBy,
         entry: CatalogEntry,
         is_first: bool,
     ) {
         match entry {
             CatalogEntry::Book(mut book) => {
-                if let Some(order) = order {
-                    book.order = Some(order);
-                }
+                ordered_by.apply(&mut book);
                 self.graft_book(source_id, path, files, book, is_first);
             }
             CatalogEntry::Category(category) => {
@@ -99,9 +126,9 @@ impl Merge {
                 inner.push(category.slug.clone());
                 self.adopt_declaration(source_id, &inner, &category);
                 for child in category.entries {
-                    // A placement's order applies to the source's own top level, not to books
-                    // nested inside a category it brought with it.
-                    self.absorb(source_id, &inner, files, None, child, is_first);
+                    // A placement positions the SOURCE, not the shelves inside it: a book nested
+                    // in a category the satellite brought with it is ordered by its own metadata.
+                    self.absorb(source_id, &inner, files, OrderedBy::BookJson, child, is_first);
                 }
             }
         }
@@ -261,3 +288,7 @@ fn prune_empty(entries: &mut Vec<CatalogEntry>) {
 #[cfg(test)]
 #[path = "merge_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "merge_order_tests.rs"]
+mod order_tests;

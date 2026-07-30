@@ -11,6 +11,7 @@
 use std::path::{Path, PathBuf};
 
 use synapse_server::catalog::application::ContentRepository;
+use synapse_server::catalog::domain::content_tree::BookMeta;
 use synapse_server::catalog::domain::lint::{self, Severity, Sidecars};
 use synapse_server::catalog::domain::merge::{self, Placement};
 use synapse_server::catalog::domain::resolver;
@@ -45,6 +46,7 @@ async fn main() -> anyhow::Result<()> {
     let sidecars = scan_sidecars(&dir);
     let mut findings = lint::lint(&source, &sidecars);
     findings.extend(c4_findings(&dir, source.book_meta.is_some(), &sidecars));
+    findings.extend(placement_findings(source.book_meta.as_ref()));
 
     // The walk itself is the structural authority: duplicate slugs, over-deep chapters and
     // non-slug paths are refusals, not warnings, and they stop the catalog building at all.
@@ -128,6 +130,32 @@ fn collect(root: &Path, dir: &Path, out: &mut Sidecars) {
 /// The C4 rules a satellite has to keep. The merged `/c4` workspace carries exactly ONE
 /// `specification {}`, and it lives in the spine — a satellite that ships its own makes the whole
 /// workspace ambiguous, and the failure is a blank iframe rather than an error.
+/// A root-level `book.json` means the repository IS the book — a satellite — and a satellite is
+/// positioned by its registration row, never by its own file. An `order` here is therefore read by
+/// nobody: harmless today, misleading forever, because the next person to reorder the library will
+/// find a number that looks authoritative and change it to no effect.
+///
+/// A warning, not an error: every satellite carries one right now, and this is what tells their
+/// authors it can go.
+fn placement_findings(book_meta: Option<&BookMeta>) -> Vec<lint::Finding> {
+    let Some(meta) = book_meta else {
+        // A collection: its books DO order via their own `book.json`, so nothing to say.
+        return Vec::new();
+    };
+    match meta.order {
+        None => Vec::new(),
+        Some(order) => vec![lint::Finding {
+            severity: Severity::Warning,
+            path: "book.json".to_owned(),
+            message: format!(
+                "`order: {order}` is ignored here — a satellite's position comes from its \
+                 registration row in /admin, so this field is read by nobody. Remove it, and set \
+                 the order where it takes effect."
+            ),
+        }],
+    }
+}
+
 fn c4_findings(root: &Path, is_book_source: bool, sidecars: &Sidecars) -> Vec<lint::Finding> {
     let mut findings = Vec::new();
     if !is_book_source {

@@ -106,14 +106,25 @@ export function ContentSourcesSection() {
       setStatus({ kind: "error", message: "A repository is owner/name, or its GitHub URL" });
       return;
     }
+    // The row is the ONLY thing that positions a registered book — its `book.json` order is not
+    // read. Leaving this blank therefore does not inherit anything, it means "unpositioned", and
+    // the book lands at the end of its level. Asked for rather than defaulted, because a silent
+    // default is exactly how a library reorders itself without anyone deciding to.
     const parsed = Number.parseInt(order, 10);
+    if (Number.isNaN(parsed)) {
+      setStatus({
+        kind: "error",
+        message: "An order is required — it is what positions this book; book.json's is not read.",
+      });
+      return;
+    }
     setStatus({ kind: "busy", message: `Registering ${normalised}…` });
     void (async () => {
       try {
         const stored = await contentSourceRegister({
           repo: normalised,
           grouping: grouping.trim() === "" ? null : grouping.trim(),
-          order: Number.isNaN(parsed) ? null : parsed,
+          order: parsed,
         });
         setStatus({
           kind: "ok",
@@ -178,10 +189,11 @@ export function ContentSourcesSection() {
     <section class="admin__section">
       <h2 class="admin__section-title">Content repositories</h2>
       <p class="account-page__meta">
-        Books served from their own repositories, fetched on a 60-second loop. The row decides
-        placement — which grouping, in what order; <code>book.json</code> decides the slug, because
-        the slug is the URL. The primary checkout is not listed: it arrives by git-sync, is always
-        mounted and is always first.
+        Books served from their own repositories, fetched on a 60-second loop. The row is the only
+        thing that decides placement — which grouping, in what order. An <code>order</code> left in
+        the repository's <code>book.json</code> is not read at all; <code>book.json</code> decides
+        the slug, because the slug is the URL. The primary checkout is not listed: it arrives by
+        git-sync, is always mounted and is always first.
       </p>
       <StatusBanner status={status} />
       <form
@@ -205,7 +217,7 @@ export function ContentSourcesSection() {
         />
         <input
           class="admin__input admin__input--order"
-          placeholder="order"
+          placeholder="order (required)"
           inputMode="numeric"
           value={order}
           onInput={(event) => setOrder((event.target as HTMLInputElement).value)}

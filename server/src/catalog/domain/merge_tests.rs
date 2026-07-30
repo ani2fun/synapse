@@ -463,7 +463,10 @@ fn a_grafted_level_re_sorts_by_order_then_slug() {
     );
     let java = book_source("java", meta("java", Some(7)), vec![file("01-a.md")]);
 
-    let walk = assemble(&[spine, java], &[at(&["languages"], "java", None)]).unwrap();
+    // The row carries the 7, not the `book.json` — a registered satellite is positioned by its
+    // registration, so a fixture that left the row empty would be testing the old fallback rather
+    // than the re-sort this is about.
+    let walk = assemble(&[spine, java], &[at(&["languages"], "java", Some(7))]).unwrap();
 
     let CatalogEntry::Category(category) = &walk.catalog.entries[0] else {
         panic!("expected a category");
