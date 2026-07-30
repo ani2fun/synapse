@@ -142,35 +142,48 @@ function visit(path: string): void {
   storage.set(storage.READER_LAST_KEY, path);
 }
 
-/** Idempotent: re-marking an already-finished lesson writes nothing. */
-function markDone(path: string): void {
+/** The LOCAL half of a ✓ change — storage, the lesson's own sidebar tick, and the book-progress
+ *  paint. Reports whether anything actually moved, so an idempotent no-op costs neither a write
+ *  nor a request.
+ *
+ *  Split out from the server call because a ROLLBACK has to be able to undo the local change
+ *  without firing the opposite request and starting a loop. */
+function applyDoneLocally(path: string, read: boolean): boolean {
   const done = readDone();
-  if (done.has(path)) return;
-  log.info(`lesson finished → reader-progress (${path})`);
-  done.add(path);
+  if (read ? done.has(path) : !done.has(path)) return false;
+  if (read) done.add(path);
+  else done.delete(path);
   storage.set(storage.READER_PROGRESS_KEY, progress.serialize(done));
-  // The just-finished lesson's own sidebar row gets its tick immediately, not only after the
-  // next reload — matches marking-and-reading the same reactive set in one breath.
-  applyDoneTicks(document, done);
+  // The lesson's own sidebar row changes immediately, not only after the next reload.
+  if (read) applyDoneTicks(document, done);
+  else removeDoneTick(document, path);
   paintProgress(done);
-  // A signed-in reader's progress is the ACCOUNT's, not the device's — persist it so the tick
-  // survives a cache wipe and follows them to another browser. Anonymous stays localStorage-only.
-  if (isAuthed()) void api.markProgress(path);
+  return true;
 }
 
-/** `markDone`'s inverse, idempotent the same way.
+/** Mark or un-mark one lesson: locally always, and on the account when there is one.
  *
- *  The server call is NOT optional for a signed-in reader: `syncFromServer` merges the account's
- *  completed set down into the local one, so a tick removed only in localStorage comes straight
- *  back on the next sync and the toggle appears to flip itself on. */
-function unmarkDone(path: string): void {
-  const done = readDone();
-  if (!done.delete(path)) return;
-  log.info(`lesson un-marked → reader-progress (${path})`);
-  storage.set(storage.READER_PROGRESS_KEY, progress.serialize(done));
-  removeDoneTick(document, path);
-  paintProgress(done);
-  if (isAuthed()) void api.unmarkProgress(path);
+ *  Fire-and-forget so the switch answers the click at once — but a FAILED call is rolled back
+ *  rather than left for the next sync to sort out. `syncFromServer` is additive in BOTH
+ *  directions and has no concept of a deletion, which makes the two verbs fail differently: a
+ *  lost mark is re-sent by the next sync's push, while a lost un-mark is quietly pulled back
+ *  down, and the switch appears to flip itself on. Undoing the local half keeps the two ends
+ *  agreeing, and the switch snapping back is the reader's signal that it did not take. */
+function setRead(path: string, read: boolean, repaint: () => void): void {
+  if (!applyDoneLocally(path, read)) return;
+  log.info(`lesson ${read ? "marked read" : "un-marked"} → reader-progress (${path})`);
+  // A signed-in reader's progress is the ACCOUNT's, not the device's — persist it so the tick
+  // survives a cache wipe and follows them to another browser. Anonymous stays localStorage-only.
+  if (!isAuthed()) return;
+  const sent = read ? api.markProgress(path) : api.unmarkProgress(path);
+  void sent.catch((error: unknown) => {
+    log.warn(
+      `progress ${read ? "mark" : "un-mark"} rejected, rolling back (${path}) — ` +
+        (error instanceof Error ? error.message : String(error)),
+    );
+    applyDoneLocally(path, !read);
+    repaint();
+  });
 }
 
 /** Reconcile the local ✓ set with the server for a signed-in reader: pull the account's completed
@@ -216,8 +229,7 @@ function wireReadToggle(path: string): () => void {
   button.addEventListener("click", () => {
     // Read from storage rather than the attribute: the attribute is what the reader SEES, and a
     // sync landing mid-click would make it the stale half of the pair.
-    if (readDone().has(path)) unmarkDone(path);
-    else markDone(path);
+    setRead(path, !readDone().has(path), paint);
     paint();
   });
   paint();
