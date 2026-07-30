@@ -16,6 +16,7 @@ use crate::authoring::application::{
 use crate::authoring::domain::validation::fingerprint;
 use crate::authoring::domain::{EditRequest, PullRequestRef};
 use crate::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
+use crate::identity::domain::Username;
 
 pub const PAGE: &str = "system-design-from-first-principles/foundations/thinking-in-tradeoffs";
 pub const FILE: &str = "system-design-from-first-principles/01-foundations/01-thinking-in-tradeoffs.md";
@@ -27,15 +28,19 @@ pub fn page() -> Vec<String> {
 }
 
 pub fn ani2fun() -> Editor {
-    Editor {
-        username: "ani2fun".to_owned(),
-    }
+    editor("ani2fun")
 }
 
 pub fn editor(username: &str) -> Editor {
     Editor {
-        username: username.to_owned(),
+        username: name(username),
     }
+}
+
+/// A canonical name for a fixture. `expect` rather than a fallback: a test that names nobody is
+/// a broken test, not a case the service should be asked to handle.
+pub fn name(raw: &str) -> Username {
+    Username::parse(raw).expect("a fixture names somebody")
 }
 
 /// The fingerprint the editor would have been handed for `ORIGINAL`.
@@ -83,16 +88,16 @@ impl LessonSource for FakeSource {
 pub struct FakeEditors(pub Vec<String>);
 
 impl ContentEditors for FakeEditors {
-    async fn is_allowed(&self, username: &str) -> Result<bool, AuthoringError> {
-        Ok(self.0.iter().any(|u| u == username))
+    async fn is_allowed(&self, username: &Username) -> Result<bool, AuthoringError> {
+        Ok(self.0.iter().any(|u| u == username.as_str()))
     }
     async fn list(&self) -> Result<Vec<ContentEditorEntry>, AuthoringError> {
         Ok(Vec::new())
     }
-    async fn grant(&self, _u: &str, _n: Option<&str>) -> Result<ContentEditorEntry, AuthoringError> {
+    async fn grant(&self, _u: &Username, _n: Option<&str>) -> Result<ContentEditorEntry, AuthoringError> {
         unreachable!("the service never grants")
     }
-    async fn revoke(&self, _u: &str) -> Result<bool, AuthoringError> {
+    async fn revoke(&self, _u: &Username) -> Result<bool, AuthoringError> {
         unreachable!("the service never revokes")
     }
 }

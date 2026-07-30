@@ -9,6 +9,7 @@ use synapse_shared::execution::{RunRequest, TestSpec, Verdict, judge, stdin_for}
 use uuid::Uuid;
 
 use crate::execution::application::{CodeRunner, ExecutionError, RunCodeService};
+use crate::identity::domain::Username;
 use crate::submission::domain::{FailedCase, Submission, SubmissionId, SubmissionState, SuiteOutcome};
 
 /// The context's error. HTTP mapping (at `http/`): `NotAProblem`/`UnknownSubmission`→404,
@@ -34,6 +35,11 @@ pub enum SubmissionError {
 }
 
 /// One grant, as stored.
+///
+/// `username` is a plain `String` on purpose: this is a row read back for display, and a row
+/// written by hand through `psql` can hold a spelling no caller will ever present. Canonicalising
+/// on the way OUT would hide exactly that — the admin panel should show "Ada" beside "ada" so a
+/// human can see why the grant never fires.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AllowlistEntry {
     pub username: String,
@@ -41,28 +47,32 @@ pub struct AllowlistEntry {
     pub granted_at: chrono::DateTime<chrono::Utc>,
 }
 
-/// Who may SAVE attempts (`SubmissionAllowlist`): keyed by the lowercase IdP username. The
+/// Who may SAVE attempts (`SubmissionAllowlist`): keyed by the caller's canonical username. The
 /// admin-panel management verbs live on the same port — one capability, four verbs.
+///
+/// The verbs take [`Username`] rather than `&str` so a grant and the probe that reads it cannot
+/// be written in two different spellings: the only way to name a row here is through the same
+/// constructor the verifier uses.
 pub trait SubmissionAllowlist: Send + Sync {
-    fn is_allowed(&self, username: &str) -> impl Future<Output = Result<bool, SubmissionError>> + Send;
+    fn is_allowed(&self, username: &Username) -> impl Future<Output = Result<bool, SubmissionError>> + Send;
     /// Newest grant first (`granted_at desc, username`).
     fn list(&self) -> impl Future<Output = Result<Vec<AllowlistEntry>, SubmissionError>> + Send;
     /// Upsert — re-granting refreshes the note; returns the stored row.
     fn grant(
         &self,
-        username: &str,
+        username: &Username,
         note: Option<&str>,
     ) -> impl Future<Output = Result<AllowlistEntry, SubmissionError>> + Send;
     /// `false` when there was nothing to revoke.
-    fn revoke(&self, username: &str) -> impl Future<Output = Result<bool, SubmissionError>> + Send;
+    fn revoke(&self, username: &Username) -> impl Future<Output = Result<bool, SubmissionError>> + Send;
 }
 
 /// The verified caller, projected for submissions: `user_id` = the stored `sub`,
-/// `username` = the (lowercase) allowlist key.
+/// `username` = the allowlist key.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Submitter {
     pub user_id: String,
-    pub username: String,
+    pub username: Username,
 }
 
 /// The submissions store (`SubmissionRepository`). Owner checks are the APPLICATION's
@@ -177,7 +187,7 @@ where
         if self.allowlist.is_allowed(&submitter.username).await? {
             Ok(())
         } else {
-            Err(SubmissionError::NotAllowlisted(submitter.username.clone()))
+            Err(SubmissionError::NotAllowlisted(submitter.username.to_string()))
         }
     }
 

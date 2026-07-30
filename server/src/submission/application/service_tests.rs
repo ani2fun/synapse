@@ -106,21 +106,31 @@ impl SolvedRecorder for FakeSolvedRecorder {
     }
 }
 
-/// The in-memory allowlist: a fixed set of lowercase usernames (the gate's side; the
+/// A canonical name for a fixture. `expect` rather than a fallback: a test that names nobody is
+/// a broken test, not a case the gate should be asked to handle.
+fn named(raw: &str) -> Username {
+    Username::parse(raw).expect("a fixture names somebody")
+}
+
+/// The in-memory allowlist: a fixed set of canonical usernames (the gate's side; the
 /// management verbs are exercised by the admin route ITs with their own fake).
 struct FakeAllowlist(Vec<&'static str>);
 
 impl SubmissionAllowlist for FakeAllowlist {
-    async fn is_allowed(&self, username: &str) -> Result<bool, SubmissionError> {
-        Ok(self.0.contains(&username))
+    async fn is_allowed(&self, username: &Username) -> Result<bool, SubmissionError> {
+        Ok(self.0.contains(&username.as_str()))
     }
     async fn list(&self) -> Result<Vec<AllowlistEntry>, SubmissionError> {
         unreachable!("the gate never lists")
     }
-    async fn grant(&self, _username: &str, _note: Option<&str>) -> Result<AllowlistEntry, SubmissionError> {
+    async fn grant(
+        &self,
+        _username: &Username,
+        _note: Option<&str>,
+    ) -> Result<AllowlistEntry, SubmissionError> {
         unreachable!("the gate never grants")
     }
-    async fn revoke(&self, _username: &str) -> Result<bool, SubmissionError> {
+    async fn revoke(&self, _username: &Username) -> Result<bool, SubmissionError> {
         unreachable!("the gate never revokes")
     }
 }
@@ -422,7 +432,7 @@ async fn gating_off_lets_anyone_submit() {
     );
     let stranger = Submitter {
         user_id: "sub-1".into(),
-        username: "stranger".into(),
+        username: named("stranger"),
     };
     assert!(
         svc.submit(path(), "python".into(), "x".into(), Some(stranger))
@@ -447,7 +457,7 @@ async fn gating_on_requires_sign_in_and_the_allowlist() {
 
     let stranger = Submitter {
         user_id: "sub-1".into(),
-        username: "stranger".into(),
+        username: named("stranger"),
     };
     let err = svc
         .submit(path(), "python".into(), "x".into(), Some(stranger))
@@ -461,7 +471,7 @@ async fn gating_on_requires_sign_in_and_the_allowlist() {
 
     let ada = Submitter {
         user_id: "sub-2".into(),
-        username: "ada".into(),
+        username: named("ada"),
     };
     assert!(
         svc.submit(path(), "python".into(), "x".into(), Some(ada))

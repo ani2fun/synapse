@@ -102,7 +102,7 @@ pub(crate) async fn submit_solution(
 ) -> ApiResult<SubmissionAcceptedDto> {
     let submitter = caller_user(&state, &headers).await?.map(|user| Submitter {
         user_id: user.id.0,
-        username: user.username.into_string(),
+        username: user.username,
     });
     // The rate-limit budget gate: signed-in meters per subject, anonymous per IP.
     let consumed = match &submitter {

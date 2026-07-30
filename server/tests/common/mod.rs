@@ -36,10 +36,10 @@ const TEST_BUCKET: RateLimitBucket = RateLimitBucket {
     limit: 10_000,
 };
 
-/// An admin-set entry, built through the same constructor the verifier uses — a test that
-/// assembled the set from raw strings could assert a gate the running server does not have.
-pub fn admin_username(raw: &str) -> Username {
-    Username::parse(raw).expect("a non-blank admin name")
+/// A fixture name, built through the same constructor the verifier uses — a test that spelled
+/// one for itself could assert a gate or a grant the running server does not have.
+pub fn username(raw: &str) -> Username {
+    Username::parse(raw).expect("a fixture names somebody")
 }
 
 /// The default wiring over a content root — tests tweak fields before `synapse_server::app`.
@@ -161,7 +161,7 @@ pub fn deps_with(
         issuer: issuer.to_owned(),
         audience: "synapse-web".to_owned(),
         // The dev default ("tester") — the minted IT token IS tester, so admin ITs pass the gate.
-        admin_users: Arc::new(std::collections::HashSet::from([admin_username("tester")])),
+        admin_users: Arc::new(std::collections::HashSet::from([username("tester")])),
     };
     let limiter = Arc::new(RateLimiter::new(TEST_BUCKET, TEST_BUCKET));
     // Content editing MOUNTED, in dry-run — the routes, the gates and the error mapping are all

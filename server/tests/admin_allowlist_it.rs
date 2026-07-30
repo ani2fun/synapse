@@ -14,6 +14,7 @@ use axum::http::{Request, StatusCode, header};
 use chrono::{TimeZone, Utc};
 use common::{mint, stub_realm};
 use serde_json::Value;
+use synapse_server::identity::domain::Username;
 use synapse_server::submission::application::{AllowlistEntry, SubmissionAllowlist, SubmissionError};
 use tower::ServiceExt;
 
@@ -43,28 +44,35 @@ impl FakeAllowlist {
     }
 }
 
+/// Rows are stored as plain strings, exactly as Postgres holds them — so what these assertions
+/// see is the name the handler actually wrote, not a name this fake re-canonicalised.
 impl SubmissionAllowlist for &'static FakeAllowlist {
-    async fn is_allowed(&self, username: &str) -> Result<bool, SubmissionError> {
-        Ok(self.rows.lock().unwrap().iter().any(|e| e.username == username))
+    async fn is_allowed(&self, username: &Username) -> Result<bool, SubmissionError> {
+        let rows = self.rows.lock().unwrap();
+        Ok(rows.iter().any(|e| e.username == username.as_str()))
     }
     async fn list(&self) -> Result<Vec<AllowlistEntry>, SubmissionError> {
         Ok(self.rows.lock().unwrap().clone())
     }
-    async fn grant(&self, username: &str, note: Option<&str>) -> Result<AllowlistEntry, SubmissionError> {
+    async fn grant(
+        &self,
+        username: &Username,
+        note: Option<&str>,
+    ) -> Result<AllowlistEntry, SubmissionError> {
         let entry = AllowlistEntry {
-            username: username.to_owned(),
+            username: username.to_string(),
             note: note.map(str::to_owned),
             granted_at: Utc.with_ymd_and_hms(2026, 7, 16, 0, 0, 0).unwrap(),
         };
         let mut rows = self.rows.lock().unwrap();
-        rows.retain(|e| e.username != username);
+        rows.retain(|e| e.username != username.as_str());
         rows.insert(0, entry.clone());
         Ok(entry)
     }
-    async fn revoke(&self, username: &str) -> Result<bool, SubmissionError> {
+    async fn revoke(&self, username: &Username) -> Result<bool, SubmissionError> {
         let mut rows = self.rows.lock().unwrap();
         let before = rows.len();
-        rows.retain(|e| e.username != username);
+        rows.retain(|e| e.username != username.as_str());
         Ok(rows.len() < before)
     }
 }
@@ -193,4 +201,33 @@ async fn revoke_is_204_and_unknown_is_404() {
 
     let (status, _) = call(app, "DELETE", "/api/admin/allowlist/ghost", Some(&token), None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+/// The property the newtype exists for, across the two surfaces that have to agree: a grant
+/// WRITTEN in one spelling is FOUND by a probe arriving in another. Each of these used to
+/// canonicalise for itself — the handler by hand, the gate by convention — so nothing but care
+/// kept them spelling the same row, and a disagreement shows up only as a refusal nobody logs.
+#[tokio::test]
+async fn a_grant_is_found_by_a_caller_arriving_in_another_case() {
+    let issuer = stub_realm().await;
+    let fake = leak_fake(FakeAllowlist::seeded());
+    let token = mint(&issuer, "tester");
+
+    let (status, body) = call(
+        admin_app(&issuer, fake),
+        "POST",
+        "/api/admin/allowlist",
+        Some(&token),
+        Some(r#"{"username":"  Grace.Hopper  "}"#),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+
+    for arrival in ["grace.hopper", "GRACE.HOPPER", " Grace.Hopper "] {
+        let name = Username::parse(arrival).expect("a real name");
+        assert!(
+            fake.is_allowed(&name).await.unwrap(),
+            "granted once, must be found as {arrival:?}"
+        );
+    }
 }

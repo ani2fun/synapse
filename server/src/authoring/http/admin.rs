@@ -17,7 +17,32 @@ use synapse_shared::submission::{AllowlistEntryDto, GrantRequestDto};
 
 use crate::authoring::application::ContentEditors;
 use crate::authoring::http::{AuthoringRoutesState, dto};
+use crate::identity::domain::Username;
 use crate::platform::admin_gate::require_admin;
+
+/// A grant needs somebody to grant to. Shared by both write verbs so the two cannot drift on
+/// what counts as a name.
+fn blank_username() -> dto::Reject {
+    (
+        StatusCode::BAD_REQUEST,
+        Json(ApiError {
+            error: "Username required".to_owned(),
+            detail: Some("A grant needs a non-blank username".to_owned()),
+            hint: None,
+        }),
+    )
+}
+
+fn no_such_grant(username: String) -> dto::Reject {
+    (
+        StatusCode::NOT_FOUND,
+        Json(ApiError {
+            error: "No such grant".to_owned(),
+            detail: Some(username),
+            hint: None,
+        }),
+    )
+}
 
 pub fn routes(state: AuthoringRoutesState) -> Router {
     Router::new()
@@ -80,18 +105,11 @@ pub(crate) async fn grant_content_editor(
     Json(request): Json<GrantRequestDto>,
 ) -> Result<Json<AllowlistEntryDto>, dto::Reject> {
     gate(&state, &headers).await?;
-    // Canonical lowercase — the same shape the verifier emits and the propose gate compares.
-    let username = request.username.trim().to_lowercase();
-    if username.is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ApiError {
-                error: "Username required".to_owned(),
-                detail: Some("A grant needs a non-blank username".to_owned()),
-                hint: None,
-            }),
-        ));
-    }
+    // Built through the verifier's own constructor, so the row is stored under exactly the name
+    // the granted person will arrive with — not under a second, hand-written spelling of it.
+    let Some(username) = Username::parse(&request.username) else {
+        return Err(blank_username());
+    };
     let note = request.note.as_deref().map(str::trim).filter(|n| !n.is_empty());
     match state.editors.grant(&username, note).await {
         Ok(entry) => Ok(Json(dto::to_editor(&entry))),
@@ -119,17 +137,14 @@ pub(crate) async fn revoke_content_editor(
     Path(raw): Path<String>,
 ) -> Result<StatusCode, dto::Reject> {
     gate(&state, &headers).await?;
-    let username = raw.trim().to_lowercase();
+    // A path segment that is not a name cannot have been granted, so it settles the same way an
+    // unknown one does rather than as a separate kind of refusal.
+    let Some(username) = Username::parse(&raw) else {
+        return Err(no_such_grant(raw));
+    };
     match state.editors.revoke(&username).await {
         Ok(true) => Ok(StatusCode::NO_CONTENT),
-        Ok(false) => Err((
-            StatusCode::NOT_FOUND,
-            Json(ApiError {
-                error: "No such grant".to_owned(),
-                detail: Some(username),
-                hint: None,
-            }),
-        )),
+        Ok(false) => Err(no_such_grant(username.into_string())),
         Err(error) => Err(dto::to_error(&error)),
     }
 }

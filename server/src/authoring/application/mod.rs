@@ -19,6 +19,7 @@ use crate::authoring::domain::branch::branch_for;
 use crate::authoring::domain::validation::{fingerprint, normalise, validate};
 use crate::authoring::domain::{EditRequest, EditRequestId, ProposalLocation};
 use crate::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
+use crate::identity::domain::Username;
 
 pub use ports::{
     AuthoringError, ContentEditorEntry, ContentEditors, ContentForge, EditRequestRepository, Editor,
@@ -129,12 +130,12 @@ where
 
     /// Anonymous → 401, verified but not granted → 403. Runs FIRST on every verb, so a refusal
     /// never touches the content tree or the forge.
-    async fn authorize(&self, editor: Option<&Editor>) -> Result<String, AuthoringError> {
+    async fn authorize(&self, editor: Option<&Editor>) -> Result<Username, AuthoringError> {
         let editor = editor.ok_or(AuthoringError::RequiresSignIn)?;
         if self.editors.is_allowed(&editor.username).await? {
             Ok(editor.username.clone())
         } else {
-            Err(AuthoringError::NotAllowed(editor.username.clone()))
+            Err(AuthoringError::NotAllowed(editor.username.to_string()))
         }
     }
 
@@ -168,7 +169,7 @@ where
     /// refreshed on submit — listing does not spend a forge round-trip per row.
     pub async fn mine(&self, editor: Option<&Editor>) -> Result<Vec<EditRequest>, AuthoringError> {
         let username = self.authorize(editor).await?;
-        self.repo.list_for(&username).await
+        self.repo.list_for(username.as_str()).await
     }
 
     /// Validate, then commit — reusing the open proposal for this page when there is one.
@@ -213,11 +214,14 @@ where
             ));
         }
 
-        let message = message::commit_message(&joined, &username, summary);
-        match self.reusable(&username, &joined).await? {
+        // Past the gate the name is a plain string again: what follows formats it into a commit
+        // message and a branch segment, neither of which is a comparison the spelling can break.
+        let username = username.as_str();
+        let message = message::commit_message(&joined, username, summary);
+        match self.reusable(username, &joined).await? {
             Some(existing) => self.revise(existing, &content, &message).await,
             None => {
-                self.open_new(&username, &joined, &file, &content, &message, summary)
+                self.open_new(username, &joined, &file, &content, &message, summary)
                     .await
             }
         }

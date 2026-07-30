@@ -98,9 +98,7 @@ fn app(issuer: &str, registry: Arc<FakeRegistry>, sync: Option<SyncTrigger>) -> 
     let state = ContentSourceRoutesState {
         sources: registry,
         identity: common::identity_for(issuer),
-        admin_users: Arc::new(std::collections::HashSet::from([common::admin_username(
-            "tester",
-        )])),
+        admin_users: Arc::new(std::collections::HashSet::from([common::username("tester")])),
         catalog: Arc::new(CatalogService::new(repo)),
         sync,
     };

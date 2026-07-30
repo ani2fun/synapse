@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use crate::authoring::application::ForgeTarget;
 use crate::authoring::domain::{EditRequest, EditRequestState, PullRequestRef};
+use crate::identity::domain::Username;
 
 /// HTTP mapping (at `http/`): `NotEditable`→404, `RequiresSignIn`→401, `NotAllowed`→403,
 /// `Invalid`→400, `SourceMoved`→409, `ForgeUnavailable`→502, `StoreFailed`/`ContentUnreadable`→500.
@@ -34,11 +35,11 @@ pub enum AuthoringError {
     StoreFailed(String),
 }
 
-/// The verified caller, projected for authoring: `username` is the lowercase allowlist key and
-/// the branch's owner segment.
+/// The verified caller, projected for authoring: `username` is the allowlist key and the
+/// branch's owner segment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Editor {
-    pub username: String,
+    pub username: Username,
 }
 
 /// A lesson's editable source (`LessonSource`).
@@ -118,7 +119,8 @@ pub trait Forges: Send + Sync {
     fn forge_for(&self, repo: &str) -> impl Future<Output = Option<Self::Forge>> + Send;
 }
 
-/// One grant, as stored.
+/// One grant, as stored. `username` stays a plain `String` — a row read back for display, whose
+/// stored spelling is worth showing rather than quietly correcting.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContentEditorEntry {
     pub username: String,
@@ -128,18 +130,22 @@ pub struct ContentEditorEntry {
 
 /// Who may propose content changes (`ContentEditors`) — deliberately NOT the submit allowlist.
 /// Four verbs, one capability: the probe the propose gate rides plus the admin panel's management.
+///
+/// [`Username`] rather than `&str` for the same reason the submit allowlist takes one: a grant
+/// and the probe that reads it must be spelled by the same constructor, or the row is written
+/// somewhere the gate never looks.
 pub trait ContentEditors: Send + Sync {
-    fn is_allowed(&self, username: &str) -> impl Future<Output = Result<bool, AuthoringError>> + Send;
+    fn is_allowed(&self, username: &Username) -> impl Future<Output = Result<bool, AuthoringError>> + Send;
     /// Newest grant first (`granted_at desc, username`).
     fn list(&self) -> impl Future<Output = Result<Vec<ContentEditorEntry>, AuthoringError>> + Send;
     /// Upsert — re-granting refreshes the note; returns the stored row.
     fn grant(
         &self,
-        username: &str,
+        username: &Username,
         note: Option<&str>,
     ) -> impl Future<Output = Result<ContentEditorEntry, AuthoringError>> + Send;
     /// `false` when there was nothing to revoke.
-    fn revoke(&self, username: &str) -> impl Future<Output = Result<bool, AuthoringError>> + Send;
+    fn revoke(&self, username: &Username) -> impl Future<Output = Result<bool, AuthoringError>> + Send;
 }
 
 /// Where proposals are recorded (`EditRequestRepository`).

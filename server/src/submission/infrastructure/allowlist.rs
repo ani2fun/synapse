@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use sqlx::Row;
 use sqlx::postgres::PgRow;
 
+use crate::identity::domain::Username;
 use crate::submission::application::{AllowlistEntry, SubmissionAllowlist, SubmissionError};
 
 pub struct PostgresSubmissionAllowlist {
@@ -31,14 +32,14 @@ fn entry(row: &PgRow) -> AllowlistEntry {
 }
 
 impl SubmissionAllowlist for PostgresSubmissionAllowlist {
-    async fn is_allowed(&self, username: &str) -> Result<bool, SubmissionError> {
+    async fn is_allowed(&self, username: &Username) -> Result<bool, SubmissionError> {
         let row = sqlx::query("select 1 as one from submission_allowlist where username = $1")
-            .bind(username)
+            .bind(username.as_str())
             .fetch_optional(&self.pool)
             .await
             .map_err(|e| store_failed(&e))?;
         let allowed = row.is_some_and(|r| r.get::<i32, _>("one") == 1);
-        tracing::debug!(username, allowed, "submission allowlist checked");
+        tracing::debug!(%username, allowed, "submission allowlist checked");
         Ok(allowed)
     }
 
@@ -53,30 +54,34 @@ impl SubmissionAllowlist for PostgresSubmissionAllowlist {
         Ok(rows.iter().map(entry).collect())
     }
 
-    async fn grant(&self, username: &str, note: Option<&str>) -> Result<AllowlistEntry, SubmissionError> {
+    async fn grant(
+        &self,
+        username: &Username,
+        note: Option<&str>,
+    ) -> Result<AllowlistEntry, SubmissionError> {
         let row = sqlx::query(
             "insert into submission_allowlist (username, note) values ($1, $2) \
              on conflict (username) do update set note = excluded.note \
              returning username, note, granted_at",
         )
-        .bind(username)
+        .bind(username.as_str())
         .bind(note)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| store_failed(&e))?;
-        tracing::info!(username, "submission allowlist: granted");
+        tracing::info!(%username, "submission allowlist: granted");
         Ok(entry(&row))
     }
 
-    async fn revoke(&self, username: &str) -> Result<bool, SubmissionError> {
+    async fn revoke(&self, username: &Username) -> Result<bool, SubmissionError> {
         let result = sqlx::query("delete from submission_allowlist where username = $1")
-            .bind(username)
+            .bind(username.as_str())
             .execute(&self.pool)
             .await
             .map_err(|e| store_failed(&e))?;
         let revoked = result.rows_affected() > 0;
         if revoked {
-            tracing::info!(username, "submission allowlist: revoked");
+            tracing::info!(%username, "submission allowlist: revoked");
         }
         Ok(revoked)
     }

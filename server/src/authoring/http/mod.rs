@@ -78,7 +78,7 @@ pub fn routes(state: AuthoringRoutesState) -> Router {
 async fn caller(state: &AuthoringRoutesState, headers: &HeaderMap) -> Result<Option<Editor>, dto::Reject> {
     let user = crate::identity::http::optional_user(&state.identity, headers).await?;
     Ok(user.map(|user| Editor {
-        username: user.username.into_string(),
+        username: user.username,
     }))
 }
 
@@ -229,7 +229,7 @@ fn over_budget(
     Peer(socket): Peer,
 ) -> Result<(), dto::Reject> {
     let outcome = match editor {
-        Some(editor) => state.limiter.consume_authenticated(&editor.username),
+        Some(editor) => state.limiter.consume_authenticated(editor.username.as_str()),
         None => state.limiter.consume_anonymous(&client_ip(headers, socket)),
     };
     outcome.map(|_| ()).map_err(|throttled| {

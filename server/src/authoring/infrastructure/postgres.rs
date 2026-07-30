@@ -11,6 +11,7 @@ use crate::authoring::application::{
     AuthoringError, ContentEditorEntry, ContentEditors, EditRequestRepository,
 };
 use crate::authoring::domain::{EditRequest, EditRequestId, EditRequestState, PullRequestRef};
+use crate::identity::domain::Username;
 
 fn store_failed(error: &sqlx::Error) -> AuthoringError {
     AuthoringError::StoreFailed(error.to_string())
@@ -39,14 +40,14 @@ fn editor(row: &PgRow) -> ContentEditorEntry {
 }
 
 impl ContentEditors for PostgresContentEditors {
-    async fn is_allowed(&self, username: &str) -> Result<bool, AuthoringError> {
+    async fn is_allowed(&self, username: &Username) -> Result<bool, AuthoringError> {
         let row = sqlx::query("select 1 as one from content_editor_allowlist where username = $1")
-            .bind(username)
+            .bind(username.as_str())
             .fetch_optional(&self.pool)
             .await
             .map_err(|e| store_failed(&e))?;
         let allowed = row.is_some_and(|r| r.get::<i32, _>("one") == 1);
-        tracing::debug!(username, allowed, "content-editor allowlist checked");
+        tracing::debug!(%username, allowed, "content-editor allowlist checked");
         Ok(allowed)
     }
 
@@ -61,30 +62,34 @@ impl ContentEditors for PostgresContentEditors {
         Ok(rows.iter().map(editor).collect())
     }
 
-    async fn grant(&self, username: &str, note: Option<&str>) -> Result<ContentEditorEntry, AuthoringError> {
+    async fn grant(
+        &self,
+        username: &Username,
+        note: Option<&str>,
+    ) -> Result<ContentEditorEntry, AuthoringError> {
         let row = sqlx::query(
             "insert into content_editor_allowlist (username, note) values ($1, $2) \
              on conflict (username) do update set note = excluded.note \
              returning username, note, granted_at",
         )
-        .bind(username)
+        .bind(username.as_str())
         .bind(note)
         .fetch_one(&self.pool)
         .await
         .map_err(|e| store_failed(&e))?;
-        tracing::info!(username, "content-editor allowlist: granted");
+        tracing::info!(%username, "content-editor allowlist: granted");
         Ok(editor(&row))
     }
 
-    async fn revoke(&self, username: &str) -> Result<bool, AuthoringError> {
+    async fn revoke(&self, username: &Username) -> Result<bool, AuthoringError> {
         let result = sqlx::query("delete from content_editor_allowlist where username = $1")
-            .bind(username)
+            .bind(username.as_str())
             .execute(&self.pool)
             .await
             .map_err(|e| store_failed(&e))?;
         let revoked = result.rows_affected() > 0;
         if revoked {
-            tracing::info!(username, "content-editor allowlist: revoked");
+            tracing::info!(%username, "content-editor allowlist: revoked");
         }
         Ok(revoked)
     }
