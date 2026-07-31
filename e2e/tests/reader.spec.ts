@@ -106,32 +106,60 @@ test("the command palette opens and navigates", async ({ page }) => {
   await expect(page).toHaveURL(/\/synapse\/.+/);
 });
 
-test("finishing a lesson is remembered across a reload", async ({ page, request }) => {
+test("marking a lesson read is remembered across a reload", async ({ page, request }) => {
   const path = await firstLessonPath(request);
   await page.goto(path);
   await waitForLessonBody(page);
 
-  // Auto-complete could not be exercised in the dev preview at all — it reports
-  // `innerHeight: 0`, so the window cannot scroll. A real browser can, which is precisely the
-  // gap this suite exists to close.
+  // Marking is the READER'S decision, taken on the end-of-page switch. It used to happen on its
+  // own at 98% scroll, which this test drove by scrolling to `scrollHeight` — a page skimmed for
+  // one paragraph counted as finished, so the switch replaced it.
   //
-  // Wait for the body to be POPULATED before scrolling: the markdown island fills it after
-  // mount, so scrolling to `scrollHeight` too early lands at the bottom of an empty shell and
-  // the page then grows underneath — leaving the reader nowhere near the end. (That is exactly
-  // how this test failed on its first run.)
+  // Wait for the body to be POPULATED first: the markdown island fills it after mount, and the
+  // switch sits below it, so acting too early aims at a shell that then grows underneath.
   await expect
     .poll(async () => (await page.locator(".lesson-body").innerText()).length)
     .toBeGreaterThan(200);
-  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+
+  const readSwitch = page.locator("[data-read-switch]");
+  await expect(readSwitch).toHaveAttribute("aria-checked", "false");
+  await readSwitch.click();
+  await expect(readSwitch).toHaveAttribute("aria-checked", "true");
   await expect
     .poll(async () => page.evaluate(() => localStorage.getItem("reader-progress")))
     .toContain(path.replace("/synapse/", ""));
 
   await page.reload();
   await expect(page.locator(".reader-sidebar__link--done").first()).toBeVisible();
+  // The switch reads its state back out of storage on hydration — SSR renders it unchecked,
+  // because the server cannot know.
+  await expect(page.locator("[data-read-switch]")).toHaveAttribute("aria-checked", "true");
 
   // And the resume card is the payoff — a second visit differs from a first.
   await page.goto("/");
   await expect(page.locator(".lib-continue")).toBeVisible();
   await expect(page.locator(".lib-card__progress").first()).toBeVisible();
+});
+
+/** The half that could not exist before: a mis-tap is undoable without clearing every ✓. */
+test("un-marking a lesson clears its tick and survives a reload", async ({ page, request }) => {
+  const path = await firstLessonPath(request);
+  await page.goto(path);
+  await waitForLessonBody(page);
+  await expect
+    .poll(async () => (await page.locator(".lesson-body").innerText()).length)
+    .toBeGreaterThan(200);
+
+  const readSwitch = page.locator("[data-read-switch]");
+  await readSwitch.click();
+  await expect(readSwitch).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator(".reader-sidebar__link--done").first()).toBeVisible();
+
+  await readSwitch.click();
+  await expect(readSwitch).toHaveAttribute("aria-checked", "false");
+  await expect(page.locator(".reader-sidebar__link--done")).toHaveCount(0);
+
+  await page.reload();
+  await expect(page.locator("[data-read-switch]")).toHaveAttribute("aria-checked", "false");
+  await expect(page.locator(".reader-sidebar__link--done")).toHaveCount(0);
 });
