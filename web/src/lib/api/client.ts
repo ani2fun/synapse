@@ -139,10 +139,13 @@ async function decode<T>(response: Response): Promise<T> {
   if (!response.ok) {
     throw new ApiFailure(response.status, await errorBody(response));
   }
-  if (response.status === 204) {
-    return undefined as T;
-  }
-  return (await response.json()) as T;
+  // Ask what ARRIVED rather than listing the statuses that answer without a body. More than one
+  // does: 204 for a revoke or a reset, and 202 for "sync now", whose work belongs to the reconcile
+  // loop and not to this reply. `response.json()` on an empty body throws "Unexpected end of JSON
+  // input" — which surfaced as a red banner on the admin panel every time a sync was queued
+  // SUCCESSFULLY, and is the kind of error that teaches you to distrust a button that works.
+  const body = await response.text();
+  return (body === "" ? undefined : JSON.parse(body)) as T;
 }
 
 async function get<T>(path: string): Promise<T> {
