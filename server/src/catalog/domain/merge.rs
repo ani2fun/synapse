@@ -285,6 +285,12 @@ fn prune_empty(entries: &mut Vec<CatalogEntry>) {
     });
 }
 
+/// Declared beside the suites rather than inside one of them, so both can reach the same
+/// builders — a fixture module nested in `tests` would be invisible to its sibling.
+#[cfg(test)]
+#[path = "merge_fixtures.rs"]
+mod fixtures;
+
 #[cfg(test)]
 #[path = "merge_tests.rs"]
 mod tests;

@@ -1,51 +1,29 @@
-//! One rule, from both directions: a registered satellite is positioned by its row and by nothing
-//! else, and the walked spine is positioned by its own `book.json` and by nothing else.
+//! One question, from every direction: WHO decides where a book sits.
 //!
-//! Its own file because `merge_tests.rs` sits exactly on the 500-line cap, and because these are
-//! about a single question — who decides — rather than about the merge's cross-source behaviour.
+//! A registered satellite is positioned by its row and by nothing else; the walked spine is
+//! positioned by its own `book.json` and by nothing else; and a level that receives a graft
+//! re-sorts around it. Its own file because `merge_tests` sits against the 500-line cap and
+//! because this is a single question, separate from the merge's cross-source behaviour.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use super::fixtures::*;
 use super::*;
-use crate::catalog::domain::content_tree::{BookMeta, ContentEntry};
-use crate::catalog::domain::resolver;
+use crate::catalog::domain::catalog::BookEntry;
+use crate::catalog::domain::content_tree::{BookMeta, CategoryMeta, ContentEntry};
 
-fn file(name: &str) -> ContentEntry {
-    ContentEntry::File {
-        name: name.to_owned(),
-        content: "---\ntitle: T\n---\nbody".to_owned(),
-    }
-}
-
-/// A satellite guide repo: the root IS the book, and `order` here is the field a migration leaves
-/// behind.
+/// A satellite guide repo whose `book.json` still carries the `order` a migration left behind.
 fn satellite(id: &str, slug: &str, book_json_order: Option<i32>) -> SourceTree {
-    SourceTree {
-        id: id.to_owned(),
-        book_meta: Some(BookMeta {
-            slug: Some(slug.to_owned()),
-            order: book_json_order,
-            ..BookMeta::default()
-        }),
-        category_meta: None,
-        children: vec![file("01-intro.md")],
-    }
+    book_source(id, meta(slug, book_json_order), vec![file("01-intro.md")])
 }
 
+/// A registration row: the placement, at the top level.
 fn row(source_id: &str, order: Option<i32>) -> Placement {
-    Placement {
-        source_id: source_id.to_owned(),
-        grouping: Vec::new(),
-        order,
-    }
+    at(&[], source_id, order)
 }
 
 fn order_of(walk: &WalkResult, slug: &str) -> Option<i32> {
-    resolver::all_books(&walk.catalog)
-        .into_iter()
-        .find(|b| b.slug == slug)
-        .expect("book present")
-        .order
+    book(walk, slug).order
 }
 
 #[test]
@@ -136,4 +114,61 @@ fn a_book_nested_in_the_satellites_own_category_keeps_its_metadata_order() {
         Some(5),
         "a source's own top-level book IS what the row positions"
     );
+}
+
+#[test]
+fn a_grafted_level_re_sorts_by_order_then_slug() {
+    let spine = collection(
+        "main",
+        vec![category_dir(
+            "06-languages",
+            CategoryMeta {
+                order: Some(6),
+                ..CategoryMeta::default()
+            },
+            vec![
+                book_dir("02-python", meta("python", Some(6)), vec![file("01-a.md")]),
+                book_dir("09-zig", meta("zig", Some(9)), vec![file("01-a.md")]),
+            ],
+        )],
+    );
+    let java = book_source("java", meta("java", Some(7)), vec![file("01-a.md")]);
+
+    // The row carries the 7, not the `book.json` — a registered satellite is positioned by its
+    // registration, so a fixture that left the row empty would be testing the old fallback rather
+    // than the re-sort this is about.
+    let walk = assemble(&[spine, java], &[at(&["languages"], "java", Some(7))]).unwrap();
+
+    let CatalogEntry::Category(category) = &walk.catalog.entries[0] else {
+        panic!("expected a category");
+    };
+    let slugs: Vec<&str> = category.entries.iter().map(CatalogEntry::slug).collect();
+    assert_eq!(slugs, vec!["python", "java", "zig"]);
+}
+
+#[test]
+fn the_lessons_inside_a_grafted_book_keep_their_numeric_order() {
+    let java = book_source(
+        "java",
+        meta("java", None),
+        vec![
+            file("02-second.md"),
+            file("01-first.md"),
+            file("unnumbered.md"),
+            file("index.md"),
+        ],
+    );
+
+    let walk = assemble(&[java], &[]).unwrap();
+
+    let slugs: Vec<&str> = book(&walk, "java")
+        .entries
+        .iter()
+        .map(|e| match e {
+            BookEntry::Lesson(lesson) => lesson.slug.as_str(),
+            BookEntry::Chapter { slug, .. } => slug.as_str(),
+        })
+        .collect();
+    // index first, then the numeric prefixes in order, and the unnumbered one last.
+    assert_eq!(slugs, vec!["index", "first", "second", "unnumbered"]);
 }
