@@ -13,7 +13,8 @@ use synapse_server::authoring::infrastructure::{
 use synapse_server::blog::application::BlogService;
 use synapse_server::blog::infrastructure::FileSystemBlogRepository;
 use synapse_server::catalog::application::CatalogService;
-use synapse_server::catalog::infrastructure::FileSystemContentRepository;
+use synapse_server::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
+use synapse_server::catalog::infrastructure::{FileSystemContentRepository, MountedSources, SourceRoot};
 use synapse_server::execution::application::RunCodeService;
 use synapse_server::execution::infrastructure::GoJudgeRunner;
 use synapse_server::identity::application::IdentityService;
@@ -116,7 +117,7 @@ where
         progress: base.progress,
         astro_url: base.astro_url,
         site_url: base.site_url,
-        content_root: base.content_root,
+        mounted: base.mounted,
         likec4_url: base.likec4_url,
         readiness: base.readiness,
         authoring: base.authoring,
@@ -211,7 +212,7 @@ pub fn deps_with(
         limiter,
         astro_url: None,
         site_url: "https://synapse.test".to_owned(),
-        content_root: content_root.to_string_lossy().into_owned(),
+        mounted: MountedSources::new(vec![SourceRoot::new(PRIMARY_SOURCE_ID, content_root)]),
         likec4_url: "http://127.0.0.1:9".to_owned(),
         readiness,
         authoring,

@@ -76,8 +76,9 @@ pub struct AppDeps<
     pub astro_url: Option<String>,
     /// Public origin for the sitemap's absolute URLs.
     pub site_url: String,
-    /// The content checkout — `/media` serves its `_media/` tree (one shared cache hour).
-    pub content_root: String,
+    /// The live mounted set — `/media` probes every checkout's `_media/` tree; a satellite
+    /// the sync loop publishes at runtime serves without a rebuild.
+    pub mounted: catalog::infrastructure::MountedSources,
     pub likec4_url: String,
     /// Answers `/api/ready`: Postgres in the binary, the same lazy pool in ITs (which then
     /// report 503 — the honest answer for a store that is not there).
@@ -122,7 +123,7 @@ where
         catalog: Arc::clone(&deps.catalog),
         site_url: deps.site_url.clone(),
     };
-    let media = platform::media_routes::MediaRoutes::new(&deps.content_root);
+    let media = platform::media_routes::MediaRoutes::mounted(deps.mounted);
     let security = platform::security_headers::SecurityHeaders::new(&deps.ident.issuer);
     let admin = submission::http::admin::AdminRoutesState {
         allowlist: deps.allowlist,

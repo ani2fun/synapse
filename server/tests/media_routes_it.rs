@@ -1,6 +1,7 @@
-//! Integration: `/media` — the content checkout's `_media/` tree over the real router:
+//! Integration: `/media` — every mounted checkout's `_media/` tree over the real router:
 //! content types, the shared cache hour on BOTH 200 and 206, single-range serving, traversal
-//! guard, and origin compression staying off small bodies.
+//! guard, origin compression staying off small bodies, and a satellite published at runtime
+//! serving its own tree.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -12,6 +13,8 @@ use std::path::Path;
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use http_body_util::BodyExt;
+use synapse_server::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
+use synapse_server::catalog::infrastructure::{MountedSources, SourceRoot};
 use tower::ServiceExt;
 
 fn seed(root: &Path) {
@@ -89,6 +92,52 @@ async fn traversal_out_of_the_media_root_is_a_404() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn a_satellite_published_at_runtime_serves_its_media_too() {
+    let primary = tempfile::tempdir().unwrap();
+    let satellite = tempfile::tempdir().unwrap();
+    seed(primary.path());
+    fs::create_dir_all(satellite.path().join("_media/java")).unwrap();
+    fs::write(
+        satellite.path().join("_media/java/vm.svg"),
+        "<svg>satellite</svg>",
+    )
+    .unwrap();
+
+    // The live handle production shares: apps are built over it, publishes land later.
+    let mounted = MountedSources::new(vec![SourceRoot::new(PRIMARY_SOURCE_ID, primary.path())]);
+    let app = || {
+        let mut deps = common::deps(primary.path());
+        deps.mounted = mounted.clone();
+        synapse_server::app(deps)
+    };
+    let request = |uri: &str| Request::builder().uri(uri).body(Body::empty()).unwrap();
+
+    // Before the publish, the satellite's file is nobody's: 404.
+    let before = app().oneshot(request("/media/java/vm.svg")).await.unwrap();
+    assert_eq!(before.status(), StatusCode::NOT_FOUND);
+
+    // Built BEFORE the publish — what serves next is liveness, not construction order.
+    let already_running = app();
+    mounted.publish(vec![
+        SourceRoot::new(PRIMARY_SOURCE_ID, primary.path()),
+        SourceRoot::new("java-guide", satellite.path()),
+    ]);
+    let after = already_running
+        .oneshot(request("/media/java/vm.svg"))
+        .await
+        .unwrap();
+    assert_eq!(after.status(), StatusCode::OK);
+    assert_eq!(
+        after.headers().get(header::CONTENT_TYPE).unwrap(),
+        "image/svg+xml"
+    );
+
+    // The primary keeps serving through the same shared set.
+    let still = app().oneshot(request("/media/dsa/tree.svg")).await.unwrap();
+    assert_eq!(still.status(), StatusCode::OK);
 }
 
 #[tokio::test]

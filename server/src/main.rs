@@ -149,7 +149,7 @@ async fn main() -> anyhow::Result<()> {
         content_sources: Some(source_admin),
         astro_url: cfg.astro_url().map(str::to_owned),
         site_url: cfg.site_url,
-        content_root: cfg.content_root.clone(),
+        mounted: content.mounted.clone(),
         likec4_url: cfg.likec4_url.clone(),
         readiness,
     });

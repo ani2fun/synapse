@@ -1,4 +1,4 @@
-//! Lesson media: `GET /media/{*rest}` serves `content_root/_media`
+//! Lesson media: `GET /media/{*rest}` serves every mounted checkout's `_media/` tree
 //! — traversal-guarded, explicit content types (SVG must be `image/svg+xml`), range-aware
 //! (a single `bytes=start[-end]` range → 206), and one shared hour of cache
 //! (`public, max-age=3600` on BOTH 200 and 206): media is path-addressed but not
@@ -12,8 +12,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 
-use crate::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
-use crate::catalog::infrastructure::{MountedSources, SourceRoot};
+use crate::catalog::infrastructure::MountedSources;
 
 const MEDIA_CACHE: &str = "public, max-age=3600";
 
@@ -29,13 +28,6 @@ pub struct MediaRoutes {
 }
 
 impl MediaRoutes {
-    /// The single-checkout deployment: one `_media/` tree.
-    pub fn new(content_root: impl AsRef<Path>) -> Self {
-        Self {
-            sources: MountedSources::new(vec![SourceRoot::new(PRIMARY_SOURCE_ID, content_root.as_ref())]),
-        }
-    }
-
     /// Share the live mounted set, so a satellite registered at runtime serves its media too.
     pub fn mounted(sources: MountedSources) -> Self {
         Self { sources }
