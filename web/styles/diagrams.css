@@ -171,6 +171,23 @@
 .c4-embed__zoom:hover { background: hsl(var(--primary) / 0.16); }
 .c4-embed--overlay .c4-embed__zoom { display: none; }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   SIMULATOR EMBEDS — the ```simulator fence's iframe over /simulators/<name>/.
+   The chrome mirrors the diagram cards: Enlarge top-LEFT (house rule), revealed
+   on hover/focus; .modal-btn owns the pill's look, this only positions it.
+   ───────────────────────────────────────────────────────────────────────────── */
+/* Pre-hydration placeholder: the marker holds its place so the iframe (or the
+   missing-bundle card) fills in without shifting the prose below it. */
+.simulator-block { min-height: 8rem; }
+.sim-embed { position: relative; margin: 1.5rem 0; }
+.sim-embed iframe { display: block; width: 100%; max-width: 100%;
+                    border: 1px solid hsl(var(--border)); border-radius: 12px;
+                    background: hsl(var(--card)); }
+.sim-embed__zoom { position: absolute; top: 10px; left: 10px; z-index: 2; opacity: 0;
+                   transition: opacity 140ms ease, color 0.12s, border-color 0.12s,
+                               background 0.12s; backdrop-filter: blur(4px); }
+.sim-embed:hover .sim-embed__zoom, .sim-embed__zoom:focus-visible { opacity: 1; }
+
 .diagram-zoom__hint { padding: 0 6px 0 4px; font-size: 0.75rem;
                       color: hsl(var(--muted-foreground)); user-select: none;
                       white-space: nowrap; }

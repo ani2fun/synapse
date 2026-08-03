@@ -455,6 +455,15 @@
       "url": "{{ _.base_url }}/media/dsa-notes/example.png"
     },
     {
+      "_id": "req_simulator_asset",
+      "_type": "request",
+      "parentId": "fld_catalog",
+      "name": "GET /simulators/{sim}/ (simulator bundle, first-source-wins)",
+      "description": "Serves every mounted source's _simulators/ tree, probed in mount order. A directory (WITH trailing slash) resolves to its index.html; without the slash it 301s to the slash form so relative ./assets/ URLs resolve. html: public,max-age=60; every other asset: public,max-age=3600.",
+      "method": "GET",
+      "url": "{{ _.base_url }}/simulators/osi-encapsulation/"
+    },
+    {
       "_id": "fld_authoring",
       "_type": "request_group",
       "parentId": "wrk_synapse_rs",

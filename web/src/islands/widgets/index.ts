@@ -18,6 +18,7 @@ import * as log from "../../lib/log";
 import { hydrateQuizzes } from "./Quiz";
 import { hydrateDiagrams } from "./Diagrams";
 import { hydrateC4Embeds } from "./C4Embed";
+import { hydrateSimulators } from "./Simulator";
 import { C4DocsPanel } from "./C4DocsPanel";
 import { CodebenchModal } from "./Codebench";
 import { c4Selected } from "./c4Store";
@@ -52,8 +53,11 @@ function init(): void {
   const diagrams = hydrateDiagrams(document);
   mountC4DocsPanel(lessonPathFromUrl());
   const c4 = hydrateC4Embeds(document, (id) => c4Selected.set(id));
-  if (quizzes > 0 || diagrams > 0 || c4 > 0) {
-    log.info(`hydrated ${quizzes} quiz card(s), ${diagrams} diagram(s), ${c4} c4 embed(s)`);
+  const sims = hydrateSimulators(document);
+  if (quizzes > 0 || diagrams > 0 || c4 > 0 || sims > 0) {
+    log.info(
+      `hydrated ${quizzes} quiz card(s), ${diagrams} diagram(s), ${c4} c4 embed(s), ${sims} simulator(s)`,
+    );
   }
 }
 

@@ -65,7 +65,16 @@ function isSolution(node: Code): boolean {
 // the card or never does. Reserved vocabularies keep their existing behaviour: claimed ones
 // returned earlier in the handler, orphans (a ```testcases with no group above it, a ```viz
 // with no widget=) still render as bare highlighted code.
-const RESERVED_FENCE_LANGS = new Set(["mermaid", "d2", "viz", "quiz", "problem", "testcases", "editorial"]);
+const RESERVED_FENCE_LANGS = new Set([
+  "mermaid",
+  "d2",
+  "viz",
+  "quiz",
+  "problem",
+  "testcases",
+  "editorial",
+  "simulator",
+]);
 
 function fenceLang(node: Code): string {
   return (node.lang ?? "").trim().toLowerCase();
@@ -348,6 +357,48 @@ export async function renderLesson(raw: string): Promise<string> {
                 children: [],
               };
             }
+          }
+
+          // Simulator fences → an iframe placeholder the client hydrates from
+          // /simulators/<name>/. ```simulator name=<slug> [height=<px>] [title="…"] — the body
+          // stays empty; the bundle itself is a content repo's _simulators/<name>/ tree. Bad
+          // meta earns the loud authoring card (with the raw fence kept visible below), never
+          // a silently-missing embed.
+          if (node.lang === "simulator") {
+            const meta = node.meta ?? "";
+            const name = /(?:^|\s)name=(\S+)/.exec(meta)?.[1];
+            if (!name || !/^[a-z0-9][a-z0-9-]*$/.test(name)) {
+              return [
+                authoringError(
+                  "Simulator ignored",
+                  "needs name=<slug> of [a-z0-9-] (e.g. name=osi-encapsulation)",
+                ),
+                defaultHandlers.code(state, node),
+              ].flat();
+            }
+            const heightRaw = /(?:^|\s)height=(\S+)/.exec(meta)?.[1];
+            const height = heightRaw === undefined ? undefined : Number(heightRaw);
+            if (height !== undefined && (!Number.isInteger(height) || height < 160 || height > 2000)) {
+              return [
+                authoringError(
+                  `Simulator “${name}” ignored`,
+                  "height must be a whole number of pixels between 160 and 2000",
+                ),
+                defaultHandlers.code(state, node),
+              ].flat();
+            }
+            const title = /title="([^"]*)"/.exec(meta)?.[1] ?? /(?:^|\s)title=(\S+)/.exec(meta)?.[1];
+            return {
+              type: "element",
+              tagName: "div",
+              properties: {
+                className: ["simulator-block"],
+                "data-name": name,
+                ...(height !== undefined ? { "data-height": String(height) } : {}),
+                ...(title ? { "data-title": title } : {}),
+              },
+              children: [],
+            };
           }
 
           // Quiz fences → one interactive card placeholder each; invalid JSON keeps the raw

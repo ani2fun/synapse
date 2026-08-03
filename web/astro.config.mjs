@@ -65,6 +65,7 @@ export default defineConfig({
         "/api": "http://localhost:8280",
         "/media": "http://localhost:8280",
         "/c4": "http://localhost:8280",
+        "/simulators": "http://localhost:8280",
       },
       fs: {
         // The viz wasm pkg lives under src/, but Cargo.lock (read by the wasm build check)

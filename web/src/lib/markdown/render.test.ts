@@ -516,6 +516,43 @@ describe("viz widget fences → declarative-widget placeholder", () => {
   });
 });
 
+describe("simulator fences → iframe placeholder", () => {
+  it("a ```simulator name= fence becomes an empty simulator-block div, no <pre", async () => {
+    const html = await renderLesson("```simulator name=osi-encapsulation\n```");
+    expect(html).toContain('class="simulator-block"');
+    expect(html).toContain('data-name="osi-encapsulation"');
+    expect(html).not.toContain("data-height"); // unauthored knobs stay absent
+    expect(html).not.toContain("<pre");
+  });
+
+  it("height and a quoted title round-trip to attributes", async () => {
+    const html = await renderLesson('```simulator name=osi-encapsulation height=560 title="OSI Encapsulation"\n```');
+    expect(html).toContain('data-height="560"');
+    expect(html).toContain('data-title="OSI Encapsulation"');
+  });
+
+  it("missing name= earns the error card and keeps the raw fence", async () => {
+    const html = await renderLesson("```simulator\n```");
+    expect(html).toContain("workbench-error");
+    expect(html).toContain("Simulator ignored");
+    expect(html).toContain("<pre");
+    expect(html).not.toContain('class="simulator-block"');
+  });
+
+  it("a non-slug name earns the error card too", async () => {
+    const html = await renderLesson("```simulator name=Not_A_Slug\n```");
+    expect(html).toContain("Simulator ignored");
+    expect(html).not.toContain('class="simulator-block"');
+  });
+
+  it("a malformed height earns the error card naming the simulator", async () => {
+    const html = await renderLesson("```simulator name=osi-encapsulation height=tall\n```");
+    expect(html).toContain("workbench-error");
+    expect(html).toContain("height must be a whole number");
+    expect(html).not.toContain('class="simulator-block"');
+  });
+});
+
 describe("trusted raw HTML passthrough (no sanitizer — ADR-S015)", () => {
   it("passes a <details> editorial through unmodified", async () => {
     const md = ["<details>", "<summary>Editorial</summary>", "", "The walkthrough.", "", "</details>"].join("\n");

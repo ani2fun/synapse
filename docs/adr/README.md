@@ -9,6 +9,8 @@ ADR superseding it, never by silent edits.
 | [RS002](rs002-derivative-content.md) | Derivative study material never reaches the served catalog | accepted |
 | [RS003](rs003-the-astro-web-tier.md) | The web tier is server-rendered Astro with TypeScript islands | accepted |
 | [RS004](rs004-content-contribution.md) | Content edits are proposed in-app and land as pull requests | accepted |
+| [RS005](rs005-multi-repo-content.md) | The library is assembled from many content repositories | accepted |
+| [RS006](rs006-simulator-embeds.md) | Simulators are static bundles content repositories ship and lessons frame | accepted |
 
 For current behaviour, read the code and its tests — ADRs record the reasoning behind the shape,
 not a reference manual. Operational architecture (deployment, the scaling ladder) lives in

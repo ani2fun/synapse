@@ -76,8 +76,9 @@ pub struct AppDeps<
     pub astro_url: Option<String>,
     /// Public origin for the sitemap's absolute URLs.
     pub site_url: String,
-    /// The live mounted set — `/media` probes every checkout's `_media/` tree; a satellite
-    /// the sync loop publishes at runtime serves without a rebuild.
+    /// The live mounted set the sync loop republishes — `/media` and `/simulators` probe every
+    /// checkout's `_media/` / `_simulators/` tree through it, so a satellite registered at
+    /// runtime serves both without a redeploy.
     pub mounted: catalog::infrastructure::MountedSources,
     pub likec4_url: String,
     /// Answers `/api/ready`: Postgres in the binary, the same lazy pool in ITs (which then
@@ -123,7 +124,8 @@ where
         catalog: Arc::clone(&deps.catalog),
         site_url: deps.site_url.clone(),
     };
-    let media = platform::media_routes::MediaRoutes::mounted(deps.mounted);
+    let media = platform::media_routes::MediaRoutes::mounted(deps.mounted.clone());
+    let simulators = platform::simulator_routes::SimulatorRoutes::mounted(deps.mounted);
     let security = platform::security_headers::SecurityHeaders::new(&deps.ident.issuer);
     let admin = submission::http::admin::AdminRoutesState {
         allowlist: deps.allowlist,
@@ -169,6 +171,7 @@ where
     let mut router = api
         .layer(axum::middleware::from_fn(platform::content_cache_control::stamp))
         .merge(media.routes())
+        .merge(simulators.routes())
         .merge(platform::likec4_proxy::routes(&deps.likec4_url))
         .merge(platform::seo_routes::routes(seo));
     if let Some(astro_url) = deps.astro_url.as_deref() {

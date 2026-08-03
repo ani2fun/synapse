@@ -66,20 +66,28 @@ let codebenchMounted = false;
  *  `islands/widgets`, whose import would trigger that module's whole-document auto-hydration.
  *  Call this AFTER the body's HTML is in the DOM (Preact committed it). */
 export async function hydratePreview(body: HTMLElement): Promise<void> {
-  const [{ hydrateQuizzes }, { hydrateDiagrams }, { hydrateC4Embeds }, { hydrateWorkbenches }, { hydratePractices }] =
-    await Promise.all([
-      import("../widgets/Quiz"),
-      import("../widgets/Diagrams"),
-      import("../widgets/C4Embed"),
-      import("../workbench"),
-      import("../practice"),
-    ]);
+  const [
+    { hydrateQuizzes },
+    { hydrateDiagrams },
+    { hydrateC4Embeds },
+    { hydrateSimulators },
+    { hydrateWorkbenches },
+    { hydratePractices },
+  ] = await Promise.all([
+    import("../widgets/Quiz"),
+    import("../widgets/Diagrams"),
+    import("../widgets/C4Embed"),
+    import("../widgets/Simulator"),
+    import("../workbench"),
+    import("../practice"),
+  ]);
 
   hydrateQuizzes(body);
   hydrateDiagrams(body);
   hydrateC4Embeds(body, () => {
     /* the preview has no C4 docs panel — selecting a component is a no-op here */
   });
+  hydrateSimulators(body);
   hydrateWorkbenches(body);
   hydratePractices(body);
   // The "Try in Editor" modal is a body-mounted singleton — a fence-group button in the preview

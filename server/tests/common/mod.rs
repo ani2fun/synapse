@@ -212,6 +212,7 @@ pub fn deps_with(
         limiter,
         astro_url: None,
         site_url: "https://synapse.test".to_owned(),
+        // The single-checkout shape the binary boots with before any satellite lands.
         mounted: MountedSources::new(vec![SourceRoot::new(PRIMARY_SOURCE_ID, content_root)]),
         likec4_url: "http://127.0.0.1:9".to_owned(),
         readiness,

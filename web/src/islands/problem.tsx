@@ -41,6 +41,7 @@ import { SubmissionsFeed } from "./problem-submissions";
 import { EditorialPane } from "./practice/EditorialPane";
 import { CoachPane } from "./coach/CoachPane";
 import { hydrateDiagrams } from "./widgets/Diagrams";
+import { hydrateSimulators } from "./widgets/Simulator";
 // Side-effect import: mounts the page-wide codebench modal — a description-pane fence
 // group can still carry a "Try in Editor" button even though the whole-document quiz/diagram/c4
 // pass this module also offers stands down on a problem page (see its own module doc).
@@ -117,14 +118,17 @@ function hydrateContent(root: ParentNode, lessonPath: string[]): void {
     render(h(Workbench, { variants: decoded.variants, spec: decoded.spec, lessonPath, root: host }), host);
     count += 1;
   }
-  // Diagrams, but NOT quiz/c4 — the docked description pane hydrates diagrams alongside its
-  // workbenches/fence-groups and leaves quiz/c4 to the lesson body (islands/widgets'
-  // whole-document pass, which stands down on this page).
+  // Diagrams and simulators, but NOT quiz/c4 — the docked description pane hydrates these
+  // alongside its workbenches/fence-groups and leaves quiz/c4 to the lesson body
+  // (islands/widgets' whole-document pass, which stands down on this page).
   const diagrams = hydrateDiagrams(root);
+  const sims = hydrateSimulators(root);
   const groups = root.querySelectorAll("div.fence-group").length;
   hydrateFenceGroups(root);
-  if (count > 0 || groups > 0 || diagrams > 0) {
-    log.debug(`hydrated ${count} in-pane workbench(es), ${groups} fence group(s), ${diagrams} diagram(s)`);
+  if (count > 0 || groups > 0 || diagrams > 0 || sims > 0) {
+    log.debug(
+      `hydrated ${count} in-pane workbench(es), ${groups} fence group(s), ${diagrams} diagram(s), ${sims} simulator(s)`,
+    );
   }
 }
 

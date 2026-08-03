@@ -17,4 +17,5 @@ pub mod rate_limiter;
 pub mod readiness;
 pub mod security_headers;
 pub mod seo_routes;
+pub mod simulator_routes;
 pub mod telemetry;
