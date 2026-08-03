@@ -10,4 +10,5 @@ pub mod lesson;
 pub mod lint;
 pub mod merge;
 pub mod resolver;
+pub mod search;
 pub mod walker;
