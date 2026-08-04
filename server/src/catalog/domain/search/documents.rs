@@ -15,6 +15,7 @@ use std::collections::BTreeMap;
 use super::{DocInput, DocKind, SearchIndex};
 use crate::catalog::domain::catalog::{CatalogEntry, WalkResult};
 use crate::catalog::domain::content_tree::{ContentEntry, SourceTree};
+use crate::catalog::domain::frontmatter;
 use crate::catalog::domain::resolver;
 
 /// Build the index for a merged library.
@@ -46,7 +47,12 @@ pub fn index_of(sources: &[SourceTree], walk: &WalkResult) -> SearchIndex {
                 book_slug: book.slug.clone(),
                 source_id: file.source_id.clone(),
                 summary: lesson.description.clone(),
-                body: (*body).to_owned(),
+                // The fence is METADATA, not prose. Left in, `title:` and `summary:` are counted a
+                // second time as body text — at body weight, on top of the fields that already
+                // carry them — and, worse, a snippet quotes `title: Arrays summary: …` back at a
+                // reader instead of the sentence they were looking for. Split by the same lenient
+                // parser the walker uses, so "where the frontmatter ends" has one answer.
+                body: frontmatter::fields_and_body(body).1,
             });
         }
     }

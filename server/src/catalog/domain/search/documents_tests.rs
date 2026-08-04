@@ -165,6 +165,41 @@ fn lessons_from_several_sources_are_all_indexed() {
     assert!(sources.contains(&"main".to_owned()) && sources.contains(&"java-guide".to_owned()));
 }
 
+/// The fence is metadata. Indexed as body text it double-counts `title:` and `summary:` at body
+/// weight, and it puts `title: Arrays summary: …` in the quote a reader is shown instead of the
+/// sentence they searched for.
+#[test]
+fn the_frontmatter_fence_is_neither_indexed_as_prose_nor_quoted() {
+    let sources = [book_source(
+        "guide",
+        "guide",
+        vec![file(
+            "01-a.md",
+            "---\ntitle: Arrays\nsummary: A second lesson\nkind: prose\n---\n\nAn array stores its elements contiguously.\n",
+        )],
+    )];
+    let index = indexed(&sources, &[]);
+
+    // `kind: prose` sits in the fence and nowhere else, so it is the term that proves the fence
+    // never became body text — `title` and `summary` would still match via their own fields.
+    assert!(
+        index.search("prose", 5).is_empty(),
+        "a fence value must not be searchable as prose"
+    );
+
+    let hit = index
+        .search("contiguously", 5)
+        .into_iter()
+        .next()
+        .expect("the body is still indexed");
+    let quoted: String = hit.snippet.iter().map(|segment| segment.text.as_str()).collect();
+    assert!(
+        !quoted.contains("title:") && !quoted.contains("summary:"),
+        "the quote must be prose, not metadata — got {quoted:?}"
+    );
+    assert!(quoted.contains("array stores its elements"));
+}
+
 #[test]
 fn a_frontmatter_summary_reaches_the_index() {
     let sources = [book_source(
