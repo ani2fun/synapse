@@ -31,6 +31,7 @@ use synapse_shared::catalog::{BookEntryDto, ChapterDto, ComponentDocDto, LessonP
 use synapse_shared::execution::{RunRequest, RunResult};
 use synapse_shared::identity::{AuthConfigDto, MeDto};
 use synapse_shared::insights::LessonViewDto;
+use synapse_shared::search::{SearchHitDto, SearchResultsDto, SnippetSegmentDto};
 use synapse_shared::submission::{
     AllowlistEntryDto, DeleteResultDto, GrantRequestDto, SubmissionAcceptedDto, SubmissionDto,
     SubmitRequestDto,
@@ -224,6 +225,7 @@ where
         platform::http::get_health,
         platform::http::get_ready,
         catalog::http::routes::get_synapse_index,
+        catalog::http::routes::search_catalog,
         catalog::http::routes::get_component_doc,
         catalog::http::routes::get_synapse_lesson,
         execution::http::run_code,
@@ -265,6 +267,9 @@ where
         HealthStatus,
         ApiError,
         SynapseIndexDto,
+        SearchResultsDto,
+        SearchHitDto,
+        SnippetSegmentDto,
         // `BookDto.entries` and `ChapterDto.entries` carry `schema(no_recursion)` (they are
         // genuinely self-referential trees) — that stops utoipa's auto-walk from EVER reaching
         // `BookEntryDto`/`ChapterDto`, so without listing them here the rendered document has a

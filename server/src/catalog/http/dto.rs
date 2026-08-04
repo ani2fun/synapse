@@ -6,10 +6,13 @@ use synapse_shared::catalog::{
     LessonFrontmatterDto, LessonPayloadDto, SynapseIndexDto,
 };
 
+use synapse_shared::search::{SearchHitDto, SnippetSegmentDto};
+
 use crate::catalog::application::ContentError;
 use crate::catalog::domain::catalog::{BookEntry, CatalogEntry, Lesson, SynapseContentCatalog};
 use crate::catalog::domain::component_doc::ComponentDoc;
 use crate::catalog::domain::lesson::LessonContent;
+use crate::catalog::domain::search::{DocKind, SearchHit};
 
 pub fn to_index(catalog: &SynapseContentCatalog) -> SynapseIndexDto {
     SynapseIndexDto {
@@ -134,5 +137,30 @@ pub fn to_error(error: &ContentError) -> (axum::http::StatusCode, ApiError) {
                 hint: None,
             },
         ),
+    }
+}
+
+/// A search hit for the wire. `kind` flattens to a string here rather than travelling as an enum:
+/// the client branches on it to badge a solution walkthrough, and a new document kind should not
+/// be a breaking schema change.
+pub fn to_search_hit(hit: &SearchHit) -> SearchHitDto {
+    SearchHitDto {
+        title: hit.title.clone(),
+        breadcrumb: hit.breadcrumb.clone(),
+        path: hit.url.clone(),
+        kind: match hit.kind {
+            DocKind::Lesson => "lesson",
+            DocKind::Editorial => "editorial",
+        }
+        .to_owned(),
+        book_slug: hit.book_slug.clone(),
+        snippet: hit
+            .snippet
+            .iter()
+            .map(|segment| SnippetSegmentDto {
+                text: segment.text.clone(),
+                marked: segment.marked,
+            })
+            .collect(),
     }
 }

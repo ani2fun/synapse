@@ -514,6 +514,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/synapse/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Full-text search across every mounted source.
+         * @description An empty or unusable query is 200 with no results rather than 400: the palette sends whatever
+         *     has been typed so far, and a half-finished word is not a client error.
+         */
+        get: operations["searchCatalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/synapse/{paths}": {
         parameters: {
             query?: never;
@@ -979,6 +1000,40 @@ export interface components {
          * @enum {string}
          */
         RunStatus: "Accepted" | "CompileError" | "RuntimeError" | "TimeLimitExceeded" | "InternalError";
+        /** @description One hit. No score: the ORDER is the contract, and a float the client must ignore is noise. */
+        SearchHitDto: {
+            bookSlug: string;
+            /** @description Ancestor titles, outermost first — the category and book to show under the title. */
+            breadcrumb: string[];
+            /**
+             * @description `lesson`, or `editorial` for a problem's solution walkthrough — which a reader must be able
+             *     to recognise before opening it, because it spoils the exercise.
+             */
+            kind: string;
+            /** @description The lesson's URL path, no leading slash. */
+            path: string;
+            /** @description A quote from the prose, pre-split into matched and unmatched runs. */
+            snippet: components["schemas"]["SnippetSegmentDto"][];
+            title: string;
+        };
+        /** @description `GET /api/synapse/search` — ranked hits, best first. */
+        SearchResultsDto: {
+            /** @description Echoed back so a client can drop a reply that a later keystroke has already outdated. */
+            query: string;
+            results: components["schemas"]["SearchHitDto"][];
+        };
+        /**
+         * @description One run of a snippet.
+         *
+         *     Segments rather than offsets because Rust indexes strings by UTF-8 byte and JavaScript by
+         *     UTF-16 code unit: a range computed on the server highlights the wrong span in the browser the
+         *     moment the prose stops being ASCII. Pre-split runs also mean the client builds text nodes
+         *     instead of parsing markup, so a query containing `<script>` is inert by construction.
+         */
+        SnippetSegmentDto: {
+            marked: boolean;
+            text: string;
+        };
         /** @description The 202 body — poll `GET /api/submissions/{id}` until `status == "completed"`. */
         SubmissionAcceptedDto: {
             id: string;
@@ -2474,6 +2529,40 @@ export interface operations {
                 };
             };
             /** @description Index invalid / IO */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    searchCatalog: {
+        parameters: {
+            query: {
+                /** @description The search query */
+                q: string;
+                /** @description Maximum hits (default 20, capped at 50) */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ranked hits, best first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResultsDto"];
+                };
+            };
+            /** @description The catalog could not be read */
             500: {
                 headers: {
                     [name: string]: unknown;

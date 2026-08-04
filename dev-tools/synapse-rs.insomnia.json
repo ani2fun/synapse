@@ -60,6 +60,27 @@
       "url": "{{ _.base_url }}/api/synapse/index"
     },
     {
+      "_id": "req_catalog_search",
+      "_type": "request",
+      "parentId": "fld_catalog",
+      "name": "GET /api/synapse/search",
+      "description": "Full-text search across every mounted source — lesson PROSE, not just titles. `q` is the query (the last word matches by prefix, so partials work); `limit` defaults to 20 and is capped at 50. An empty or unusable `q` is a 200 with no results, because the palette sends whatever has been typed so far. Each hit carries a snippet already split into marked and unmarked runs.",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/synapse/search",
+      "parameters": [
+        {
+          "name": "q",
+          "value": "contiguously",
+          "disabled": false
+        },
+        {
+          "name": "limit",
+          "value": "20",
+          "disabled": true
+        }
+      ]
+    },
+    {
       "_id": "req_catalog_lesson",
       "_type": "request",
       "parentId": "fld_catalog",

@@ -1,6 +1,7 @@
-//! The three catalog endpoints. Route shape matters: `/index` and `/c4-doc/{id}` are more
+//! The catalog endpoints. Route shape matters: `/index`, `/search` and `/c4-doc/{id}` are more
 //! specific than the `{*paths}` lesson catch-all, and axum's router picks the most specific
-//! match.
+//! match. The cost is that a top-level book slugged `search` would be unreachable, exactly as one
+//! slugged `index` already is.
 
 use std::sync::Arc;
 
@@ -11,6 +12,7 @@ use axum::{Json, Router};
 use serde::Deserialize;
 use synapse_shared::api::ApiError;
 use synapse_shared::catalog::{ComponentDocDto, LessonPayloadDto, SynapseIndexDto};
+use synapse_shared::search::SearchResultsDto;
 
 use crate::catalog::application::CatalogService;
 use crate::catalog::http::dto;
@@ -44,9 +46,53 @@ type ApiResult<T> = Result<Json<T>, (StatusCode, Json<ApiError>)>;
 pub fn routes<V: LessonViewStore + 'static>(state: CatalogRoutesState<V>) -> Router {
     Router::new()
         .route("/api/synapse/index", get(get_synapse_index::<V>))
+        .route("/api/synapse/search", get(search_catalog::<V>))
         .route("/api/synapse/c4-doc/{element_id}", get(get_component_doc::<V>))
         .route("/api/synapse/{*paths}", get(get_synapse_lesson::<V>))
         .with_state(state)
+}
+
+/// How many hits one request may ask for. A palette shows a screenful; the ceiling stops a
+/// crafted `limit` turning a cheap read into a large response.
+const MAX_LIMIT: usize = 50;
+const DEFAULT_LIMIT: usize = 20;
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct SearchQuery {
+    #[serde(default)]
+    q: String,
+    limit: Option<usize>,
+}
+
+/// Full-text search across every mounted source.
+///
+/// An empty or unusable query is 200 with no results rather than 400: the palette sends whatever
+/// has been typed so far, and a half-finished word is not a client error.
+#[utoipa::path(
+    get,
+    path = "/api/synapse/search",
+    operation_id = "searchCatalog",
+    params(
+        ("q" = String, Query, description = "The search query"),
+        ("limit" = Option<usize>, Query, description = "Maximum hits (default 20, capped at 50)")
+    ),
+    responses(
+        (status = 200, description = "Ranked hits, best first", body = SearchResultsDto),
+        (status = 500, description = "The catalog could not be read", body = ApiError)
+    )
+)]
+pub(crate) async fn search_catalog<V: LessonViewStore>(
+    State(state): CatalogState<V>,
+    Query(query): Query<SearchQuery>,
+) -> ApiResult<SearchResultsDto> {
+    let limit = query.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT);
+    match state.service.search(&query.q, limit).await {
+        Ok(hits) => Ok(Json(SearchResultsDto {
+            query: query.q,
+            results: hits.iter().map(dto::to_search_hit).collect(),
+        })),
+        Err(error) => fail(&error),
+    }
 }
 
 fn fail<T>(error: &crate::catalog::application::ContentError) -> ApiResult<T> {

@@ -11,7 +11,18 @@ use crate::catalog::application::content_sources::Placements;
 use crate::catalog::domain::catalog::{CatalogWarning, LessonFileRef, SynapseContentCatalog, WalkResult};
 use crate::catalog::domain::component_doc::ComponentDoc;
 use crate::catalog::domain::lesson::LessonContent;
-use crate::catalog::domain::{frontmatter, merge, resolver, walker};
+use crate::catalog::domain::search::{SearchHit, SearchIndex};
+use crate::catalog::domain::{frontmatter, merge, resolver, search, walker};
+
+/// One content version's answers: the browsable tree and the searchable one.
+///
+/// They are cached TOGETHER on purpose. Two caches under two keys could serve a catalog from one
+/// version and search results from another — a reader finding a lesson that the index they are
+/// looking at says does not exist. One tuple, one version, no skew.
+struct Snapshot {
+    walk: Arc<WalkResult>,
+    search: SearchIndex,
+}
 
 /// LikeC4 element ids: dotted FQNs of `[A-Za-z0-9_-]` segments.
 fn element_id_like(id: &str) -> bool {
@@ -27,9 +38,9 @@ pub struct CatalogService<R> {
     /// registrations change — a satellite's URL includes its grouping, so resolving without this
     /// would look the book up at the wrong path.
     placements: Placements,
-    /// `(content version, walk)` — rebuilt only when the version moves. A concurrent double
+    /// `(content version, snapshot)` — rebuilt only when the version moves. A concurrent double
     /// rebuild is harmless because the walk is idempotent.
-    cache: RwLock<Option<(String, Arc<WalkResult>)>>,
+    cache: RwLock<Option<(String, Arc<Snapshot>)>>,
 }
 
 impl<R: ContentRepository> CatalogService<R> {
@@ -48,13 +59,13 @@ impl<R: ContentRepository> CatalogService<R> {
 
     /// The browsable index (cached per content version).
     pub async fn index(&self) -> Result<SynapseContentCatalog, ContentError> {
-        Ok(self.current_walk().await?.catalog.clone())
+        Ok(self.current().await?.walk.catalog.clone())
     }
 
     /// Every lesson URL in the catalog, for the sitemap. Paths only — the sitemap needs no
     /// titles, and building them here would mean cloning strings the caller throws away.
     pub async fn all_lesson_paths(&self) -> Result<Vec<String>, ContentError> {
-        let walk = self.current_walk().await?;
+        let walk = Arc::clone(&self.current().await?.walk);
         let mut paths = Vec::new();
         for book in resolver::all_books(&walk.catalog) {
             let prefix = resolver::book_prefix(book);
@@ -75,7 +86,7 @@ impl<R: ContentRepository> CatalogService<R> {
                 path.join("/")
             )));
         }
-        let walk = self.current_walk().await?;
+        let walk = Arc::clone(&self.current().await?.walk);
         let (book, in_book_path, lesson) = resolver::resolve_lesson(&walk.catalog, path)
             .ok_or_else(|| ContentError::NotFound(format!("no lesson at '{}'", path.join("/"))))?;
         let file_path = walk
@@ -136,7 +147,7 @@ impl<R: ContentRepository> CatalogService<R> {
                 lesson_path.join("/")
             )));
         }
-        let walk = self.current_walk().await?;
+        let walk = Arc::clone(&self.current().await?.walk);
         let (book, in_book_path, _) = resolver::resolve_lesson(&walk.catalog, lesson_path)
             .ok_or_else(|| ContentError::NotFound(format!("no lesson at '{}'", lesson_path.join("/"))))?;
         let file_path = walk
@@ -200,16 +211,32 @@ impl<R: ContentRepository> CatalogService<R> {
     /// Until now that only reached the pod's log, where the person doing the migration is not
     /// looking. Costs a version check — the walk itself is the cached one every read already uses.
     pub async fn warnings(&self) -> Result<Vec<CatalogWarning>, ContentError> {
-        Ok(self.current_walk().await?.warnings.clone())
+        Ok(self.current().await?.walk.warnings.clone())
+    }
+
+    /// Ranked full-text hits across every mounted source.
+    ///
+    /// Reads the same version-gated snapshot everything else does, so search can never answer
+    /// from a different content version than the page the reader lands on.
+    #[tracing::instrument(name = "catalog.search", skip(self), fields(hits))]
+    pub async fn search(&self, query: &str, limit: usize) -> Result<Vec<SearchHit>, ContentError> {
+        let hits = self.current().await?.search.search(query, limit);
+        tracing::Span::current().record("hits", hits.len());
+        Ok(hits)
     }
 
     /// The version-gated cache: hit iff the cached version equals the repo's current one.
-    async fn current_walk(&self) -> Result<Arc<WalkResult>, ContentError> {
+    ///
+    /// The index is built HERE rather than inside `merge::assemble`, though the bodies are in
+    /// hand at both points. `assemble` is also called uncached on every edit-source request and
+    /// by the `validate_book` CLI, neither of which searches anything — building there would tax
+    /// the editor to serve the palette.
+    async fn current(&self) -> Result<Arc<Snapshot>, ContentError> {
         let version = self.repo.content_version().await;
-        if let Some((cached_version, walk)) = &*self.cache.read().await
+        if let Some((cached_version, snapshot)) = &*self.cache.read().await
             && *cached_version == version
         {
-            return Ok(Arc::clone(walk));
+            return Ok(Arc::clone(snapshot));
         }
         let sources = self.repo.load_sources().await?;
         let placements = self.placements.snapshot();
@@ -217,8 +244,13 @@ impl<R: ContentRepository> CatalogService<R> {
         for warning in &walk.warnings {
             tracing::warn!(?warning, "catalog: cross-source conflict resolved");
         }
-        *self.cache.write().await = Some((version, Arc::clone(&walk)));
-        Ok(walk)
+        // The last use of `sources`: every body is still in memory from the walk, and is dropped
+        // with it on the next line.
+        let search = search::index_of(&sources, &walk);
+        tracing::info!(documents = search.len(), %version, "catalog: search index built");
+        let snapshot = Arc::new(Snapshot { walk, search });
+        *self.cache.write().await = Some((version, Arc::clone(&snapshot)));
+        Ok(snapshot)
     }
 }
 

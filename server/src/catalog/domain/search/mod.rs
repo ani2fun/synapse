@@ -14,12 +14,14 @@
 //! lists are a trap here — drop "the" at index time and the phrase "the go scheduler" quietly
 //! stops working, with nothing to tell a reader why.
 
+mod documents;
 mod snippet;
 mod text;
 
 use std::collections::BTreeMap;
 use std::ops::Bound;
 
+pub use documents::index_of;
 pub use snippet::Segment;
 
 /// Saturation: how fast repeating a term stops helping. The BM25 default.
