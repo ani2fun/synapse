@@ -3,10 +3,14 @@
 // subsequence (30), with a +10 bonus for matching the LABEL over the breadcrumb, kind as the
 // tiebreak (lessons first), shorter labels before longer.
 //
+// That covers "I know the title" at zero latency, and nothing else: titles and breadcrumbs are
+// the only strings the browsable index carries. `merge()` below folds in the server's full-text
+// hits, which see the prose.
+//
 // No DOM, no fetch — the palette island (`islands/palette.ts`) is the only caller, and it feeds
-// this whatever `fetchIndex()`/`blogList()` already resolved.
+// this whatever `fetchIndex()`/`blogList()`/`searchCatalog()` already resolved.
 
-import type { Page } from "./routes";
+import { pageUrl, segmentsOf, type Page } from "./routes";
 import type { components } from "./api/schema.gen";
 
 type SynapseIndex = components["schemas"]["SynapseIndexDto"];
@@ -14,14 +18,19 @@ type CatalogEntry = components["schemas"]["CatalogEntryDto"];
 type Book = components["schemas"]["BookDto"];
 type BookEntry = components["schemas"]["BookEntryDto"];
 type BlogSummary = components["schemas"]["BlogSummaryDto"];
+type SearchHit = components["schemas"]["SearchHitDto"];
+type SnippetSegment = components["schemas"]["SnippetSegmentDto"];
 
-export type SearchKind = "lesson" | "book" | "blog";
+export type SearchKind = "lesson" | "book" | "blog" | "editorial";
 
 export interface SearchEntry {
   label: string;
   sublabel: string;
   kind: SearchKind;
   page: Page;
+  /** A quote from the prose, pre-split into matched and unmatched runs. Only a full-text hit
+   *  carries one — the browsable index has no body to quote. */
+  snippet?: SnippetSegment[];
 }
 
 /** Flatten the whole library into searchable entries. */
@@ -119,11 +128,75 @@ function kindOrder(kind: SearchKind): number {
   switch (kind) {
     case "lesson":
       return 0;
-    case "book":
+    case "editorial":
       return 1;
-    case "blog":
+    case "book":
       return 2;
+    case "blog":
+      return 3;
   }
+}
+
+/**
+ * A title/breadcrumb match at or above this is a LITERAL one — the query's characters appear in
+ * order and unbroken. Below it sits only the subsequence tier, which is fuzzy-typing help: `cts`
+ * "matches" *c*on*t*iguou*s* and a dozen other things. Worth keeping, not worth ranking above a
+ * word that genuinely appears in a lesson's prose.
+ */
+const LITERAL = 60;
+
+/**
+ * Fold the server's full-text hits into the instant local ones, best first.
+ *
+ * Three tiers, and the middle one is the point: a literal title or breadcrumb match leads, then
+ * prose hits in the server's own ranked order, then the fuzzy subsequence matches. Putting every
+ * local hit first would bury a real answer under exactly the structural noise this feature exists
+ * to cut through.
+ *
+ * Deduplicated by DESTINATION, because two rows going to the same page is a bug however differently
+ * they were found. When both halves reached the same lesson, the row already placed keeps its
+ * position and borrows the quote — a title match that also appears in the prose should show why.
+ */
+export function merge(query: string, local: SearchEntry[], prose: SearchHit[]): SearchEntry[] {
+  const q = query.trim();
+  if (q === "") return local.slice(0, LIMIT);
+
+  const out: SearchEntry[] = [];
+  const at = new Map<string, number>();
+  const add = (entry: SearchEntry): void => {
+    const url = pageUrl(entry.page);
+    const seen = at.get(url);
+    if (seen === undefined) {
+      at.set(url, out.length);
+      out.push(entry);
+      return;
+    }
+    const placed = out[seen];
+    // A book row links to its first lesson, so it can collide with that lesson's prose hit. It
+    // does not get the quote: the row says "Book", and the words are the lesson's.
+    if (placed && placed.kind === "lesson" && !placed.snippet && entry.snippet) {
+      out[seen] = { ...placed, snippet: entry.snippet };
+    }
+  };
+
+  const literal = (entry: SearchEntry): boolean => (rank(q, entry) ?? 0) >= LITERAL;
+  for (const entry of local) if (literal(entry)) add(entry);
+  for (const hit of prose) add(proseEntry(hit));
+  for (const entry of local) if (!literal(entry)) add(entry);
+
+  return out.slice(0, LIMIT);
+}
+
+function proseEntry(hit: SearchHit): SearchEntry {
+  return {
+    label: hit.title,
+    sublabel: hit.breadcrumb.join(" › "),
+    // The wire spells `kind` as an open string; anything unrecognised reads as a lesson, which is
+    // the safe way to be wrong — the alternative is a row with no chip at all.
+    kind: hit.kind === "editorial" ? "editorial" : "lesson",
+    page: { kind: "lesson", path: segmentsOf(hit.path) },
+    snippet: hit.snippet,
+  };
 }
 
 /** The label carries a +10 bonus over the breadcrumb; the best of the two wins. */

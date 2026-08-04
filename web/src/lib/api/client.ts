@@ -25,6 +25,9 @@ export type DeleteResult = components["schemas"]["DeleteResultDto"];
 export type ProgressList = components["schemas"]["ProgressListDto"];
 export type Me = components["schemas"]["MeDto"];
 export type AuthConfig = components["schemas"]["AuthConfigDto"];
+export type SearchResults = components["schemas"]["SearchResultsDto"];
+export type SearchHit = components["schemas"]["SearchHitDto"];
+export type SnippetSegment = components["schemas"]["SnippetSegmentDto"];
 export type BlogSummary = components["schemas"]["BlogSummaryDto"];
 export type BlogPost = components["schemas"]["BlogPostDto"];
 export type AllowlistEntry = components["schemas"]["AllowlistEntryDto"];
@@ -172,6 +175,19 @@ async function del<T>(path: string): Promise<T> {
 /** The browsable library index. */
 export function fetchIndex(): Promise<SynapseIndex> {
   return get<SynapseIndex>("/api/synapse/index");
+}
+
+/**
+ * Full-text search across the merged library — ranked hits, best first, each with a quote from
+ * the prose it matched.
+ *
+ * The reply echoes the query back. That is not decoration: the palette fires one of these per
+ * debounced keystroke, replies can land out of order, and comparing the echo against what is
+ * currently typed is what lets a late answer to an abandoned query be dropped rather than
+ * painted over the current one.
+ */
+export function searchCatalog(query: string): Promise<SearchResults> {
+  return get<SearchResults>(`/api/synapse/search?q=${encodeURIComponent(query)}`);
 }
 
 /** A lesson by its full directory-mirror path. */

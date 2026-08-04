@@ -14,7 +14,10 @@
         box-shadow: 0 20px 50px hsl(var(--foreground) / 0.3); overflow: hidden; }
 .cmdk__input { width: 100%; padding: 0.85rem 1rem; font-size: 0.95rem; border: none;
                border-bottom: 1px solid hsl(var(--border)); outline: none; }
-.cmdk__results { max-height: 20rem; overflow-y: auto; list-style: none; margin: 0;
+/* Taller than the two-line rows this used to hold: a full-text hit adds a quote, so 20rem showed
+   barely three of them. Capped against the VIEWPORT too, or on a short window the palette grows
+   past the bottom edge and the last results are unreachable. */
+.cmdk__results { max-height: min(26rem, 56vh); overflow-y: auto; list-style: none; margin: 0;
                  padding: 0.35rem; }
 .cmdk__results li { list-style: none; }
 .cmdk__empty { padding: 0.75rem 1rem; font-size: 0.85rem; color: hsl(var(--muted-foreground)); }
@@ -27,3 +30,15 @@
 .cmdk__result-label { font-size: 0.9rem; color: hsl(var(--foreground)); }
 .cmdk__result-sub { font-size: 0.72rem; color: hsl(var(--muted-foreground)); white-space: nowrap;
                     overflow: hidden; text-overflow: ellipsis; }
+
+/* The quote from a full-text hit. It WRAPS — unlike the breadcrumb above it, which is a single
+   trail and ellipsises — and is clamped to two lines so one long paragraph cannot push the rest
+   of the results off screen. */
+.cmdk__result-snippet { margin-top: 0.2rem; font-size: 0.74rem; line-height: 1.45;
+                        color: hsl(var(--muted-foreground)); overflow: hidden;
+                        display: -webkit-box; -webkit-box-orient: vertical;
+                        -webkit-line-clamp: 2; line-clamp: 2; }
+/* The browser default is a hard yellow that reads as a defect on the dark theme. Tint from the
+   accent instead, so the highlight tracks whichever theme is on. */
+.cmdk__result-snippet mark { background: hsl(var(--primary) / 0.2); color: hsl(var(--foreground));
+                             border-radius: 0.15rem; padding: 0 0.1em; font-weight: 600; }

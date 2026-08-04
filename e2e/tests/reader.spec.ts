@@ -106,6 +106,30 @@ test("the command palette opens and navigates", async ({ page }) => {
   await expect(page).toHaveURL(/\/synapse\/.+/);
 });
 
+/**
+ * The reason full-text search exists. "contiguously" is written in ONE lesson's prose and in no
+ * title, no chapter and no book — so before the search endpoint the palette returned nothing for
+ * it at any spelling, and a reader had no way to find out whether the library discussed it.
+ */
+test("the palette finds a word only a lesson's prose contains", async ({ page }) => {
+  await page.goto("/");
+  await page.locator(".header__search").click();
+
+  const input = page.locator(".cmdk__input");
+  await expect(input).toBeVisible();
+  await input.fill("contiguously");
+
+  // The quote IS the proof. A title match cannot produce one — the browsable index carries no
+  // bodies — so a marked snippet means this answer came from the lesson's prose, over the wire.
+  // `toHaveText` retries, which is also what waits out the debounce.
+  const first = page.locator(".cmdk__result").first();
+  await expect(first.locator("mark")).toHaveText("contiguously");
+
+  await first.click();
+  await expect(page).toHaveURL(/\/synapse\/learn\/smoke\/structures\/arrays$/);
+  await expect(page.locator("h1").first()).toContainText("Arrays");
+});
+
 test("marking a lesson read is remembered across a reload", async ({ page, request }) => {
   const path = await firstLessonPath(request);
   await page.goto(path);
