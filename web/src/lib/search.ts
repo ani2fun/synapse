@@ -31,6 +31,16 @@ export interface SearchEntry {
   /** A quote from the prose, pre-split into matched and unmatched runs. Only a full-text hit
    *  carries one — the browsable index has no body to quote. */
   snippet?: SnippetSegment[];
+  /** A fragment appended to the page URL, for destinations that are a TAB rather than a page.
+   *  Server-side an editorial has no URL of its own; how a problem page is laid out is knowledge
+   *  that belongs here, not on the wire. */
+  hash?: string;
+}
+
+/** Where a row goes. The hash is part of the destination, not decoration: two rows that differ
+ *  only by it are two different places, and dedup has to agree with navigation about that. */
+export function entryUrl(entry: SearchEntry): string {
+  return `${pageUrl(entry.page)}${entry.hash ?? ""}`;
 }
 
 /** Flatten the whole library into searchable entries. */
@@ -156,6 +166,8 @@ const LITERAL = 60;
  * Deduplicated by DESTINATION, because two rows going to the same page is a bug however differently
  * they were found. When both halves reached the same lesson, the row already placed keeps its
  * position and borrows the quote — a title match that also appears in the prose should show why.
+ * The destination INCLUDES the fragment, which is what keeps a problem and its solution — same
+ * page, different tabs — from collapsing into one row that can only be right about one of them.
  */
 export function merge(query: string, local: SearchEntry[], prose: SearchHit[]): SearchEntry[] {
   const q = query.trim();
@@ -164,7 +176,7 @@ export function merge(query: string, local: SearchEntry[], prose: SearchHit[]): 
   const out: SearchEntry[] = [];
   const at = new Map<string, number>();
   const add = (entry: SearchEntry): void => {
-    const url = pageUrl(entry.page);
+    const url = entryUrl(entry);
     const seen = at.get(url);
     if (seen === undefined) {
       at.set(url, out.length);
@@ -187,15 +199,23 @@ export function merge(query: string, local: SearchEntry[], prose: SearchHit[]): 
   return out.slice(0, LIMIT);
 }
 
+/** The fragment a problem page's solution tab answers to. */
+export const EDITORIAL_HASH = "#editorial";
+
 function proseEntry(hit: SearchHit): SearchEntry {
+  // The wire spells `kind` as an open string; anything unrecognised reads as a lesson, which is
+  // the safe way to be wrong — the alternative is a row with no chip at all.
+  const editorial = hit.kind === "editorial";
   return {
     label: hit.title,
     sublabel: hit.breadcrumb.join(" › "),
-    // The wire spells `kind` as an open string; anything unrecognised reads as a lesson, which is
-    // the safe way to be wrong — the alternative is a row with no chip at all.
-    kind: hit.kind === "editorial" ? "editorial" : "lesson",
+    kind: editorial ? "editorial" : "lesson",
     page: { kind: "lesson", path: segmentsOf(hit.path) },
     snippet: hit.snippet,
+    // An editorial shares its problem's URL because it IS that page — a tab on it. The fragment
+    // is what makes the row a distinct destination and what lands the reader on the right tab
+    // instead of the problem statement they were trying to skip past.
+    ...(editorial ? { hash: EDITORIAL_HASH } : {}),
   };
 }
 

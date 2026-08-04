@@ -2,7 +2,7 @@
 // hits — one fixture library throughout.
 
 import { describe, expect, it } from "vitest";
-import { entries, merge, search } from "./search";
+import { entries, entryUrl, merge, search } from "./search";
 import type { components } from "./api/schema.gen";
 
 type SynapseIndex = components["schemas"]["SynapseIndexDto"];
@@ -199,5 +199,38 @@ describe("merge", () => {
 
     const future = merge("x", [], [hit("cat/dsa/arrays/hashing", "Hashing", { kind: "quiz" })]);
     expect(future[0].kind).toBe("lesson");
+  });
+
+  it("anEditorialLandsOnTheSolutionTabNotTheProblemStatement", () => {
+    const [row] = merge("x", [], [hit("cat/dsa/problems/two-sum", "Two Sum", { kind: "editorial" })]);
+    expect(entryUrl(row)).toBe("/synapse/cat/dsa/problems/two-sum#editorial");
+    // A lesson has no fragment — the hash exists for destinations that are a tab, not a page.
+    const [lesson] = merge("x", [], [hit("cat/dsa/arrays/hashing", "Hashing")]);
+    expect(entryUrl(lesson)).toBe("/synapse/cat/dsa/arrays/hashing");
+  });
+
+  it("aProblemAndItsSolutionAreTwoRowsBecauseTheyAreTwoDestinations", () => {
+    // The server indexes them as separate documents at ONE url. Deduplicating on the page alone
+    // would collapse them and keep whichever came first — losing either the answer or the
+    // Solution chip that warns it IS the answer.
+    const merged = merge("x", [], [
+      hit("cat/dsa/problems/two-sum", "Two Sum"),
+      hit("cat/dsa/problems/two-sum", "Two Sum", { kind: "editorial" }),
+    ]);
+    expect(merged.map((e) => e.kind)).toEqual(["lesson", "editorial"]);
+    expect(new Set(merged.map(entryUrl)).size).toBe(2);
+  });
+
+  it("aTitleMatchOnAProblemDoesNotSwallowItsSolutionRow", () => {
+    const local = library();
+    const ranked = search("two", local);
+    const merged = merge("two", ranked, [
+      hit("cat/dsa/arrays/two-sum", "Two Sum", { kind: "editorial" }),
+    ]);
+    // The local row is the problem; the prose hit is the solution. Same page, different tabs.
+    const solution = merged.filter((e) => e.kind === "editorial");
+    expect(solution).toHaveLength(1);
+    expect(solution[0].snippet).toBeDefined();
+    expect(merged.filter((e) => e.label === "Two Sum")).toHaveLength(2);
   });
 });

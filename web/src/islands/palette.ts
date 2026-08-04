@@ -15,9 +15,8 @@ import * as log from "../lib/log";
 
 import { fetchIndex, blogList, searchCatalog } from "../lib/api/client";
 import type { SearchHit } from "../lib/api/client";
-import { entries as flattenEntries, merge, search as rankSearch } from "../lib/search";
+import { entries as flattenEntries, entryUrl, merge, search as rankSearch } from "../lib/search";
 import type { SearchEntry, SearchKind } from "../lib/search";
-import { pageUrl } from "../lib/routes";
 
 /** Long enough that a burst of typing costs one request, short enough to feel instant. */
 const DEBOUNCE_MS = 150;
@@ -234,8 +233,9 @@ class Palette {
         const entry = this.results[active];
         if (entry) {
           this.close();
-          log.info(`palette → ${pageUrl(entry.page)}`);
-          window.location.href = pageUrl(entry.page);
+          const url = entryUrl(entry);
+          log.info(`palette → ${url}`);
+          window.location.href = url;
         }
         break;
       }
@@ -267,7 +267,7 @@ class Palette {
     const li = document.createElement("li");
     const a = document.createElement("a");
     a.className = active ? "cmdk__result cmdk__result--active" : "cmdk__result";
-    a.href = pageUrl(entry.page);
+    a.href = entryUrl(entry);
     a.addEventListener("click", () => this.close());
 
     const kind = document.createElement("span");

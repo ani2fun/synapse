@@ -13,7 +13,7 @@
 use std::collections::BTreeMap;
 
 use super::{DocInput, DocKind, SearchIndex};
-use crate::catalog::domain::catalog::{CatalogEntry, WalkResult};
+use crate::catalog::domain::catalog::{CatalogEntry, LessonFileRef, WalkResult};
 use crate::catalog::domain::content_tree::{ContentEntry, SourceTree};
 use crate::catalog::domain::frontmatter;
 use crate::catalog::domain::resolver;
@@ -35,6 +35,27 @@ pub fn index_of(sources: &[SourceTree], walk: &WalkResult) -> SearchIndex {
             let Some(file) = files.get(&in_book) else {
                 continue;
             };
+            let url = format!("{prefix}/{in_book}");
+
+            // A problem's solution walkthrough is its own document at the SAME url — it is a tab
+            // on the problem's page, not a page. Reached from the lesson's own file ref, so it
+            // inherits every exclusion: a sidecar in `local-only-content/`, or beside the losing
+            // copy of a contested slug, is never looked up because its lesson is not here either.
+            if let Some(editorial) = editorial_body(&bodies, file, lesson.kind.as_deref()) {
+                builder.add(DocInput {
+                    title: lesson.title.clone(),
+                    breadcrumb: breadcrumb.clone(),
+                    url: url.clone(),
+                    kind: DocKind::Editorial,
+                    book_slug: book.slug.clone(),
+                    source_id: file.source_id.clone(),
+                    // The problem's summary describes the PROBLEM. Lending it to the solution
+                    // would rank the answer on words that belong to the question.
+                    summary: None,
+                    body: frontmatter::fields_and_body(editorial).1,
+                });
+            }
+
             let key = (file.source_id.clone(), file.path.clone());
             let Some(body) = bodies.get(&key) else {
                 continue;
@@ -42,7 +63,7 @@ pub fn index_of(sources: &[SourceTree], walk: &WalkResult) -> SearchIndex {
             builder.add(DocInput {
                 title: lesson.title.clone(),
                 breadcrumb: breadcrumb.clone(),
-                url: format!("{prefix}/{in_book}"),
+                url,
                 kind: DocKind::Lesson,
                 book_slug: book.slug.clone(),
                 source_id: file.source_id.clone(),
@@ -57,6 +78,23 @@ pub fn index_of(sources: &[SourceTree], walk: &WalkResult) -> SearchIndex {
         }
     }
     builder.build()
+}
+
+/// A problem's `<lesson>.editorial.md`, when it has one.
+///
+/// Gated on `kind: problem` exactly as the reader's own `editorial_for` is gated. A sidecar beside
+/// a prose lesson is never rendered by anything, so indexing it would put a result in the palette
+/// that leads to a page not showing it — `lint` already reports those as orphans.
+fn editorial_body<'a>(
+    bodies: &BTreeMap<(String, String), &'a str>,
+    file: &LessonFileRef,
+    kind: Option<&str>,
+) -> Option<&'a str> {
+    if kind != Some("problem") {
+        return None;
+    }
+    let sidecar = file.sidecar(".editorial.md");
+    bodies.get(&(sidecar.source_id, sidecar.path)).copied()
 }
 
 /// Every markdown body, keyed the way a `LessonFileRef` names it: the source id plus the path of

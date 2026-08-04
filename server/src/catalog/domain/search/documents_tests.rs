@@ -214,6 +214,88 @@ fn a_frontmatter_summary_reaches_the_index() {
     assert_eq!(index.search("percentiles", 5).len(), 1);
 }
 
+/// A problem plus its solution walkthrough, as the content repos actually lay them out.
+fn problem_with_editorial(editorial: &str) -> SourceTree {
+    book_source(
+        "dsa",
+        "dsa",
+        vec![ContentEntry::Dir {
+            name: "01-problems".to_owned(),
+            book_meta: None,
+            category_meta: None,
+            children: vec![
+                file(
+                    "01-two-sum.md",
+                    "---\ntitle: Two Sum\nkind: problem\n---\n\nReturn indices of two numbers.\n",
+                ),
+                file("01-two-sum.editorial.md", editorial),
+            ],
+        }],
+    )
+}
+
+#[test]
+fn a_solution_walkthrough_is_searchable_as_its_own_document() {
+    let sources = [problem_with_editorial(
+        "## Approach\n\nWalk the array once, keeping a hash map of complements.\n",
+    )];
+    let index = indexed(&sources, &[]);
+
+    // "complements" is written only in the solution — the problem statement never says it.
+    let hit = index
+        .search("complements", 5)
+        .into_iter()
+        .next()
+        .expect("the editorial is indexed");
+    assert_eq!(hit.kind, DocKind::Editorial);
+    // Its title is the PROBLEM'S: an editorial carries no frontmatter of its own, and the kind is
+    // what tells a reader this row spoils the exercise.
+    assert_eq!(hit.title, "Two Sum");
+    assert_eq!(
+        hit.url, "dsa/problems/two-sum",
+        "an editorial is a tab on the problem's page, not a page"
+    );
+}
+
+/// Both documents exist and stay distinguishable — the problem is not shadowed by its answer.
+#[test]
+fn a_problem_and_its_editorial_are_two_documents_at_one_url() {
+    let sources = [problem_with_editorial(
+        "## Approach\n\nA hash map of complements.\n",
+    )];
+    let index = indexed(&sources, &[]);
+
+    let statement = index.search("indices", 5);
+    assert_eq!(statement.len(), 1);
+    assert_eq!(statement[0].kind, DocKind::Lesson);
+
+    let solution = index.search("complements", 5);
+    assert_eq!(solution.len(), 1);
+    assert_eq!(solution[0].kind, DocKind::Editorial);
+    assert_eq!(statement[0].url, solution[0].url);
+}
+
+/// A sidecar beside a PROSE lesson is rendered by nothing, so a hit on it would lead somewhere
+/// that does not show it. `lint` reports these as orphans; the index simply does not see them.
+#[test]
+fn an_editorial_beside_a_non_problem_lesson_is_not_indexed() {
+    let sources = [book_source(
+        "guide",
+        "guide",
+        vec![
+            file("01-intro.md", "---\ntitle: Intro\n---\n\nOrdinary prose.\n"),
+            file("01-intro.editorial.md", "A stranded walkthrough about quorums.\n"),
+        ],
+    )];
+    let index = indexed(&sources, &[]);
+    assert!(index.search("quorums", 5).is_empty());
+    assert_eq!(
+        index.search("ordinary", 5).len(),
+        1,
+        "the lesson itself still indexes"
+    );
+}
+
 #[test]
 fn an_empty_library_indexes_nothing() {
     let index = indexed(&[], &[]);

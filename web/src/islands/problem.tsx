@@ -4,8 +4,9 @@
  * nav bar — and this island wires the living parts over it:
  *
  *   · the splitter (28–64%, the one thing the page still remembers, `pane.ts`),
- *   · the Description | Editorial | Submissions tabs (mount-once, `.hidden`; every problem opens
- *     on Description),
+ *   · the Description | Editorial | Submissions tabs (mount-once, `.hidden`; opens on Description
+ *     unless the URL fragment names a tab, which is how a ⌘K "Solution" hit lands on the
+ *     walkthrough rather than the statement),
  *   · the right pane's Workbench, with the FIRST description workbench EXTRACTED into it,
  *   · the remaining description workbenches + fence-group bars, hydrated in place,
  *   · the Submissions feed (lazy, refetched on submit) and the anonymous sign-in bar,
@@ -227,7 +228,8 @@ function wireSplitter(pwb: HTMLElement): void {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// THE TABS — Description | Editorial | Submissions, mount-once (always opens on Description)
+// THE TABS — Description | Editorial | Submissions, mount-once; opens on Description unless the
+// URL fragment names another tab
 // ─────────────────────────────────────────────────────────────────────────────
 
 function wireTabs(pwb: HTMLElement, lessonPath: string[], spec: TestSpec | null): void {
@@ -272,6 +274,17 @@ function wireTabs(pwb: HTMLElement, lessonPath: string[], spec: TestSpec | null)
     const tab = button.dataset.tab;
     if (!tab) continue;
     button.addEventListener("click", () => activate(tab));
+  }
+
+  // A tab is reachable by URL, which is what lets ⌘K's "Solution" result be honest: the row says
+  // it goes to the walkthrough, and it does. Matched against the tabs this page ACTUALLY has, so
+  // a fragment meant for something else is simply not a tab and changes nothing. An empty
+  // Editorial is not a case to defend against here — search only ever links `#editorial` at a
+  // problem whose sidecar exists, because that is what put the document in the index.
+  const opening = window.location.hash.slice(1);
+  if (opening !== "" && buttons.some((button) => button.dataset.tab === opening)) {
+    log.debug(`problem: opening on "${opening}" from the URL fragment`);
+    activate(opening);
   }
 }
 

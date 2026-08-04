@@ -49,6 +49,30 @@ test("the editorial tab mounts its stepper", async ({ page }) => {
   await expect(page.getByRole("button", { name: /intuition/i }).first()).toBeVisible();
 });
 
+/**
+ * The solution is its own document in the index, and its result row has to keep the promise it
+ * makes. "comparison" is written in the editorial and NOWHERE else in the fixture library — not
+ * in the problem statement, not in a title — so a hit on it can only be the walkthrough.
+ */
+test("a search hit on a solution opens the editorial, not the problem statement", async ({ page }) => {
+  await page.goto("/");
+  await page.locator(".header__search").click();
+  await page.locator(".cmdk__input").fill("comparison");
+
+  // `.first()` because the editorial says "comparison" twice and every occurrence is marked.
+  const row = page.locator(".cmdk__result").first();
+  await expect(row.locator("mark").first()).toHaveText("comparison");
+  // The chip is the spoiler warning: a reader must be able to see this is the answer before
+  // clicking, because the row's title is the PROBLEM'S.
+  await expect(row.locator(".cmdk__result-kind")).toHaveText("Solution");
+
+  await row.click();
+  await expect(page).toHaveURL(`${PROBLEM}#editorial`);
+  // Landing on the page is not the promise — landing on the TAB is.
+  await expect(page.locator(".problem-tab--editorial")).toHaveClass(/problem-tab--active/);
+  await expect(page.locator(".pwb-escroll")).toBeVisible();
+});
+
 test("the contents pill opens the book drawer", async ({ page }) => {
   await page.goto(PROBLEM);
   await expect(page.locator(".pwb__right .runnable")).toBeVisible();
