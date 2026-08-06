@@ -155,6 +155,7 @@ function buildControls(toCompact: () => void, toHidden: () => void): HTMLElement
   compactBtn.className = "reader-sidebar__hide";
   compactBtn.type = "button";
   compactBtn.title = "Collapse to a rail";
+  compactBtn.setAttribute("aria-label", "Collapse to a rail");
   compactBtn.append(icon("reader-sidebar__hide-ic", '<path d="m11 17-5-5 5-5 M18 17l-5-5 5-5"></path>'));
   compactBtn.addEventListener("click", toCompact);
 
@@ -162,6 +163,7 @@ function buildControls(toCompact: () => void, toHidden: () => void): HTMLElement
   hideBtn.className = "reader-sidebar__hide";
   hideBtn.type = "button";
   hideBtn.title = "Hide the sidebar";
+  hideBtn.setAttribute("aria-label", "Hide the sidebar");
   hideBtn.append(icon("reader-sidebar__hide-ic", '<rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M9 3v18 M16 15l-3-3 3-3"></path>'));
   hideBtn.addEventListener("click", toHidden);
 

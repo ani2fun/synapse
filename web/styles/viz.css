@@ -61,7 +61,10 @@
 .transport__btn { min-width: 30px; height: 30px; border: 1px solid hsl(var(--border));
                   border-radius: var(--radius-sm); background: hsl(var(--background));
                   color: hsl(var(--foreground)); cursor: pointer; font-size: 0.8rem; }
-.transport__btn:hover { border-color: hsl(var(--primary) / 0.4); }
+.transport__btn:hover:not(:disabled) { border-color: hsl(var(--primary) / 0.4); }
+/* A stepping figure disables its buttons at the ends of the run; without this they keep the
+   enabled border, colour and pointer cursor, so they read as clickable while doing nothing. */
+.transport__btn:disabled { opacity: 0.45; cursor: default; }
 .transport__btn--play { background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
                         border-color: hsl(var(--primary)); }
 .transport__scrubber { flex: 1; accent-color: hsl(var(--primary)); }

@@ -43,3 +43,14 @@ filler. The suite checks structure and behaviour, never wording.
 ![Three stills the reader steps through — frame 3 of 3](/media/smoke/frames/step-03.png)
 
 // Diagram: A marker with no image under it, which must stay readable prose
+
+Two adjacent d2 fences are one step-through figure, so the suite has a second stepping transport
+to hold to the same contract as the frame one.
+
+```d2
+first -> second
+```
+
+```d2
+second -> third
+```

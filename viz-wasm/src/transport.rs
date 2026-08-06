@@ -48,33 +48,36 @@ pub fn TransportBar(
 
     view! {
         <div class="transport">
-            <button class="transport__btn" title="First step"
+            <button class="transport__btn" title="First step" aria-label="First step"
                     on:click=move |_| state.update(|s| {
                         let target = stops
                             .and_then(|st| st.get_untracked().first().copied())
                             .unwrap_or(0);
                         *s = s.jump_to(i64::try_from(target).unwrap_or(0));
                     })>"⏮"</button>
-            <button class="transport__btn" title="Previous step"
+            <button class="transport__btn" title="Previous step" aria-label="Previous step"
                     on:click=move |_| state.update(|s| {
                         *s = match hop(s.index, false) {
                             Some(i) => s.jump_to(i64::try_from(i).unwrap_or(0)),
                             None => s.previous(),
                         };
                     })>"‹"</button>
+            // The name tracks the state the glyph already tracks: a button reading "⏸" that
+            // announces "Play" is worse than an unnamed one.
             <button class="transport__btn transport__btn--play"
-                    title="Play / pause"
+                    title=move || if state.get().playing { "Pause" } else { "Play" }
+                    aria-label=move || if state.get().playing { "Pause" } else { "Play" }
                     on:click=move |_| state.update(|s| *s = s.toggle_play())>
                 {move || if state.get().playing { "⏸" } else { "▶" }}
             </button>
-            <button class="transport__btn" title="Next step"
+            <button class="transport__btn" title="Next step" aria-label="Next step"
                     on:click=move |_| state.update(|s| {
                         *s = match hop(s.index, true) {
                             Some(i) => s.jump_to(i64::try_from(i).unwrap_or(0)),
                             None => s.next(),
                         };
                     })>"›"</button>
-            <button class="transport__btn" title="Last step"
+            <button class="transport__btn" title="Last step" aria-label="Last step"
                     on:click=move |_| state.update(|s| {
                         let target = stops
                             .and_then(|st| st.get_untracked().last().copied())
@@ -84,6 +87,7 @@ pub fn TransportBar(
             <input
                 class="transport__scrubber"
                 type="range"
+                aria-label=move || format!("Step {} of {}", state.get().index + 1, state.get().count)
                 min="0"
                 max=move || (state.get().count.saturating_sub(1)).to_string()
                 prop:value=move || state.get().index.to_string()

@@ -162,7 +162,8 @@
 .frame-slideshow { min-height: calc(clamp(16rem, 70vh, 32rem) + 5rem); }
 .diagram--frames .diagram__figure img { display: block; width: auto; height: auto;
                                         max-width: 100%; max-height: 100%; }
-.diagram--frames:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 4px; }
+/* Both stepping cards take arrow keys, and both carry `.diagram--slides` — one ring for the two. */
+.diagram--slides:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 4px; }
 /* The honest signal while the next frame decodes: the picture dims and HOLDS rather than
    blanking, which is what keeps stepping flicker-free on a slow connection. */
 .diagram--frames .frames__img--pending { opacity: 0.55; transition: opacity 120ms ease; }

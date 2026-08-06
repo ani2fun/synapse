@@ -212,16 +212,50 @@ function D2Slideshow({ slides }: { slides: string[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx, bump]);
 
+  const step = (delta: number) => setIdx((i) => Math.min(Math.max(i + delta, 0), count - 1));
+
+  // Keydown is bound to the CARD, never to the document: `MarkdownPane` re-renders editorial
+  // markdown and re-hydrates diagrams without ever unmounting the old hosts, so a document-level
+  // listener would survive every tab switch.
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "ArrowLeft") step(-1);
+    else if (event.key === "ArrowRight") step(1);
+    else return;
+    event.preventDefault();
+  };
+
   return (
-    <div class="diagram diagram--slides not-prose">
+    <div
+      class="diagram diagram--slides not-prose"
+      role="group"
+      aria-roledescription="step-through diagram"
+      aria-label={`Diagram, ${count} steps`}
+      tabIndex={0}
+      onKeyDown={onKeyDown}
+    >
       <ZoomAffordance svgHtml={svgHtml} />
       <div class="diagram__figure" ref={figureRef}></div>
       <div class="transport">
-        <button class="transport__btn" title="Previous" onClick={() => setIdx((i) => Math.max(i - 1, 0))}>
+        <button
+          class="transport__btn"
+          aria-label="Previous slide"
+          title="Previous slide"
+          disabled={idx === 0}
+          onClick={() => step(-1)}
+        >
           ‹
         </button>
-        <span class="transport__label">{`${idx + 1} / ${count}`}</span>
-        <button class="transport__btn" title="Next" onClick={() => setIdx((i) => Math.min(i + 1, count - 1))}>
+        {/* The counter is the live region here, unlike the frame slideshow — that one announces
+            through its <img> alt, and this figure is an injected SVG whose text would be read
+            wholesale. Hiding this span would leave a stepping reader with no position at all. */}
+        <span class="transport__label" aria-live="polite">{`${idx + 1} / ${count}`}</span>
+        <button
+          class="transport__btn"
+          aria-label="Next slide"
+          title="Next slide"
+          disabled={idx === count - 1}
+          onClick={() => step(1)}
+        >
           ›
         </button>
       </div>

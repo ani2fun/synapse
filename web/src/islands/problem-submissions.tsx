@@ -137,9 +137,13 @@ function SubsTable({
                 <span class="subs__lang">{dto.language}</span>
               </td>
               <td class="subs__cell subs__cell--action">
+                {/* A toggle, so the name and the pressed state both track it — the eye is the
+                    button's whole content, and unnamed it announces as "eye". */}
                 <button
                   class={`subs__icon-btn${on ? " subs__icon-btn--on" : ""}`}
-                  title="View the code"
+                  title={on ? "Hide the code" : "View the code"}
+                  aria-label={on ? "Hide the code" : "View the code"}
+                  aria-pressed={on}
                   onClick={() => onSelect(on ? null : dto.id)}
                 >
                   {"\u{1F441}"}
