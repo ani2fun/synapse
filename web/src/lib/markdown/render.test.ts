@@ -616,6 +616,87 @@ describe("end-to-end: a complete realistic lesson", () => {
   });
 });
 
+// Frame runs are the one vocabulary carried by images rather than a fence, so these cases run
+// through the WHOLE pipeline: they prove the pre-pass survives remark-rehype and, above all,
+// that an ordinary image is still an ordinary image — 1769 single diagrams depend on it.
+describe("frame-image runs → one stepping placeholder", () => {
+  const CAPTION = "Iterating through the sorted array";
+
+  function frames(caption: string, total: number): string {
+    return Array.from(
+      { length: total },
+      (_unused, at) => `![${caption} — frame ${at + 1} of ${total}](/media/sweep-${at + 1}.png)`,
+    ).join("\n\n");
+  }
+
+  it("collapses a marked run into one placeholder, consuming the marker and every <img>", async () => {
+    const html = await renderLesson(
+      `Before.\n\n// Interactive Diagram (3 frames): ${CAPTION}\n\n${frames(CAPTION, 3)}\n\nAfter.`,
+    );
+    expect(html).toContain('class="frame-slideshow"');
+    expect(JSON.parse(decodeAttr(html, "data-frames")!)).toEqual([
+      "/media/sweep-1.png",
+      "/media/sweep-2.png",
+      "/media/sweep-3.png",
+    ]);
+    expect(decodeAttr(html, "data-caption")).toBe(CAPTION);
+    expect(html).not.toContain("Interactive Diagram");
+    expect(html).not.toContain("<img"); // the whole point: three pictures became one figure
+  });
+
+  it("groups an unmarked run too — the alt is the signal", async () => {
+    const html = await renderLesson(frames(CAPTION, 5));
+    expect(html).toContain('class="frame-slideshow"');
+    expect(JSON.parse(decodeAttr(html, "data-frames")!)).toHaveLength(5);
+  });
+
+  it("leaves an ordinary image a plain <img>", async () => {
+    const html = await renderLesson("![A picture of an array](/media/array.png)");
+    expect(html).toContain('<img src="/media/array.png"');
+    expect(html).not.toContain("frame-slideshow");
+    expect(html).not.toContain("prose-figure");
+  });
+
+  it("captions a lone image under a `// Diagram:` marker", async () => {
+    const html = await renderLesson("// Diagram: An interval on the x-axis\n\n![An interval on the x-axis](/media/i.png)");
+    expect(html).toContain('class="prose-figure"');
+    expect(html).toContain("<figcaption>An interval on the x-axis</figcaption>");
+    expect(html).toContain('loading="lazy"');
+    expect(html).not.toContain("// Diagram:");
+  });
+
+  it("round-trips a caption whose escaped brackets remark unescapes on both paths", async () => {
+    // The marker text and the image alt take different routes out of remark; the run only groups
+    // (and the caption only matches) because both land as `leftArr[i]`.
+    const caption = String.raw`Compare leftArr\[i\] and rightArr\[j\]`;
+    const plain = "Compare leftArr[i] and rightArr[j]";
+    const html = await renderLesson(
+      `// Interactive Diagram (2 frames): ${caption}\n\n` +
+        `![${caption} — frame 1 of 2](/a.png)\n\n![${caption} — frame 2 of 2](/b.png)`,
+    );
+    expect(decodeAttr(html, "data-caption")).toBe(plain);
+    expect(JSON.parse(decodeAttr(html, "data-frames")!)).toEqual(["/a.png", "/b.png"]);
+  });
+
+  it("escapes a caption carrying markup rather than injecting it", async () => {
+    const html = await renderLesson('// Diagram: X <= size of the list\n\n![bound](/b.png)');
+    expect(html).toContain("<figcaption>X &lt;= size of the list</figcaption>");
+  });
+
+  it("leaves frame syntax inside a fence as highlighted code", async () => {
+    const html = await renderLesson("```text\n![X — frame 1 of 2](/a.png)\n```");
+    expect(html).not.toContain("frame-slideshow");
+    expect(html).toContain("<pre");
+  });
+
+  it("coexists with a d2 fence — both pre-passes run, in source order", async () => {
+    const html = await renderLesson(`${frames("A", 2)}\n\n\`\`\`d2\nx -> y\n\`\`\`\n\n${frames("B", 2)}`);
+    expect(html.match(/class="frame-slideshow"/g)).toHaveLength(2);
+    expect(html).toContain('class="d2-block"');
+    expect(html.indexOf("d2-block")).toBeGreaterThan(html.indexOf("frame-slideshow"));
+  });
+});
+
 describe("highlightCode — the lazy-workbench placeholder (qna Q1/B)", () => {
   it("tokenizes a known language with the css-variables theme", async () => {
     const html = await (await import("./render")).highlightCode("print('hi')", "python");

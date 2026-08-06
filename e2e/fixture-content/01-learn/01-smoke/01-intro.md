@@ -29,3 +29,17 @@ def greet(name: str) -> str:
 
 That is enough prose to put this comfortably past the length assertion without being a wall of
 filler. The suite checks structure and behaviour, never wording.
+
+// Diagram: A single still, captioned by the line above it
+
+![A single still, captioned by the line above it](/media/smoke/frames/step-01.png)
+
+// Interactive Diagram (3 frames): Three stills the reader steps through
+
+![Three stills the reader steps through — frame 1 of 3](/media/smoke/frames/step-01.png)
+
+![Three stills the reader steps through — frame 2 of 3](/media/smoke/frames/step-02.png)
+
+![Three stills the reader steps through — frame 3 of 3](/media/smoke/frames/step-03.png)
+
+// Diagram: A marker with no image under it, which must stay readable prose

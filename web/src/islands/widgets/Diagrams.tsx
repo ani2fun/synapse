@@ -6,9 +6,14 @@
  * the near-fullscreen zoom overlay (wheel zoom · drag pan · − ⟲ + controls). House rule: the
  * diagram chrome — Enlarge on the card AND Close in the overlay — sits top-LEFT (LikeC4 owns
  * top-right, see C4Embed.tsx).
+ *
+ * `.frame-slideshow` is the one family that renders no source: it carries the URLs of a run of
+ * authored stills (lib/markdown/frameRun.ts) and steps through them one <img> at a time.
  */
-import { render, h } from "preact";
+import { render, h, type ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
+
+import * as log from "../../lib/log";
 
 function decodedAttr(element: Element, name: string): string | null {
   const raw = element.getAttribute(name);
@@ -22,6 +27,20 @@ function decodedAttr(element: Element, name: string): string | null {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** A JSON string array off a data attribute — a d2 run's sources, a frame run's URLs. */
+function decodedStringArray(element: Element, name: string): string[] | null {
+  const raw = decodedAttr(element, name);
+  if (raw == null) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    const ok =
+      Array.isArray(parsed) && parsed.length > 0 && parsed.every((item) => typeof item === "string");
+    return ok ? (parsed as string[]) : null;
+  } catch {
+    return null;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -47,22 +66,20 @@ export function hydrateDiagrams(root: ParentNode): number {
     count += 1;
   }
   for (const element of root.querySelectorAll("div.d2-slideshow")) {
-    const raw = decodedAttr(element, "data-slides");
-    let slides: string[] | null = null;
-    if (raw != null) {
-      try {
-        const parsed: unknown = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((s) => typeof s === "string")) {
-          slides = parsed as string[];
-        }
-      } catch {
-        slides = null;
-      }
-    }
+    const slides = decodedStringArray(element, "data-slides");
     if (!slides) continue;
     const host = element as HTMLElement;
     host.replaceChildren();
     render(h(D2Slideshow, { slides }), host);
+    count += 1;
+  }
+  for (const element of root.querySelectorAll("div.frame-slideshow")) {
+    const frames = decodedStringArray(element, "data-frames");
+    const caption = decodedAttr(element, "data-caption");
+    if (!frames || caption == null) continue;
+    const host = element as HTMLElement;
+    host.replaceChildren();
+    render(h(FrameSlideshow, { frames, caption }), host);
     count += 1;
   }
   return count;
@@ -213,6 +230,196 @@ function D2Slideshow({ slides }: { slides: string[] }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// FRAME SLIDESHOWS — an animation authored as consecutive images
+// A `.frame-slideshow` placeholder carries one run's frame URLs (lib/markdown/frameRun.ts). ONE
+// <img> shows one frame and the neighbours are warmed a step ahead. Holding the loaded elements
+// the way D2Slideshow memoises its SVG strings is the trap here, not the optimisation: a 95-frame
+// run at 1450×1024 is ~9.5 MB of PNG and ~565 MB of decoded bitmap. The browser's HTTP cache is
+// the store (/media ships max-age=3600); this component keeps only which indices it has asked for.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const FRAME_STEP_MS = 500;
+const PRELOAD_AT_REST = 1; // neighbours warmed before the reader touches anything
+const PRELOAD_STEPPING = 2; // …and after they do
+
+function FrameSlideshow({ frames, caption }: { frames: string[]; caption: string }) {
+  const total = frames.length;
+  // Two indices, and the split is what removes both the flash and the height jump: `shown` is
+  // bound to the <img> and is only ever an index that has decoded, while `wanted` is what the
+  // reader just asked for and drives the label and the scrubber. The picture holds the last good
+  // frame (dimmed) instead of blanking while the next one arrives.
+  const [shown, setShown] = useState(0);
+  const [wanted, setWanted] = useState(0);
+  const [playing, setPlaying] = useState(false);
+  const [ready, setReady] = useState(false);
+  const requested = useRef(new Set<number>([0]));
+  const stepped = useRef(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  const altFor = (index: number) => `${caption} — frame ${index + 1} of ${total}`;
+
+  const clamp = (index: number) => Math.min(Math.max(index, 0), total - 1);
+
+  const goTo = (index: number) => {
+    stepped.current = true;
+    setWanted(clamp(index));
+  };
+
+  // Stepping reads the CURRENT index through the updater rather than the one this render closed
+  // over, so two clicks inside one frame advance twice instead of landing on the same frame.
+  const step = (delta: number) => {
+    setPlaying(false);
+    stepped.current = true;
+    setWanted((current) => clamp(current + delta));
+  };
+
+  // Commit only once the next frame can paint. The signal is `load`, NOT `decode()`: on a
+  // detached Image the decode promise can simply never settle, which strands the transport on
+  // one frame forever. `error` settles too — a broken URL must cost one dud frame, not the widget.
+  useEffect(() => {
+    if (wanted === shown) return;
+    let live = true;
+    const settle = () => {
+      if (live) setShown(wanted);
+    };
+    const probe = new Image();
+    probe.onload = settle;
+    probe.onerror = settle;
+    probe.src = frames[wanted]!;
+    requested.current.add(wanted);
+    if (probe.complete) settle(); // already cached — the event may have fired before we listened
+    return () => {
+      live = false;
+    };
+  }, [wanted, shown, frames]);
+
+  // A frame served straight from cache can finish before the listener is attached, and then the
+  // `load` that gates Enlarge and the preloads never arrives. Checking `complete` each render is
+  // the cheap way to notice a first paint whose event we missed.
+  useEffect(() => {
+    const image = imgRef.current;
+    if (!ready && image?.complete && image.naturalWidth > 0) setReady(true);
+  });
+
+  // Warm the neighbours, but never before the frame the reader is actually looking at has landed —
+  // `hydrateDiagrams` runs over the whole document at DOMContentLoaded, and a lesson carrying ten
+  // runs would otherwise open ten connections for pictures nobody has scrolled to.
+  useEffect(() => {
+    if (!ready) return;
+    const reach = stepped.current ? PRELOAD_STEPPING : PRELOAD_AT_REST;
+    for (let offset = 1; offset <= reach; offset += 1) {
+      for (const index of [shown + offset, shown - offset]) {
+        if (index < 0 || index >= total || requested.current.has(index)) continue;
+        requested.current.add(index);
+        new Image().src = frames[index]!; // fire and forget: the HTTP cache is the store
+      }
+    }
+  }, [shown, ready, total, frames]);
+
+  // Autoplay advances off `shown`, not `wanted`, so a slow network slows the animation down
+  // instead of skipping frames the reader never sees.
+  useEffect(() => {
+    if (!playing) return;
+    if (shown >= total - 1) {
+      setPlaying(false);
+      return;
+    }
+    const timer = setTimeout(() => goTo(shown + 1), FRAME_STEP_MS);
+    return () => clearTimeout(timer);
+  }, [playing, shown, total]);
+
+  useEffect(() => {
+    log.debug(`frame slideshow “${caption}” → ${shown + 1}/${total}`);
+  }, [shown]);
+
+  const togglePlay = () => {
+    if (!playing && shown >= total - 1) goTo(0); // replay from the top rather than sitting at the end
+    setPlaying((on) => !on);
+  };
+
+  // Keydown is bound to the CARD, never to the document: `MarkdownPane` re-renders editorial
+  // markdown and re-hydrates diagrams without ever unmounting the old hosts, so a document-level
+  // listener would survive every tab switch.
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "ArrowLeft") step(-1);
+    else if (event.key === "ArrowRight") step(1);
+    else return;
+    event.preventDefault();
+  };
+
+  return (
+    <div
+      class="diagram diagram--slides diagram--frames not-prose"
+      role="group"
+      aria-roledescription="frame-by-frame diagram"
+      aria-label={caption}
+      tabIndex={0}
+      onKeyDown={onKeyDown}
+    >
+      {ready && (
+        <ZoomAffordance>
+          <img src={frames[shown]} alt={altFor(shown)} />
+        </ZoomAffordance>
+      )}
+      {/* The live region announces each frame through the img's alt, which carries the position. */}
+      <div class="diagram__figure" aria-live="polite" aria-atomic="true">
+        <img
+          ref={imgRef}
+          class={wanted === shown ? "frames__img" : "frames__img frames__img--pending"}
+          src={frames[shown]}
+          alt={altFor(shown)}
+          loading="lazy"
+          decoding="async"
+          onLoad={() => setReady(true)}
+        />
+      </div>
+      <p class="diagram__caption">{caption}</p>
+      <div class="transport">
+        <button
+          class="transport__btn"
+          aria-label="Previous frame"
+          title="Previous frame"
+          disabled={wanted === 0}
+          onClick={() => step(-1)}
+        >
+          ‹
+        </button>
+        <button
+          class={playing ? "transport__btn transport__btn--play" : "transport__btn"}
+          aria-label={playing ? "Pause" : "Play"}
+          title={playing ? "Pause" : "Play"}
+          onClick={togglePlay}
+        >
+          {playing ? "⏸" : "▶"}
+        </button>
+        <input
+          class="transport__scrubber"
+          type="range"
+          min={0}
+          max={total - 1}
+          value={wanted}
+          aria-label={`Frame ${wanted + 1} of ${total}`}
+          onInput={(event) => {
+            setPlaying(false);
+            goTo(Number((event.currentTarget as HTMLInputElement).value));
+          }}
+        />
+        <button
+          class="transport__btn"
+          aria-label="Next frame"
+          title="Next frame"
+          disabled={wanted === total - 1}
+          onClick={() => step(1)}
+        >
+          ›
+        </button>
+        <span class="transport__label" aria-hidden="true">{`${wanted + 1} / ${total}`}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // THE ZOOM OVERLAY
 // Near-fullscreen light card over a scrim; wheel zoom, drag pan, − ⟲ + controls. Enlarge (card)
 // and Close (overlay) both live top-LEFT — the house corner (LikeC4 owns top-right).
@@ -234,29 +441,41 @@ const ICON_CLOSE = (
   </svg>
 );
 
-function ZoomAffordance({ svgHtml }: { svgHtml: string | null }) {
+/**
+ * The Enlarge pill and the overlay behind it. A renderer passes its SVG as a string; a figure
+ * built from real elements (the frame slideshow) passes them as children instead. Either way the
+ * pill only exists once there is something to enlarge.
+ */
+function ZoomAffordance({ svgHtml, children }: { svgHtml?: string | null; children?: ComponentChildren }) {
   const [open, setOpen] = useState(false);
-  if (svgHtml == null) return null;
+  if (svgHtml == null && children == null) return null;
   return (
     <>
       <button class="diagram__zoom modal-btn" aria-label="Enlarge diagram" onClick={() => setOpen(true)}>
         {ICON_MAXIMIZE}
         <span>Enlarge</span>
       </button>
-      {open && <ZoomOverlay svg={svgHtml} onClose={() => setOpen(false)} />}
+      {open && (
+        <ZoomOverlay svg={svgHtml ?? undefined} onClose={() => setOpen(false)}>
+          {children}
+        </ZoomOverlay>
+      )}
     </>
   );
 }
 
-function ZoomOverlay({ svg, onClose }: { svg: string; onClose: () => void }) {
+function ZoomOverlay({
+  svg,
+  children,
+  onClose,
+}: {
+  svg?: string;
+  children?: ComponentChildren;
+  onClose: () => void;
+}) {
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const grip = useRef<{ x: number; y: number } | null>(null);
-  const figureRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (figureRef.current) figureRef.current.innerHTML = svg;
-  }, [svg]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -284,6 +503,9 @@ function ZoomOverlay({ svg, onClose }: { svg: string; onClose: () => void }) {
   }, [onClose]);
 
   const zoomBy = (factor: number) => setScale((s) => Math.min(Math.max(s * factor, 0.25), 4));
+  // The pan/zoom target. An SVG string lands on this element itself rather than a wrapper, so
+  // `.diagram-zoom__figure svg` keeps binding and the flex centring is unchanged.
+  const transform = `transform: translate(${pan.x.toFixed(1)}px, ${pan.y.toFixed(1)}px) scale(${scale.toFixed(3)})`;
 
   return (
     <div class="diagram-zoom-scrim" onClick={onClose}>
@@ -304,11 +526,17 @@ function ZoomOverlay({ svg, onClose }: { svg: string; onClose: () => void }) {
               zoomBy(event.deltaY < 0 ? 1.12 : 1 / 1.12);
             }}
           >
-            <div
-              class="diagram-zoom__figure"
-              style={`transform: translate(${pan.x.toFixed(1)}px, ${pan.y.toFixed(1)}px) scale(${scale.toFixed(3)})`}
-              ref={figureRef}
-            ></div>
+            {svg != null ? (
+              <div
+                class="diagram-zoom__figure"
+                style={transform}
+                dangerouslySetInnerHTML={{ __html: svg }}
+              ></div>
+            ) : (
+              <div class="diagram-zoom__figure" style={transform}>
+                {children}
+              </div>
+            )}
           </div>
         </div>
         <div class="diagram-zoom__controls">

@@ -264,6 +264,24 @@
    the Enlarge pill off the corner). */
 .synapse-prose .mermaid-block,
 .synapse-prose .d2-block,
-.synapse-prose .d2-slideshow {
+.synapse-prose .d2-slideshow,
+.synapse-prose .frame-slideshow {
   margin: 1em 0;
+}
+
+/* A `// Diagram: …` line above a LONE image becomes that image's caption (frameRun.ts). The
+   image keeps the prose's own rhythm rather than being promoted onto a diagram card — the card
+   would reframe every authored still in the catalog, which is a bigger change than a caption. */
+.synapse-prose .prose-figure {
+  margin: 1em 0;
+  text-align: center;
+}
+.synapse-prose .prose-figure img {
+  max-width: 100%;
+  height: auto;
+}
+.synapse-prose .prose-figure figcaption {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: hsl(var(--muted-foreground));
 }

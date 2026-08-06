@@ -20,6 +20,8 @@ import rehypePrettyCode from "rehype-pretty-code";
 import { createCssVariablesTheme, type ThemeRegistrationRaw } from "shiki";
 import rehypeStringify from "rehype-stringify";
 
+import { groupFrameRuns } from "./frameRun";
+
 // Shiki "CSS variables" theme — token colors are emitted as var(--shiki-*)
 // rather than baked hexes, so code recolors with the reader's light/dark
 // palette (mapped in tailwind.css). Built once at module load.
@@ -196,6 +198,19 @@ function html(value: string): RootContent {
 }
 
 /**
+ * The frame-run grouping pre-pass. Returns a synchronous transformer that collapses a run of
+ * consecutive `<caption> — frame i of N` images into ONE stepping placeholder and consumes the
+ * `// Interactive Diagram (N frames): …` / `// Diagram: …` line above it into the caption. The
+ * rules live in frameRun.ts; this only hands the tree over and takes the rewrite back.
+ */
+function frameSequenceTransform() {
+  return (tree: Root): void => {
+    const grouped = groupFrameRuns(tree.children);
+    if (grouped !== null) tree.children = grouped;
+  };
+}
+
+/**
  * The d2 grouping pre-pass. Returns a synchronous transformer that groups adjacent d2 fences into
  * source-carrying placeholders. It touches nothing (and imports no WASM) when a document has no d2 fence.
  */
@@ -264,6 +279,13 @@ function d2Transform() {
  * and <details> editorials still pass through as plain highlighted code /
  * raw HTML.
  *
+ * **Images** are the one vocabulary that needs no fence: a run of consecutive
+ * `<caption> — frame i of N` images is one animation, so it collapses into a
+ * `.frame-slideshow` placeholder and the `// Interactive Diagram (N frames): …`
+ * line above it becomes the caption (frameRun.ts). A `// Diagram: …` above a
+ * lone image becomes a `.prose-figure` figcaption. Every other image renders as
+ * a plain `<img>`, here and in every book.
+ *
  * Trusted content (ADR-S015): the source is first-party (read from
  * SYNAPSE_ROOT), so raw HTML passes through unmodified — no
  * rehype-sanitize. An untrusted source would render through its own
@@ -278,6 +300,7 @@ export async function renderLesson(raw: string): Promise<string> {
     .use(remarkParse)
     .use(remarkGfm)
     .use(d2Transform) // parse-time d2 → SVG placeholders (before rehype; no-op without a d2 fence)
+    .use(frameSequenceTransform) // frame-image runs → ONE stepping figure (no-op without images)
     .use(remarkRehype, {
       allowDangerousHtml: true,
       handlers: {

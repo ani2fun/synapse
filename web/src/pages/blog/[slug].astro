@@ -28,6 +28,10 @@ import "../../../styles/markdown.css";
 // what decides the tie. Moving this line up would hand the body back to the prose defaults.
 import "../../../styles/blog-post.css";
 import "../../../styles/diagrams.css";
+// A post hydrates the same diagram widgets a lesson does, and every stepping figure — the d2
+// slideshow and the frame slideshow both — builds its transport from `.transport*`, which lives
+// in viz.css. Without this the bar renders as bare stacked buttons.
+import "../../../styles/viz.css";
 import "../../../styles/codebench.css";
 
 /** `rebuilding-cortex` → `Rebuilding cortex` — good enough for a pager card. */

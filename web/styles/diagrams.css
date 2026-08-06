@@ -104,9 +104,10 @@
 .diagram-zoom__figure { width: 100%; height: 100%; display: flex; align-items: center;
                         justify-content: center; transform-origin: center center;
                         will-change: transform; }
-/* Fit at rest; !important neutralizes mermaid's inline max-width so it fills the modal. */
-.diagram-zoom__figure svg { display: block; width: auto; height: auto;
-                            max-width: 100% !important; max-height: 100% !important; }
+/* Fit at rest; !important neutralizes mermaid's inline max-width so it fills the modal. The
+   frame slideshow enlarges a real <img>, which fits by the same rules. */
+.diagram-zoom__figure :is(svg, img) { display: block; width: auto; height: auto;
+                                      max-width: 100% !important; max-height: 100% !important; }
 
 .diagram-zoom__controls { position: absolute; bottom: 16px; left: 50%;
                           transform: translateX(-50%); z-index: 2; display: inline-flex;
@@ -151,6 +152,25 @@
    page under it) perfectly still while stepping ‹ › ; detail lives behind the zoom. */
 .diagram--slides .diagram__figure { height: clamp(16rem, 70vh, 32rem); align-items: center; }
 .diagram--slides .diagram__figure svg { max-height: 100%; }
+
+/* ── the frame slideshow: a run of authored stills, stepped one <img> at a time ──
+   It carries `.diagram--slides` on purpose, so the fixed figure box above and the transport's
+   margin apply verbatim; every frame of a run is generated at one size, so nothing jitters
+   while stepping. The placeholder reserves that box PLUS the caption and transport under it —
+   the widget hydrates from a whole-document sweep, and the prose below must not jump when it
+   does. */
+.frame-slideshow { min-height: calc(clamp(16rem, 70vh, 32rem) + 5rem); }
+.diagram--frames .diagram__figure img { display: block; width: auto; height: auto;
+                                        max-width: 100%; max-height: 100%; }
+.diagram--frames:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 4px; }
+/* The honest signal while the next frame decodes: the picture dims and HOLDS rather than
+   blanking, which is what keeps stepping flicker-free on a slow connection. */
+.diagram--frames .frames__img--pending { opacity: 0.55; transition: opacity 120ms ease; }
+@media (prefers-reduced-motion: reduce) {
+  .diagram--frames .frames__img--pending { transition: none; }
+}
+.diagram__caption { margin: 8px 0 0; max-width: 60ch; text-align: center; font-size: 0.85rem;
+                    color: hsl(var(--muted-foreground)); }
 
 /* ── the LikeC4 lesson embed: the authored <iframe> on a rounded dark frame ──
    Targeted `.reader-prose iframe[…]` until step 46, which matched NOTHING: the prose container
