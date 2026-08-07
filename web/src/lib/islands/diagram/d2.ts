@@ -22,8 +22,9 @@ import * as log from "../../log";
 type D2Module = typeof import("@terrastruct/d2");
 type D2Instance = InstanceType<D2Module["D2"]>;
 
-/** dagre or elk. Both ship in the worker — it evals `elk.js` at init either way. */
-const LAYOUT = "dagre";
+/** dagre or elk. Both ship in the worker — it evals `elk.js` at init either way, so the choice
+ *  costs nothing in bundle size or startup, and measures the same on this catalog's diagrams. */
+const LAYOUT = "elk";
 
 // ── THE SHARED INSTANCE ──────────────────────────────────────────
 

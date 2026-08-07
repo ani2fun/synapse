@@ -8,9 +8,12 @@
 //! never sends these headers, so dev never reproduces a CSP-caused breakage):
 //! - fonts/Monaco/inline-theme-script broke on an over-tight CSP → Google Fonts,
 //!   `'unsafe-inline'`, `blob:` workers, `img-src https:` allowances;
-//! - d2's blob render worker calls `new Function(elkJs)` at init (even under dagre), a blob
-//!   worker INHERITS the page CSP, and no directive scopes eval to one worker →
-//!   `'unsafe-eval'`. `'wasm-unsafe-eval'` covers WASM compilation only — here it is
+//! - d2's blob render worker calls `new Function(elkJs)` at init — unconditionally, whichever
+//!   layout engine is selected — a blob worker INHERITS the page CSP, and no directive scopes
+//!   eval to one worker → `'unsafe-eval'`. That worker runs for the diagrams the server does not
+//!   draw (a slideshow's later slides, the authoring preview, any pre-render that fell back), so
+//!   the allowance is still load-bearing on a page whose figures all arrived as SSR'd SVG.
+//!   `'wasm-unsafe-eval'` covers WASM compilation only — here it is
 //!   load-bearing for the viz-wasm engine (a Leptos-compiled WASM module that powers the
 //!   visualisations), which the browser loads as a lazy WASM bundle.
 
