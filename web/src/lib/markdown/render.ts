@@ -20,6 +20,7 @@ import rehypePrettyCode from "rehype-pretty-code";
 import { createCssVariablesTheme, type ThemeRegistrationRaw } from "shiki";
 import rehypeStringify from "rehype-stringify";
 
+import { d2Salt } from "../islands/diagram/d2";
 import { groupFrameRuns } from "./frameRun";
 
 // Shiki "CSS variables" theme — token colors are emitted as var(--shiki-*)
@@ -180,17 +181,21 @@ function parseQuiz(raw: string): { quiz?: QuizJson; error?: string } {
   return { quiz: data as unknown as QuizJson };
 }
 
-// ── D2 diagrams — prose-first ──────────
-// d2 renders on the CLIENT at mount, exactly like mermaid — NOT at parse
-// time. This transformer is a SYNCHRONOUS grouping pass: it emits a
-// placeholder carrying the RAW d2 SOURCE (URI-encoded), never the SVG, and
-// imports no WASM. A lone fence → `.d2-block[data-source]`; a run of
-// *consecutive* fences → a `.d2-slideshow[data-slides]` (JSON array of
-// sources) step-through. The client's D2Card/D2Slideshow
-// (islands/widgets/Diagrams.tsx) load the multi-MB d2 WASM lazily at mount
-// and surface a malformed diagram as an error card — so the whole lesson's
-// prose paints immediately instead of waiting on N sequential parse-time
-// layouts.
+// ── D2 diagrams ──────────
+// Where a ```d2 fence is drawn depends on WHERE THIS PIPELINE RUNS. Under
+// SSR a lone fence is compiled here and ships as a `.d2-block[data-
+// prerendered]` holding its SVG, so the reader sees the diagram at first
+// paint and never fetches the engine. In the BROWSER — the authoring
+// preview runs this same pipeline — it emits `.d2-block[data-source]`
+// carrying the URI-encoded source, and Diagrams.tsx compiles it. A run of
+// *consecutive* fences is always `.d2-slideshow[data-slides]`, client-side,
+// because only its first slide is ever on screen.
+//
+// The placeholder is also the FALLBACK: a failed or over-budget compile
+// emits it, so the floor is the client-rendered behaviour and a malformed
+// diagram still reaches the reader as a loud error card rather than a blank
+// figure. That makes a broken pre-render indistinguishable from a working
+// page, which is why the e2e asserts on the SVG being in the response body.
 
 /** A raw-HTML mdast node (passes through remark-rehype under allowDangerousHtml). */
 function html(value: string): RootContent {
@@ -210,39 +215,88 @@ function frameSequenceTransform() {
   };
 }
 
+const isD2Fence = (node: RootContent): node is Code =>
+  node.type === "code" && fenceLang(node as Code) === "d2";
+
 /**
- * The d2 grouping pre-pass. Returns a synchronous transformer that groups adjacent d2 fences into
- * source-carrying placeholders. It touches nothing (and imports no WASM) when a document has no d2 fence.
+ * The d2 pre-pass: group adjacent fences, then draw what the server can.
+ *
+ * A lone fence becomes a `.d2-block`, a run of *consecutive* ones a `.d2-slideshow`. Under SSR a
+ * lone block is compiled here and ships with its figure already inside it, marked
+ * `data-prerendered` so the client adopts rather than recompiles. Everything else — every slide
+ * of a slideshow, every block whose compile failed or ran out of budget, and the whole transform
+ * in the browser — emits the source-carrying placeholder the client renders from.
+ *
+ * Slideshows stay client-side on purpose: only the first slide is ever visible, so inlining all
+ * N would pay for figures nobody has stepped to yet.
  */
 function d2Transform() {
-  return (tree: Root): void => {
+  return async (tree: Root): Promise<void> => {
     const kids = tree.children;
-    if (!kids.some((n) => n.type === "code" && (n as Code).lang === "d2")) return;
+    if (!kids.some(isD2Fence)) return;
 
+    // `import.meta.env.SSR` is a build-time constant, so the client bundle drops this branch —
+    // and with it the only edge that would pull the d2 engine into the authoring preview.
+    const session =
+      import.meta.env.SSR &&
+      (await import("./d2Prerender").then((m) => (m.prerenderEnabled() ? m.openD2Session() : null)));
+
+    const seen = new Map<string, number>();
     const out: RootContent[] = [];
     let pending: string[] = []; // consecutive d2 SOURCES awaiting grouping
 
-    const flush = () => {
+    const placeholder = (source: string) =>
+      `<div class="d2-block" data-source="${encodeURIComponent(source)}"></div>`;
+
+    const flush = async () => {
       if (pending.length === 0) return;
       // `d2-slideshow` (mine) is distinct from the authored legacy `<div class="d2-slides">` wrapper the
       // content puts around a slide run — that wrapper is neutralized in CSS (display: contents).
-      const value =
-        pending.length === 1
-          ? `<div class="d2-block" data-source="${encodeURIComponent(pending[0])}"></div>`
-          : `<div class="d2-slideshow" data-slides="${encodeURIComponent(JSON.stringify(pending))}"></div>`;
-      out.push(html(value));
+      if (pending.length > 1) {
+        const slides = pending;
+        // Salt EVERY slide, in the order the client will, so `seen` advances identically on both
+        // sides and slide 0's key matches the one hydration looks up.
+        const slideSalts = slides.map((slide) => d2Salt(slide, seen));
+        // Only the FIRST slide is drawn here. A slideshow shows one figure at a time, so inlining
+        // all N would ship figures nobody has stepped to — but inlining none means the engine
+        // downloads on page load anyway, since the transport paints slide 0 at mount.
+        const first = session ? await session.render(slides[0]!, slideSalts[0]!) : null;
+        const attrs = `class="d2-slideshow" data-slides="${encodeURIComponent(JSON.stringify(slides))}"`;
+        out.push(
+          html(
+            first == null
+              ? `<div ${attrs}></div>`
+              : `<div ${attrs} data-prerendered="1"><div class="diagram__figure">${first}</div></div>`,
+          ),
+        );
+        pending = [];
+        return;
+      }
+      const source = pending[0]!;
+      const svg = session ? await session.render(source, d2Salt(source, seen)) : null;
+      // The card shape the client would have built, so the figure is correct with zero JS and
+      // hydration has nothing to move. `data-source` is dropped: nothing may recompile this, and
+      // re-sending the source would be dead weight beside the SVG.
+      out.push(
+        html(
+          svg == null
+            ? placeholder(source)
+            : `<div class="d2-block" data-prerendered="1"><div class="diagram not-prose"><div class="diagram__figure">${svg}</div></div></div>`,
+        ),
+      );
       pending = [];
     };
 
     for (const node of kids) {
-      if (node.type === "code" && (node as Code).lang === "d2") {
-        pending.push((node as Code).value);
+      if (isD2Fence(node)) {
+        pending.push(node.value);
       } else {
-        flush();
+        await flush();
         out.push(node);
       }
     }
-    flush();
+    await flush();
+    if (session) session.done();
     tree.children = out;
   };
 }

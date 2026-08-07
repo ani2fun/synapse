@@ -44,6 +44,13 @@ filler. The suite checks structure and behaviour, never wording.
 
 // Diagram: A marker with no image under it, which must stay readable prose
 
+A lone d2 fence is drawn by the SERVER, so this one is here to prove the SVG reaches the reader
+in the HTML itself rather than after a multi-megabyte engine download.
+
+```d2
+lone -> figure
+```
+
 Two adjacent d2 fences are one step-through figure, so the suite has a second stepping transport
 to hold to the same contract as the frame one.
 

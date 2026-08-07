@@ -1,11 +1,12 @@
 /**
- * Authored-diagram hydration: `.mermaid-block` AND `.d2-block`/`.d2-slideshow` placeholders
- * carry their RAW SOURCE and render through the lazy `@diagram` island (`lib/islands/diagram/`)
- * on the CLIENT at mount — each diagram renders in its own task (concurrent), so a lesson's
- * prose never waits on a sequential layout. Every rendered figure gets the Enlarge affordance →
- * the near-fullscreen zoom overlay (wheel zoom · drag pan · − ⟲ + controls). House rule: the
- * diagram chrome — Enlarge on the card AND Close in the overlay — sits top-LEFT (LikeC4 owns
- * top-right, see C4Embed.tsx).
+ * Authored-diagram hydration. A `.mermaid-block` / `.d2-block` / `.d2-slideshow` placeholder
+ * carries its RAW SOURCE and renders through `lib/islands/diagram/` on the CLIENT; a `.d2-block`
+ * marked `data-prerendered` instead arrives from the server with its figure already in place and
+ * is only adopted here. Client-side d2 compiles on approach and one at a time — the renderer
+ * holds a single worker — so the figure a reader is looking at is never queued behind the rest
+ * of the document. Every rendered figure gets the Enlarge affordance → the near-fullscreen zoom
+ * overlay (wheel zoom · drag pan · − ⟲ + controls). House rule: the diagram chrome — Enlarge on
+ * the card AND Close in the overlay — sits top-LEFT (LikeC4 owns top-right, see C4Embed.tsx).
  *
  * `.frame-slideshow` is the one family that renders no source: it carries the URLs of a run of
  * authored stills (lib/markdown/frameRun.ts) and steps through them one <img> at a time.
@@ -13,7 +14,21 @@
 import { render, h, type ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 
+// Statically imported: this module is small and holds the salt + queue only. The multi-MB WASM
+// it renders through stays behind a dynamic `import()` inside it, so nothing heavy lands here.
+import { d2Salt, renderD2Source } from "../../lib/islands/diagram/d2";
 import * as log from "../../lib/log";
+import { watchNear } from "../workbench/lazy";
+
+/**
+ * Rendered d2 SVGs, keyed by salt (a fingerprint of the source — see `d2Salt`).
+ *
+ * The editorial pane and the authoring preview both re-render their markdown and re-hydrate over
+ * it, repeatedly, without the source having changed; without this every tab switch and every
+ * debounced keystroke would pay a fresh compile. In memory only — a page navigation is meant to
+ * clear it, and the document itself bounds how much can accumulate.
+ */
+const svgCache = new Map<string, string>();
 
 function decodedAttr(element: Element, name: string): string | null {
   const raw = element.getAttribute(name);
@@ -49,6 +64,10 @@ function decodedStringArray(element: Element, name: string): string[] | null {
 
 export function hydrateDiagrams(root: ParentNode): number {
   let count = 0;
+  // Salts are unique per DOCUMENT, and this pass is the only place that sees the whole document,
+  // so the tally lives here. A re-hydration over unchanged markup mints the same salts again,
+  // which is exactly what lets `svgCache` hit on the second pass.
+  const seen = new Map<string, number>();
   for (const element of root.querySelectorAll("div.mermaid-block")) {
     const source = decodedAttr(element, "data-source");
     if (source == null) continue;
@@ -58,19 +77,37 @@ export function hydrateDiagrams(root: ParentNode): number {
     count += 1;
   }
   for (const element of root.querySelectorAll("div.d2-block")) {
-    const source = decodedAttr(element, "data-source");
-    if (source == null) continue;
     const host = element as HTMLElement;
+    // A server-rendered block already holds its figure. Lift the SVG out BEFORE clearing the
+    // host — `replaceChildren` would otherwise discard the very thing SSR did the work for —
+    // and hand it straight to the card, which then only wires up Enlarge.
+    const prerendered =
+      host.dataset.prerendered != null
+        ? (host.querySelector(".diagram__figure")?.innerHTML ?? null)
+        : null;
+    const source = decodedAttr(element, "data-source");
+    if (prerendered == null && source == null) continue;
     host.replaceChildren();
-    render(h(D2Card, { source }), host);
+    // Pre-rendered figures never compile, so they need no salt and must not consume one.
+    const salt = prerendered != null ? "" : d2Salt(source!, seen);
+    render(h(D2Card, { source: source ?? "", salt, host, prerendered }), host);
     count += 1;
   }
   for (const element of root.querySelectorAll("div.d2-slideshow")) {
     const slides = decodedStringArray(element, "data-slides");
     if (!slides) continue;
     const host = element as HTMLElement;
+    // The server draws the FIRST slide, since that is the one the transport paints at mount.
+    // Lifting it into the cache before clearing the host is the whole handover: the component's
+    // ordinary cache lookup then finds it and never reaches for the engine.
+    const first =
+      host.dataset.prerendered != null
+        ? (host.querySelector(".diagram__figure")?.innerHTML ?? null)
+        : null;
     host.replaceChildren();
-    render(h(D2Slideshow, { slides }), host);
+    const salts = slides.map((slide) => d2Salt(slide, seen));
+    if (first != null) svgCache.set(salts[0]!, first);
+    render(h(D2Slideshow, { slides, salts }), host);
     count += 1;
   }
   for (const element of root.querySelectorAll("div.frame-slideshow")) {
@@ -134,29 +171,58 @@ function MermaidCard({ source }: { source: string }) {
   );
 }
 
-/** A single ```d2 fence: raw source → SVG via the lazy `@diagram` island, rendered on the CLIENT
- *  at mount (each diagram its own task — concurrent, and off the parse-time path, so the
- *  multi-MB d2 WASM never blocks prose). Mirrors `MermaidCard`. */
-function D2Card({ source }: { source: string }) {
+/**
+ * A single ```d2 fence. Three ways its figure arrives, cheapest first: already server-rendered
+ * (`prerendered` — the card only wires up Enlarge), already compiled this session (`svgCache`),
+ * or compiled here on approach.
+ */
+function D2Card({
+  source,
+  salt,
+  host,
+  prerendered,
+}: {
+  source: string;
+  salt: string;
+  host: HTMLElement;
+  prerendered: string | null;
+}) {
   const figureRef = useRef<HTMLDivElement>(null);
-  const [svgHtml, setSvgHtml] = useState<string | null>(null);
+  const [svgHtml, setSvgHtml] = useState<string | null>(prerendered ?? svgCache.get(salt) ?? null);
   const [failed, setFailed] = useState<string | null>(null);
+  const [near, setNear] = useState(false);
   const ran = useRef(false);
 
+  // Paint whatever is known — at mount for a server-rendered or cached figure, later for a
+  // freshly compiled one.
   useEffect(() => {
-    if (ran.current) return;
+    if (svgHtml != null && figureRef.current) figureRef.current.innerHTML = svgHtml;
+  }, [svgHtml]);
+
+  // Nothing compiles until the block nears the viewport. One worker serves every diagram on the
+  // page in turn, so a reader's first figure must not queue behind the last one in the document.
+  // A figure that arrived with the HTML never arms this at all.
+  useEffect(() => {
+    if (svgHtml != null) return;
+    const watch = watchNear(host, (isNear) => {
+      if (isNear) setNear(true);
+    });
+    return () => watch?.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!near || ran.current || svgHtml != null) return;
     ran.current = true;
     void (async () => {
       try {
-        const { renderD2Source } = await import("../../lib/islands/diagram/d2");
-        const svg = await renderD2Source(source);
-        if (figureRef.current) figureRef.current.innerHTML = svg;
+        const svg = await renderD2Source(source, salt);
+        svgCache.set(salt, svg);
         setSvgHtml(svg);
       } catch (error) {
         setFailed(errorMessage(error));
       }
     })();
-  }, []);
+  }, [near]);
 
   return (
     <>
@@ -177,22 +243,21 @@ function D2Card({ source }: { source: string }) {
   );
 }
 
-/** A run of adjacent d2 fences: one figure + the step transport (‹ i / n ›). Each slide's SVG
- *  renders from source via the lazy island the first time its step is shown, then is memoized
- *  per index so stepping back is instant. */
-function D2Slideshow({ slides }: { slides: string[] }) {
+/** A run of adjacent d2 fences: one figure + the step transport (‹ i / n ›). A slide compiles the
+ *  first time its step is shown and lands in `svgCache`, so stepping back is instant — and so is
+ *  re-opening the same slideshow after the pane around it re-renders. */
+function D2Slideshow({ slides, salts }: { slides: string[]; salts: string[] }) {
   const count = slides.length;
   const [idx, setIdx] = useState(0);
   const [svgHtml, setSvgHtml] = useState<string | null>(null);
   const [bump, setBump] = useState(0);
   const figureRef = useRef<HTMLDivElement>(null);
-  const rendered = useRef<(string | null)[]>(new Array(count).fill(null) as (string | null)[]);
 
   useEffect(() => {
     const i = Math.min(idx, count - 1);
     const node = figureRef.current;
     if (!node) return;
-    const cached = rendered.current[i];
+    const cached = svgCache.get(salts[i]!);
     if (cached != null) {
       node.innerHTML = cached;
       setSvgHtml(cached);
@@ -200,9 +265,8 @@ function D2Slideshow({ slides }: { slides: string[] }) {
     }
     void (async () => {
       try {
-        const { renderD2Source } = await import("../../lib/islands/diagram/d2");
-        const svg = await renderD2Source(slides[i]!);
-        rendered.current[i] = svg;
+        const svg = await renderD2Source(slides[i]!, salts[i]!);
+        svgCache.set(salts[i]!, svg);
         setBump((b) => b + 1); // re-run this effect to paint the freshly-cached slide
       } catch {
         // A malformed slide fails quietly here — the slideshow simply keeps showing whatever it

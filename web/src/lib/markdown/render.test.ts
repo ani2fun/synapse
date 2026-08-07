@@ -2,42 +2,13 @@
 // core renders as safe HTML, fenced code is shiki-highlighted, and a run-fence group (one or
 // more adjacent ```lang run fences, + an optional ```testcases JSON fence) becomes ONE
 // `workbench` placeholder the client mounts an editor into. A ```mermaid fence becomes a
-// `.mermaid-block` diagram placeholder the client renders as SVG. ```d2 and ```viz widget
-// fences become their own source-carrying placeholders too (ADR-S015).
-import { describe, expect, it, vi } from "vitest";
+// `.mermaid-block` diagram placeholder the client renders as SVG, and ```viz widget fences become
+// their own source-carrying placeholders (ADR-S015). ```d2 has its own spec — render.d2.test.ts —
+// because it is the one family whose output depends on where the pipeline runs.
+import { describe, expect, it } from "vitest";
 
 import { renderLesson } from "./render";
-
-// d2 does not render at parse time (prose-first design): the pipeline emits a SOURCE-carrying
-// placeholder and the client renders it at mount. This mock proves the pipeline never touches
-// the d2 WASM — `compileCalls` must stay 0 on every render, including d2 pages.
-const d2Spy = vi.hoisted(() => ({ compileCalls: 0 }));
-vi.mock("@terrastruct/d2", () => ({
-  D2: class {
-    async compile(src: string) {
-      d2Spy.compileCalls += 1;
-      return { diagram: { src } };
-    }
-    async render(d: { src: string }, opts: { salt: string }) {
-      return `<svg class="d2" data-salt="${opts.salt}">${d.src}</svg>`;
-    }
-  },
-}));
-
-// Pull a data attribute back out of a workbench placeholder, the way the client does:
-// getAttribute() (which decodes HTML entities — node here has no DOM, so mirror it) → decodeURIComponent.
-function decodeAttr(html: string, name: string): string | undefined {
-  const encoded = html.match(new RegExp(`${name}="([^"]*)"`))?.[1];
-  if (encoded === undefined) return undefined;
-  const attr = encoded
-    .replace(/&#x27;/g, "'")
-    .replace(/&#39;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&"); // last — un-escapes any remaining &-sequences without double-decoding
-  return decodeURIComponent(attr);
-}
+import { decodeAttr } from "./testkit";
 
 function workbenchVariants(html: string): { lang: string; source: string; viz?: string }[] {
   const raw = decodeAttr(html, "data-variants");
@@ -449,38 +420,6 @@ describe("mermaid fences → diagram placeholder", () => {
     const html = await renderLesson("```text\nflowchart LR\n  A --> B\n```");
     expect(html).not.toContain("mermaid-block");
     expect(html).toContain("<pre"); // stays a plain highlighted block
-  });
-});
-
-describe("d2 fences → source-carrying placeholders (prose-first)", () => {
-  it("a lone ```d2 fence becomes a d2-block carrying the RAW SOURCE (no parse-time render)", async () => {
-    const html = await renderLesson("```d2\nx -> y\n```");
-    expect(html).toContain('class="d2-block"');
-    expect(decodeAttr(html, "data-source")).toBe("x -> y"); // the raw source, not an SVG
-    expect(html).not.toContain("data-svg"); // nothing was rendered at parse time
-    expect(html).not.toContain("<pre"); // the fence is replaced, not also highlighted
-    expect(html).not.toContain("d2-slides");
-    expect(d2Spy.compileCalls).toBe(0); // the pipeline never touched the d2 WASM
-  });
-
-  it("consecutive ```d2 fences group into ONE d2-slideshow carrying each source", async () => {
-    const html = await renderLesson("```d2\na -> b\n```\n\n```d2\nc -> d\n```");
-    expect(html).toContain('class="d2-slideshow"');
-    expect(html).not.toContain("d2-block");
-    const slides = JSON.parse(decodeAttr(html, "data-slides")!) as string[];
-    expect(slides).toEqual(["a -> b", "c -> d"]);
-  });
-
-  it("a paragraph between two d2 fences breaks the group into two d2-blocks", async () => {
-    const html = await renderLesson("```d2\na -> b\n```\n\nBetween.\n\n```d2\nc -> d\n```");
-    expect(html).not.toContain("d2-slides");
-    expect(html.match(/class="d2-block"/g) ?? []).toHaveLength(2);
-  });
-
-  it("never imports/invokes d2 at parse time — not even on a d2-heavy document", async () => {
-    const before = d2Spy.compileCalls;
-    await renderLesson("```d2\nx -> y\n```\n\n```mermaid\nflowchart LR\n A-->B\n```");
-    expect(d2Spy.compileCalls).toBe(before); // client-side render only; parse-time stays clean
   });
 });
 

@@ -47,7 +47,20 @@ export default defineConfig({
         "rehype-stringify",
         "shiki",
         "mdast-util-to-hast",
+        // The diagram engines. Both are reached only through `import()` and both are large, so
+        // discovering them mid-session is exactly the reload this list exists to prevent — for
+        // d2 it lands the moment a lesson's first diagram renders.
+        "@terrastruct/d2",
+        "mermaid",
       ],
+    },
+    ssr: {
+      // KEEP d2 EXTERNAL. The node build locates `d2.wasm` on disk relative to
+      // `import.meta.url`; bundled into the SSR output that path resolves against the bundle
+      // instead of the package, the read fails, and — because a failed pre-render falls back to
+      // the client renderer — the page still works, just slowly. The failure is invisible, so it
+      // has to be prevented rather than caught.
+      external: ["@terrastruct/d2"],
     },
     resolve: {
       dedupe: ["preact", "preact/hooks"],
