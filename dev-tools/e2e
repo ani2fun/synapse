@@ -37,11 +37,24 @@ if [[ ! -f web/dist/server/entry.mjs ]]; then
   echo "→ no web/dist — building the Astro app"
   (cd web && npm run build)
 fi
-reclaim "$SIDECAR_PORT" "astro-sidecar"
-echo "→ starting the sidecar on :$SIDECAR_PORT"
-# Same pipe hygiene as the server below: log to a file, one PID to clean up.
-HOST=127.0.0.1 PORT="$SIDECAR_PORT" node web/dist/server/entry.mjs >/tmp/e2e-sidecar.log 2>&1 &
-SIDECAR_PID=$!
+# d2 pre-rendering is OFF in prod (it peaks the sidecar at 5.2 GB against a 256Mi limit), so the
+# main pass runs the shape the cluster runs — otherwise this suite, and the budget it measures,
+# describe a configuration nobody serves. The feature's own pass follows at the end with it on.
+export SYNAPSE_D2_PRERENDER="${SYNAPSE_D2_PRERENDER:-off}"
+
+start_sidecar() {
+  reclaim "$SIDECAR_PORT" "astro-sidecar"
+  echo "→ starting the sidecar on :$SIDECAR_PORT (d2 pre-render: $SYNAPSE_D2_PRERENDER)"
+  # Same pipe hygiene as the server below: log to a file, one PID to clean up.
+  HOST=127.0.0.1 PORT="$SIDECAR_PORT" node web/dist/server/entry.mjs >/tmp/e2e-sidecar.log 2>&1 &
+  SIDECAR_PID=$!
+  for _ in $(seq 1 60); do
+    curl -sf "http://127.0.0.1:$SIDECAR_PORT/" >/dev/null && return 0
+    sleep 1
+  done
+  echo "✗ the sidecar never answered — its log:"; sed 's/^/    /' /tmp/e2e-sidecar.log; return 1
+}
+start_sidecar
 export SYNAPSE_ASTRO_URL="http://127.0.0.1:$SIDECAR_PORT"
 
 # Compile FIRST, in the foreground. `cargo run` compiles in the BACKGROUND while the health
@@ -107,4 +120,28 @@ if [[ $PW_STATUS -ne 0 ]]; then
 fi
 
 # ── the per-page budget — while the stack is still up ──
+# Measured in the prod shape, so the recorded numbers are the ones readers actually pay.
 dev-tools/check-page-budget.sh "http://localhost:$SYNAPSE_PORT"
+
+# ── the d2 pre-render pass — the one mode prod does NOT run ────────────────────
+# The feature is disabled in the cluster but the code ships, so without this it would rot
+# unnoticed until someone re-enabled it. Only its own spec re-runs, against a sidecar restarted
+# with the switch on; the same file asserts the fallback shape in the main pass above, so both
+# modes are covered and neither can silently become the other.
+# Skipped when the caller filtered the suite — `dev-tools/e2e frames` means "just that one".
+if [[ $# -eq 0 ]]; then
+  echo
+  echo "→ re-running the d2 spec with pre-rendering ON"
+  kill "$SIDECAR_PID" 2>/dev/null || true
+  wait "$SIDECAR_PID" 2>/dev/null || true
+  export SYNAPSE_D2_PRERENDER=on
+  start_sidecar
+  set +e
+  (cd e2e && npx playwright test d2-prerender)
+  PRERENDER_STATUS=$?
+  set -e
+  if [[ $PRERENDER_STATUS -ne 0 ]]; then
+    echo "  sidecar log (tail):"; tail -20 /tmp/e2e-sidecar.log | sed 's/^/    /' || true
+    exit $PRERENDER_STATUS
+  fi
+fi

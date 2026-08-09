@@ -7,16 +7,17 @@
 # they stay out of the sum BY CONSTRUCTION, not by glob.
 #
 # Four page kinds, one budget each: the landing, a prose lesson, a problem page, the blog list.
-# Measured against fixture content: landing 45 · lesson 61 · problem 53 · blog 15 KiB gz.
+# Measured against fixture content: landing 45 · lesson 54 · problem 53 · blog 15 KiB gz.
 # These drift with ordinary feature work (the reader redesign, the long-form stylesheet and the
 # authoring context each moved them a KiB or two) — re-measure when you touch this line rather
 # than assuming a rise is a regression. The signal is the 250 KiB cap, not the last recorded digit.
 #
-# The lesson number carries something the others do not: server-drawn ```d2 figures are INLINE
-# SVG in the document, so a d2 fence costs this gate ~4-5 KiB gz where it used to cost nothing
-# (it bought the reader a ~5.9 MB engine download instead). Two fixture figures account for the
-# 52 → 61 step. A diagram-dense lesson is therefore a real weight, and a fixture page is the only
-# place it is measured — size that deliberately if more fences are added here.
+# Measured in the PROD shape, which `dev-tools/e2e` now runs by default: d2 pre-rendering is off
+# in the cluster, so a ```d2 fence ships as a source placeholder and costs this gate almost
+# nothing. Turn it on and the lesson jumps to ~61 KiB — server-drawn figures are inline SVG, about
+# 4-5 KiB gz each — so if that ever becomes the deployed shape, re-measure before reading the rise
+# as a regression. A diagram-dense lesson would be a real weight, and a fixture page is the only
+# place it is measured at all.
 # Budget 250 KiB: generous headroom over the heaviest page (~5×). If a page ever approaches this
 # budget, something structural regressed (an island went eager); tighten, don't raise.
 #
