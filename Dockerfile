@@ -52,33 +52,18 @@ RUN bash dev-tools/build-viz-wasm.sh release
 # the single source of truth.
 RUN cd web && npm ci --no-audit --no-fund && npm run build && npm prune --omit=dev
 
-# Trim the PROD node_modules that ships. monaco-editor and mermaid go entirely: they are
-# browser-only lazy islands, already bundled into dist/client's hashed chunks and never imported
-# at SSR time. The standalone server's externalised imports were enumerated (grep of dist/server's
-# bare specifiers) and name neither; the CI lesson-page boot check (it exercises shiki/remark)
-# catches a future Astro version that starts externalizing one, turning silent bloat into a loud
-# ERR_MODULE_NOT_FOUND.
+# Drop the three heaviest deps (~238 MB) from the PROD node_modules that ships: monaco-editor,
+# mermaid and @terrastruct/d2 are browser-only lazy islands — already bundled into dist/client's
+# hashed chunks, never imported at SSR time. The standalone server's externalised imports were
+# enumerated (grep of dist/server's bare specifiers) and name NONE of them; the CI lesson-page
+# boot check (it exercises shiki/remark) catches a future Astro version that starts externalizing
+# one, turning silent bloat into a loud ERR_MODULE_NOT_FOUND.
 #
-# @terrastruct/d2 is the exception, because SSR pre-renders ```d2 fences to SVG: it is imported at
-# runtime and reads `dist/node-esm/d2.wasm` OFF DISK. So only the builds nothing loads are dropped
-# — `dist/browser` (already inside dist/client's chunk) and `dist/node-cjs` (this package is
-# type: module) — which is ~33 MB of the 57 MB, leaving the ~25 MB node-esm tree.
-RUN rm -rf web/node_modules/monaco-editor web/node_modules/mermaid \
-      web/node_modules/@terrastruct/d2/dist/browser \
-      web/node_modules/@terrastruct/d2/dist/node-cjs
-
-# Prove the trimmed tree can still draw a diagram. Nothing else in CI sees the PRUNED
-# node_modules — the e2e boots entry.mjs against the full dev install — and a d2 that fails to
-# load does NOT break a page: the pre-render falls back to the client renderer, so an
-# over-aggressive prune would ship as "diagrams got slow again" with no error anywhere. This is
-# the one stage that can see the tree it is checking, so it fails the build here instead.
-RUN cd web && node -e "import('@terrastruct/d2').then(async ({D2}) => { \
-      const d2 = new D2(); \
-      const svg = await d2.render((await d2.compile('a -> b')).diagram); \
-      if (!svg.includes('<svg')) throw new Error('d2 rendered no SVG'); \
-      console.log('d2 engine OK in pruned node_modules'); \
-      process.exit(0); \
-    }).catch(e => { console.error('PRUNED d2 UNUSABLE:', e.message); process.exit(1); })"
+# d2 belongs in that list because the server no longer COMPILES anything: a content repo draws its
+# ```d2 fences in CI (dev-tools/render-d2.mjs) and commits the SVG, and SSR only reads the file
+# back out of `_media/`. The engine that would need this package runs in the reader's browser, for
+# the figures nobody drew ahead of time, and that copy lives in dist/client.
+RUN rm -rf web/node_modules/monaco-editor web/node_modules/mermaid web/node_modules/@terrastruct
 
 # ──────────────────────────────────────────────────────────────────────────────
 

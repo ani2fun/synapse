@@ -22,9 +22,26 @@ import * as log from "../../log";
 type D2Module = typeof import("@terrastruct/d2");
 type D2Instance = InstanceType<D2Module["D2"]>;
 
+// The two halves of the render contract. `dev-tools/render-d2.mjs` draws a content repo's
+// diagrams ahead of time and must produce byte-identical output, or every lookup misses and the
+// page quietly falls back to compiling here — so both are exported and pinned by a test.
+
 /** dagre or elk. Both ship in the worker — it evals `elk.js` at init either way, so the choice
  *  costs nothing in bundle size or startup, and measures the same on this catalog's diagrams. */
-const LAYOUT = "elk";
+export const LAYOUT = "elk";
+
+/**
+ * Always the light neutral theme (themeID 0), independent of the reader's page theme: authored
+ * diagrams color nodes with a fixed *light* pastel palette and never set a label text color, so
+ * the theme default supplies it — a dark theme would paint light text on light fills and become
+ * unreadable. Light-theme text reads on every fill; the SVG sits on a light "card" (diagrams.css).
+ */
+export const d2RenderOptions = (salt: string) => ({
+  themeID: 0, // neutral default — dark text, reads on the authored light fills
+  pad: 20,
+  noXMLTag: true, // embedding into HTML, not writing a file
+  salt,
+});
 
 // ── THE SHARED INSTANCE ──────────────────────────────────────────
 
@@ -39,17 +56,6 @@ function d2(): Promise<D2Instance> {
     });
   }
   return instance;
-}
-
-/**
- * Boot the worker without rendering anything.
- *
- * Under SSR the first lesson request would otherwise pay worker start plus WASM instantiation
- * before its first diagram; calling this at module init moves that cost off the request path.
- * Safe to call repeatedly — the instance is minted once.
- */
-export function warmD2(): void {
-  void d2();
 }
 
 // ── THE QUEUE ────────────────────────────────────────────────────
@@ -87,12 +93,10 @@ export function d2Salt(source: string, seen: Map<string, number>): string {
 /**
  * Compile + render one d2 diagram to an SVG string.
  *
- * Always the light neutral theme (themeID 0), independent of the reader's page theme: authored
- * diagrams color nodes with a fixed *light* pastel palette and never set a label text color, so
- * the theme default supplies it — a dark theme would paint light text on light fills and become
- * unreadable. Light-theme text reads on every fill; the SVG sits on a light "card"
- * (diagrams.css). Rejects on a malformed diagram so the caller can show a visible
- * `.diagram-error` card, never a blank figure.
+ * The reader reaches this only for figures nobody drew ahead of time — a fence newer than its
+ * content repo's last CI run, a repo with no workflow, a slideshow's later slides, the authoring
+ * preview. Rejects on a malformed diagram so the caller can show a visible `.diagram-error` card,
+ * never a blank figure.
  *
  * `compile` and `render` run as ONE queued unit: they are two round-trips to a worker that
  * serves one request at a time, and interleaving another diagram between them is exactly the
@@ -112,11 +116,6 @@ export async function renderD2Source(source: string, salt: string): Promise<stri
       options: { layout: typeof LAYOUT },
     ) => Promise<{ diagram: Parameters<D2Instance["render"]>[0] }>;
     const result = await compile(source, { layout: LAYOUT });
-    return engine.render(result.diagram, {
-      themeID: 0, // neutral default — dark text, reads on the authored light fills
-      pad: 20,
-      noXMLTag: true, // embedding into HTML, not writing a file
-      salt,
-    });
+    return engine.render(result.diagram, d2RenderOptions(salt));
   });
 }
