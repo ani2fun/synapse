@@ -11,6 +11,7 @@ ADR superseding it, never by silent edits.
 | [RS004](rs004-content-contribution.md) | Content edits are proposed in-app and land as pull requests | accepted |
 | [RS005](rs005-multi-repo-content.md) | The library is assembled from many content repositories | accepted |
 | [RS006](rs006-simulator-embeds.md) | Simulators are static bundles content repositories ship and lessons frame | accepted |
+| [RS007](rs007-ahead-of-time-d2.md) | D2 figures are drawn in the content repository's CI, not at read time | accepted |
 
 For current behaviour, read the code and its tests — ADRs record the reasoning behind the shape,
 not a reference manual. Operational architecture (deployment, the scaling ladder) lives in
