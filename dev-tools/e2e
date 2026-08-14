@@ -37,9 +37,11 @@ if [[ ! -f web/dist/server/entry.mjs ]]; then
   echo "→ no web/dist — building the Astro app"
   (cd web && npm run build)
 fi
-# d2 pre-rendering is OFF in prod (it peaks the sidecar at 5.2 GB against a 256Mi limit), so the
-# main pass runs the shape the cluster runs — otherwise this suite, and the budget it measures,
-# describe a configuration nobody serves. The feature's own pass follows at the end with it on.
+# The cluster runs pre-rendering ON (ani2fun/infra deployment.yaml) — since it became a FILE
+# LOOKUP rather than a compile, it is the cheap path and the whole point. The main pass runs it
+# off anyway, because that is the FALLBACK every un-drawn fence lands in and it is the heavier of
+# the two: it makes the budget below the worst case a reader can be served rather than the best.
+# The prod shape follows at the end, in the feature's own pass.
 export SYNAPSE_D2_PRERENDER="${SYNAPSE_D2_PRERENDER:-off}"
 
 start_sidecar() {
@@ -120,12 +122,13 @@ if [[ $PW_STATUS -ne 0 ]]; then
 fi
 
 # ── the per-page budget — while the stack is still up ──
-# Measured in the prod shape, so the recorded numbers are the ones readers actually pay.
+# Measured with pre-rendering OFF, so the recorded numbers are the most a reader can be asked to
+# pay: an un-drawn fence falls back here, and the fallback ships the engine.
 dev-tools/check-page-budget.sh "http://localhost:$SYNAPSE_PORT"
 
-# ── the d2 pre-render pass — the one mode prod does NOT run ────────────────────
-# The feature is disabled in the cluster but the code ships, so without this it would rot
-# unnoticed until someone re-enabled it. Only its own spec re-runs, against a sidecar restarted
+# ── the d2 pre-render pass — the shape the cluster serves ─────────────────────
+# The main pass above ran the fallback, so without this the path the cluster actually serves
+# would never be exercised at all. Only its own spec re-runs, against a sidecar restarted
 # with the switch on; the same file asserts the fallback shape in the main pass above, so both
 # modes are covered and neither can silently become the other.
 # Skipped when the caller filtered the suite — `dev-tools/e2e frames` means "just that one".

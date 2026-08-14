@@ -134,8 +134,9 @@ commit must turn it off first. This is recorded beside the variable in `ani2fun/
   repository without it degrades to client rendering, correctly and silently.
 - **Failure is invisible by construction**, so it is gated rather than watched:
   `e2e/tests/d2-prerender.spec.ts` asserts the SVG is in the response *body* and that no asset
-  over 2 MB is fetched, and it asserts **both** modes — the suite's main pass runs the prod shape
-  and re-runs that file with the lookup on, each checking the other's markers are absent. The
+  over 2 MB is fetched, and it asserts **both** modes — the suite's main pass runs the fallback,
+  which is where the budget is measured, and re-runs that file with the lookup on, which is what
+  the cluster serves; each checks the other's markers are absent. The
   sidecar logs `d2: N/M figure(s) inlined from _media/d2` and warns on every fallback.
 - **Rendering is deterministic across machines** — verified by deleting a CI-drawn figure,
   redrawing it locally, and comparing bytes. It has to be: the hash keys the *source*, so a

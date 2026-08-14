@@ -3,10 +3,11 @@ import { expect, test } from "@playwright/test";
 /**
  * Where a lone ```d2 fence is drawn, asserted against WHICHEVER mode the stack is running.
  *
- * Both modes ship. Production disables pre-rendering — one 23-diagram lesson peaks the sidecar
- * at 5.2 GB against a 256Mi limit — so `dev-tools/e2e` runs its main pass with the switch off,
- * the shape the cluster serves, and re-runs this file alone with it on so the feature cannot rot
- * while it waits for somewhere to run.
+ * Both modes ship, and both are reached in production. The cluster runs pre-rendering ON — it is
+ * a file lookup, not a compile — but every fence CI has not drawn yet falls back to the client,
+ * so the fallback is not a hypothetical configuration. `dev-tools/e2e` runs its main pass with
+ * the switch off, measuring the budget against that heavier path, and re-runs this file alone
+ * with it on, which is what the cluster serves.
  *
  * The point of splitting it this way: each mode asserts the other's markers are ABSENT. A spec
  * that only checked the happy path would stay green if pre-rendering silently stopped — which is
@@ -41,7 +42,7 @@ function boardsTag(body: string): string {
 }
 
 test.describe("server-drawn (SYNAPSE_D2_PRERENDER=on)", () => {
-  test.skip(!PRERENDER, "stack is running the prod shape, with pre-rendering off");
+  test.skip(!PRERENDER, "stack is running the fallback, with pre-rendering off");
 
   test("a lone d2 fence arrives as SVG in the HTML, not as source for the client", async ({
     request,
@@ -115,7 +116,9 @@ test.describe("server-drawn (SYNAPSE_D2_PRERENDER=on)", () => {
     await expect(card.locator(".boards-bar__here")).toHaveText("Deeper");
 
     // Shareable, but the page's own Back is untouched — the diagram never pushes history.
-    expect(new URL(page.url()).searchParams.get("board")).toBe("deeper");
+    // RETRYING, because the URL is written in an effect and therefore lands a tick after the
+    // breadcrumb above: reading page.url() synchronously races a frame it has no reason to win.
+    await expect(page).toHaveURL(/[?&]board=deeper/);
     await page.waitForLoadState("networkidle");
     expect(heavy).toEqual([]);
   });
@@ -135,7 +138,7 @@ test.describe("server-drawn (SYNAPSE_D2_PRERENDER=on)", () => {
     await expect(card.locator(".boards-bar__here")).toHaveText("Context");
 
     // The root board drops the parameter, so an unopened diagram has the bare lesson URL.
-    expect(new URL(page.url()).searchParams.get("board")).toBeNull();
+    await expect(page).not.toHaveURL(/[?&]board=/);
   });
 
   test("a deep link opens the board it names", async ({ page }) => {
@@ -175,7 +178,7 @@ test.describe("server-drawn (SYNAPSE_D2_PRERENDER=on)", () => {
   });
 });
 
-test.describe("client-drawn (the prod shape)", () => {
+test.describe("client-drawn (the fallback)", () => {
   test.skip(PRERENDER, "stack is running with pre-rendering on");
 
   test("a lone d2 fence ships its SOURCE, and no figure is drawn server-side", async ({
