@@ -20,6 +20,7 @@ import rehypePrettyCode from "rehype-pretty-code";
 import { createCssVariablesTheme, type ThemeRegistrationRaw } from "shiki";
 import rehypeStringify from "rehype-stringify";
 
+import { isBoardsFence } from "../islands/diagram/boards";
 import { d2Salt } from "../islands/diagram/d2";
 import { groupFrameRuns } from "./frameRun";
 
@@ -203,6 +204,20 @@ function html(value: string): RootContent {
 }
 
 /**
+ * Which lesson is being rendered, for the vocabularies whose artifacts are CO-LOCATED with it.
+ *
+ * Only ```d2 boards needs this today: its boards are drawn into the lesson's own `_d2/` sidecar,
+ * so they cannot be addressed without knowing the lesson. Everything else in this pipeline is
+ * content-addressed and renders the same wherever it appears — which is why the parameter is
+ * optional, and why the blog, the authoring preview and the practice panes pass nothing and get
+ * the client-rendered floor.
+ */
+export interface RenderContext {
+  /** The lesson's directory-mirror path, no leading slash — what `/api/synapse/d2` expects. */
+  lessonPath: string;
+}
+
+/**
  * The frame-run grouping pre-pass. Returns a synchronous transformer that collapses a run of
  * consecutive `<caption> — frame i of N` images into ONE stepping placeholder and consumes the
  * `// Interactive Diagram (N frames): …` / `// Diagram: …` line above it into the caption. The
@@ -218,6 +233,11 @@ function frameSequenceTransform() {
 const isD2Fence = (node: RootContent): node is Code =>
   node.type === "code" && fenceLang(node as Code) === "d2";
 
+// A ```d2 boards fence is one source, a TREE of boards, and a viewer that walks between them.
+// Its figures live beside the lesson in `_d2/<name>/` rather than in the content-addressed pool,
+// so it needs the lesson's identity and never joins a slideshow run — `isBoardsFence` (shared
+// with the CI renderer) reads the marker off the fence's info string.
+
 /**
  * The d2 pre-pass: group adjacent fences, then draw what the server can.
  *
@@ -230,7 +250,7 @@ const isD2Fence = (node: RootContent): node is Code =>
  * Slideshows stay client-side on purpose: only the first slide is ever visible, so inlining all
  * N would pay for figures nobody has stepped to yet.
  */
-function d2Transform() {
+function d2Transform(ctx?: RenderContext) {
   return async (tree: Root): Promise<void> => {
     const kids = tree.children;
     if (!kids.some(isD2Fence)) return;
@@ -245,11 +265,20 @@ function d2Transform() {
     const out: RootContent[] = [];
     let pending: string[] = []; // consecutive d2 SOURCES awaiting grouping
 
-    const placeholder = (source: string) =>
-      `<div class="d2-block" data-source="${encodeURIComponent(source)}"></div>`;
+    // Which d2 fence each figure came from, counted across the whole document. It is what the
+    // Edit affordance points at: a DRAWN block ships no source (nothing may recompile it) and d2
+    // hashes its salt into its own element ids, so without this there is nothing in the DOM to
+    // say which fence a figure is. An ordinal rather than a content hash, because two identical
+    // diagrams in one lesson share a hash and the position is what tells them apart.
+    let fenceAt = 0;
+    let pendingAt = 0;
+
+    const placeholder = (source: string, at: number) =>
+      `<div class="d2-block" data-fence-at="${at}" data-source="${encodeURIComponent(source)}"></div>`;
 
     const flush = async () => {
       if (pending.length === 0) return;
+      const at = pendingAt;
       // `d2-slideshow` (mine) is distinct from the authored legacy `<div class="d2-slides">` wrapper the
       // content puts around a slide run — that wrapper is neutralized in CSS (display: contents).
       if (pending.length > 1) {
@@ -261,7 +290,11 @@ function d2Transform() {
         // all N would ship figures nobody has stepped to — but inlining none means the engine
         // downloads on page load anyway, since the transport paints slide 0 at mount.
         const first = session ? await session.render(slides[0]!, slideSalts[0]!) : null;
-        const attrs = `class="d2-slideshow" data-slides="${encodeURIComponent(JSON.stringify(slides))}"`;
+        // `data-fence-count` because a run is several fences behind one card: editing it means
+        // replacing all of them, not the one the reader happens to be looking at.
+        const attrs =
+          `class="d2-slideshow" data-fence-at="${at}" data-fence-count="${slides.length}"` +
+          ` data-slides="${encodeURIComponent(JSON.stringify(slides))}"`;
         out.push(
           html(
             first == null
@@ -280,16 +313,69 @@ function d2Transform() {
       out.push(
         html(
           svg == null
-            ? placeholder(source)
-            : `<div class="d2-block" data-prerendered="1"><div class="diagram not-prose"><div class="diagram__figure">${svg}</div></div></div>`,
+            ? placeholder(source, at)
+            : `<div class="d2-block" data-fence-at="${at}" data-prerendered="1">` +
+              `<div class="diagram not-prose"><div class="diagram__figure">${svg}</div></div></div>`,
         ),
       );
       pending = [];
     };
 
+    /**
+     * A walkthrough: one placeholder carrying the board graph, with the root board already
+     * painted when the sidecar has been drawn.
+     *
+     * The class is chosen by the FENCE, never by whether the lookup succeeded. A miss here — a
+     * satellite with no workflow, a fence newer than its repo's last CI run, the authoring
+     * preview, which has no lesson at all — still has to mount the board viewer, or every one of
+     * those surfaces silently falls back to a single root board with dead links, which is exactly
+     * the bug this feature exists to fix.
+     */
+    const walkthrough = async (node: Code, at: number): Promise<void> => {
+      const source = node.value;
+      const meta = node.meta ?? "";
+      const set =
+        session && ctx?.lessonPath ? await session.renderBoards(source, meta, ctx.lessonPath) : null;
+      if (set == null) {
+        const attrs = [
+          `class="d2-boards"`,
+          `data-fence-at="${at}"`,
+          `data-source="${encodeURIComponent(source)}"`,
+          `data-meta="${encodeURIComponent(meta)}"`,
+        ];
+        out.push(html(`<div ${attrs.join(" ")}></div>`));
+        return;
+      }
+      // `data-source` is dropped on a hit for the same reason a drawn `.d2-block` drops it:
+      // nothing may recompile this, and re-sending the source would be dead weight beside the SVG.
+      const attrs = [
+        `class="d2-boards"`,
+        `data-fence-at="${at}"`,
+        `data-prerendered="1"`,
+        `data-boards="${encodeURIComponent(JSON.stringify(set.manifest))}"`,
+        `data-fence="${encodeURIComponent(set.fence)}"`,
+        `data-lesson="${encodeURIComponent(ctx!.lessonPath)}"`,
+      ];
+      out.push(
+        html(
+          `<div ${attrs.join(" ")}><div class="diagram not-prose">` +
+            `<div class="diagram__figure">${set.rootSvg}</div></div></div>`,
+        ),
+      );
+    };
+
     for (const node of kids) {
       if (isD2Fence(node)) {
-        pending.push(node.value);
+        if (isBoardsFence(node.meta)) {
+          // A walkthrough is never a slide: it flushes the run on both sides and stands alone.
+          await flush();
+          await walkthrough(node, fenceAt);
+          fenceAt += 1;
+        } else {
+          if (pending.length === 0) pendingAt = fenceAt;
+          pending.push(node.value);
+          fenceAt += 1;
+        }
       } else {
         await flush();
         out.push(node);
@@ -349,11 +435,11 @@ function d2Transform() {
  * a Promise boundary via dynamic import, so the contract stays stable when
  * async plugins (katex, mermaid) arrive later.
  */
-export async function renderLesson(raw: string): Promise<string> {
+export async function renderLesson(raw: string, ctx?: RenderContext): Promise<string> {
   const file = await unified()
     .use(remarkParse)
     .use(remarkGfm)
-    .use(d2Transform) // parse-time d2 → SVG placeholders (before rehype; no-op without a d2 fence)
+    .use(d2Transform, ctx) // parse-time d2 → SVG placeholders (before rehype; no-op without a d2 fence)
     .use(frameSequenceTransform) // frame-image runs → ONE stepping figure (no-op without images)
     .use(remarkRehype, {
       allowDangerousHtml: true,

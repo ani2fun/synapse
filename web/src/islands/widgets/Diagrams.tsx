@@ -5,14 +5,18 @@
  * is only adopted here. Client-side d2 compiles on approach and one at a time — the renderer
  * holds a single worker — so the figure a reader is looking at is never queued behind the rest
  * of the document. Every rendered figure gets the Enlarge affordance → the near-fullscreen zoom
- * overlay (wheel zoom · drag pan · − ⟲ + controls). House rule: the diagram chrome — Enlarge on
- * the card AND Close in the overlay — sits top-LEFT (LikeC4 owns top-right, see C4Embed.tsx).
+ * overlay, which lives in `Zoom.tsx` because `D2Boards.tsx` shares it.
  *
  * `.frame-slideshow` is the one family that renders no source: it carries the URLs of a run of
  * authored stills (lib/markdown/frameRun.ts) and steps through them one <img> at a time.
  */
-import { render, h, type ComponentChildren } from "preact";
+import { render, h } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
+
+import { D2BoardsHost } from "./D2Boards";
+import { DiagramEdit } from "./DiagramEdit";
+import { ZoomAffordance } from "./Zoom";
+import { decodeManifest } from "../../lib/islands/diagram/boards";
 
 // Statically imported: this module is small and holds the salt + queue only. The multi-MB WASM
 // it renders through stays behind a dynamic `import()` inside it, so nothing heavy lands here.
@@ -42,6 +46,31 @@ function decodedAttr(element: Element, name: string): string | null {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** The Edit pill for a figure, or nothing when the document did not say which fence it is. */
+function editPill(fenceAt?: number, fenceCount?: number) {
+  return fenceAt == null ? undefined : h(DiagramEdit, { at: fenceAt, count: fenceCount ?? 1 });
+}
+
+/** Which d2 fence a figure came from, and how many it covers — what the Edit pill points at.
+ *  Absent on a document rendered without them (an older cached page, the authoring preview). */
+function fenceRef(element: Element): { fenceAt: number; fenceCount: number } | null {
+  const at = Number(element.getAttribute("data-fence-at"));
+  if (!Number.isInteger(at) || at < 0) return null;
+  const count = Number(element.getAttribute("data-fence-count"));
+  return { fenceAt: at, fenceCount: Number.isInteger(count) && count > 0 ? count : 1 };
+}
+
+/** A JSON value off a data attribute, or null — the caller validates the shape. */
+function jsonAttr(element: Element, name: string): unknown {
+  const raw = decodedAttr(element, name);
+  if (raw == null) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
 /** A JSON string array off a data attribute — a d2 run's sources, a frame run's URLs. */
@@ -90,7 +119,30 @@ export function hydrateDiagrams(root: ParentNode): number {
     host.replaceChildren();
     // Pre-rendered figures never compile, so they need no salt and must not consume one.
     const salt = prerendered != null ? "" : d2Salt(source!, seen);
-    render(h(D2Card, { source: source ?? "", salt, host, prerendered }), host);
+    render(h(D2Card, { source: source ?? "", salt, host, prerendered, ...fenceRef(element) }), host);
+    count += 1;
+  }
+  for (const element of root.querySelectorAll("div.d2-boards")) {
+    const host = element as HTMLElement;
+    // A drawn walkthrough arrives with its ROOT board already in place. Lift it out BEFORE
+    // clearing the host — `replaceChildren` would otherwise discard the very thing SSR did the
+    // work for — and hand it to the card as the board it opens on.
+    const rootSvg =
+      host.dataset.prerendered != null
+        ? (host.querySelector(".diagram__figure")?.innerHTML ?? null)
+        : null;
+    const manifest = decodeManifest(jsonAttr(element, "data-boards"));
+    const fence = decodedAttr(element, "data-fence");
+    const lessonPath = decodedAttr(element, "data-lesson");
+    const source = decodedAttr(element, "data-source");
+    const drawn =
+      manifest != null && fence != null && lessonPath != null && rootSvg != null
+        ? { manifest, fence, lessonPath, rootSvg }
+        : null;
+    const raw = source != null ? { source, meta: decodedAttr(element, "data-meta") ?? "" } : null;
+    if (drawn == null && raw == null) continue;
+    host.replaceChildren();
+    render(h(D2BoardsHost, { drawn, raw, host, ...fenceRef(element) }), host);
     count += 1;
   }
   for (const element of root.querySelectorAll("div.d2-slideshow")) {
@@ -107,7 +159,7 @@ export function hydrateDiagrams(root: ParentNode): number {
     host.replaceChildren();
     const salts = slides.map((slide) => d2Salt(slide, seen));
     if (first != null) svgCache.set(salts[0]!, first);
-    render(h(D2Slideshow, { slides, salts }), host);
+    render(h(D2Slideshow, { slides, salts, ...fenceRef(element) }), host);
     count += 1;
   }
   for (const element of root.querySelectorAll("div.frame-slideshow")) {
@@ -181,11 +233,15 @@ function D2Card({
   salt,
   host,
   prerendered,
+  fenceAt,
+  fenceCount,
 }: {
   source: string;
   salt: string;
   host: HTMLElement;
   prerendered: string | null;
+  fenceAt?: number;
+  fenceCount?: number;
 }) {
   const figureRef = useRef<HTMLDivElement>(null);
   const [svgHtml, setSvgHtml] = useState<string | null>(prerendered ?? svgCache.get(salt) ?? null);
@@ -236,7 +292,7 @@ function D2Card({
         </div>
       )}
       <div class={failed != null ? "diagram not-prose hidden" : "diagram not-prose"}>
-        <ZoomAffordance svgHtml={svgHtml} />
+        <ZoomAffordance svgHtml={svgHtml} edit={editPill(fenceAt, fenceCount)} />
         <div class="diagram__figure" ref={figureRef}></div>
       </div>
     </>
@@ -246,7 +302,17 @@ function D2Card({
 /** A run of adjacent d2 fences: one figure + the step transport (‹ i / n ›). A slide compiles the
  *  first time its step is shown and lands in `svgCache`, so stepping back is instant — and so is
  *  re-opening the same slideshow after the pane around it re-renders. */
-function D2Slideshow({ slides, salts }: { slides: string[]; salts: string[] }) {
+function D2Slideshow({
+  slides,
+  salts,
+  fenceAt,
+  fenceCount,
+}: {
+  slides: string[];
+  salts: string[];
+  fenceAt?: number;
+  fenceCount?: number;
+}) {
   const count = slides.length;
   const [idx, setIdx] = useState(0);
   const [svgHtml, setSvgHtml] = useState<string | null>(null);
@@ -297,7 +363,7 @@ function D2Slideshow({ slides, salts }: { slides: string[]; salts: string[] }) {
       tabIndex={0}
       onKeyDown={onKeyDown}
     >
-      <ZoomAffordance svgHtml={svgHtml} />
+      <ZoomAffordance svgHtml={svgHtml} edit={editPill(fenceAt, fenceCount)} />
       <div class="diagram__figure" ref={figureRef}></div>
       <div class="transport">
         <button
@@ -512,150 +578,6 @@ function FrameSlideshow({ frames, caption }: { frames: string[]; caption: string
           ›
         </button>
         <span class="transport__label" aria-hidden="true">{`${wanted + 1} / ${total}`}</span>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// THE ZOOM OVERLAY
-// Near-fullscreen light card over a scrim; wheel zoom, drag pan, − ⟲ + controls. Enlarge (card)
-// and Close (overlay) both live top-LEFT — the house corner (LikeC4 owns top-right).
-// ─────────────────────────────────────────────────────────────────────────────
-
-const ICON_MAXIMIZE = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d="M15 3h6v6"></path>
-    <path d="M9 21H3v-6"></path>
-    <path d="m21 3-7 7"></path>
-    <path d="m3 21 7-7"></path>
-  </svg>
-);
-
-const ICON_CLOSE = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <path d="M18 6 6 18"></path>
-    <path d="m6 6 12 12"></path>
-  </svg>
-);
-
-/**
- * The Enlarge pill and the overlay behind it. A renderer passes its SVG as a string; a figure
- * built from real elements (the frame slideshow) passes them as children instead. Either way the
- * pill only exists once there is something to enlarge.
- */
-function ZoomAffordance({ svgHtml, children }: { svgHtml?: string | null; children?: ComponentChildren }) {
-  const [open, setOpen] = useState(false);
-  if (svgHtml == null && children == null) return null;
-  return (
-    <>
-      <button class="diagram__zoom modal-btn" aria-label="Enlarge diagram" onClick={() => setOpen(true)}>
-        {ICON_MAXIMIZE}
-        <span>Enlarge</span>
-      </button>
-      {open && (
-        <ZoomOverlay svg={svgHtml ?? undefined} onClose={() => setOpen(false)}>
-          {children}
-        </ZoomOverlay>
-      )}
-    </>
-  );
-}
-
-function ZoomOverlay({
-  svg,
-  children,
-  onClose,
-}: {
-  svg?: string;
-  children?: ComponentChildren;
-  onClose: () => void;
-}) {
-  const [scale, setScale] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const grip = useRef<{ x: number; y: number } | null>(null);
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    const onMove = (event: PointerEvent) => {
-      const last = grip.current;
-      if (!last) return;
-      const dx = event.clientX - last.x;
-      const dy = event.clientY - last.y;
-      setPan((p) => ({ x: p.x + dx, y: p.y + dy }));
-      grip.current = { x: event.clientX, y: event.clientY };
-    };
-    const onUp = () => {
-      grip.current = null;
-    };
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-  }, [onClose]);
-
-  const zoomBy = (factor: number) => setScale((s) => Math.min(Math.max(s * factor, 0.25), 4));
-  // The pan/zoom target. An SVG string lands on this element itself rather than a wrapper, so
-  // `.diagram-zoom__figure svg` keeps binding and the flex centring is unchanged.
-  const transform = `transform: translate(${pan.x.toFixed(1)}px, ${pan.y.toFixed(1)}px) scale(${scale.toFixed(3)})`;
-
-  return (
-    <div class="diagram-zoom-scrim" onClick={onClose}>
-      <div class="diagram-zoom diagram-zoom--paper" onClick={(event) => event.stopPropagation()}>
-        <button class="diagram-zoom__close modal-btn" aria-label="Close" onClick={onClose}>
-          {ICON_CLOSE}
-          <span>Close</span>
-        </button>
-        <div class="diagram-zoom__zoomable">
-          <div
-            class="diagram-zoom__viewport"
-            onPointerDown={(event) => {
-              event.preventDefault();
-              grip.current = { x: event.clientX, y: event.clientY };
-            }}
-            onWheel={(event) => {
-              event.preventDefault();
-              zoomBy(event.deltaY < 0 ? 1.12 : 1 / 1.12);
-            }}
-          >
-            {svg != null ? (
-              <div
-                class="diagram-zoom__figure"
-                style={transform}
-                dangerouslySetInnerHTML={{ __html: svg }}
-              ></div>
-            ) : (
-              <div class="diagram-zoom__figure" style={transform}>
-                {children}
-              </div>
-            )}
-          </div>
-        </div>
-        <div class="diagram-zoom__controls">
-          <button class="diagram-zoom__ctl" aria-label="Zoom out" onClick={() => zoomBy(1 / 1.25)}>
-            −
-          </button>
-          <span class="diagram-zoom__level">{`${Math.round(scale * 100)}%`}</span>
-          <button class="diagram-zoom__ctl" aria-label="Zoom in" onClick={() => zoomBy(1.25)}>
-            +
-          </button>
-          <button
-            class="diagram-zoom__ctl"
-            aria-label="Reset zoom"
-            onClick={() => {
-              setScale(1);
-              setPan({ x: 0, y: 0 });
-            }}
-          >
-            ⟲
-          </button>
-        </div>
       </div>
     </div>
   );

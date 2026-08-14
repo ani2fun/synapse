@@ -16,6 +16,7 @@
 // continuation and both hang. `enqueue` is the precondition for sharing an instance at all, not
 // a throughput tweak layered on top of it.
 
+import { type CompiledBoard, type WalkedBoard, boardsOf, saltForBoard } from "./boards";
 import { fnv1a } from "../../hash";
 import * as log from "../../log";
 
@@ -118,4 +119,44 @@ export async function renderD2Source(source: string, salt: string): Promise<stri
     const result = await compile(source, { layout: LAYOUT });
     return engine.render(result.diagram, d2RenderOptions(salt));
   });
+}
+
+// ── WALKTHROUGHS ─────────────────────────────────────────────────
+
+/**
+ * Compile a ```d2 boards source into its board TREE, without rendering any of it.
+ *
+ * Split from rendering on purpose. A walkthrough opens on one board and the reader may never
+ * click past it, so drawing all N up front would put the whole diagram through the single-worker
+ * queue to show a fifth of it. The returned boards each carry their compiled node, so a later
+ * `renderD2Board` costs one render and no second compile.
+ *
+ * This is the FALLBACK for the reader — a fence its repo has not drawn yet — and the ordinary
+ * path for the `/d2` editor, where the source changes on every keystroke.
+ */
+export async function compileD2Boards(
+  source: string,
+  rootTitle: string | null,
+): Promise<WalkedBoard[]> {
+  const engine = await d2();
+  return enqueue(async () => {
+    const compile = engine.compile.bind(engine) as unknown as (
+      source: string,
+      options: { layout: typeof LAYOUT },
+    ) => Promise<{ diagram: CompiledBoard & Parameters<D2Instance["render"]>[0] }>;
+    const result = await compile(source, { layout: LAYOUT });
+    return boardsOf(result.diagram, rootTitle);
+  });
+}
+
+/** One board of an already-compiled walkthrough. The salt is per-board, so several boards can
+ *  sit in one document without colliding on `<defs>` ids. */
+export async function renderD2Board(board: WalkedBoard, sourceHash: string): Promise<string> {
+  const engine = await d2();
+  return enqueue(() =>
+    engine.render(
+      board.node as Parameters<D2Instance["render"]>[0],
+      d2RenderOptions(saltForBoard(sourceHash, board.id)),
+    ),
+  );
 }

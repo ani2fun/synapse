@@ -12,6 +12,7 @@ import * as api from "../../lib/api/client";
 import type { EditRequest, EditSource } from "../../lib/api/client";
 import { ApiFailure } from "../../lib/api/client";
 import * as log from "../../lib/log";
+import { CONTACT_EMAIL, EDIT_ACCESS_TEXT } from "../../lib/contact";
 import { lessonPathFromUrl } from "../../lib/catalog/path";
 import type { EditorHandle } from "../../lib/islands/editor/monaco";
 import { mountMarkdownEditor } from "../../lib/islands/editor/loader";
@@ -323,12 +324,14 @@ function Denied({ reason }: { reason: "anonymous" | "not-allowed" | "off" }) {
   return (
     <div class="edit-gate">
       <h1 class="edit-gate__title">You are not a content editor yet</h1>
+      {/* The address is a link here rather than plain text — this is the page someone LANDS on to
+          ask, so the ask should be one click. The sentence itself is the shared one. */}
       <p class="edit-gate__body">
-        Editing needs a place on the content-editor list. To request one, email your GitHub username to{" "}
-        <a class="edit-gate__mail" href="mailto:a.r.kakde@gmail.com">
-          a.r.kakde@gmail.com
-        </a>{" "}
-        — access may or may not be granted. Thanks for understanding.
+        {EDIT_ACCESS_TEXT.split(CONTACT_EMAIL)[0]}
+        <a class="edit-gate__mail" href={`mailto:${CONTACT_EMAIL}`}>
+          {CONTACT_EMAIL}
+        </a>
+        {EDIT_ACCESS_TEXT.split(CONTACT_EMAIL)[1]}
       </p>
       <p class="edit-gate__body">Editing is a separate grant from running code.</p>
       <a class="edit-gate__link" href="/">

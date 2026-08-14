@@ -1,0 +1,335 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   THE /d2 EDITOR — source left, the live walkthrough right.
+   Ported from the design system's `ui_kits/d2lab`. Every token it reaches for is
+   already defined in tokens.css, so nothing here invents a colour.
+
+   The split itself stays the workbench's (.pwb__panes / .wb-split in
+   practice.css) in spirit but not in markup: the two panes read as ONE framed
+   surface here — left rounded left, right rounded right, the rail between them
+   sharing their border — which the workbench's free-standing panes do not do.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* The page owns the viewport: it never scrolls, the panes do. `.shell-main` caps width at 72rem
+   and pads for the fixed header, so this opts out the way the problem workbench does.
+
+   Matched on the MOUNT HOST, not on `.d2lab`: the island renders inside the host, so `.d2lab` is
+   a grandchild and a `> .d2lab` selector silently never matches. The host is in the SSR'd HTML,
+   so the page is full-width from first paint rather than reflowing when Preact arrives. */
+.shell-main:has(> [data-d2lab-root]) { max-width: none; padding: 3.75rem 0 0; }
+.shell-main > [data-d2lab-root] { height: 100%; }
+.d2lab { height: calc(100vh - 3.75rem); display: flex; flex-direction: column; }
+
+/* ── the document's identity ──
+   The root board's title IS the page title — editable in place, in the display
+   face, rather than a labelled field in a form. */
+.lab-doc { flex: none; display: flex; align-items: flex-end; gap: 28px;
+           padding: 16px 20px 14px; border-bottom: 1px solid hsl(var(--border) / 0.6); }
+.lab-doc__id { min-width: 0; flex: 1; overflow: hidden; }
+/* The eyebrow is a shared inline span; here it labels the title above it, so it takes its own
+   line rather than running into the heading. */
+.lab-doc__id > .pane-hd__eyebrow { display: block; }
+/* Sized from its own value so the pencil sits beside the WORD rather than at the end of a
+   fixed-width box, which is what makes the two read as one thing. */
+.lab-title-wrap { display: flex; align-items: center; gap: 4px; margin: 8px 0 0 -8px;
+                  max-width: 100%; }
+/* `line-height: 1.05` clipped the descenders of an italic display face — the tail of a `g` was
+   cut off by the input's own box. The line box has to be taller than the glyphs, not equal to
+   them. The width cap is generous because a walkthrough's name is a slug, and slugs get long. */
+.lab-title { min-width: 4ch; max-width: min(42ch, 46vw); padding: 3px 8px 5px;
+             border: 0; border-radius: 8px; background: transparent;
+             font-family: var(--font-display); font-style: italic; font-weight: 400;
+             font-size: 34px; line-height: 1.3; letter-spacing: -0.02em;
+             color: var(--text-primary); }
+/* A plain figure's heading names its position and is not editable — there is nothing in a bare
+   `x -> y` fence to rename, and offering a text field would promise one. */
+.lab-title--fixed { display: inline-block; }
+.lab-title:not(.lab-title--fixed):hover { background: var(--bg-hover); }
+.lab-title:focus { outline: none; background: var(--bg-hover);
+                   box-shadow: inset 0 -2px 0 var(--brand); }
+/* Dimmed but always present: an affordance that only appears on hover is one a reader has to
+   already suspect is there. It brightens on hover and while the field has focus. */
+.lab-edit { display: inline-flex; align-items: center; justify-content: center; width: 26px;
+            height: 26px; flex: none; border: 0; border-radius: 7px; background: transparent;
+            color: var(--text-faint); cursor: pointer;
+            transition: color var(--dur-fast) var(--ease-out),
+                        background var(--dur-fast) var(--ease-out); }
+.lab-title-wrap:hover .lab-edit, .lab-edit:hover,
+.lab-title:focus + .lab-edit { color: var(--brand); background: var(--brand-soft); }
+.lab-meta__path svg { vertical-align: -1px; margin-left: 3px; color: var(--text-faint); }
+.lab-meta__path:hover svg { color: var(--brand); }
+
+.lab-meta { display: flex; align-items: center; gap: 8px; margin-top: 9px;
+            font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted);
+            flex-wrap: wrap; row-gap: 4px; }
+.lab-meta > * { white-space: nowrap; }
+.lab-meta__dot { opacity: 0.5; }
+/* No width cap: a 26ch clamp ellipsised the very thing it labels — `_d2/url_shortener_d2_diagram/`
+   became `_d2/…`. The metadata row wraps, so a long name takes another line instead of vanishing. */
+.lab-meta__path { color: var(--text-secondary); display: inline-flex; align-items: center;
+                  gap: 1px; }
+.lab-meta__path input { border: 0; background: transparent; font: inherit; color: var(--brand);
+                        padding: 1px 2px; border-radius: 4px; min-width: 2ch; }
+.lab-meta__path input:hover { background: var(--bg-hover); }
+.lab-meta__path input:focus { outline: none; background: var(--bg-hover);
+                              box-shadow: inset 0 -1px 0 var(--brand); }
+/* A diagram that could not be loaded says so where its identity is, rather than leaving an empty
+   editor to be read as an empty diagram. */
+.lab-meta__bad { color: hsl(var(--status-err)); white-space: normal; }
+/* The dot says the draft is safe without spending a word on it. */
+.lab-meta__save { display: inline-flex; align-items: center; gap: 5px; }
+.lab-meta__save::before { content: ""; width: 5px; height: 5px; border-radius: 50%;
+                          background: var(--brand); opacity: 0.75; }
+
+.lab-acts { margin-left: auto; display: flex; align-items: center; gap: 10px; flex: none; }
+.lab-seg { display: flex; align-items: stretch; border: 1px solid var(--border-default);
+           border-radius: var(--radius-md); overflow: hidden; background: hsl(var(--card) / 0.55); }
+.lab-seg button { display: inline-flex; align-items: center; gap: 7px; height: 38px;
+                  padding: 0 13px; border: 0; border-right: 1px solid var(--border-default);
+                  background: transparent; color: var(--text-secondary);
+                  font-family: var(--font-sans); font-size: 13px; white-space: nowrap;
+                  cursor: pointer;
+                  transition: background var(--dur-fast) var(--ease-out),
+                              color var(--dur-fast) var(--ease-out); }
+.lab-seg button:last-child { border-right: 0; }
+.lab-seg button:hover { background: var(--bg-hover); color: var(--text-primary); }
+.lab-seg button:active { color: var(--brand); }
+.lab-seg button:disabled { opacity: 0.45; cursor: default; }
+.lab-primary { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 15px;
+               border: 1px solid hsl(var(--primary)); border-radius: var(--radius-md);
+               background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
+               font-family: var(--font-sans); font-size: 13px; font-weight: 500;
+               white-space: nowrap; cursor: pointer;
+               transition: filter var(--dur-fast) var(--ease-out); }
+.lab-primary:hover { filter: brightness(1.08); }
+
+/* ── the panes, as one framed surface ── */
+.lab-panes { flex: 1; min-height: 0; display: flex; padding: 14px 20px 20px; }
+.lab-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0;
+            border: 1px solid var(--border-default); background: hsl(var(--card) / 0.4);
+            overflow: hidden; }
+.lab-pane--l { flex: 0 0 auto; border-right: 0;
+               border-radius: var(--radius-lg) 0 0 var(--radius-lg); }
+.lab-pane--r { flex: 1; border-left: 0; border-radius: 0 var(--radius-lg) var(--radius-lg) 0; }
+.lab-split { flex: 0 0 11px; display: flex; align-items: center; justify-content: center;
+             cursor: col-resize; touch-action: none; background: hsl(var(--card) / 0.4);
+             border-top: 1px solid var(--border-default);
+             border-bottom: 1px solid var(--border-default); }
+.lab-split__grip { display: flex; flex-direction: column; gap: 3px; }
+.lab-split__grip i { width: 3px; height: 3px; border-radius: 50%; background: var(--text-faint); }
+.lab-split:hover { background: hsl(var(--primary) / 0.12); }
+.lab-split:hover .lab-split__grip i { background: var(--brand); }
+
+.pane-hd { flex: none; height: 44px; display: flex; align-items: center; gap: 10px;
+           padding: 0 12px 0 14px; border-bottom: 1px solid hsl(var(--border) / 0.7);
+           background: hsl(var(--card) / 0.7); }
+.pane-hd__sp { flex: 1; }
+.pane-hd__file { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-secondary);
+                 border: 1px solid var(--border-default); border-radius: 6px; padding: 3px 8px;
+                 background: hsl(var(--background) / 0.55); }
+.pane-hd__eyebrow { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+                    letter-spacing: 0.14em; text-transform: uppercase;
+                    color: hsl(var(--primary)); }
+.pane-hd__btn { display: inline-flex; align-items: center; justify-content: center;
+                width: 28px; height: 28px; border-radius: 8px;
+                border: 1px solid var(--border-default); background: transparent;
+                color: var(--text-secondary); cursor: pointer; }
+.pane-hd__btn:hover { background: var(--bg-hover); color: var(--brand); }
+
+/* ── the compile pill ──
+   One element carrying the whole answer to "is what I am looking at what I last
+   typed?", so the toolbar never reflows between states. */
+.st { display: inline-flex; align-items: center; gap: 7px; max-width: 34ch; height: 26px;
+      padding: 0 10px; border-radius: 999px; border: 1px solid; font-family: var(--font-mono);
+      font-size: 10.5px; letter-spacing: 0.09em; text-transform: uppercase; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; }
+.st__dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.st--ok { color: var(--text-secondary); border-color: var(--border-default);
+          background: hsl(var(--card) / 0.6); }
+.st--ok .st__dot { background: var(--brand); }
+.st--busy { color: var(--syn-num); border-color: color-mix(in srgb, var(--syn-num) 40%, transparent);
+            background: color-mix(in srgb, var(--syn-num) 10%, transparent); }
+.st--busy .st__dot { animation: lab-pulse 1s var(--ease-in-out) infinite; }
+.st--bad { color: hsl(var(--status-err)); border-color: hsl(var(--status-err) / 0.4);
+           background: hsl(var(--status-err) / 0.1); }
+@keyframes lab-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .st--busy .st__dot { animation: none; } }
+
+/* ── the editor ──
+   Monaco fills the pane. A FIXED pane height (the page owns the viewport) breaks
+   the auto-height loop between Monaco's root and its container outright, so none
+   of the flex-fill latching applies here. */
+.lab-ed { flex: 1; min-height: 0; }
+
+/* The failure, where the author can act on it: one sentence and a way to the line. */
+.ed-err { flex: none; display: flex; align-items: center; gap: 9px; padding: 9px 12px 9px 14px;
+          border-top: 1px solid hsl(var(--status-err) / 0.35);
+          background: hsl(var(--status-err) / 0.09); color: hsl(var(--status-err));
+          font-family: var(--font-mono); font-size: 11.5px; }
+.ed-err__msg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ed-err__go { border: 1px solid hsl(var(--status-err) / 0.4); border-radius: 6px;
+              background: transparent; color: inherit; font: inherit; white-space: nowrap;
+              padding: 3px 9px; cursor: pointer; }
+.ed-err__go:hover { background: hsl(var(--status-err) / 0.14); }
+
+/* ── the preview canvas ──
+   Dotted ground, and the figure on white "paper": d2 renders fixed-light in both
+   themes, so the paper is what keeps a dark page honest about what ships. */
+.zoom { display: flex; align-items: center; border: 1px solid var(--border-default);
+        border-radius: 8px; overflow: hidden; background: hsl(var(--background) / 0.5); }
+.zoom__b, .zoom__lvl { border: 0; background: transparent; color: var(--text-secondary);
+                       cursor: pointer; height: 28px; display: inline-flex; align-items: center;
+                       justify-content: center; }
+.zoom__b { width: 28px; }
+.zoom__lvl { font-family: var(--font-mono); font-size: 11px; padding: 0 6px; min-width: 44px;
+             border-left: 1px solid var(--border-default);
+             border-right: 1px solid var(--border-default); }
+.zoom__b:hover, .zoom__lvl:hover { background: var(--bg-hover); color: var(--brand); }
+
+/* The paper takes the width it is given and the figure fills it. A fixed 780px cap left ~130px
+   of dotted ground down each side of a wide pane while the drawing sat small in the middle; the
+   cap now only bites on a very large monitor, where an unbounded stretch would blow a two-box
+   diagram up to nothing.
+
+   A diagram has a fixed aspect ratio, so a short wide one cannot fill a tall pane however it is
+   scaled — the slack is unavoidable. What IS avoidable is where it lands: the paper fills the
+   canvas and the figure centres inside it, so the leftover space is part of the page rather than
+   a field of dotted ground under a small white card. The dots become a frame, not a void. */
+.pv { position: relative; flex: 1; min-height: 0; display: grid; align-items: stretch;
+      justify-items: center; padding: 20px 22px 68px; overflow: auto;
+      background-image: radial-gradient(circle at 1px 1px, hsl(var(--foreground) / 0.11) 1px, transparent 0);
+      background-size: 22px 22px; }
+.pv__paper { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;
+             box-shadow: var(--shadow-lg); padding: 16px 20px; width: min(100%, 1400px);
+             min-height: 100%; display: flex; flex-direction: column; justify-content: center;
+             transform-origin: top center;
+             transition: transform var(--dur-base) var(--ease-out); }
+/* d2 ships width/height attributes, so the drawing keeps its intrinsic size unless told to fill.
+   It carries a viewBox, so scaling up stays crisp. */
+.pv__paper .diagram__figure svg { width: 100%; height: auto; max-width: 100%; max-height: none; }
+@media (prefers-reduced-motion: reduce) { .pv__paper { transition: none; } }
+.pv__empty { color: var(--text-muted); font-size: 0.9rem; }
+
+/* The diagram card inside the paper is the READER's component, so it only needs
+   its page margins and its own box removed — everything else it brings itself. */
+.pv__paper .diagram { margin: 0; }
+.pv__paper .diagram__figure { border: 0; padding: 0; background: transparent;
+                              height: auto; min-height: 12rem; }
+/* The board bar leaves the card and becomes the floating control below. */
+.pv__paper .boards-bar { display: none; }
+
+/* ── the board control ──
+   Over the canvas rather than under the figure: it belongs to the CANVAS, which
+   is what a reader is looking at, not to the drawing. */
+.bbar { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex;
+        align-items: center; gap: 6px; padding: 5px 7px; border: 1px solid var(--border-default);
+        border-radius: 999px; background: hsl(var(--card)); box-shadow: var(--shadow-lg); z-index: 2; }
+.bbar__nav { display: flex; gap: 2px; }
+.bbar__rule { width: 1px; height: 18px; background: var(--border-default); }
+.bnav { width: 28px; height: 28px; display: grid; place-items: center; border: 0;
+        border-radius: 8px; background: transparent; color: var(--text-secondary);
+        cursor: pointer; }
+.bnav:hover:not(:disabled), .bnav.is-on { background: var(--brand-soft); color: var(--brand); }
+.bnav:disabled { opacity: 0.3; cursor: default; }
+.bbar__trail { display: flex; align-items: center; gap: 1px; padding: 0 2px; font-size: 12.5px; }
+.bbar__sep { color: var(--text-faint); padding: 0 2px; }
+.crumb { border: 0; background: none; padding: 3px 7px; border-radius: 6px; font: inherit;
+         color: var(--text-secondary); cursor: pointer; }
+.crumb:hover { color: var(--brand); background: var(--brand-soft); }
+.here { padding: 3px 7px; font-weight: 600; color: var(--text-primary); }
+/* The board you are ON is the menu button: its name and the list icon are one control, so the bar
+   says where you are and offers where else to go in the same place. */
+.bhere { display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 8px 0 10px;
+         border: 0; border-radius: 8px; background: transparent; color: var(--text-primary);
+         font-family: var(--font-sans); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.bhere:hover, .bhere.is-on { background: var(--brand-soft); color: var(--brand); }
+.bhere__t { white-space: nowrap; }
+.bbar__menu { position: relative; }
+.bmenu { position: absolute; bottom: calc(100% + 8px); right: 0; z-index: 4; margin: 0; padding: 4px;
+         list-style: none; min-width: 13rem; max-height: 60vh; overflow-y: auto;
+         border: 1px solid var(--border-default); border-radius: 10px;
+         background: hsl(var(--popover)); box-shadow: var(--shadow-xl); }
+.bmenu__i { display: block; width: 100%; text-align: left; border: 0; background: none;
+            padding: 6px 10px; border-radius: 6px; font-family: var(--font-sans); font-size: 13px;
+            color: var(--text-primary); cursor: pointer; }
+.bmenu__i:hover { background: var(--bg-hover); }
+.bmenu__i--at { color: var(--brand); font-weight: 600; }
+
+/* Inside the Enlarge overlay the SAME control appears, so it must be the same control: the
+   overlay's chrome slot already supplies the pill, and the bar drops its own so there is not a
+   pill inside a pill. Its menu opens downward there — it sits at the top of the panel. */
+.diagram-zoom__chrome .bbar { position: static; transform: none; border: 0; background: transparent;
+                              box-shadow: none; padding: 0; }
+.diagram-zoom__chrome .bmenu { bottom: auto; top: calc(100% + 8px); }
+
+/* ── the receipt ──
+   A toast, not a line in the toolbar: an action's confirmation must not move the
+   button that produced it. */
+.lab-toast { position: fixed; right: 26px; bottom: 26px; z-index: 60; display: inline-flex;
+             align-items: center; gap: 8px; padding: 9px 14px;
+             border: 1px solid hsl(var(--primary) / 0.35); border-radius: 999px;
+             background: hsl(var(--card)); color: var(--brand); font-family: var(--font-mono);
+             font-size: 12px; box-shadow: var(--shadow-lg);
+             animation: lab-toast-in 200ms var(--ease-out); }
+@keyframes lab-toast-in { from { opacity: 0; transform: translateY(8px); }
+                          to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .lab-toast { animation: none; } }
+
+/* ── "Add to a lesson…" ── */
+.mdl { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center;
+       padding: 5vh 4vw; background: hsl(var(--foreground) / 0.45); backdrop-filter: blur(3px); }
+.mdl__p { display: flex; flex-direction: column; gap: 14px; width: min(38rem, 100%);
+          padding: 18px 20px 20px; border: 1px solid var(--border-default);
+          border-radius: var(--radius-lg); background: hsl(var(--card));
+          box-shadow: var(--shadow-xl); }
+.mdl__hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.mdl__t { margin: 8px 0 0; font-family: var(--font-display); font-style: italic; font-weight: 400;
+          font-size: 26px; line-height: 1; letter-spacing: -0.02em; color: var(--text-primary); }
+.mdl__eyebrow { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+                letter-spacing: 0.14em; text-transform: uppercase; color: hsl(var(--primary)); }
+.mdl__find { display: flex; align-items: center; gap: 9px; height: 42px; padding: 0 12px;
+             border: 1px solid var(--border-default); border-radius: 10px;
+             background: hsl(var(--background) / 0.6); }
+.mdl__findic { display: flex; color: var(--text-faint); }
+.mdl__find input { flex: 1; border: 0; background: transparent; outline: none;
+                   font-family: var(--font-sans); font-size: 14px; color: var(--text-primary); }
+.mdl__list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column;
+             gap: 2px; max-height: 15rem; overflow-y: auto; }
+.mdl__row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0;
+            border-radius: 10px; background: transparent; padding: 9px 10px; cursor: pointer;
+            color: var(--text-primary); font-family: var(--font-sans); }
+.mdl__row:hover { background: var(--bg-hover); }
+.mdl__row.is-at { background: var(--brand-soft); }
+.mdl__rowic { display: flex; color: var(--text-faint); }
+.mdl__row.is-at .mdl__rowic { color: var(--brand); }
+.mdl__rowt { display: flex; flex-direction: column; gap: 3px; font-size: 14px; min-width: 0; }
+.mdl__rowt em { font-family: var(--font-mono); font-style: normal; font-size: 10.5px;
+                letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+.mdl__rowck { margin-left: auto; color: var(--brand); display: flex; }
+.mdl__empty { padding: 10px; color: var(--text-muted); font-size: 13.5px; }
+.mdl__where { margin: 0; font-size: 12.5px; color: var(--text-secondary); }
+.mdl__where code { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-primary); }
+.mdl__bad { margin: 0; color: hsl(var(--status-err)); font-size: 13px; }
+.mdl__field { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px;
+              color: var(--text-secondary); }
+.mdl__field input, .mdl__field select {
+  height: 38px; padding: 0 10px; border: 1px solid var(--border-default); border-radius: 8px;
+  background: hsl(var(--background) / 0.6); color: var(--text-primary);
+  font-family: var(--font-sans); font-size: 14px; }
+.mdl__ft { display: flex; justify-content: flex-end; gap: 8px; }
+.mdl__ghost { height: 38px; padding: 0 14px; border: 1px solid var(--border-default);
+              border-radius: var(--radius-md); background: transparent;
+              color: var(--text-secondary); font-family: var(--font-sans); font-size: 13px;
+              cursor: pointer; }
+.mdl__ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+@media (max-width: 900px) {
+  .d2lab { height: auto; }
+  .lab-doc { flex-direction: column; align-items: stretch; gap: 14px; }
+  .lab-acts { margin-left: 0; flex-wrap: wrap; }
+  .lab-panes { flex-direction: column; padding: 12px; }
+  .lab-pane--l { width: 100% !important; height: 46vh; border-right: 1px solid var(--border-default);
+                 border-bottom: 0; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+  .lab-pane--r { border-left: 1px solid var(--border-default); min-height: 60vh;
+                 border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+  .lab-split { display: none; }
+}

@@ -497,6 +497,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/synapse/d2/{fence}/{file}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * One board of a `d2 boards` walkthrough — a file from the lesson's `_d2/<fence>/` sidecar.
+         * @description Answers the file's own bytes rather than a DTO: these are pre-drawn SVGs and one small
+         *     manifest, read by `<img>`-free inlining at SSR and by `fetch` when a reader drills down. The
+         *     hour of cache matches `/media` for the same reason — the path is name-addressed, not
+         *     content-hashed, so an author replaces a board in place.
+         */
+        get: operations["getD2Board"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/synapse/index": {
         parameters: {
             query?: never;
@@ -2500,6 +2523,43 @@ export interface operations {
                 };
             };
             /** @description No such doc */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getD2Board: {
+        parameters: {
+            query: {
+                /** @description The lesson's directory-mirror path */
+                lesson: string;
+            };
+            header?: never;
+            path: {
+                /** @description The walkthrough's name= (its `_d2` directory) */
+                fence: string;
+                /** @description `<board>.svg` or `boards.json` */
+                file: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The board or its manifest */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description No such board */
             404: {
                 headers: {
                     [name: string]: unknown;

@@ -19,12 +19,20 @@
 
 import { apiBase } from "../api/client";
 import { fnv1a } from "../hash";
+import {
+  type BoardManifest,
+  boardsDirName,
+  decodeManifest,
+} from "../islands/diagram/boards";
 import * as log from "../log";
 
 /** A lookup that hangs must not hold a lesson open; the file is on the same host. */
 const FETCH_BUDGET_MS = 2_000;
 /** Bounded so a large catalog cannot grow the SSR process without limit. */
 const CACHE_MAX = 512;
+/** A walkthrough's entry is a manifest plus a whole board, several times the size of a lone
+ *  figure, so its cache is bounded in BYTES rather than entries — this pod has 256Mi. */
+const BOARD_CACHE_MAX_BYTES = 4 * 1024 * 1024;
 
 // ── CACHE ────────────────────────────────────────────────────────
 // Keyed by the source's hash, which is also the filename, so an entry is valid exactly as long
@@ -87,9 +95,69 @@ async function fetchDrawn(hash: string): Promise<string | null> {
   }
 }
 
+// ── WALKTHROUGHS ─────────────────────────────────────────────────
+// A `d2 boards` fence's figures live BESIDE the lesson, in `_d2/<fence>/`, rather than in the
+// content-addressed pool — so the lookup needs the lesson's identity, which the pool's does not.
+// Only the ROOT board is fetched here: the others are a click away and the reader may never take
+// it, and inlining them all would put bytes nobody reads on every page load.
+
+/** Where a lesson's walkthrough sidecars are served from. */
+const boardUrl = (lessonPath: string, fence: string, file: string): string =>
+  `${apiBase()}/api/synapse/d2/${encodeURIComponent(fence)}/${encodeURIComponent(file)}` +
+  `?lesson=${encodeURIComponent(lessonPath)}`;
+
+/** What one walkthrough needs to render at first paint. */
+export interface BoardSet {
+  fence: string;
+  manifest: BoardManifest;
+  rootSvg: string;
+}
+
+const boardCache = new Map<string, BoardSet>();
+let boardCacheBytes = 0;
+
+const sizeOf = (set: BoardSet): number => set.rootSvg.length + JSON.stringify(set.manifest).length;
+
+function rememberBoards(key: string): BoardSet | undefined {
+  const set = boardCache.get(key);
+  if (set === undefined) return undefined;
+  boardCache.delete(key);
+  boardCache.set(key, set);
+  return set;
+}
+
+function storeBoards(key: string, set: BoardSet): void {
+  boardCache.set(key, set);
+  boardCacheBytes += sizeOf(set);
+  while (boardCacheBytes > BOARD_CACHE_MAX_BYTES) {
+    const oldest = boardCache.keys().next().value;
+    if (oldest === undefined) break;
+    const dropped = boardCache.get(oldest);
+    boardCache.delete(oldest);
+    boardCacheBytes -= dropped == null ? 0 : sizeOf(dropped);
+  }
+}
+
+/** One file from a walkthrough's sidecar, or null on any failure — a 404 here is the ordinary
+ *  state of a repo whose CI has not drawn its figures yet. */
+async function fetchBoardFile(lessonPath: string, fence: string, file: string): Promise<string | null> {
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), FETCH_BUDGET_MS);
+  try {
+    const response = await fetch(boardUrl(lessonPath, fence, file), { signal: abort.signal });
+    return response.ok ? await response.text() : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export interface D2Session {
   /** The diagram's SVG, or null to fall back to a client-rendered placeholder. */
   render(source: string, salt: string): Promise<string | null>;
+  /** A walkthrough's board graph and its root board, or null to fall back to the client. */
+  renderBoards(source: string, meta: string, lessonPath: string): Promise<BoardSet | null>;
   /** One line per document saying how much of it arrived pre-drawn. */
   done(): void;
 }
@@ -117,6 +185,48 @@ export function openD2Session(): D2Session {
       drawn += 1;
       const base = `d2-${hash}`;
       return salt === base ? svg : svg.replaceAll(base, salt);
+    },
+
+    async renderBoards(source: string, meta: string, lessonPath: string): Promise<BoardSet | null> {
+      const fence = boardsDirName(source, meta);
+      const key = `${lessonPath} ${fence} ${fnv1a(source)}`;
+      const cached = rememberBoards(key);
+      if (cached != null) {
+        drawn += 1;
+        return cached;
+      }
+
+      const raw = await fetchBoardFile(lessonPath, fence, "boards.json");
+      // Everything unreadable is one outcome: not drawn yet. That covers a repo with no CI, a
+      // truncated file, and a manifest written by a generator this build does not know — the last
+      // of which is why a content repo can upgrade before the app does without breaking a page.
+      let manifest: BoardManifest | null = null;
+      try {
+        manifest = raw == null ? null : decodeManifest(JSON.parse(raw));
+      } catch {
+        manifest = null;
+      }
+      // The manifest records the source it was drawn from. A mismatch means the fence has been
+      // edited since CI last ran, and serving the drawn boards would show the reader the PREVIOUS
+      // diagram — confidently, with no error. Falling back draws what the author actually wrote.
+      if (manifest == null || manifest.source !== fnv1a(source)) {
+        fellBack += 1;
+        return null;
+      }
+
+      const root = manifest.boards.find((board) => board.id === manifest.root);
+      const rootSvg = root == null ? null : await fetchBoardFile(lessonPath, fence, `${root.slug}.svg`);
+      // A manifest whose root board is missing is a half-written directory; the client can still
+      // draw the whole thing from source, so fall back rather than paint an empty figure.
+      if (rootSvg == null || !rootSvg.trimStart().startsWith("<svg")) {
+        fellBack += 1;
+        return null;
+      }
+
+      const set: BoardSet = { fence, manifest, rootSvg };
+      storeBoards(key, set);
+      drawn += 1;
+      return set;
     },
 
     done(): void {

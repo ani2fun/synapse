@@ -1,12 +1,13 @@
-//! The catalog endpoints. Route shape matters: `/index`, `/search` and `/c4-doc/{id}` are more
-//! specific than the `{*paths}` lesson catch-all, and axum's router picks the most specific
-//! match. The cost is that a top-level book slugged `search` would be unreachable, exactly as one
-//! slugged `index` already is.
+//! The catalog endpoints. Route shape matters: `/index`, `/search`, `/c4-doc/{id}` and
+//! `/d2/{fence}/{file}` are more specific than the `{*paths}` lesson catch-all, and axum's router
+//! picks the most specific match. The cost is that a top-level book slugged `search` would be
+//! unreachable, exactly as one slugged `index` already is.
 
 use std::sync::Arc;
 
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::http::{StatusCode, header};
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
 use serde::Deserialize;
@@ -48,9 +49,14 @@ pub fn routes<V: LessonViewStore + 'static>(state: CatalogRoutesState<V>) -> Rou
         .route("/api/synapse/index", get(get_synapse_index::<V>))
         .route("/api/synapse/search", get(search_catalog::<V>))
         .route("/api/synapse/c4-doc/{element_id}", get(get_component_doc::<V>))
+        .route("/api/synapse/d2/{fence}/{file}", get(get_d2_board::<V>))
         .route("/api/synapse/{*paths}", get(get_synapse_lesson::<V>))
         .with_state(state)
 }
+
+/// A board sidecar is name-addressed, like `/media` and for the same reason: authors replace a
+/// drawn figure in place rather than minting a new URL for it.
+const BOARD_CACHE: &str = "public, max-age=3600";
 
 /// How many hits one request may ask for. A palette shows a screenful; the ceiling stops a
 /// crafted `limit` turning a cheap read into a large response.
@@ -120,9 +126,20 @@ pub async fn get_synapse_index<V: LessonViewStore>(
     }
 }
 
+/// Both sidecar lookups name their lesson the same way: a co-located file is only addressable
+/// relative to the lesson that owns it.
 #[derive(Deserialize)]
-pub struct C4DocQuery {
+pub struct LessonQuery {
     lesson: String,
+}
+
+/// A lesson's directory-mirror path, as the sidecar routes receive it.
+fn lesson_segments(lesson: &str) -> Vec<String> {
+    lesson
+        .split('/')
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+        .collect()
 }
 
 /// A LikeC4 component's tutorial doc, looked up next to the given lesson.
@@ -142,18 +159,55 @@ pub struct C4DocQuery {
 pub async fn get_component_doc<V: LessonViewStore>(
     State(state): CatalogState<V>,
     Path(element_id): Path<String>,
-    Query(query): Query<C4DocQuery>,
+    Query(query): Query<LessonQuery>,
 ) -> ApiResult<ComponentDocDto> {
     tracing::info!(element_id, lesson = query.lesson, "GET /api/synapse/c4-doc");
-    let lesson_path: Vec<String> = query
-        .lesson
-        .split('/')
-        .filter(|s| !s.is_empty())
-        .map(str::to_owned)
-        .collect();
+    let lesson_path = lesson_segments(&query.lesson);
     match state.service.component_doc(&lesson_path, &element_id).await {
         Ok(doc) => Ok(Json(dto::to_component_doc(&doc))),
         Err(error) => fail(&error),
+    }
+}
+
+/// One board of a `d2 boards` walkthrough — a file from the lesson's `_d2/<fence>/` sidecar.
+///
+/// Answers the file's own bytes rather than a DTO: these are pre-drawn SVGs and one small
+/// manifest, read by `<img>`-free inlining at SSR and by `fetch` when a reader drills down. The
+/// hour of cache matches `/media` for the same reason — the path is name-addressed, not
+/// content-hashed, so an author replaces a board in place.
+#[utoipa::path(
+    get,
+    path = "/api/synapse/d2/{fence}/{file}",
+    operation_id = "getD2Board",
+    params(
+        ("fence" = String, Path, description = "The walkthrough's name= (its `_d2` directory)"),
+        ("file" = String, Path, description = "`<board>.svg` or `boards.json`"),
+        ("lesson" = String, Query, description = "The lesson's directory-mirror path")
+    ),
+    responses(
+        (status = 200, description = "The board or its manifest", body = String),
+        (status = 404, description = "No such board", body = ApiError)
+    )
+)]
+pub async fn get_d2_board<V: LessonViewStore>(
+    State(state): CatalogState<V>,
+    Path((fence, file)): Path<(String, String)>,
+    Query(query): Query<LessonQuery>,
+) -> Result<Response, (StatusCode, Json<ApiError>)> {
+    tracing::debug!(fence, file, lesson = query.lesson, "GET /api/synapse/d2");
+    let lesson_path = lesson_segments(&query.lesson);
+    match state.service.d2_board(&lesson_path, &fence, &file).await {
+        Ok(board) => {
+            let headers = [
+                (header::CONTENT_TYPE, board.file.content_type()),
+                (header::CACHE_CONTROL, BOARD_CACHE),
+            ];
+            Ok((headers, board.body).into_response())
+        }
+        Err(error) => {
+            let (status, body) = dto::to_error(&error);
+            Err((status, Json(body)))
+        }
     }
 }
 

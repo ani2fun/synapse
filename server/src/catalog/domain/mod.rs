@@ -5,6 +5,7 @@
 pub mod catalog;
 pub mod component_doc;
 pub mod content_tree;
+pub mod d2_board;
 pub mod frontmatter;
 pub mod lesson;
 pub mod lint;

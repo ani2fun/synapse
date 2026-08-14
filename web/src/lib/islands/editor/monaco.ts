@@ -39,6 +39,79 @@ import "monaco-editor/esm/vs/basic-languages/sql/sql.contribution";
 // contributor editing a lesson wants to see.
 import "monaco-editor/esm/vs/basic-languages/markdown/markdown.contribution";
 
+// ── d2 ───────────────────────────────────────────────────────────────────────
+// The one grammar monaco does not ship. d2 is small enough to tokenize honestly: keys before a
+// colon, the connection arrows, the keywords that change what a shape IS, block strings, and
+// `#` comments. `link:` gets its own token because it is the whole interaction in a walkthrough
+// and an author needs to see at a glance that they typed one.
+
+monaco.languages.register({ id: "d2", extensions: [".d2"], aliases: ["D2", "d2"] });
+monaco.languages.setLanguageConfiguration("d2", {
+  comments: { lineComment: "#" },
+  brackets: [
+    ["{", "}"],
+    ["[", "]"],
+    ["(", ")"],
+  ],
+  autoClosingPairs: [
+    { open: "{", close: "}" },
+    { open: "[", close: "]" },
+    { open: '"', close: '"' },
+    { open: "'", close: "'" },
+  ],
+});
+monaco.languages.setMonarchTokensProvider("d2", {
+  keywords: [
+    "shape", "style", "label", "icon", "link", "tooltip", "width", "height", "constraint",
+    "direction", "near", "grid-rows", "grid-columns", "grid-gap", "vertical-gap",
+    "horizontal-gap", "classes", "class", "vars", "layers", "scenarios", "steps",
+  ],
+  shapes: [
+    "rectangle", "square", "page", "parallelogram", "document", "cylinder", "queue", "package",
+    "step", "callout", "stored_data", "person", "diamond", "oval", "circle", "hexagon", "cloud",
+    "text", "code", "class", "sql_table", "image", "sequence_diagram",
+  ],
+  tokenizer: {
+    root: [
+      [/#.*$/, "comment"],
+      // Block strings carry prose (and often markdown) rather than structure.
+      [/\|{3}/, { token: "string", next: "@block3" }],
+      [/\|/, { token: "string", next: "@block1" }],
+      // The connections — the reason a d2 file is a graph and not a list.
+      [/<->|->|<-|--/, "operators"],
+      // `link:` is the walkthrough's whole vocabulary, so it reads as its own thing.
+      [/\blink\b(?=\s*:)/, "type.identifier"],
+      [/[A-Za-z_][\w-]*(?=\s*:)/, { cases: { "@keywords": "keyword", "@default": "identifier" } }],
+      [/\b(?:true|false|null)\b/, "constant"],
+      [/@?[a-zA-Z][\w-]*/, { cases: { "@shapes": "attribute.value", "@default": "" } }],
+      [/"/, { token: "string.quote", next: "@dquote" }],
+      [/'/, { token: "string.quote", next: "@squote" }],
+      [/#[0-9a-fA-F]{3,8}\b/, "number.hex"],
+      [/\d+(\.\d+)?/, "number"],
+      [/[{}[\]()]/, "@brackets"],
+      [/[;,.]/, "delimiter"],
+    ],
+    dquote: [
+      [/[^\\"]+/, "string"],
+      [/\\./, "string.escape"],
+      [/"/, { token: "string.quote", next: "@pop" }],
+    ],
+    squote: [
+      [/[^\\']+/, "string"],
+      [/'/, { token: "string.quote", next: "@pop" }],
+    ],
+    block1: [
+      [/[^|]+/, "string"],
+      [/\|/, { token: "string", next: "@pop" }],
+    ],
+    block3: [
+      [/[^|]+/, "string"],
+      [/\|{3}/, { token: "string", next: "@pop" }],
+      [/\|/, "string"],
+    ],
+  },
+});
+
 // One editor worker for every label — we don't load the language services that
 // need dedicated workers, so the base worker is all monaco requests.
 (self as unknown as { MonacoEnvironment: monaco.Environment }).MonacoEnvironment = {
@@ -61,6 +134,7 @@ const languageIds: Record<string, string> = {
   sql: "sql",
   markdown: "markdown",
   md: "markdown",
+  d2: "d2",
 };
 
 function monacoLanguage(fenceLang: string): string {
@@ -106,6 +180,12 @@ export interface EditorHandle {
    * Visualise modal's SourcePane, Python-Tutor style. `current`/`next` are 1-indexed source lines.
    */
   setLineHighlights: (current: number, next: number | null) => void;
+  /**
+   * Put the caret on a 1-indexed line, scroll it into view, and take focus — the `/d2` editor's
+   * "Go to line N" on a compile error. Distinct from `setLineHighlights`, which paints a line
+   * the reader is being SHOWN; this one hands them the cursor so they can fix it.
+   */
+  goToLine: (line: number) => void;
   /** Re-tokenize the buffer as another fence language — the workbench language tabs. */
   setLanguage: (fenceLang: string) => void;
   /**
@@ -239,6 +319,15 @@ export function createEditor(container: HTMLElement, opts: EditorOptions): Edito
       if (model) monaco.editor.setModelLanguage(model, monacoLanguage(fenceLang));
     },
     relayout: () => editor.layout(),
+    goToLine: (line: number) => {
+      // Clamped: the line comes from a compiler message about a buffer the author may have kept
+      // editing, so it can point past the end by the time it is clicked.
+      const last = editor.getModel()?.getLineCount() ?? 1;
+      const at = Math.min(Math.max(Math.trunc(line), 1), last);
+      editor.setPosition({ lineNumber: at, column: 1 });
+      editor.revealLineInCenter(at);
+      editor.focus();
+    },
     setLineHighlights: (current: number, next: number | null) => {
       const decos: monaco.editor.IModelDeltaDecoration[] = [
         {

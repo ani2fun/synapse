@@ -32,6 +32,14 @@ function loneBlockTag(body: string): string {
   return tags[0]!;
 }
 
+/** The walkthrough's opening tag. A different element in BOTH modes, deliberately: the fence
+ *  chooses it, not the lookup, so a repo with nothing drawn still mounts the board viewer. */
+function boardsTag(body: string): string {
+  const tags = body.match(/<div class="d2-boards"[^>]*>/g) ?? [];
+  expect(tags).toHaveLength(1);
+  return tags[0]!;
+}
+
 test.describe("server-drawn (SYNAPSE_D2_PRERENDER=on)", () => {
   test.skip(!PRERENDER, "stack is running the prod shape, with pre-rendering off");
 
@@ -73,6 +81,98 @@ test.describe("server-drawn (SYNAPSE_D2_PRERENDER=on)", () => {
     await expect(card.locator("svg").first()).toBeVisible();
     await expect(card.getByRole("button", { name: "Enlarge diagram" })).toBeVisible();
   });
+
+  test("a walkthrough arrives with its ROOT board drawn, and only that one", async ({ request }) => {
+    const body = await (await request.get(LESSON)).text();
+    const tag = boardsTag(body);
+    expect(tag).toContain('data-prerendered="1"');
+    expect(tag).toContain("data-boards="); // the graph the viewer navigates by
+    expect(tag).toContain("data-fence=");
+    expect(tag).not.toContain("data-source"); // nothing may recompile a drawn walkthrough
+
+    // The other boards are a click away and the reader may never take it.
+    expect(body).not.toContain("The handler");
+  });
+
+  test("drilling through two boards never pulls the engine", async ({ page }) => {
+    // The assertion that carries the whole design: navigation is fetching one small pre-drawn
+    // file, not compiling. If that ever regresses, this is where it shows.
+    const heavy: string[] = [];
+    page.on("response", (res) => {
+      const length = Number(res.headers()["content-length"] ?? 0);
+      if (length > MAX_ASSET_BYTES) heavy.push(`${res.url()} (${Math.round(length / 1024)} KB)`);
+    });
+
+    await page.goto(LESSON);
+    const card = page.locator(".diagram--boards");
+    await expect(card.locator(".diagram__figure svg").first()).toBeVisible();
+    await expect(card.locator(".boards-bar__here")).toHaveText("Context");
+
+    // Each board links to the next: Context → Inside → Deeper, clicked exactly as a reader does.
+    await card.locator(".diagram__figure a").first().click();
+    await expect(card.locator(".boards-bar__here")).toHaveText("Inside");
+    await card.locator(".diagram__figure a").first().click();
+    await expect(card.locator(".boards-bar__here")).toHaveText("Deeper");
+
+    // Shareable, but the page's own Back is untouched — the diagram never pushes history.
+    expect(new URL(page.url()).searchParams.get("board")).toBe("deeper");
+    await page.waitForLoadState("networkidle");
+    expect(heavy).toEqual([]);
+  });
+
+  test("back, forward and home walk the boards", async ({ page }) => {
+    await page.goto(LESSON);
+    const card = page.locator(".diagram--boards");
+    await expect(card.locator(".diagram__figure svg").first()).toBeVisible();
+    await card.locator(".diagram__figure a").first().click();
+    await expect(card.locator(".boards-bar__here")).toHaveText("Inside");
+
+    await card.getByRole("button", { name: "Back" }).click();
+    await expect(card.locator(".boards-bar__here")).toHaveText("Context");
+    await card.getByRole("button", { name: "Forward" }).click();
+    await expect(card.locator(".boards-bar__here")).toHaveText("Inside");
+    await card.getByRole("button", { name: "Root board" }).click();
+    await expect(card.locator(".boards-bar__here")).toHaveText("Context");
+
+    // The root board drops the parameter, so an unopened diagram has the bare lesson URL.
+    expect(new URL(page.url()).searchParams.get("board")).toBeNull();
+  });
+
+  test("a deep link opens the board it names", async ({ page }) => {
+    await page.goto(`${LESSON}?board=deeper`);
+    const card = page.locator(".diagram--boards");
+    await expect(card.locator(".boards-bar__here")).toHaveText("Deeper");
+    // The breadcrumb still reads from the root, so the reader knows where they landed.
+    await expect(card.locator(".boards-bar__crumb").first()).toHaveText("Context");
+  });
+
+  test("the walkthrough stays navigable inside the Enlarge overlay", async ({ page }) => {
+    // The house affordance is the point: enlarging must not turn the viewer into a picture.
+    await page.goto(LESSON);
+    const card = page.locator(".diagram--boards");
+    await expect(card.locator(".diagram__figure svg").first()).toBeVisible();
+    await card.getByRole("button", { name: "Enlarge diagram" }).click();
+
+    const overlay = page.getByRole("dialog");
+    await expect(overlay).toBeVisible();
+    await expect(overlay.locator(".diagram-zoom__chrome .boards-bar__here")).toHaveText("Context");
+    await overlay.locator(".diagram-zoom__figure a").first().click();
+    await expect(overlay.locator(".diagram-zoom__chrome .boards-bar__here")).toHaveText("Inside");
+
+    await page.keyboard.press("Escape");
+    await expect(overlay).toHaveCount(0);
+    // The card behind it followed the same navigation — one state, two views of it.
+    await expect(card.locator(".boards-bar__here")).toHaveText("Inside");
+  });
+
+  test("the board menu jumps straight to any board", async ({ page }) => {
+    await page.goto(LESSON);
+    const card = page.locator(".diagram--boards");
+    await expect(card.locator(".diagram__figure svg").first()).toBeVisible();
+    await card.getByRole("button", { name: "Jump to a board" }).click();
+    await card.getByRole("option", { name: "Deeper" }).click();
+    await expect(card.locator(".boards-bar__here")).toHaveText("Deeper");
+  });
 });
 
 test.describe("client-drawn (the prod shape)", () => {
@@ -97,5 +197,18 @@ test.describe("client-drawn (the prod shape)", () => {
     // and the reason the other one exists — so it is deliberately not gated on here.
     const card = page.locator(".d2-block .diagram");
     await expect(card).toHaveCount(1);
+  });
+
+  test("a walkthrough ships its SOURCE and still mounts the board viewer", async ({ request }) => {
+    const body = await (await request.get(LESSON)).text();
+    const tag = boardsTag(body);
+
+    // The rule this whole family turns on: the ELEMENT comes from the fence, the FIGURE from the
+    // lookup. Were it the other way round, every undrawn repo would quietly serve a root board
+    // with dead links — the exact bug the walkthrough replaces.
+    expect(tag).toContain("data-source");
+    expect(tag).toContain("data-meta");
+    expect(tag).not.toContain("data-prerendered");
+    expect(tag).not.toContain("data-boards=");
   });
 });

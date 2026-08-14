@@ -61,6 +61,11 @@ export const PROBLEM_APPROACH_KEY = "problem-approach";
 export const WB_LANGUAGE_KEY = "wb-language";
 /** `"dark" | "light"` — read pre-paint by `Base.astro`'s inline bootstrap script too. */
 export const THEME_KEY = "theme";
+/** The `/d2` editor's two-pane split percentage. */
+export const D2_LAB_PANE_KEY = "d2-lab-pane";
+/** The `/d2` editor's in-progress diagram. One page, one scratchpad, no account involved — a
+ *  diagram only becomes anyone's when it is copied into a lesson or proposed as an edit. */
+export const D2_LAB_DRAFT_KEY = "d2-lab-draft";
 /** The content editor's per-page draft key PREFIX — the username and lesson path are appended
  *  (`content-draft:<username>:<lesson-path>`) so one browser can hold a draft for each page a
  *  contributor is editing, and a draft never leaks across accounts. See islands/authoring/draft. */

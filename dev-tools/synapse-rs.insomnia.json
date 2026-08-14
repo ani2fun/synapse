@@ -125,6 +125,24 @@
       "url": "{{ _.base_url }}/api/synapse/c4-doc/synapse.client.reader?lesson=learn/dsa/lists/singly"
     },
     {
+      "_id": "req_catalog_d2_manifest",
+      "_type": "request",
+      "parentId": "fld_catalog",
+      "name": "GET /api/synapse/d2/{fence}/boards.json?lesson=",
+      "description": "A d2 walkthrough's board graph — the co-located _d2/<fence>/boards.json sidecar next to the lesson. 404 until the content repo's CI has drawn it, which is normal: the page then falls back to the client renderer.",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/synapse/d2/url-shortener/boards.json?lesson=learn/dsa/lists/singly"
+    },
+    {
+      "_id": "req_catalog_d2_board",
+      "_type": "request",
+      "parentId": "fld_catalog",
+      "name": "GET /api/synapse/d2/{fence}/{board}.svg?lesson=",
+      "description": "One drawn board of a walkthrough, served as image/svg+xml with an hour of cache. The board name is the slug from boards.json; the root board is always `root`.",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/synapse/d2/url-shortener/container.svg?lesson=learn/dsa/lists/singly"
+    },
+    {
       "_id": "fld_submissions",
       "_type": "request_group",
       "parentId": "wrk_synapse_rs",

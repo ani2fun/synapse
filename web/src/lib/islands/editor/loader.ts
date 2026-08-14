@@ -29,6 +29,17 @@ export async function mountMarkdownEditor(
   return createEditor(container, { value, language: "markdown", readOnly: false, dark, onChange });
 }
 
+/** The `/d2` editor's pane — the same gateway, on the grammar this repo registers itself. */
+export async function mountD2Editor(
+  container: HTMLElement,
+  value: string,
+  dark: boolean,
+  onChange: (value: string) => void,
+): Promise<EditorHandle> {
+  const { createEditor } = await import("./monaco");
+  return createEditor(container, { value, language: "d2", readOnly: false, dark, onChange });
+}
+
 export async function mountEditor(
   container: HTMLElement,
   value: string,

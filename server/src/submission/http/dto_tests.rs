@@ -42,7 +42,12 @@ fn a_non_allowlisted_user_is_403_naming_them_and_the_way_out() {
     );
     assert_eq!(
         body.hint.as_deref(),
-        Some("Request access from the operator, or self-host your own instance")
+        // Verbatim, and deliberately so: this sentence is a second copy of the one in
+        // `web/src/lib/contact.ts`, and asserting it here is what stops the two drifting.
+        Some(
+            "To request one, email your GitHub username to synapse.kakde.eu@gmail.com — access \
+             may or may not be granted. Or self-host your own instance."
+        )
     );
 }
 

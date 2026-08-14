@@ -10,6 +10,13 @@ use synapse_shared::submission::{FailedCaseDto, SubmissionDto};
 use crate::submission::application::SubmissionError;
 use crate::submission::domain::{Submission, SubmissionState, SuiteOutcome};
 
+/// Where access requests go — the same address `web/src/lib/contact.ts` gives the browser.
+///
+/// A 403 reaches API consumers who never load that bundle, so the sentence has to exist on this
+/// side too. `dto_tests.rs` asserts it verbatim, which is what keeps the two copies from drifting
+/// apart without anyone noticing.
+const CONTACT_EMAIL: &str = "synapse.kakde.eu@gmail.com";
+
 pub fn to_dto(submission: &Submission) -> SubmissionDto {
     let (status, verdict, passed, total, detail, first_failure, completed_at) = match &submission.state {
         SubmissionState::Pending => ("pending", None, None, None, None, None, None),
@@ -128,7 +135,10 @@ pub fn to_error(error: &SubmissionError) -> (StatusCode, Json<ApiError>) {
                 detail: Some(format!(
                     "'{username}' isn't on the allowlist yet — saving uses shared compute + storage"
                 )),
-                hint: Some("Request access from the operator, or self-host your own instance".to_owned()),
+                hint: Some(format!(
+                    "To request one, email your GitHub username to {CONTACT_EMAIL} — access may \
+                     or may not be granted. Or self-host your own instance."
+                )),
             },
         ),
     };

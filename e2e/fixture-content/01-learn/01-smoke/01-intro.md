@@ -44,6 +44,14 @@ filler. The suite checks structure and behaviour, never wording.
 
 // Diagram: A marker with no image under it, which must stay readable prose
 
+A mermaid fence renders through a different engine, and is here so the suite can prove what the
+diagram chrome does NOT do: mermaid figures enlarge like any other, but they get no Edit pill,
+because `/d2` edits d2.
+
+```mermaid
+graph TD; A[Reader] --> B[Prose]; B --> C[Diagram];
+```
+
 A lone d2 fence is drawn by the SERVER, so this one is here to prove the SVG reaches the reader
 in the HTML itself rather than after a multi-megabyte engine download.
 
@@ -60,4 +68,30 @@ first -> second
 
 ```d2
 second -> third
+```
+
+A ```d2 boards fence is one source that compiles to a TREE of boards, drawn into this lesson's
+own `_d2/` sidecar rather than the shared pool. Clicking a linked node drills into that board.
+
+```d2 boards name="smoke-walkthrough" root="Context"
+system: "The system" {
+  link: layers.inside
+}
+person: "A reader"
+person -> system
+
+layers: {
+  inside: {
+    api: "The API" {
+      link: _.layers.deeper
+    }
+    store: "The store" { shape: cylinder }
+    api -> store
+  }
+  deeper: {
+    handler: "The handler"
+    cache: "The cache"
+    handler -> cache
+  }
+}
 ```

@@ -6,8 +6,11 @@
 # (Monaco, keycloak-js, mermaid, the viz wasm) are dynamic imports and never appear in the HTML —
 # they stay out of the sum BY CONSTRUCTION, not by glob.
 #
-# Four page kinds, one budget each: the landing, a prose lesson, a problem page, the blog list.
-# Measured against fixture content: landing 45 · lesson 54 · problem 53 · blog 15 KiB gz.
+# Five page kinds, one budget each: the landing, a prose lesson, a problem page, the blog list,
+# and the diagram editor.
+# Measured against fixture content, in the shape this script runs in (pre-rendering OFF):
+# landing 45 · lesson 55 · problem 54 · blog 15 · d2lab 48 KiB gz. With pre-rendering ON the
+# lesson measures ~64 — inline SVG, counted in the document's own gzip, not new JavaScript.
 # These drift with ordinary feature work (the reader redesign, the long-form stylesheet and the
 # authoring context each moved them a KiB or two) — re-measure when you touch this line rather
 # than assuming a rise is a regression. The signal is the 250 KiB cap, not the last recorded digit.
@@ -75,6 +78,10 @@ measure_page "landing" "/" || fail=1
 measure_page "lesson" "$LESSON_PATH" || fail=1
 measure_page "problem" "$PROBLEM_PATH" || fail=1
 measure_page "blog" "/blog" || fail=1
+# The diagram editor. Both heavy things it uses — Monaco and the d2 engine — are behind dynamic
+# imports, so this measures whether they STAY there: a static import of either would show up here
+# as several hundred KiB rather than as a slow first draw.
+measure_page "d2lab" "/d2" || fail=1
 
 # ── the lazy viz wasm cap (release builds only — see header) ──
 if [[ "${VIZ_WASM_RELEASE:-}" == "1" ]]; then

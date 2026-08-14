@@ -121,6 +121,15 @@ fn fixture() -> StubRepo {
             "01-learn/02-dsa/02-lists/_c4-docs/reader.md".to_owned(),
             "---\ntitle: Reader\nkind: component\ntechnology: Laminar\n---\nHow it works.".to_owned(),
         ),
+        // A ```d2 boards walkthrough, drawn beside the lessons that show it.
+        (
+            "01-learn/02-dsa/02-lists/_d2/url-shortener/boards.json".to_owned(),
+            r#"{"generator":1,"source":"76e32334","root":"root","boards":[],"warnings":[]}"#.to_owned(),
+        ),
+        (
+            "01-learn/02-dsa/02-lists/_d2/url-shortener/container.svg".to_owned(),
+            "<svg>container</svg>".to_owned(),
+        ),
     ]);
     StubRepo {
         version: Mutex::new("v1".to_owned()),
@@ -189,6 +198,82 @@ async fn problem_lessons_join_their_editorial_sidecar() {
         .unwrap();
     assert_eq!(lesson.frontmatter.kind.as_deref(), Some("problem"));
     assert_eq!(lesson.editorial.as_deref(), Some("the editorial"));
+}
+
+// ── d2 walkthrough sidecars ───────────────────────────────────────────────────
+
+/// The lesson every board case looks the sidecar up beside.
+fn lists_lesson() -> Vec<String> {
+    path(&["learn", "dsa", "lists", "singly"])
+}
+
+#[tokio::test]
+async fn walkthrough_boards_are_read_from_the_lessons_own_directory() {
+    let service = CatalogService::new(fixture());
+    let board = service
+        .d2_board(&lists_lesson(), "url-shortener", "container.svg")
+        .await
+        .unwrap();
+    assert_eq!(board.file, BoardFile::Svg);
+    assert_eq!(board.body, "<svg>container</svg>");
+
+    let manifest = service
+        .d2_board(&lists_lesson(), "url-shortener", "boards.json")
+        .await
+        .unwrap();
+    assert_eq!(manifest.file, BoardFile::Manifest);
+    assert!(manifest.body.contains("\"generator\":1"));
+}
+
+#[tokio::test]
+async fn an_undrawn_walkthrough_is_a_miss_not_a_failure() {
+    // A content repo whose CI has not run yet is a normal state: the page falls back to the
+    // client renderer, so this must read as absent rather than broken.
+    let service = CatalogService::new(fixture());
+    for (fence, file) in [("url-shortener", "nope.svg"), ("never-drawn", "root.svg")] {
+        let error = service.d2_board(&lists_lesson(), fence, file).await.unwrap_err();
+        assert!(
+            matches!(error, ContentError::NotFound(_)),
+            "{fence}/{file} → {error:?}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_board_request_cannot_escape_the_lessons_directory() {
+    let service = CatalogService::new(fixture());
+    let attempts = [
+        ("../_c4-docs", "reader.svg"),
+        ("url-shortener", "../../01-singly.svg"),
+        ("url-shortener", "../boards.json"),
+        ("..", "container.svg"),
+        // Not on the extension allowlist, whatever it happens to point at.
+        ("url-shortener", "container.png"),
+        ("url-shortener", "notes.json"),
+        ("url-shortener", "01-singly.md"),
+    ];
+    for (fence, file) in attempts {
+        let error = service.d2_board(&lists_lesson(), fence, file).await.unwrap_err();
+        assert!(
+            matches!(error, ContentError::NotFound(_)),
+            "{fence}/{file} escaped → {error:?}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_board_needs_a_lesson_that_exists() {
+    let service = CatalogService::new(fixture());
+    for lesson in [vec![], path(&["learn", "dsa", "lists", "ghost"]), path(&[".."])] {
+        let error = service
+            .d2_board(&lesson, "url-shortener", "container.svg")
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(error, ContentError::NotFound(_)),
+            "{lesson:?} → {error:?}"
+        );
+    }
 }
 
 #[tokio::test]

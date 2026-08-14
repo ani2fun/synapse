@@ -26,6 +26,7 @@ import NotFound from "../../components/NotFound.astro";
 import { lesson as fetchLesson, fetchIndex, ApiFailure } from "../../lib/api/client";
 import type { LessonPayload } from "../../lib/api/client";
 import { renderLesson } from "../../lib/markdown/render";
+import { EDIT_ACCESS_TEXT } from "../../lib/contact";
 import * as log from "../../lib/log";
 import { titleForLesson, SITE_NAME } from "../../lib/seo";
 import { allBooksOf, bookOf, chapterProblems, chapterTitleOf, problemContentSplit } from "../../lib/catalog/tree";
@@ -76,14 +77,17 @@ let errorMessage = "";
 try {
   payload = await fetchLesson(segments);
   mode = payload.frontmatter.kind === "problem" ? "problem" : "lesson";
+  // A ```d2 boards walkthrough's figures are drawn into THIS lesson's `_d2/` sidecar, so the
+  // pipeline needs to know which lesson it is rendering to find them.
+  const renderCtx = { lessonPath: segments.join("/") };
   if (mode === "problem") {
     // The FIRST `<details` at line start outside a fence splits description from editorial; the
     // inline editorial wins, else the co-located sidecar the payload already carries.
     const [descMd, inlineEditorial] = problemContentSplit(payload.raw);
-    descriptionHtml = await renderLesson(descMd);
+    descriptionHtml = await renderLesson(descMd, renderCtx);
     editorialMd = inlineEditorial.trim() !== "" ? inlineEditorial : (payload.editorial ?? "");
   } else {
-    html = await renderLesson(payload.raw);
+    html = await renderLesson(payload.raw, renderCtx);
   }
   // The sidebar needs the FULL book tree (payload.book is only a ref). Best-effort: if the index
   // can't load, the sidebar degrades to absent rather than failing the whole page. The
@@ -131,8 +135,7 @@ const eyebrow = book ? (chapterTitleOf(book, segments.join("/")) ?? book.title) 
 // editor sees on hover. Server-rendered as the default so the affordance is honest before any JS
 // runs: the feature exists, here is how to ask for it. islands/authoring/editLink swaps in the
 // active copy once the server confirms the caller may edit.
-const EDIT_GATED_TIP =
-  "Editing needs a place on the content-editor list. To request one, email your GitHub username to a.r.kakde@gmail.com — access may or may not be granted. Thanks for understanding.";
+const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
 ---
 
 <Base title={title} description={description} canonicalPath={isLesson ? canonicalPath : undefined}>
@@ -175,10 +178,15 @@ const EDIT_GATED_TIP =
                      JSX one): dev-mode script extraction can choke on JSX comments, the same class
                      of scar as the apostrophe note below. -->
                 <span class="wb__tip lesson-edit-tip" data-edit-tip data-tip={EDIT_GATED_TIP}>
+                  <!-- No `href` until the gate says yes. `aria-disabled` is a promise to
+                       assistive tech, not a behaviour: an anchor that HAS an href still navigates
+                       on a plain click, including in the window before this page's islands have
+                       loaded. Withholding it is the same grammar the diagram Edit pill uses, and
+                       it needs no JavaScript to hold. -->
                   <a
                     class="lesson-edit-link lesson-edit-link--gated"
-                    href={`/edit/${segments.join("/")}`}
                     data-edit-link
+                    data-edit-href={`/edit/${segments.join("/")}`}
                     aria-disabled="true"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

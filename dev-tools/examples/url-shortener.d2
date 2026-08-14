@@ -1,0 +1,198 @@
+# A C4 stack as ONE d2 source: Context → Container → Component → Code.
+#
+# Each level is a `layers` board, and the node you click to get there carries `link:`.
+#
+# The trap, and the reason this file is worth reading: `link:` resolves against the board it is
+# WRITTEN IN. At the root, `link: layers.container` means `root.layers.container` and is correct.
+# One level down, inside `layers.container`, the same text would mean
+# `root.layers.container.layers.component` — which does not exist, so d2 DROPS the link, emits no
+# anchor, and still reports success. `_` steps up to the parent board, which is why every
+# drill-down below the root is written `link: _.layers.<name>`.
+#
+#   node dev-tools/d2-interactive.mjs dev-tools/examples/url-shortener.d2 --output url-shortener.html
+
+direction: right
+
+classes: {
+  external: {
+    style: { fill: "#F5F5F5"; stroke: "#777777"; stroke-dash: 3 }
+  }
+  service: {
+    style: { fill: "#E8F1FF"; stroke: "#3B82F6" }
+  }
+  datastore: {
+    style: { fill: "#FFF4D6"; stroke: "#D97706" }
+  }
+}
+
+# ── C4 level 1 — system context (the root board) ─────────────────────────────
+
+user: "Link creator\n[Person]" {
+  shape: person
+}
+
+visitor: "Link visitor\n[Person]" {
+  shape: person
+}
+
+shortener: "Short.io URL Shortener\n[Software System]" {
+  class: service
+  link: layers.container
+}
+
+browser: "Web browser" {
+  class: external
+}
+
+dns: "DNS provider" {
+  class: external
+}
+
+user -> shortener: "Creates and manages short links"
+visitor -> browser: "Opens https://sho.rt/abc123"
+browser -> dns: "Resolves sho.rt"
+browser -> shortener: "HTTPS redirect request"
+
+layers: {
+  # ── C4 level 2 — containers ────────────────────────────────────────────────
+  container: {
+    direction: right
+
+    user: "Link creator" { shape: person }
+    visitor: "Link visitor" { shape: person }
+
+    cdn: "CDN / WAF\n[Cloudflare]" {
+      class: external
+    }
+
+    api: "Public API\n[Go service]" {
+      class: service
+      link: _.layers.component
+    }
+
+    redirect: "Redirect service\n[Go service]" {
+      class: service
+      link: _.layers.component
+    }
+
+    redis: "Redis cluster\n[Cache]" {
+      class: datastore
+      shape: cylinder
+    }
+
+    url_store: "URL mappings\n[DynamoDB]" {
+      class: datastore
+      shape: cylinder
+    }
+
+    event_bus: "Click-event stream\n[Kafka]" {
+      class: datastore
+    }
+
+    analytics: "Analytics consumer\n[Worker]" {
+      class: service
+    }
+
+    user -> cdn: "HTTPS"
+    visitor -> cdn: "GET /{shortCode}"
+    cdn -> api: "POST /v1/links"
+    cdn -> redirect: "GET /{shortCode}"
+    api -> url_store: "Creates mappings"
+    redirect -> redis: "Lookup shortCode"
+    redirect -> url_store: "Cache miss lookup"
+    redirect -> event_bus: "Publishes click event"
+    analytics -> event_bus: "Consumes"
+  }
+
+  # ── C4 level 3 — components inside the redirect service ────────────────────
+  component: {
+    direction: right
+
+    edge: "CDN / API Gateway" {
+      class: external
+    }
+
+    redirect_api: "Redirect API\n[Go HTTP handler]" {
+      class: service
+    }
+
+    redirect_handler: "Redirect Handler\n[Application service]" {
+      class: service
+      link: _.layers.code
+    }
+
+    cache: "Mapping Cache\n[Redis repository]" {
+      class: datastore
+    }
+
+    mapping_repo: "URL Mapping Repository\n[DB repository]" {
+      class: datastore
+    }
+
+    event_publisher: "Click Event Publisher\n[Async producer]" {
+      class: service
+    }
+
+    validator: "Short-code Validator\n[Domain component]" {
+      class: service
+    }
+
+    edge -> redirect_api: "GET /{shortCode}"
+    redirect_api -> redirect_handler: "Resolve(shortCode)"
+    redirect_handler -> validator: "Validate and normalize"
+    redirect_handler -> cache: "GET mapping:{shortCode}"
+    redirect_handler -> mapping_repo: "Read on cache miss"
+    redirect_handler -> event_publisher: "Publish ClickRecorded"
+    redirect_handler -> edge: "301/302 Location"
+  }
+
+  # ── C4 level 4 — the code that resolves one redirect ───────────────────────
+  code: {
+    direction: right
+
+    request: "HTTP Request\nGET /abc123"
+
+    handler: "RedirectHandler" {
+      class: service
+      validate: "validateShortCode(code)"
+      resolve: "resolveMapping(code)"
+      record: "recordClickAsync(mapping)"
+      respond: "redirect(mapping.longURL)"
+    }
+
+    cache_repo: "RedisMappingRepository" {
+      class: datastore
+      get: "Get(code) -> URLMapping?"
+      set: "Set(mapping, ttl)"
+    }
+
+    db_repo: "UrlMappingRepository" {
+      class: datastore
+      get: "GetByShortCode(code) -> URLMapping?"
+    }
+
+    mapping: "URLMapping" {
+      shape: sql_table
+      short_code: "string [PK]"
+      long_url: "string"
+      created_at: "timestamp"
+      expires_at: "timestamp?"
+      status: "active | disabled | expired"
+    }
+
+    producer: "ClickEventProducer" {
+      class: service
+      publish: "Publish(ClickRecorded)"
+    }
+
+    request -> handler.validate: "1. Parse code"
+    handler.validate -> handler.resolve: "2. Valid code"
+    handler.resolve -> cache_repo.get: "3. Lookup"
+    cache_repo.get -> db_repo.get: "4. Cache miss"
+    db_repo.get -> mapping: "5. Load mapping"
+    db_repo.get -> cache_repo.set: "6. Populate cache"
+    handler.resolve -> handler.record: "7. Mapping found"
+    handler.record -> producer.publish: "8. Async event"
+    handler.record -> handler.respond: "9. Return redirect"
+  }
+}

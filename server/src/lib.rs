@@ -227,6 +227,7 @@ where
         catalog::http::routes::get_synapse_index,
         catalog::http::routes::search_catalog,
         catalog::http::routes::get_component_doc,
+        catalog::http::routes::get_d2_board,
         catalog::http::routes::get_synapse_lesson,
         execution::http::run_code,
         submission::http::submit_solution,

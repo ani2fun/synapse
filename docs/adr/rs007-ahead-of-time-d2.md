@@ -156,3 +156,58 @@ commit must turn it off first. This is recorded beside the variable in `ani2fun/
 - **Vendor the render script into each content repository.** Removes the cross-repo checkout, but
   the copies drift and the drift is silent. The single source with a pinning test is the safer
   coupling.
+
+## Amendment — multi-board walkthroughs (```d2 boards)
+
+A `layers:` diagram is a TREE of boards, not one figure, and a reader drives it by clicking the
+nodes that carry `link:`. That does not fit the artifact convention above, so it gets a second
+one — narrowly, and only for fences that ask for it.
+
+**A ```` ```d2 boards ```` fence writes a directory BESIDE ITS LESSON**, the way
+`<lesson>.editorial.md` and `_c4-docs/` already do:
+
+```
+01-intro.md
+_d2/<name>/boards.json      ← the board graph
+_d2/<name>/<slug>.svg       ← one per board
+```
+
+Everything above still holds for every other fence: a lone ```` ```d2 ```` keeps
+`_media/d2/<hash>.svg`, byte for byte, and `renderD2Script.test.ts` pins that it does.
+
+**Why co-located rather than pooled.** The pool is content-addressed because a diagram renders
+the same wherever it appears. A walkthrough is not addressed that way in practice — it belongs to
+the lesson that explains it, and a reader reaches its later boards by asking for them. Putting the
+set in the lesson's own directory means moving the lesson moves its diagrams, deleting it deletes
+them, and `--prune` becomes a per-directory set difference rather than a whole-repo sweep. The
+cost is that the lookup needs the lesson's identity, so `renderLesson` takes an optional
+`RenderContext` and a surface without one (the blog, the authoring preview) gets the client
+renderer — the same floor every other d2 miss lands on.
+
+**Only the ROOT board is inlined.** The rest are a click the reader may never take; inlining all
+of them would put most of the bytes on a page nobody navigates. Siblings come from
+`GET /api/synapse/d2/{fence}/{file}?lesson=…`, which mirrors `c4-doc` and reuses
+`LessonFileRef::neighbour`. This is the same reasoning as the slide-0-only rule above.
+
+**Nothing rewrites the SVG.** d2 writes the absolute board path into every anchor it emits
+(`href="root.layers.container"`), so navigation is a lookup against the manifest. Rewriting the
+committed file was the obvious alternative and is the wrong one: the rewrite rules are not part
+of the cache key, so a rule change would keep serving the old rewrite forever — exactly the silent
+drift this ADR exists to prevent. Leaving the anchors alone also keeps them real links:
+focusable, Enter-activatable, announced as links.
+
+**Staleness gained a second key.** `boards.json` records the generator version alongside the
+source hash, and a mismatch in either redraws the set. The SSR half checks the recorded source
+against the fence it is rendering and treats a mismatch as not-drawn — a diagram edited since CI
+last ran falls back to the client rather than confidently serving the previous picture.
+
+### Consequences
+
+- A dropped `link:` is now reported. `link: layers.x` written inside a layer resolves against
+  that layer, finds nothing, and is dropped by the compiler with no anchor, no `link` field on
+  the shape, and a successful `d2 validate`. Since the compiled tree keeps no trace, the audit
+  reads the SOURCE and names the file, line, board and fix. It warns rather than fails: the
+  script is checked out by six satellites and a parser disagreement must not break all of them.
+- `dev-tools/d2-interactive.mjs` packages the same boards as one self-contained page. It is the
+  one place the diagram owns the browser's Back button; in a lesson the viewer keeps its own
+  history and writes `?board=<slug>` with `replaceState`.

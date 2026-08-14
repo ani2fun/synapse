@@ -5,70 +5,58 @@
 // is also the safe one, because it is what a reader gets if this island never runs.
 //
 // This upgrades it in exactly two ways:
-//   · the server says the caller may edit  → live link, ordinary tooltip;
+//   · the server says the caller may edit  → the href is granted, ordinary tooltip;
 //   · editing is switched off entirely     → removed, since there is nothing to ask for.
 // Anything else leaves the gated default alone.
 //
 // One network call, cached across the page's lifetime. `canEdit` already folds in "editing is
 // enabled", "signed in" and "on the content-editor list", so there is nothing to re-derive here.
 
-import * as api from "../../lib/api/client";
+import { onEditGate } from "../../lib/api/editGate";
 import * as log from "../../lib/log";
-import { AUTH_CHANGED } from "../workbench/contracts";
 
 const LINK = "[data-edit-link]";
 const TIP = "[data-edit-tip]";
 const GATED = "lesson-edit-link--gated";
 const ACTIVE_TIP = "Edit this page and open a change request";
 
-/** Swallow clicks while gated — `aria-disabled` is a promise to assistive tech, not a behaviour,
- *  and an anchor with an href still navigates. Registered once, and it checks the live class so it
- *  stops mattering the moment the link is upgraded. */
-function blockGatedClicks(link: HTMLAnchorElement): void {
-  link.addEventListener("click", (event) => {
-    if (link.classList.contains(GATED)) event.preventDefault();
-  });
-}
-
+/** Hand the link its destination. The server ships the anchor WITHOUT an href, so until this runs
+ *  there is nothing to click through to — no listener to swallow the click, and no window between
+ *  first paint and hydration in which a gated reader can still reach the editor. */
 function activate(link: HTMLAnchorElement, tip: HTMLElement | null): void {
+  const href = link.dataset.editHref;
+  if (href == null) return; // no destination to grant; the gated default stands
+  link.href = href;
   link.classList.remove(GATED);
   link.removeAttribute("aria-disabled");
   tip?.setAttribute("data-tip", ACTIVE_TIP);
 }
 
-async function refresh(): Promise<void> {
+function apply(gate: { enabled: boolean; canEdit: boolean }): void {
   const link = document.querySelector<HTMLAnchorElement>(LINK);
   const tip = document.querySelector<HTMLElement>(TIP);
   if (!link) return;
-  try {
-    const config = await api.editConfig();
-    if (!config.enabled) {
-      // The deployment does not offer editing at all — an affordance nobody can ever earn is
-      // worse than none, so it goes away rather than sitting there permanently gated.
-      (tip ?? link).remove();
-      return;
-    }
-    if (config.canEdit) {
-      activate(link, tip);
-      log.info(`edit: "Suggest an edit" is live (${config.mode})`);
-    } else {
-      log.debug("edit: not a content editor — the affordance stays gated");
-    }
-  } catch {
-    // Routes absent (editing off) or the call failed — leave the gated default rather than
-    // promising a link that would 404 or 403.
-    log.debug("edit: config unavailable — the affordance stays gated");
+  if (!gate.enabled) {
+    // The deployment does not offer editing at all — an affordance nobody can ever earn is
+    // worse than none, so it goes away rather than sitting there permanently gated.
+    (tip ?? link).remove();
+    return;
+  }
+  if (gate.canEdit) {
+    activate(link, tip);
+    log.info('edit: "Suggest an edit" is live');
+  } else {
+    log.debug("edit: not a content editor — the affordance stays gated");
   }
 }
 
 function init(): void {
-  const link = document.querySelector<HTMLAnchorElement>(LINK);
-  if (!link) return;
-  blockGatedClicks(link);
-  void refresh();
-  // Auth resolves asynchronously and can flip after first paint (check-sso, a later sign-in), so
-  // re-ask when it changes rather than reading a one-shot snapshot.
-  window.addEventListener(AUTH_CHANGED, () => void refresh());
+  if (document.querySelector<HTMLAnchorElement>(LINK) == null) return;
+  // Through the shared gate: this page now has several affordances asking the same question —
+  // this link, and an Edit pill on every d2 figure — and it resolves once for all of them,
+  // re-resolving when auth flips. A failed or absent config lands on "editing is off", which is
+  // the same gated default this started with.
+  onEditGate(apply);
 }
 
 if (document.readyState === "loading") {

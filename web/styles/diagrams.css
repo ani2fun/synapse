@@ -68,12 +68,19 @@
                    border-color: hsl(var(--primary) / 0.5); }
 .modal-btn svg { width: 15px; height: 15px; flex: none; }
 
-/* The Enlarge pill — top-LEFT, revealed on hover once the figure has rendered.
-   Positioning only; .modal-btn owns the look. */
-.diagram__zoom { position: absolute; top: 6px; left: 6px; z-index: 1; opacity: 0;
-                 transition: opacity 140ms ease, color 0.12s, border-color 0.12s,
-                             background 0.12s; }
-.diagram:hover .diagram__zoom, .diagram__zoom:focus-visible { opacity: 1; }
+/* The figure's controls — top-LEFT, revealed on hover once it has rendered. One row rather than
+   two absolutely-positioned pills, so Enlarge and Edit cannot both claim `left: 6px`.
+   Positioning only; .modal-btn owns the look of each. */
+.diagram__chrome { position: absolute; top: 6px; left: 6px; z-index: 1; display: flex; gap: 6px;
+                   opacity: 0; transition: opacity 140ms ease; }
+.diagram:hover .diagram__chrome, .diagram__chrome:focus-within { opacity: 1; }
+.diagram__zoom, .diagram__edit { transition: color 0.12s, border-color 0.12s, background 0.12s; }
+.diagram__edit { text-decoration: none; }
+/* Gated: the affordance is honest about existing before it is honest about being usable — the
+   title carries the instructions for asking. */
+.diagram__edit--gated { opacity: 0.55; cursor: not-allowed; }
+.diagram__edit--gated:hover { background: hsl(var(--primary) / 0.08);
+                              border-color: hsl(var(--primary) / 0.3); }
 
 /* Loud failure (ADR-S026): a visible card with the raw source — never a blank figure. */
 .diagram-error { width: 100%; margin: 1rem 0; padding: 0.75rem 1rem;
@@ -152,6 +159,74 @@
    page under it) perfectly still while stepping ‹ › ; detail lives behind the zoom. */
 .diagram--slides .diagram__figure { height: clamp(16rem, 70vh, 32rem); align-items: center; }
 .diagram--slides .diagram__figure svg { max-height: 100%; }
+
+/* ── the d2 walkthrough: one source, a TREE of boards, driven by clicking the nodes ──
+   The figure box is FIXED for the same reason the slideshow's is: boards differ in intrinsic
+   height, and the card (and the prose under it) must not jump while drilling down. */
+.d2-boards { min-height: 8rem; }
+.diagram--boards .diagram__figure { height: clamp(16rem, 70vh, 32rem); align-items: center; }
+.diagram--boards .diagram__figure svg { max-height: 100%; }
+/* A linked node is the whole interaction, so it has to look like one. */
+.diagram--boards .diagram__figure a,
+.diagram-zoom__figure a { cursor: pointer; }
+.diagram--boards .diagram__figure a:focus-visible,
+.diagram-zoom__figure a:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 2px; }
+.diagram--boards:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 4px; }
+
+/* The board on screen, announced politely. Visually redundant next to the breadcrumb — the
+   breadcrumb is buttons, which a live region must not be — so it is screen-reader only. */
+.diagram__live { position: absolute; width: 1px; height: 1px; overflow: hidden;
+                 clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+
+/* ── the board bar: ‹ › ⌂ · breadcrumb · ☰ — rendered under the card AND inside the overlay ── */
+.boards-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+              justify-content: center; margin-top: 10px; }
+.boards-bar__nav { margin-top: 0; }
+.boards-bar__trail { display: flex; align-items: center; gap: 2px; flex-wrap: wrap;
+                     font-size: 0.85rem; }
+.boards-bar__sep { margin: 0 4px; color: hsl(var(--muted-foreground)); }
+.boards-bar__crumb { border: 0; background: none; padding: 2px 4px; border-radius: 6px;
+                     font: inherit; color: hsl(var(--muted-foreground)); cursor: pointer; }
+.boards-bar__crumb:hover { color: hsl(var(--primary)); background: hsl(var(--primary) / 0.08); }
+.boards-bar__here { padding: 2px 4px; font-weight: 600; color: hsl(var(--foreground)); }
+.boards-bar__menu { position: relative; }
+.boards-menu { position: absolute; bottom: calc(100% + 6px); right: 0; z-index: 4; margin: 0;
+               padding: 4px; list-style: none; min-width: 12rem; max-height: 16rem;
+               overflow-y: auto; border: 1px solid hsl(var(--border)); border-radius: 10px;
+               background: hsl(var(--card));
+               box-shadow: 0 12px 32px -14px hsl(var(--foreground) / 0.5); }
+.boards-menu__item { display: block; width: 100%; text-align: left; border: 0; background: none;
+                     padding: 6px 10px; border-radius: 6px; font: inherit; font-size: 0.85rem;
+                     color: hsl(var(--foreground)); cursor: pointer; }
+.boards-menu__item:hover { background: hsl(var(--muted)); }
+.boards-menu__item--at { color: hsl(var(--primary)); font-weight: 600; }
+
+/* The overlay's copy sits top-CENTRE: Close owns top-left (house rule) and the zoom bar owns the
+   bottom, so this is the one edge left. The menu drops DOWNWARD here for the same reason. */
+.diagram-zoom__chrome { position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+                        z-index: 3; max-width: min(70ch, calc(100% - 14rem));
+                        padding: 6px 10px; border: 1px solid hsl(var(--border));
+                        border-radius: 999px; background: hsl(var(--card) / 0.92);
+                        box-shadow: 0 8px 24px -12px hsl(var(--foreground) / 0.5);
+                        backdrop-filter: blur(4px); }
+/* The chrome is a slot, and a single-board diagram declines it. Without this the pill still
+   paints — a bordered, blurred, empty capsule floating over the figure. */
+.diagram-zoom__chrome:empty { display: none; }
+.diagram-zoom__chrome .boards-bar { margin-top: 0; }
+.diagram-zoom__chrome .boards-menu { bottom: auto; top: calc(100% + 6px); }
+@media (max-width: 720px) {
+  .diagram-zoom__chrome { max-width: calc(100% - 2rem); left: 1rem; transform: none; }
+}
+
+/* A board change is a cross-fade, not a slide — the frame, the chrome and the toolbar must not
+   move while it happens. */
+.diagram--boards .diagram__figure svg,
+.diagram-zoom__figure svg { animation: board-in 220ms ease; }
+@keyframes board-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .diagram--boards .diagram__figure svg,
+  .diagram-zoom__figure svg { animation: none; }
+}
 
 /* ── the frame slideshow: a run of authored stills, stepped one <img> at a time ──
    It carries `.diagram--slides` on purpose, so the fixed figure box above and the transport's
