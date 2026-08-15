@@ -1,6 +1,6 @@
 /**
- * "Add to a lesson…" — a diagram drafted at `/d2` becomes a pull request against whichever repo
- * owns the lesson it is going into.
+ * "Add to a lesson…" — a diagram drafted at `/d2` or `/mermaid` becomes a pull request against
+ * whichever repo owns the lesson it is going into.
  *
  * There is NO new endpoint behind this. The authoring pipeline already takes a whole file
  * (`GET /api/edits/source/{path}` → `POST /api/edits`), so adding a fence is a string splice
@@ -18,7 +18,8 @@ import { useEffect, useMemo, useState } from "preact/hooks";
 
 import { Icon } from "./icons";
 import { CONTACT_EMAIL, EDIT_ACCESS_TEXT } from "../../lib/contact";
-import { d2Fences } from "../../lib/markdown/fences";
+import { type DiagramLang, fencesOfLang } from "./lang";
+import type { Subject } from "./subject";
 import * as api from "../../lib/api/client";
 import type { EditRequest, EditSource } from "../../lib/api/client";
 import { type SearchEntry, entries as flattenIndex, search as rankEntries } from "../../lib/search";
@@ -39,19 +40,23 @@ const pathOf = (entry: SearchEntry): string | null =>
   entry.page.kind === "lesson" ? entry.page.path.join("/") : null;
 
 export function AddToLesson({
+  lang,
   fence,
   sidecar,
   subject,
   published,
   onClose,
 }: {
+  /** Which fence list `at` indexes — the splice reads the wrong diagram if this disagrees with
+   *  the pill that opened the editor. */
+  lang: DiagramLang;
   fence: string;
   /** The sidecar directory the boards will land in, or null for a plain figure — which is drawn
    *  into the shared pool and has no directory of its own. */
   sidecar: string | null;
   /** The diagram this page was opened on, when it was. Its presence is what turns this dialog
    *  from "choose a lesson and add" into "put this back where it came from". */
-  subject?: { lessonPath: string; at: number; count: number } | null;
+  subject?: Subject | null;
   /** The source the lesson held when it was loaded — checked before anything is overwritten. */
   published?: string | null;
   onClose: () => void;
@@ -137,7 +142,7 @@ export function AddToLesson({
     try {
       spliced = updating
         ? // Back where it came from, and only if it is still the diagram that was opened.
-          replaceFence(phase.source.source, subject.at, subject.count, fence, published ?? "")
+          replaceFence(phase.source.source, lang, subject.at, subject.count, fence, published ?? "")
         : insertFence(phase.source.source, fence, anchor);
     } catch (error) {
       setPhase({ kind: "error", message: messageOf(error) });
@@ -387,7 +392,12 @@ export function headingsOf(file: string): string[] {
 export class FenceMoved extends Error {}
 
 /**
- * The lesson's file with the d2 fence at `at` (and the `count - 1` after it) replaced by `fence`.
+ * The lesson's file with the `lang` fence at `at` (and the `count - 1` after it) replaced by
+ * `fence`.
+ *
+ * `at` indexes the fences of ONE language, so the mermaid diagram at position 2 is found without
+ * counting the d2 fences between it and position 1 — the same ordinal the figure's `data-fence-at`
+ * carries.
  *
  * `expect` is the source that was loaded into the editor. It is checked against what is actually
  * at that position now, and a mismatch throws rather than writing: `baseFingerprint` would also
@@ -397,13 +407,14 @@ export class FenceMoved extends Error {}
  */
 export function replaceFence(
   file: string,
+  lang: DiagramLang,
   at: number,
   count: number,
   fence: string,
   expect: string,
 ): string {
   const [head, body] = splitHead(file);
-  const found = d2Fences(body);
+  const found = fencesOfLang(body, lang);
   const target = found[at];
   if (target == null) {
     throw new FenceMoved(`This lesson no longer has a diagram at position ${at + 1}.`);

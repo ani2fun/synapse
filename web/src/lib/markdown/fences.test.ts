@@ -3,8 +3,8 @@
 // someone's lesson — replacing the wrong fence, or losing the frontmatter the server insists on.
 import { describe, expect, it } from "vitest";
 
-import { FenceMoved, replaceFence, splitHead } from "../../islands/d2lab/AddToLesson";
-import { d2Fences, fences } from "./fences";
+import { FenceMoved, replaceFence, splitHead } from "../../islands/diagramlab/AddToLesson";
+import { d2Fences, fences, mermaidFences } from "./fences";
 
 const LESSON = [
   "---",
@@ -77,7 +77,7 @@ describe("replacing a diagram in its lesson", () => {
   const bodyOf = (file: string) => splitHead(file)[1];
 
   it("replaces the one named and leaves the rest alone", () => {
-    const out = replaceFence(LESSON, 0, 1, NEW, "first -> one");
+    const out = replaceFence(LESSON, "d2", 0, 1, NEW, "first -> one");
     expect(d2Fences(out).map((f) => f.source)).toEqual([
       "replaced -> me",
       "run -> a",
@@ -90,14 +90,14 @@ describe("replacing a diagram in its lesson", () => {
 
   it("keeps the frontmatter byte-for-byte", () => {
     // The server rejects a proposal that lost its frontmatter, so this is not cosmetic.
-    const out = replaceFence(LESSON, 0, 1, NEW, "first -> one");
+    const out = replaceFence(LESSON, "d2", 0, 1, NEW, "first -> one");
     expect(splitHead(out)[0]).toBe(splitHead(LESSON)[0]);
     expect(out.startsWith("---\ntitle: A lesson\n---")).toBe(true);
   });
 
   it("replaces a whole run as one figure", () => {
     // Two adjacent fences are one card, so editing it is one replacement, not two.
-    const out = replaceFence(LESSON, 1, 2, NEW, "run -> a");
+    const out = replaceFence(LESSON, "d2", 1, 2, NEW, "run -> a");
     expect(d2Fences(out).map((f) => f.source)).toEqual([
       "first -> one",
       "replaced -> me",
@@ -106,7 +106,7 @@ describe("replacing a diagram in its lesson", () => {
   });
 
   it("replaces a long fence including its own backtick runs", () => {
-    const out = replaceFence(LESSON, 3, 1, NEW, "walk -> through");
+    const out = replaceFence(LESSON, "d2", 3, 1, NEW, "walk -> through");
     expect(out).not.toContain("````");
     expect(d2Fences(out).map((f) => f.source)).toEqual([
       "first -> one",
@@ -118,16 +118,16 @@ describe("replacing a diagram in its lesson", () => {
 
   it("refuses when the diagram at that position is no longer the one that was opened", () => {
     // The guard that matters: without it this would overwrite somebody else's diagram with yours.
-    expect(() => replaceFence(LESSON, 0, 1, NEW, "something -> else")).toThrow(FenceMoved);
+    expect(() => replaceFence(LESSON, "d2", 0, 1, NEW, "something -> else")).toThrow(FenceMoved);
   });
 
   it("refuses when the lesson no longer has a diagram there", () => {
-    expect(() => replaceFence(LESSON, 9, 1, NEW, "first -> one")).toThrow(FenceMoved);
+    expect(() => replaceFence(LESSON, "d2", 9, 1, NEW, "first -> one")).toThrow(FenceMoved);
   });
 
   it("is exact — nothing outside the fence moves", () => {
     const before = bodyOf(LESSON);
-    const after = bodyOf(replaceFence(LESSON, 0, 1, NEW, "first -> one"));
+    const after = bodyOf(replaceFence(LESSON, "d2", 0, 1, NEW, "first -> one"));
     const cut = (text: string) => text.replace(/```d2[\s\S]*?```/, "");
     expect(cut(after)).toBe(cut(before));
   });
@@ -145,7 +145,7 @@ describe("editing a diagram does not change what KIND of diagram it is", () => {
   };
 
   it("leaves a plain fence plain", () => {
-    const out = replaceFence(LESSON, 0, 1, outgoing("", "first -> one"), "first -> one");
+    const out = replaceFence(LESSON, "d2", 0, 1, outgoing("", "first -> one"), "first -> one");
     const replaced = d2Fences(out)[0]!;
     expect(replaced.meta).toBe("");
     // Scoped to the fence that was replaced — the lesson's OWN walkthrough further down still
@@ -156,6 +156,7 @@ describe("editing a diagram does not change what KIND of diagram it is", () => {
   it("keeps a walkthrough a walkthrough", () => {
     const out = replaceFence(
       LESSON,
+      "d2",
       3,
       1,
       outgoing('boards name="w"', "walk -> through"),
@@ -167,7 +168,64 @@ describe("editing a diagram does not change what KIND of diagram it is", () => {
   it("round-trips a fence byte-for-byte when nothing was edited", () => {
     // The strongest form: opening a diagram and proposing it unchanged must be a no-op diff.
     const before = d2Fences(LESSON)[0]!;
-    const out = replaceFence(LESSON, 0, 1, "```d2\nfirst -> one\n```\n", before.source);
+    const out = replaceFence(LESSON, "d2", 0, 1, "```d2\nfirst -> one\n```\n", before.source);
     expect(out).toBe(LESSON);
+  });
+});
+
+// Two editors index two lists, and the whole round trip rests on them not crossing: `at` comes
+// off a figure's `data-fence-at`, and a counter shared between the languages would have the
+// mermaid editor propose its diagram over a d2 one.
+describe("each language counts only its own fences", () => {
+  const MIXED = [
+    "---",
+    "title: Both",
+    "---",
+    "",
+    "```mermaid",
+    "graph TD; A --> B;",
+    "```",
+    "",
+    "```d2",
+    "between -> them",
+    "```",
+    "",
+    "```mermaid",
+    "graph TD; C --> D;",
+    "```",
+    "",
+  ].join("\n");
+
+  it("numbers mermaid fences past the d2 fence between them", () => {
+    expect(mermaidFences(MIXED).map((fence) => fence.source)).toEqual([
+      "graph TD; A --> B;",
+      "graph TD; C --> D;",
+    ]);
+    expect(d2Fences(MIXED).map((fence) => fence.source)).toEqual(["between -> them"]);
+  });
+
+  it("replaces the SECOND mermaid diagram, not the second diagram", () => {
+    const out = replaceFence(
+      MIXED,
+      "mermaid",
+      1,
+      1,
+      "```mermaid\ngraph TD; C --> E;\n```\n",
+      "graph TD; C --> D;",
+    );
+    expect(mermaidFences(out).map((fence) => fence.source)).toEqual([
+      "graph TD; A --> B;",
+      "graph TD; C --> E;",
+    ]);
+    // …and the d2 fence sitting between them is untouched.
+    expect(d2Fences(out).map((fence) => fence.source)).toEqual(["between -> them"]);
+  });
+
+  it("refuses to write a mermaid fence over the d2 one at the same overall position", () => {
+    // Position 1 counting ALL diagrams is the d2 fence. Counting mermaid ones it is the second
+    // mermaid diagram, and `expect` is what proves which list was walked.
+    expect(() =>
+      replaceFence(MIXED, "mermaid", 1, 1, "```mermaid\ngraph TD; X --> Y;\n```\n", "between -> them"),
+    ).toThrow(FenceMoved);
   });
 });

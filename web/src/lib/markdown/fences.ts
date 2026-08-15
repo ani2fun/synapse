@@ -62,6 +62,20 @@ export function d2Fences(markdown: string): Fence[] {
   return fences(markdown).filter((fence) => fence.lang === "d2");
 }
 
+/**
+ * Every ```mermaid fence, in order — the same ordinal contract, on its own list.
+ *
+ * Per LANGUAGE, not per diagram: `/mermaid?at=1` is the second mermaid figure in the lesson, and
+ * a d2 fence sitting between two mermaid ones does not advance it. The two editors would open
+ * each other's diagrams if they shared a counter.
+ *
+ * Only TWO implementations have to agree about this one — remark and this — because nothing
+ * draws mermaid ahead of time. The three-way pin in `renderD2Script.test.ts` is d2's alone.
+ */
+export function mermaidFences(markdown: string): Fence[] {
+  return fences(markdown).filter((fence) => fence.lang === "mermaid");
+}
+
 function lineAt(text: string, index: number): number {
   let line = 1;
   for (let i = 0; i < index; i += 1) if (text[i] === "\n") line += 1;

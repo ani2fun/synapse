@@ -387,6 +387,45 @@ function d2Transform(ctx?: RenderContext) {
   };
 }
 
+// ── mermaid diagrams ──────
+// Nothing draws mermaid ahead of time, so there is no transform here and no `data-prerendered`
+// twin: a ```mermaid fence is always the source-carrying placeholder the client renders from
+// (`Diagrams.tsx` → `lib/islands/diagram/mermaid.ts`). The one thing it needs from this pipeline
+// is an ORDINAL, so a figure can say which fence it came from and the Edit pill can open it.
+
+/** The property a mermaid fence's ordinal rides on, between the pre-pass and the rehype handler. */
+const MERMAID_AT = "__synapseMermaidAt";
+
+const mermaidAt = (node: Code): number | null => {
+  const at = (node as unknown as Record<string, unknown>)[MERMAID_AT];
+  return typeof at === "number" ? at : null;
+};
+
+/**
+ * Number the mermaid fences, in document order.
+ *
+ * Per LANGUAGE — a d2 fence between two mermaid ones does not advance this — because
+ * `/mermaid?at=N` indexes `mermaidFences()`, and a shared counter would have the two editors
+ * opening each other's diagrams. An ordinal rather than a content hash, because two identical
+ * diagrams in one lesson share a hash and only position tells them apart.
+ *
+ * Only TOP-LEVEL fences are numbered, and that is what makes the count agree with
+ * `mermaidFences()` by construction: its regex is `^`-anchored, so a fence indented inside a list
+ * or a blockquote is invisible to it. Such a fence gets no ordinal here either, renders exactly as
+ * it always has, and simply carries no Edit pill — rather than carrying one that points at the
+ * wrong diagram.
+ */
+function mermaidOrdinals() {
+  return (tree: Root): void => {
+    let at = 0;
+    for (const node of tree.children) {
+      if (node.type !== "code" || fenceLang(node as Code) !== "mermaid") continue;
+      (node as unknown as Record<string, unknown>)[MERMAID_AT] = at;
+      at += 1;
+    }
+  };
+}
+
 /**
  * Render one lesson's markdown source to an HTML string.
  *
@@ -441,6 +480,7 @@ export async function renderLesson(raw: string, ctx?: RenderContext): Promise<st
     .use(remarkGfm)
     .use(d2Transform, ctx) // parse-time d2 → SVG placeholders (before rehype; no-op without a d2 fence)
     .use(frameSequenceTransform) // frame-image runs → ONE stepping figure (no-op without images)
+    .use(mermaidOrdinals) // number the mermaid fences, so a figure can name the one it came from
     .use(remarkRehype, {
       allowDangerousHtml: true,
       handlers: {
@@ -480,14 +520,18 @@ export async function renderLesson(raw: string, ctx?: RenderContext): Promise<st
 
           // Mermaid fences → a diagram placeholder the client renders as SVG. The source rides
           // URI-encoded on data-source; mermaid itself is a lazy island
-          // (lib/islands/diagram/mermaid.ts), so nothing heavy loads here. Every other fence
-          // still shiki-highlights via the default handler.
-          if (node.lang === "mermaid") {
+          // (lib/islands/diagram/mermaid.ts), so nothing heavy loads here. `data-fence-at` comes
+          // from the pre-pass above and is what the Edit pill points at — absent on a fence the
+          // pre-pass could not number, which costs that figure its pill and nothing else. Every
+          // other fence still shiki-highlights via the default handler.
+          if (fenceLang(node) === "mermaid") {
+            const at = mermaidAt(node);
             return {
               type: "element",
               tagName: "div",
               properties: {
                 className: ["mermaid-block"],
+                ...(at == null ? {} : { "data-fence-at": String(at) }),
                 "data-source": encodeURIComponent(node.value),
               },
               children: [],

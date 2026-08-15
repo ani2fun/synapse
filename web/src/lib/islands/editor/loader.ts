@@ -29,15 +29,22 @@ export async function mountMarkdownEditor(
   return createEditor(container, { value, language: "markdown", readOnly: false, dark, onChange });
 }
 
-/** The `/d2` editor's pane — the same gateway, on the grammar this repo registers itself. */
-export async function mountD2Editor(
+/**
+ * The diagram editors' pane — the same gateway, on the two grammars this repo registers itself.
+ *
+ * `language` is the FENCE's language (`d2`, `mermaid`), not a Monaco id; `createEditor` maps it.
+ * One function rather than one per language, because the lab shell is generic over which it is
+ * editing and a per-language mount would only give it something to branch on.
+ */
+export async function mountDiagramEditor(
   container: HTMLElement,
   value: string,
+  language: string,
   dark: boolean,
   onChange: (value: string) => void,
 ): Promise<EditorHandle> {
   const { createEditor } = await import("./monaco");
-  return createEditor(container, { value, language: "d2", readOnly: false, dark, onChange });
+  return createEditor(container, { value, language, readOnly: false, dark, onChange });
 }
 
 export async function mountEditor(

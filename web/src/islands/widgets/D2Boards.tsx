@@ -20,7 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks"
 
 import { DiagramEdit } from "./DiagramEdit";
 import { ZoomAffordance } from "./Zoom";
-import { Icon } from "../d2lab/icons";
+import { Icon } from "../diagramlab/icons";
 import { apiBase } from "../../lib/api/client";
 import { fnv1a } from "../../lib/hash";
 import {
@@ -613,7 +613,9 @@ export function D2BoardsHost({ drawn, raw, host, fenceAt, fenceCount }: BoardsHo
       provider={provider}
       initialSvg={drawn?.rootSvg ?? null}
       ownsUrl
-      edit={fenceAt == null ? undefined : <DiagramEdit at={fenceAt} count={fenceCount ?? 1} />}
+      edit={
+        fenceAt == null ? undefined : <DiagramEdit lang="d2" at={fenceAt} count={fenceCount ?? 1} />
+      }
     />
   );
 }

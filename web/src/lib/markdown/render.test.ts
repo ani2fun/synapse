@@ -423,6 +423,39 @@ describe("mermaid fences → diagram placeholder", () => {
   });
 });
 
+describe("mermaid figures carry the fence they came from", () => {
+  const mermaid = (source: string) => "```mermaid\n" + source + "\n```";
+  const ordinals = (html: string) =>
+    [...html.matchAll(/class="mermaid-block" data-fence-at="(\d+)"/g)].map((m) => Number(m[1]));
+
+  it("numbers them in document order", async () => {
+    const html = await renderLesson([mermaid("graph TD; A --> B;"), mermaid("graph TD; C --> D;")].join("\n\n"));
+    expect(ordinals(html)).toEqual([0, 1]);
+  });
+
+  it("counts mermaid fences only — a d2 fence between two of them does not advance it", async () => {
+    // The whole round trip rests on this: `/mermaid?at=1` must be the second MERMAID diagram, or
+    // the editor opens someone else's figure. `mermaidFences()` indexes the same way.
+    const html = await renderLesson(
+      [mermaid("graph TD; A --> B;"), "```d2\nbetween -> them\n```", mermaid("graph TD; C --> D;")].join("\n\n"),
+    );
+    expect(ordinals(html)).toEqual([0, 1]);
+  });
+
+  it("leaves a fence it could not number without one, rather than with a wrong one", async () => {
+    // An indented fence is invisible to the `^`-anchored scanner the editor splices with, so it
+    // gets no ordinal here either — no Edit pill beats a pill pointing at the wrong diagram.
+    const html = await renderLesson("- a list item\n\n  ```mermaid\n  graph TD; A --> B;\n  ```\n");
+    expect(html).not.toContain("data-fence-at");
+  });
+
+  it("reads a capitalised info string the same way the splicer does", async () => {
+    const html = await renderLesson("```Mermaid\ngraph TD; A --> B;\n```");
+    expect(html).toContain('class="mermaid-block"');
+    expect(ordinals(html)).toEqual([0]);
+  });
+});
+
 describe("viz widget fences → declarative-widget placeholder", () => {
   const PAYLOAD = '{"steps":[{"nodes":[{"id":"0","label":"5","kind":"cell","slot":0}],"annotation":"start"}]}';
 

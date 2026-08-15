@@ -1,13 +1,15 @@
 /**
- * "Edit" on a rendered d2 figure — the diagram half of "Suggest an edit".
+ * "Edit" on a rendered figure — the diagram half of "Suggest an edit".
  *
- * A lesson's prose has been editable in place for a while; its diagrams have not. This opens
- * `/d2` loaded with the exact fence behind the figure, where it can be changed against a live
- * preview and proposed as a pull request that replaces it where it stands.
+ * A lesson's prose has been editable in place for a while; its diagrams have not. This opens the
+ * editor for the figure's LANGUAGE, loaded with the exact fence behind it, where it can be changed
+ * against a live preview and proposed as a pull request that replaces it where it stands.
  *
- * The figure carries `data-fence-at` — which d2 fence in the lesson it came from — because a
+ * The figure carries `data-fence-at` — which fence OF ITS OWN LANGUAGE it came from — because a
  * server-drawn block ships no source at all (nothing may recompile it) and d2 hashes its salt
  * into its own element ids, so the ordinal is the only thing tying a picture back to its text.
+ * Per language, not per figure: `/mermaid?at=1` is the second mermaid diagram, and the d2 fences
+ * between it and the first do not move it.
  *
  * Gating follows `editLink.ts` exactly: visible but inert by default, lit when the server says
  * this reader may edit, removed entirely when the deployment does not offer editing. A reader who
@@ -18,21 +20,35 @@ import { h } from "preact";
 import { useEffect, useState } from "preact/hooks";
 
 import { EDIT_ACCESS_TEXT } from "../../lib/contact";
-import { Icon } from "../d2lab/icons";
+import { Icon } from "../diagramlab/icons";
+import { type DiagramLang, routeOfLang } from "../diagramlab/lang";
 import { lessonPathFromUrl } from "../../lib/catalog/path";
 import { onEditGate } from "../../lib/api/editGate";
 
 const ACTIVE_TIP = "Edit this diagram and open a change request";
 
-/** Where `/d2` should open for a given figure. `count` travels so a slideshow run is edited as
- *  the group it is, rather than one slide of it. */
-export function editorHref(lessonPath: string, at: number, count: number): string {
+/** Where the editor should open for a given figure. `count` travels so a slideshow run is edited
+ *  as the group it is, rather than one slide of it. */
+export function editorHref(
+  lang: DiagramLang,
+  lessonPath: string,
+  at: number,
+  count: number,
+): string {
   const params = new URLSearchParams({ lesson: lessonPath, at: String(at) });
   if (count > 1) params.set("count", String(count));
-  return `/d2?${params.toString()}`;
+  return `${routeOfLang(lang)}?${params.toString()}`;
 }
 
-export function DiagramEdit({ at, count }: { at: number; count: number }) {
+export function DiagramEdit({
+  lang,
+  at,
+  count,
+}: {
+  lang: DiagramLang;
+  at: number;
+  count: number;
+}) {
   const [gate, setGate] = useState<{ enabled: boolean; canEdit: boolean } | null>(null);
   useEffect(() => onEditGate(setGate), []);
 
@@ -52,7 +68,11 @@ export function DiagramEdit({ at, count }: { at: number; count: number }) {
     );
   }
   return (
-    <a class="diagram__edit modal-btn" href={editorHref(lessonPath, at, count)} title={ACTIVE_TIP}>
+    <a
+      class="diagram__edit modal-btn"
+      href={editorHref(lang, lessonPath, at, count)}
+      title={ACTIVE_TIP}
+    >
       <Icon name="pencil" size={14} />
       <span>Edit</span>
     </a>

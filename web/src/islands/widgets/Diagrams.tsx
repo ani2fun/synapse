@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { D2BoardsHost } from "./D2Boards";
 import { DiagramEdit } from "./DiagramEdit";
 import { ZoomAffordance } from "./Zoom";
+import { type DiagramLang } from "../diagramlab/lang";
 import { decodeManifest } from "../../lib/islands/diagram/boards";
 
 // Statically imported: this module is small and holds the salt + queue only. The multi-MB WASM
@@ -49,12 +50,15 @@ function errorMessage(error: unknown): string {
 }
 
 /** The Edit pill for a figure, or nothing when the document did not say which fence it is. */
-function editPill(fenceAt?: number, fenceCount?: number) {
-  return fenceAt == null ? undefined : h(DiagramEdit, { at: fenceAt, count: fenceCount ?? 1 });
+function editPill(lang: DiagramLang, fenceAt?: number, fenceCount?: number) {
+  return fenceAt == null
+    ? undefined
+    : h(DiagramEdit, { lang, at: fenceAt, count: fenceCount ?? 1 });
 }
 
-/** Which d2 fence a figure came from, and how many it covers — what the Edit pill points at.
- *  Absent on a document rendered without them (an older cached page, the authoring preview). */
+/** Which fence OF THE FIGURE'S OWN LANGUAGE it came from, and how many it covers — what the Edit
+ *  pill points at. Absent on a document rendered without them (an older cached page, the
+ *  authoring preview). */
 function fenceRef(element: Element): { fenceAt: number; fenceCount: number } | null {
   const at = Number(element.getAttribute("data-fence-at"));
   if (!Number.isInteger(at) || at < 0) return null;
@@ -102,7 +106,7 @@ export function hydrateDiagrams(root: ParentNode): number {
     if (source == null) continue;
     const host = element as HTMLElement;
     host.replaceChildren();
-    render(h(MermaidCard, { source }), host);
+    render(h(MermaidCard, { source, ...fenceRef(element) }), host);
     count += 1;
   }
   for (const element of root.querySelectorAll("div.d2-block")) {
@@ -182,7 +186,15 @@ export function hydrateDiagrams(root: ParentNode): number {
 
 /** A ```mermaid fence: source → SVG via the lazy island; a malformed diagram becomes the loud
  *  error card with the raw source to fix — never a blank figure. */
-function MermaidCard({ source }: { source: string }) {
+function MermaidCard({
+  source,
+  fenceAt,
+  fenceCount,
+}: {
+  source: string;
+  fenceAt?: number;
+  fenceCount?: number;
+}) {
   const figureRef = useRef<HTMLDivElement>(null);
   const [svgHtml, setSvgHtml] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -216,7 +228,7 @@ function MermaidCard({ source }: { source: string }) {
         </div>
       )}
       <div class={failed != null ? "diagram not-prose hidden" : "diagram not-prose"}>
-        <ZoomAffordance svgHtml={svgHtml} />
+        <ZoomAffordance svgHtml={svgHtml} edit={editPill("mermaid", fenceAt, fenceCount)} />
         <div class="diagram__figure" ref={figureRef}></div>
       </div>
     </>
@@ -292,7 +304,7 @@ function D2Card({
         </div>
       )}
       <div class={failed != null ? "diagram not-prose hidden" : "diagram not-prose"}>
-        <ZoomAffordance svgHtml={svgHtml} edit={editPill(fenceAt, fenceCount)} />
+        <ZoomAffordance svgHtml={svgHtml} edit={editPill("d2", fenceAt, fenceCount)} />
         <div class="diagram__figure" ref={figureRef}></div>
       </div>
     </>
@@ -363,7 +375,7 @@ function D2Slideshow({
       tabIndex={0}
       onKeyDown={onKeyDown}
     >
-      <ZoomAffordance svgHtml={svgHtml} edit={editPill(fenceAt, fenceCount)} />
+      <ZoomAffordance svgHtml={svgHtml} edit={editPill("d2", fenceAt, fenceCount)} />
       <div class="diagram__figure" ref={figureRef}></div>
       <div class="transport">
         <button

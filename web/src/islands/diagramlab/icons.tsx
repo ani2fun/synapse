@@ -1,5 +1,5 @@
 /**
- * The `/d2` editor's glyphs — one 24×24 stroked path set, drawn at whatever size the caller asks
+ * The diagram editors' glyphs — one 24×24 stroked path set, drawn at whatever size the caller asks
  * for. Ported from the design system's `ui_kits/d2lab`.
  *
  * A map of path data rather than a component each: they are pure geometry, they are never styled

@@ -44,9 +44,8 @@ filler. The suite checks structure and behaviour, never wording.
 
 // Diagram: A marker with no image under it, which must stay readable prose
 
-A mermaid fence renders through a different engine, and is here so the suite can prove what the
-diagram chrome does NOT do: mermaid figures enlarge like any other, but they get no Edit pill,
-because `/d2` edits d2.
+A mermaid fence renders through a different engine, and gets the same chrome a d2 figure does:
+it enlarges, and its Edit pill opens `/mermaid` on this exact fence.
 
 ```mermaid
 graph TD; A[Reader] --> B[Prose]; B --> C[Diagram];
@@ -94,4 +93,13 @@ layers: {
     handler -> cache
   }
 }
+```
+
+A SECOND mermaid fence, after four d2 fences, because the two editors index two lists: this one is
+mermaid diagram 1, not diagram 5. A shared counter would send its Edit pill to a d2 figure.
+
+```mermaid
+sequenceDiagram
+  Reader->>Server: asks for the lesson
+  Server-->>Reader: sends the prose
 ```

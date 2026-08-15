@@ -112,6 +112,88 @@ monaco.languages.setMonarchTokensProvider("d2", {
   },
 });
 
+// ── mermaid ──────────────────────────────────────────────────────────────────
+// The other grammar monaco does not ship. What an author needs to SEE in a mermaid file is which
+// line opens the diagram (the type is the one token that decides how everything under it parses),
+// where the arrows are, and which text is a label rather than an id — so those three get real
+// tokens and the rest stays plain. `%%` comments and the `%%{init: …}%%` directive read as
+// comments, since that is what they are to everything but the config parser.
+
+monaco.languages.register({ id: "mermaid", extensions: [".mmd", ".mermaid"], aliases: ["Mermaid", "mermaid"] });
+monaco.languages.setLanguageConfiguration("mermaid", {
+  comments: { lineComment: "%%" },
+  brackets: [
+    ["{", "}"],
+    ["[", "]"],
+    ["(", ")"],
+  ],
+  autoClosingPairs: [
+    { open: "{", close: "}" },
+    { open: "[", close: "]" },
+    { open: "(", close: ")" },
+    { open: '"', close: '"' },
+  ],
+});
+monaco.languages.setMonarchTokensProvider("mermaid", {
+  // The openers. One of these has to be the first non-comment word in the file, so they are
+  // matched at any position and coloured as the keyword that they are.
+  diagrams: [
+    "flowchart", "graph", "sequenceDiagram", "classDiagram", "classDiagram-v2", "stateDiagram",
+    "stateDiagram-v2", "erDiagram", "journey", "gantt", "pie", "quadrantChart", "requirementDiagram",
+    "gitGraph", "mindmap", "timeline", "zenuml", "sankey-beta", "xychart-beta", "block-beta",
+    "packet-beta", "architecture-beta", "kanban", "radar", "treemap", "C4Context", "C4Container",
+    "C4Component", "C4Dynamic", "C4Deployment",
+  ],
+  // The words that structure a diagram once its type is known.
+  keywords: [
+    "subgraph", "end", "direction", "participant", "actor", "note", "over", "activate", "deactivate",
+    "loop", "alt", "else", "opt", "par", "and", "rect", "critical", "option", "break", "autonumber",
+    "state", "class", "classDef", "classDefs", "click", "call", "href", "style", "linkStyle",
+    "click", "title", "section", "dateFormat", "axisFormat", "excludes", "accTitle", "accDescr",
+    "TB", "TD", "BT", "RL", "LR",
+  ],
+  tokenizer: {
+    root: [
+      // `%%{init: …}%%` before plain `%%`, or the directive reads as a comment that never ends.
+      [/%%\{/, { token: "comment", next: "@directive" }],
+      [/%%.*$/, "comment"],
+      // The `---` YAML frontmatter block a fence may open with (title, config).
+      [/^---\s*$/, { token: "comment", next: "@frontmatter" }],
+      // Arrows, in longest-first order — `-->>` must not lex as `-->` plus a stray `>`.
+      [/(?:-{2,}|={2,}|\.-|-\.)[>ox|]{0,2}|<-{2,}>|<?\|?--\|?>?|~~~/, "operators"],
+      [/[A-Za-z_][\w-]*/, {
+        cases: {
+          "@diagrams": "keyword.flow",
+          "@keywords": "keyword",
+          "@default": "identifier",
+        },
+      }],
+      // Node labels. mermaid's shape brackets are the only place free text lives unquoted, and
+      // reading them as strings is what stops a label's punctuation lighting up as operators.
+      [/"/, { token: "string.quote", next: "@dquote" }],
+      [/[[({]/, "@brackets"],
+      [/[\])}]/, "@brackets"],
+      [/#[0-9a-fA-F]{3,8}\b/, "number.hex"],
+      [/\d+(\.\d+)?/, "number"],
+      [/[;,]/, "delimiter"],
+      [/\|/, "delimiter"],
+    ],
+    dquote: [
+      [/[^\\"]+/, "string"],
+      [/\\./, "string.escape"],
+      [/"/, { token: "string.quote", next: "@pop" }],
+    ],
+    directive: [
+      [/\}%%/, { token: "comment", next: "@pop" }],
+      [/./, "comment"],
+    ],
+    frontmatter: [
+      [/^---\s*$/, { token: "comment", next: "@pop" }],
+      [/.*$/, "comment"],
+    ],
+  },
+});
+
 // One editor worker for every label — we don't load the language services that
 // need dedicated workers, so the base worker is all monaco requests.
 (self as unknown as { MonacoEnvironment: monaco.Environment }).MonacoEnvironment = {
@@ -135,6 +217,7 @@ const languageIds: Record<string, string> = {
   markdown: "markdown",
   md: "markdown",
   d2: "d2",
+  mermaid: "mermaid",
 };
 
 function monacoLanguage(fenceLang: string): string {

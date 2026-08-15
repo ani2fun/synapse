@@ -1,5 +1,7 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   THE /d2 EDITOR — source left, the live walkthrough right.
+   THE DIAGRAM EDITORS — source left, the live figure right. One sheet for both
+   `/d2` and `/mermaid`: the chrome is the same page, and only the canvas in the
+   right pane differs, so the board-control block near the end is d2's alone.
    Ported from the design system's `ui_kits/d2lab`. Every token it reaches for is
    already defined in tokens.css, so nothing here invents a colour.
 
@@ -12,12 +14,12 @@
 /* The page owns the viewport: it never scrolls, the panes do. `.shell-main` caps width at 72rem
    and pads for the fixed header, so this opts out the way the problem workbench does.
 
-   Matched on the MOUNT HOST, not on `.d2lab`: the island renders inside the host, so `.d2lab` is
-   a grandchild and a `> .d2lab` selector silently never matches. The host is in the SSR'd HTML,
+   Matched on the MOUNT HOST, not on `.dlab`: the island renders inside the host, so `.dlab` is
+   a grandchild and a `> .dlab` selector silently never matches. The host is in the SSR'd HTML,
    so the page is full-width from first paint rather than reflowing when Preact arrives. */
-.shell-main:has(> [data-d2lab-root]) { max-width: none; padding: 3.75rem 0 0; }
-.shell-main > [data-d2lab-root] { height: 100%; }
-.d2lab { height: calc(100vh - 3.75rem); display: flex; flex-direction: column; }
+.shell-main:has(> [data-diagramlab-root]) { max-width: none; padding: 3.75rem 0 0; }
+.shell-main > [data-diagramlab-root] { height: 100%; }
+.dlab { height: calc(100vh - 3.75rem); display: flex; flex-direction: column; }
 
 /* ── the document's identity ──
    The root board's title IS the page title — editable in place, in the display
@@ -134,6 +136,10 @@
                 border: 1px solid var(--border-default); background: transparent;
                 color: var(--text-secondary); cursor: pointer; }
 .pane-hd__btn:hover { background: var(--bg-hover); color: var(--brand); }
+/* A button whose effect is invisible until it has happened says so in words: the glyph on its
+   own reads as a menu. Auto width, since the label decides it. */
+.pane-hd__btn--label { width: auto; gap: 6px; padding: 0 9px; font: inherit; font-size: 11.5px;
+                       letter-spacing: 0.02em; }
 
 /* ── the compile pill ──
    One element carrying the whole answer to "is what I am looking at what I last
@@ -323,7 +329,7 @@
 .mdl__ghost:hover { background: var(--bg-hover); color: var(--text-primary); }
 
 @media (max-width: 900px) {
-  .d2lab { height: auto; }
+  .dlab { height: auto; }
   .lab-doc { flex-direction: column; align-items: stretch; gap: 14px; }
   .lab-acts { margin-left: 0; flex-wrap: wrap; }
   .lab-panes { flex-direction: column; padding: 12px; }

@@ -1,0 +1,28 @@
+---
+// `/mermaid` — the mermaid diagram editor. Source on the left, the live figure on the right.
+//
+// The same shell `/d2` mounts, on the other language. Fully client-driven: the diagram lives in
+// the browser (localStorage until an author copies it out or proposes it), and nothing draws
+// mermaid ahead of time, so SSR renders only the shell and an empty mount host.
+//
+// It imports the READER's stylesheets, not just its own, because the preview IS the reader's
+// component: `diagrams.css` carries the diagram card and the Enlarge overlay, and `markdown.css`
+// the prose the fence will land in. `authoring.css` comes along for the `.edit-gate` states the
+// Add-to-lesson flow reuses.
+import Base from "../layouts/Base.astro";
+import "../../styles/markdown.css";
+import "../../styles/practice.css";
+import "../../styles/diagrams.css";
+import "../../styles/authoring.css";
+import "../../styles/search.css";
+import "../../styles/diagramlab.css";
+---
+
+<Base title="Mermaid editor — Synapse">
+  <main class="shell-main">
+    <div data-diagramlab-root></div>
+  </main>
+  <script>
+    import "../islands/mermaidlab/MermaidLab";
+  </script>
+</Base>

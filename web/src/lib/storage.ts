@@ -61,11 +61,14 @@ export const PROBLEM_APPROACH_KEY = "problem-approach";
 export const WB_LANGUAGE_KEY = "wb-language";
 /** `"dark" | "light"` — read pre-paint by `Base.astro`'s inline bootstrap script too. */
 export const THEME_KEY = "theme";
-/** The `/d2` editor's two-pane split percentage. */
-export const D2_LAB_PANE_KEY = "d2-lab-pane";
-/** The `/d2` editor's in-progress diagram. One page, one scratchpad, no account involved — a
+/** The diagram editors' two-pane split percentage. Shared by `/d2` and `/mermaid`: how wide the
+ *  source pane sits is a preference about the workspace, not about the language in it. */
+export const DIAGRAM_LAB_PANE_KEY = "diagram-lab-pane";
+/** The diagram editors' in-progress diagram — a key PREFIX. The language is appended, and a
+ *  diagram opened from a lesson appends its path and ordinal too (see `diagramlab/Lab`), so two
+ *  languages and two diagrams never overwrite each other's autosave. No account is involved: a
  *  diagram only becomes anyone's when it is copied into a lesson or proposed as an edit. */
-export const D2_LAB_DRAFT_KEY = "d2-lab-draft";
+export const DIAGRAM_LAB_DRAFT_PREFIX = "diagram-lab-draft";
 /** The content editor's per-page draft key PREFIX — the username and lesson path are appended
  *  (`content-draft:<username>:<lesson-path>`) so one browser can hold a draft for each page a
  *  contributor is editing, and a draft never leaks across accounts. See islands/authoring/draft. */
