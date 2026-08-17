@@ -28,7 +28,7 @@
    reach foreignObject HTML, never the diagram's own palette.
    The value is the LIGHT theme's --foreground, hardcoded on purpose: a token would track the
    page theme again, which is the bug. Same reasoning as the code slab's pinned accent. */
-.diagram__figure foreignObject :is(h1, h2, h3, h4, h5, h6, p, span, div, li, td, th, code) {
+.diagram__figure foreignObject :is(h1, h2, h3, h4, h5, h6, p, span, div, li, td, th, code, strong, b, em, i) {
   color: hsl(224 14% 16%);
 }
 
