@@ -19,6 +19,7 @@ import { hydrateQuizzes } from "./Quiz";
 import { hydrateDiagrams } from "./Diagrams";
 import { hydrateC4Embeds } from "./C4Embed";
 import { hydrateSimulators } from "./Simulator";
+import { hydrateCitations } from "./Citations";
 import { C4DocsPanel } from "./C4DocsPanel";
 import { CodebenchModal } from "./Codebench";
 import { c4Selected } from "./c4Store";
@@ -54,11 +55,16 @@ function init(): void {
   mountC4DocsPanel(lessonPathFromUrl());
   const c4 = hydrateC4Embeds(document, (id) => c4Selected.set(id));
   const sims = hydrateSimulators(document);
+  // Citations are prose furniture rather than a widget family, so they hydrate over the whole
+  // document like the rest but report separately — a lesson carries hundreds of them, and folding
+  // that count into the widget line would drown it.
+  const cites = hydrateCitations(document);
   if (quizzes > 0 || diagrams > 0 || c4 > 0 || sims > 0) {
     log.info(
       `hydrated ${quizzes} quiz card(s), ${diagrams} diagram(s), ${c4} c4 embed(s), ${sims} simulator(s)`,
     );
   }
+  if (cites > 0) log.debug(`citations: ${cites} marker(s) tappable`);
 }
 
 if (document.readyState === "loading") {

@@ -17,6 +17,10 @@ overflowed the phone in step 46), and a fenced code block.
 - A second one.
 - A third, for good measure.
 
+A claim carrying an inline citation <abbr title="[p. 42]">[i]</abbr>, because a `title` is a hover
+affordance and a phone has no hover — the cite was simply unreachable on touch until the citation
+island made the marker tappable. `mobile.spec.ts` needs one to press.
+
 | Column | Another | A third |
 |---|---|---|
 | a value | another value | a third value |

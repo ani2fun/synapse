@@ -57,3 +57,79 @@ test("the nav drawer opens and its close button is actually clickable", async ({
   await close.click();
   await expect(drawer).toBeHidden();
 });
+
+/**
+ * Inline citations — the same class of bug as the drawer above, and found the same way.
+ *
+ * Lessons carry page cites as native `title` attributes. A `title` opens on HOVER and nothing
+ * else, so on a phone the `[i]` marker was visible and permanently unopenable: there was no
+ * gesture that would ever reveal it. Desktop verification could not see this, because desktop
+ * has a mouse.
+ */
+const LESSON_WITH_CITE = "/synapse/learn/smoke/intro";
+
+test("a citation opens on tap, and closes again", async ({ page }) => {
+  await page.goto(LESSON_WITH_CITE);
+
+  const marker = page.locator("abbr[data-cite]").first();
+  await expect(marker, "the citation island never hydrated").toBeVisible();
+
+  // The native tooltip must be GONE, not merely supplemented: leaving `title` in place would
+  // give a desktop reader two tooltips at two offsets.
+  await expect(marker).not.toHaveAttribute("title", /.*/);
+
+  const bubble = page.locator("#synapse-cite-pop");
+  await expect(bubble).toBeHidden();
+
+  await marker.click();
+  await expect(bubble).toBeVisible();
+  await expect(bubble).toHaveText("[p. 42]");
+  await expect(marker).toHaveAttribute("aria-expanded", "true");
+
+  // Tapping the same marker again puts it away — on a phone there is not always convenient
+  // empty space to tap instead.
+  await marker.click();
+  await expect(bubble).toBeHidden();
+});
+
+test("a citation's tap target clears the 24px minimum", async ({ page }) => {
+  await page.goto(LESSON_WITH_CITE);
+  const marker = page.locator("abbr[data-cite]").first();
+  await expect(marker).toBeVisible();
+
+  // WCAG 2.5.8. `[i]` is a ~10px glyph; the padding that lifts it to 24 must come out of the
+  // leading rather than the line box, so the surrounding prose keeps its rhythm.
+  const box = await marker.boundingBox();
+  expect(box).not.toBeNull();
+  if (box) {
+    expect(box.width, "citation tap target is too narrow to hit").toBeGreaterThanOrEqual(24);
+    expect(box.height, "citation tap target is too short to hit").toBeGreaterThanOrEqual(24);
+  }
+});
+
+test("a citation survives the scroll that focusing it causes", async ({ page }) => {
+  await page.goto(LESSON_WITH_CITE);
+  const marker = page.locator("abbr[data-cite]").first();
+  await expect(marker).toBeVisible();
+
+  // Mid-viewport first, and INSTANTLY. The reader scrolls smoothly, so a default
+  // `scrollIntoView` is still animating when the assertions below run — the marker is genuinely
+  // off-screen for a few hundred milliseconds, the bubble correctly gives up, and the spec fails
+  // for a reason that has nothing to do with the behaviour under test. Measured: the marker sat
+  // at y=958 in a 727px viewport a full frame after `focus()`, reaching centre only ~400ms later.
+  await marker.evaluate((el) => el.scrollIntoView({ block: "center", behavior: "instant" }));
+
+  // The regression this pins: the bubble used to close on ANY scroll. Focusing a marker makes
+  // the browser scroll it into view, and that scroll lands a frame AFTER `focusin` — so the
+  // keyboard path opened a bubble and then immediately shut it, every time.
+  await marker.focus();
+  const bubble = page.locator("#synapse-cite-pop");
+  await expect(bubble).toBeVisible();
+
+  await page.mouse.wheel(0, 40);
+  await expect(bubble, "a small scroll dismissed the bubble instead of moving it").toBeVisible();
+
+  // Scrolled clear of the marker, it should give up rather than float over unrelated prose.
+  await page.mouse.wheel(0, 4000);
+  await expect(bubble).toBeHidden();
+});

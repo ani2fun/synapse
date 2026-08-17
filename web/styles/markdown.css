@@ -285,3 +285,63 @@
   font-size: 0.85rem;
   color: hsl(var(--muted-foreground));
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   INLINE CITATIONS — `<abbr title="…">[i]</abbr>`, tappable (islands/widgets/Citations.ts)
+   The island moves `title` to `data-cite`, so `[data-cite]` styles ONLY hydrated markers: before
+   the island runs the marker looks exactly as it always did, and there is no flash of a control
+   that cannot yet be operated.
+   ───────────────────────────────────────────────────────────────────────────── */
+.synapse-prose abbr[data-cite] {
+  /* The default `underline dotted` reads as "abbreviation", not "press me". A chip does. */
+  text-decoration: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* WCAG 2.5.8: `[i]` is a ~10px glyph, far under the 24px minimum target. The box is padded to
+     reach it WITHOUT changing the line box — hence the negative vertical margin, which lets the
+     target grow into the leading rather than pushing lines apart.
+     `max()` because the em half alone measured 21px at the default reading size and would shrink
+     further on the smaller ones: 24px is a floor the reader's font preference cannot drop below,
+     while the em half still lets the target grow along with larger text. */
+  min-width: max(24px, 1.5em);
+  min-height: max(24px, 1.5em);
+  margin: -0.35em 0.05em;
+  padding: 0 0.15em;
+  vertical-align: baseline;
+  border-radius: 0.3rem;
+  font-size: 0.78em;
+  font-weight: 600;
+  line-height: 1;
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.09);
+  transition: background 0.12s, color 0.12s;
+}
+.synapse-prose abbr[data-cite]:hover,
+.synapse-prose abbr[data-cite][aria-expanded="true"] {
+  background: hsl(var(--primary) / 0.18);
+}
+.synapse-prose abbr[data-cite]:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
+/* The one shared bubble, parented to <body> so no prose ancestor's overflow can crop it.
+   `position: fixed` — the island positions it in viewport coordinates. */
+.cite-pop {
+  position: fixed;
+  z-index: 80; /* above the diagram card, below the zoom scrim (70 is the scrim's own stacking) */
+  max-width: min(22rem, calc(100vw - 1rem));
+  padding: 0.3rem 0.55rem;
+  border-radius: 0.35rem;
+  background: hsl(var(--foreground));
+  color: hsl(var(--background));
+  font-family: var(--font-read);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  /* Passive label: it must never swallow the tap that would dismiss it. */
+  pointer-events: none;
+  box-shadow: 0 8px 24px -12px hsl(var(--foreground) / 0.6);
+}
+.cite-pop[hidden] { display: none; }
