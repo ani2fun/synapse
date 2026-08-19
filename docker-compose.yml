@@ -81,9 +81,27 @@ services:
       # serve, not `likec4 serve`: the latter binds localhost only, unreachable from the host.
       - "npx -y likec4@latest build --base /c4/ --no-use-dot --output /dist . && npx -y serve --single --listen tcp://0.0.0.0:5173 /dist"
     volumes:
-      # The spine's own .c4 only. The merged workspace CI builds also gathers each satellite's,
-      # which this dev service cannot do — it has no registry to ask.
-      - ../synapse-content-github/synapse-content:/c4:ro
+      # The spine's own .c4, plus one explicit mount per satellite that carries any. The merged
+      # workspace CI builds gathers satellites from the registry (`c4-sources.json`); this dev
+      # service has no registry to ask, so each one is named here by hand.
+      #
+      # Without the satellite mounts the failure is SILENT and looks like a rendering bug: the
+      # build simply omits those views, and `serve --single` answers /c4/view/<missing-id> with
+      # the SPA shell and a 200. Every `sdfp_*` view of the system-design guide was unreachable
+      # in local dev until this line existed. Check with:
+      #   docker compose --profile c4 exec likec4 sh -c 'find /c4 -name "*.c4" | wc -l'
+      # Expect 3 (spine) + 14 (system-design guide) = 17.
+      #
+      # Both nest UNDER /c4 rather than one being /c4: a read-only bind cannot host a mountpoint,
+      # so mounting the spine at /c4 makes any satellite mount inside it fail at container start
+      # with "read-only file system". /c4 is left as a normal container directory and each repo
+      # is a child of it; `likec4 build .` globs the tree, so the merge still happens.
+      #
+      # Each satellite is mounted at its REPO ROOT, not at the chapter that happens to hold the
+      # .c4 files today. Pinning the deeper path breaks the moment a chapter is renumbered, and
+      # breaks silently — see above. likec4 globs recursively, so the root costs nothing.
+      - ../synapse-content-github/synapse-content:/c4/spine:ro
+      - ../synapse-content-github/system-design-guide:/c4/system-design-guide:ro
       - likec4-cache:/root/.npm
     ports:
       - "127.0.0.1:8190:5173"
