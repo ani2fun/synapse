@@ -11,7 +11,7 @@ publish.workspace = true
 render-local-only = []
 
 [dependencies]
-tower-http = { version = "0.6", features = [
+tower-http = { version = "0.7", features = [
     "compression-gzip",
     "compression-deflate",
     "trace",
