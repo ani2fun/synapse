@@ -1,10 +1,18 @@
-# Dependency updates for all three ecosystems this repo actually ships from:
-# cargo (server + client + shared), npm (the TS islands and the vite build), and
-# the GitHub Actions themselves — the last one matters because a compromised or
-# abandoned action runs with `packages: write` in the release job.
+# Dependency updates for the three ecosystems this repo ships from: cargo
+# (server + shared + viz-wasm), npm (the Astro page tier and the Playwright
+# suite), and the GitHub Actions themselves — the last one matters because a
+# compromised or abandoned action runs with `packages: write` in the release job.
 #
-# Weekly, not daily: every merged bump now builds an image and promotes it to the
-# cluster (step 44), so the cadence is a deploy cadence.
+# Weekly, not daily: every merged bump builds an image and promotes it to the
+# cluster, so the cadence is a deploy cadence.
+#
+# What is NOT here, and must not be mistaken for it: this file covers VERSION
+# updates, which are direct-dependency-only for every ecosystem below. A
+# transitive crate under a published advisory — h2 under RUSTSEC-2026-0258 was
+# the first — is invisible to it, because no manifest names the thing that needs
+# to move. That case belongs to Dependabot SECURITY updates, a repository
+# setting rather than a line in this file, with .github/workflows/audit.yml as
+# the backstop for what security updates cannot open a PR for.
 version: 2
 
 updates:
@@ -20,8 +28,13 @@ updates:
       patch-updates:
         update-types: [patch]
 
+  # Both npm trees, named explicitly. `web` is the shipped page tier; `e2e` is
+  # the Playwright suite, which never reaches an image but is the gate every
+  # other change clears, so a broken runner there blocks the whole pipeline.
   - package-ecosystem: npm
-    directory: /client
+    directories:
+      - /web
+      - /e2e
     schedule:
       interval: weekly
       day: monday
@@ -30,10 +43,15 @@ updates:
       patch-updates:
         update-types: [patch]
     ignore:
-      # Pinned deliberately and verified against the toolchain in
-      # dev-tools/build-wasm.sh + the Dockerfile's wasm-bindgen-cli 0.2.126 —
-      # these must move together or the wasm build breaks, so they are a manual
-      # decision rather than a bot's.
+      # The two heaviest browser-only deps, and the two whose upgrades land
+      # somewhere dev never looks. d2 runs its ELK layout in a blob worker that
+      # only survives because the CSP grants `unsafe-eval`, and monaco's fill
+      # mode rides an auto-height latch that a stray `contain: size` silently
+      # breaks. Both also dominate the per-page gz budget the e2e asserts, and
+      # both are rm'd from the prod node_modules by name in the Dockerfile — so
+      # a rename upstream turns the prune into a no-op that ships ~238 MB
+      # without failing anything. None of that is a diff a bot can read: these
+      # move when someone upgrades them and re-runs the prod-shaped checks.
       - dependency-name: monaco-editor
       - dependency-name: "@terrastruct/d2"
 

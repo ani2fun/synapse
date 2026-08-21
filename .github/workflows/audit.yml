@@ -1,0 +1,49 @@
+name: audit
+
+# ── The advisory half of the supply-chain gate, on a clock ────────────────────
+# ci.yml already runs `cargo deny check` on every push and PR, and that covers
+# four things — advisories, bans, licenses, sources. Three of them are functions
+# of Cargo.lock: they can only change when a commit changes them, and that
+# commit runs the gate. Advisories are the exception. The RustSec database moves
+# on its own, so a lockfile that passed on Monday can be failing by Tuesday with
+# nothing in the repository having changed.
+#
+# Without this, the discovery mechanism is "whoever pushes next". That is how
+# RUSTSEC-2026-0258 surfaced: h2 sat vulnerable for two days and then failed a
+# commit that touched one line of docker-compose.yml, which is a confusing place
+# to learn about a CVE and a red main branch that blocks the deploy of an
+# unrelated change.
+#
+# This is the backstop, not the primary signal. Dependabot security updates open
+# a PR with the fix already in it, including for transitive crates that no
+# manifest names. What they cannot do is raise a finding with no patched version
+# to move to, or a yank — and those still fail here, loudly, on a schedule
+# nobody has to remember.
+#
+# `check advisories` rather than `check`: the other three would only ever repeat
+# what the push already proved.
+
+on:
+  schedule:
+    # Daily, and deliberately not on the hour — GitHub queues scheduled
+    # workflows at :00 across every repository on the platform, and a job that
+    # is only worth 40 seconds should not sit behind that.
+    - cron: "17 6 * * *"
+  # So a finding can be re-checked after a fix without waiting for tomorrow.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  advisories:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          # Targets and `all-features` come from deny.toml's [graph], exactly as
+          # they do for ci.yml's supply-chain job — the two must not drift into
+          # auditing different graphs.
+          command: check advisories
