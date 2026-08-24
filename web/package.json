@@ -9,7 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@astrojs/node": "^9.2.0",
+    "@astrojs/node": "^11.1.4",
     "@astrojs/preact": "^4.0.0",
     "@terrastruct/d2": "^0.1.33",
     "astro": "^5.7.0",
