@@ -15,7 +15,7 @@
     "astro": "^5.7.0",
     "keycloak-js": "^26.2.4",
     "mdast-util-to-hast": "^13.2.0",
-    "mermaid": "^11.16.1",
+    "mermaid": "^11.17.0",
     "monaco-editor": "^0.52.2",
     "preact": "^10.29.8",
     "rehype-pretty-code": "^0.14.5",
