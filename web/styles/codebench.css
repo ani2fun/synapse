@@ -25,6 +25,10 @@
                     cursor: pointer; font-size: 15px; }
 .codebench__close:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
 .codebench__signin { margin: 8px 14px 0; }
+/* The draft notice + its way back to the fence. Same bar as the sign-in notice; the two stack in
+   the rare case a draft outlives a sign-out. */
+.codebench__draft { margin: 8px 14px 0; display: flex; align-items: center; gap: 10px; }
+.codebench__draft .wb__ghost { margin-left: auto; }
 .codebench__editor { flex: 1 1 auto; min-height: 0; position: relative; }
 .codebench__stdin { display: flex; align-items: center; gap: 10px; padding: 8px 14px;
                     border-top: 1px solid hsl(var(--border)); flex: 0 0 auto; }

@@ -4,20 +4,31 @@
  * panel ride along; Esc closes like every other popup; editing gates on sign-in while Run stays
  * open to everyone. Authors write bare fences — no `run` attribute, no markdown changes.
  *
+ * A signed-in reader's edits SURVIVE the close: every click mints a fresh request object, so the
+ * modal cannot recognise a fence by identity and instead re-derives a per-account key from the
+ * page and the authored source (`codebenchDraft.ts`) and reads its draft back. Editing is what
+ * creates a draft and matching the fence again is what removes one, so "Reset to the original"
+ * is the only way home — closing and reopening no longer reverts anything.
+ *
  * The button that opens it lives in the fence group's header bar (`fenceGroups.ts`); this module
  * keeps the store, the modal, and (in `../../lib/execution/language.ts`) the alias table that
  * decides which fences get one.
  */
 import { useEffect, useRef, useState } from "preact/hooks";
 
+import { clear as clearDraft, keyFor, load as loadDraft, save as saveDraft } from "./codebenchDraft";
 import { displayLang } from "../../lib/execution/blocks";
 import * as executor from "../../lib/execution/executor";
 import type { EditorHandle } from "../../lib/islands/editor/monaco";
 import * as log from "../../lib/log";
 import { Store, useStore } from "../../lib/store";
-import { AUTH_CHANGED, isAuthed } from "../workbench/contracts";
+import { AUTH_CHANGED, currentUser, isAuthed } from "../workbench/contracts";
 import { Output } from "../workbench/panels";
 import { BlockStore } from "../workbench/state";
+
+/** The draft is a convenience, not a document; it can lag the keystroke it belongs to. Matches
+ *  the diagram lab's autosave. */
+const DRAFT_DEBOUNCE_MS = 800;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE STORE (the CodebenchStore singleton pattern)
@@ -58,12 +69,17 @@ export function CodebenchModal() {
   const [block] = useState(() => new BlockStore(""));
   const state = useStore(block.state);
   const [stdin, setStdin] = useState("");
+  // Written only by `applyStdin`, never during render: a render-time assignment would undo a
+  // just-applied value if anything else re-rendered before the state flushed.
   const stdinRef = useRef("");
-  stdinRef.current = stdin;
   const requestRef = useRef(request);
   requestRef.current = request;
   const editorHost = useRef<HTMLDivElement>(null);
   const mounted = useRef<EditorHandle | null>(null);
+  /** The key this open is saving under — null while anonymous (no account to key on) or closed,
+   *  which is what makes the whole draft feature inert for a signed-out reader. */
+  const draftKeyRef = useRef<string | null>(null);
+  const saveTimer = useRef<number | null>(null);
 
   useEffect(() => {
     const onAuth = () => setAuthed(isAuthed());
@@ -87,14 +103,82 @@ export function CodebenchModal() {
   const runRef = useRef(run);
   runRef.current = run;
 
-  // Each open resets the bench to the fence: FSM + buffer + stdin; the editor (if already alive)
-  // swaps value + tokenizer in place.
+  /**
+   * Set stdin through here, never through `setStdin` alone.
+   *
+   * `scheduleSave` reads the REF, and a ref assigned during render still holds the previous value
+   * when a save is scheduled synchronously from the same handler. Both paths that replace the
+   * buffer do exactly that — `setValue` fires Monaco's `onChange` on the spot — so Reset would
+   * write the stdin it just cleared, and a restore would write the previous fence's stdin under
+   * the new fence's key.
+   */
+  const applyStdin = (next: string) => {
+    stdinRef.current = next;
+    setStdin(next);
+  };
+
+  /** The key for whatever is open, or null when nobody is signed in to own it. */
+  const keyForOpen = (r: CodebenchRequest): string | null => {
+    const user = currentUser();
+    return user === null ? null : keyFor(user, window.location.pathname, r.language, r.code);
+  };
+
+  /**
+   * Persist the buffer, debounced.
+   *
+   * Driven from the change callbacks rather than an effect over the buffer: on the commit where
+   * `request` flips to another fence, an effect would briefly pair the PREVIOUS fence's buffer
+   * with the NEW fence's key. Reading both here keeps the code and the key it belongs to
+   * inseparable.
+   */
+  const scheduleSave = () => {
+    const key = draftKeyRef.current;
+    const authored = requestRef.current?.code;
+    if (key === null || authored === undefined) return;
+    if (saveTimer.current !== null) clearTimeout(saveTimer.current);
+    const code = block.state.get().code;
+    const stdin = stdinRef.current;
+    saveTimer.current = window.setTimeout(() => {
+      // A draft exists only while the bench differs from the fence — so editing back to the
+      // original leaves nothing behind, and Reset needs no separate bookkeeping.
+      if (code === authored && stdin === "") clearDraft(key);
+      else saveDraft(key, code, stdin);
+    }, DRAFT_DEBOUNCE_MS);
+  };
+  const scheduleSaveRef = useRef(scheduleSave);
+  scheduleSaveRef.current = scheduleSave;
+
+  /** Back to the fence, and drop the draft with it. The codebench has no other way home: closing
+   *  and reopening used to be the revert, and persistence is exactly what takes that away. */
+  const resetToFence = () => {
+    const r = requestRef.current;
+    if (!r) return;
+    if (saveTimer.current !== null) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    if (draftKeyRef.current !== null) clearDraft(draftKeyRef.current);
+    block.state.update((s) => executor.setCode(s, r.code));
+    // Before `setValue`, whose `onChange` schedules a save that reads it.
+    applyStdin("");
+    mounted.current?.setValue(r.code);
+    log.debug("codebench: reset to the authored fence");
+  };
+
+  // Each open restores the bench for THIS fence — a saved draft when one applies, the authored
+  // source otherwise — and resets the FSM around it; the editor (if already alive) swaps value +
+  // tokenizer in place. Every click mints a fresh request object, so this runs on re-opening the
+  // same fence too: the draft, not object identity, is what carries the buffer across.
   useEffect(() => {
     if (!request) return;
-    block.state.set(executor.initial(request.code));
-    setStdin("");
+    draftKeyRef.current = keyForOpen(request);
+    const draft = draftKeyRef.current === null ? null : loadDraft(draftKeyRef.current);
+    const opening = draft?.code ?? request.code;
+    if (draft) log.debug(`codebench: restored an edited buffer (${request.language})`);
+    block.state.set(executor.initial(opening));
+    applyStdin(draft?.stdin ?? "");
     if (mounted.current) {
-      mounted.current.setValue(request.code);
+      mounted.current.setValue(opening);
       mounted.current.setLanguage(request.language);
       mounted.current.setReadOnly(!isAuthed());
     }
@@ -111,11 +195,16 @@ export function CodebenchModal() {
       if (mounted.current) return;
       const dark = document.documentElement.classList.contains("dark");
       const handle = createEditor(node, {
-        value: request.code,
+        // The restore effect above is declared first and has already run, so the store holds
+        // whatever this open should show — the draft, not necessarily the fence.
+        value: block.state.get().code,
         language: request.language,
         readOnly: !isAuthed(),
         dark,
-        onChange: (code: string) => block.state.update((s) => executor.setCode(s, code)),
+        onChange: (code: string) => {
+          block.state.update((s) => executor.setCode(s, code));
+          scheduleSaveRef.current();
+        },
         onRun: () => runRef.current(),
         onToggleEdit: () => {},
       });
@@ -125,10 +214,25 @@ export function CodebenchModal() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request]);
 
-  // Signing in mid-session unlocks the buffer in place.
+  // Signing in mid-session unlocks the buffer in place — and gives the draft an owner to key on,
+  // without which the newly writable editor would save nothing. RECOMPUTE only, never re-load:
+  // pulling a stored draft into a buffer someone is already typing in would destroy the very
+  // edits this exists to keep.
   useEffect(() => {
     mounted.current?.setReadOnly(!authed);
+    const r = requestRef.current;
+    draftKeyRef.current = r ? keyForOpen(r) : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed]);
+
+  // A pending write outlives a close (the modal stays mounted, so the timer still fires) but must
+  // not outlive the component.
+  useEffect(
+    () => () => {
+      if (saveTimer.current !== null) clearTimeout(saveTimer.current);
+    },
+    [],
+  );
 
   // The theme follows the toggle (the same `<html>.dark` observer every editor host uses).
   useEffect(() => {
@@ -140,6 +244,8 @@ export function CodebenchModal() {
   }, []);
 
   const running = state.runState === "running";
+  const dirty = request != null && executor.isDirty(state, request.code);
+  const changed = request == null ? 0 : executor.changedLineCount(state, request.code);
 
   return (
     <div class={request ? "codebench codebench--open" : "codebench"}>
@@ -170,6 +276,19 @@ export function CodebenchModal() {
             </span>
           </div>
         )}
+        {/* Gated on the buffer differing, not on being signed in: after a sign-out this bar is the
+            only thing explaining why the code on screen is not the fence. */}
+        {dirty && (
+          <div class="wb__edit-bar codebench__draft">
+            <span class="wb__edit-status">
+              <span class="wb__edit-dot"></span>
+              Your edits are saved in this browser — {changed} line{changed === 1 ? "" : "s"} changed
+            </span>
+            <button class="wb__ghost" onClick={resetToFence}>
+              Reset to the original
+            </button>
+          </div>
+        )}
         <div class="codebench__editor" ref={editorHost}></div>
         <div class="codebench__stdin">
           <label class="viz-stdin__label">stdin</label>
@@ -178,7 +297,10 @@ export function CodebenchModal() {
             rows={2}
             placeholder="Input the program reads, one line per read"
             value={stdin}
-            onInput={(event) => setStdin((event.target as HTMLTextAreaElement).value)}
+            onInput={(event) => {
+              applyStdin((event.target as HTMLTextAreaElement).value);
+              scheduleSaveRef.current();
+            }}
           ></textarea>
         </div>
         <div class="codebench__out">
