@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ── CONVENTION GATE (RS001 · hexagon purity · three-layer purity · file caps) ─
+# ── CONVENTION GATE (RS001 · purity · file caps · test placement) ────────────
 # The Rust edition of Synapse's gate — the conventions that must never be green
 # by discipline alone:
 #
@@ -15,6 +15,13 @@
 #      too much; split it along the layer seams. `*.gen.ts` is exempt: a
 #      generated schema is machine output, not prose to split — the same way
 #      dist/pkg/node_modules are not walked at all.
+#   4. RENDER-LOCAL-ONLY: the image build never enables the cargo feature that
+#      publishes local-only study material (ADR-RS002).
+#   5. TEST PLACEMENT: server & shared unit tests live in a sibling
+#      `<module>_tests.rs` behind `#[cfg(test)] #[path]` — never inline, always
+#      plural, always declared. coverage.sh tells test code from production BY
+#      FILENAME and the caps count every line, so placement moves lines across
+#      a measured boundary; every way of getting it wrong is otherwise green.
 #
 # Run from the repo root (CI runs it first — it needs no toolchain, only
 # find/grep/sed/awk/wc). Every check accumulates into `fail` and the exit comes
@@ -121,5 +128,71 @@ else
   echo "✗ files over their cap (listed above) — split along the layer seams"
   fail=1
 fi
+
+
+# ── 5 · Test placement ───────────────────────────────────────────────────────
+# Unit tests live in a SIBLING `<module>_tests.rs` reached by `#[cfg(test)] #[path]`, never in an
+# inline block. Two gates depend on that file name and neither can see inside a file:
+# coverage.sh tells test code from production purely by `_tests\.rs$`, and the 500-line cap counts
+# whatever the file holds. So a misplaced or misnamed test is not a style nit — it moves lines
+# across a measured boundary, and every way of getting it wrong stays green without this check.
+echo "→ test placement (sibling *_tests.rs behind #[cfg(test)]; server/src + shared/src)"
+placement=0
+
+# 5a · An inline `mod tests { … }` puts test lines in a production file, where coverage counts
+# them as covered production code.
+inline=""
+while IFS= read -r -d '' file; do
+  hit=$(awk '
+    /^[[:space:]]*#\[cfg\(test\)\]/           { p = 1; next }
+    p && /^[[:space:]]*#\[/                   { next }
+    p && /^[[:space:]]*(pub )?mod [a-z_]+ \{/ { print FNR ": " $0; p = 0; next }
+    p                                         { p = 0 }
+  ' "$file")
+  [[ -n "$hit" ]] && inline+=$(sed "s|^|    ${file}:|" <<<"$hit")$'\n'
+done < <(find server/src shared/src -name "*.rs" -print0 2>/dev/null)
+if [[ -n "$inline" ]]; then
+  echo "  ✗ inline test blocks — these lines count as COVERED PRODUCTION code and eat the file cap:"
+  printf '%s' "$inline"
+  echo "    move each to a sibling *_tests.rs: #[cfg(test)] #[path = \"x_tests.rs\"] mod tests;"
+  placement=1
+fi
+
+# 5b · The exclusion regex is `_tests\.rs$`. A singular `_test.rs` misses it, and the file is
+# measured as production.
+singular=$(find server/src shared/src -name "*_test.rs" 2>/dev/null || true)
+if [[ -n "$singular" ]]; then
+  echo "  ✗ singular *_test.rs — coverage.sh excludes *_tests.rs only, so these read as production:"
+  sed 's|^|    |' <<<"$singular"
+  placement=1
+fi
+
+# 5c · A `*_tests.rs` is test code only because something declares it one. A bare `mod x_tests;`
+# compiles it unconditionally AND drops it from coverage; a file nothing declares is not compiled
+# at all. Both are silent — the suite still passes, with fewer tests in it.
+orphan=""; unguarded=""
+while IFS= read -r -d '' t; do
+  base=$(basename "$t"); stem=${base%.rs}; dir=$(dirname "$t")
+  decl=$(grep -rn -E "#\[path = \"${base}\"\]|^[[:space:]]*mod ${stem};" "$dir" --include="*.rs" || true)
+  if [[ -z "$decl" ]]; then orphan+="    $t"$'\n'; continue; fi
+  while IFS= read -r line; do
+    df=${line%%:*}; rest=${line#*:}; dn=${rest%%:*}
+    start=$((dn > 2 ? dn - 2 : 1))
+    sed -n "${start},$((dn - 1))p" "$df" | grep -q '#\[cfg(test)\]' || unguarded+="    ${df}:${dn}"$'\n'
+  done <<<"$decl"
+done < <(find server/src shared/src -name "*_tests.rs" -print0 2>/dev/null)
+if [[ -n "$orphan" ]]; then
+  echo "  ✗ *_tests.rs declared nowhere — not compiled, so its tests silently do not run:"
+  printf '%s' "$orphan"
+  placement=1
+fi
+if [[ -n "$unguarded" ]]; then
+  echo "  ✗ test module declared without #[cfg(test)] above it — ships in the binary, and if the"
+  echo "    file is production code its name still hides it from the coverage gate:"
+  printf '%s' "$unguarded"
+  placement=1
+fi
+
+if ((placement == 0)); then echo "  ok"; else fail=1; fi
 
 exit $fail

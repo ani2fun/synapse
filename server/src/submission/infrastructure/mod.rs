@@ -3,10 +3,10 @@
 
 mod allowlist;
 mod postgres;
-mod problem_tests;
+mod problem_suite;
 mod progress_recorder;
 
 pub use allowlist::PostgresSubmissionAllowlist;
 pub use postgres::PostgresSubmissionRepository;
-pub use problem_tests::FsProblemTests;
+pub use problem_suite::FsProblemTests;
 pub use progress_recorder::ProgressRecorderAdapter;

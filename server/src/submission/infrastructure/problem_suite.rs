@@ -85,5 +85,5 @@ fn content_failed(error: &ContentError) -> SubmissionError {
 }
 
 #[cfg(test)]
-#[path = "problem_tests_tests.rs"]
+#[path = "problem_suite_tests.rs"]
 mod tests;
