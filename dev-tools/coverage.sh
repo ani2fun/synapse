@@ -13,8 +13,9 @@
 #     are exercised by RUNNING them — gen-api-types.sh runs one on every schema change, and
 #     validate-book runs in each content repository's CI. Unit-testing a `println!` would raise the
 #     number without raising the confidence.
-#   · *_tests.rs, service_fakes.rs, tests/*, dump_openapi.rs — test code and the openapi dumper,
-#                       which are not the production surface being measured.
+#   · <module>/tests.rs and everything under <module>/tests/ — the test code itself, plus the
+#                       fixtures and fakes it loads. Identified by path, so nothing is missed
+#                       and no production file is excluded by an unlucky name.
 #
 # Usage:
 #   dev-tools/coverage.sh            report + write lcov/HTML under target/coverage/
@@ -32,8 +33,12 @@ FAIL_UNDER="${FAIL_UNDER:-88}"
 OUT="target/coverage"
 mkdir -p "$OUT"
 
-# `_tests\.rs` / `service_fakes\.rs` / `/tests/` cover the test code; `/main\.rs` the wiring point.
-IGNORE='(^|/)(viz-wasm)/|/main\.rs$|_tests\.rs$|/tests/|service_fakes\.rs$|/src/bin/'
+# Test code is identified by PATH, not by file name: a module's tests live at `<module>/tests.rs`
+# and anything they need sits under `<module>/tests/`, so `/tests\.rs$|/tests/` is the whole of
+# it — fixtures and fakes included, with no per-file special cases to keep in sync. A production
+# file cannot land on either pattern by accident, which a name like `problem_tests.rs` could.
+# `/main\.rs` is the wiring point.
+IGNORE='(^|/)(viz-wasm)/|/main\.rs$|/tests\.rs$|/tests/|/src/bin/'
 
 if ! command -v cargo-llvm-cov >/dev/null 2>&1; then
   echo "✗ cargo-llvm-cov not installed — run: cargo install cargo-llvm-cov --locked"

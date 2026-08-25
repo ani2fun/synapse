@@ -164,7 +164,6 @@ pub enum CatalogWarning {
 }
 
 #[cfg(test)]
-#[path = "catalog_tests.rs"]
 mod tests;
 
 /// Convention violations the walk refuses to paper over.

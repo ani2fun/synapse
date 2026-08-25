@@ -105,5 +105,4 @@ pub fn flatten(prose: &str) -> String {
 }
 
 #[cfg(test)]
-#[path = "text_tests.rs"]
 mod tests;

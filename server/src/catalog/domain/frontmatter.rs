@@ -78,5 +78,4 @@ fn first_h1(body: &str) -> Option<String> {
 }
 
 #[cfg(test)]
-#[path = "frontmatter_tests.rs"]
 mod tests;

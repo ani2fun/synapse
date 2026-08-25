@@ -150,5 +150,4 @@ fn boundary(text: &str, at: usize, forward: bool) -> usize {
 }
 
 #[cfg(test)]
-#[path = "snippet_tests.rs"]
 mod tests;

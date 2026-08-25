@@ -103,5 +103,4 @@ fn now_epoch() -> u64 {
 }
 
 #[cfg(test)]
-#[path = "rate_limiter_tests.rs"]
 mod tests;

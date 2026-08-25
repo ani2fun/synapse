@@ -43,5 +43,4 @@ pub fn apply(router: axum::Router) -> axum::Router {
 }
 
 #[cfg(test)]
-#[path = "limits_tests.rs"]
 mod tests;

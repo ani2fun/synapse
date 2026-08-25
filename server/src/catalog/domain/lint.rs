@@ -268,5 +268,4 @@ fn fenced_blocks<'a>(content: &'a str, tag: &'a str) -> impl Iterator<Item = &'a
 }
 
 #[cfg(test)]
-#[path = "lint_tests.rs"]
 mod tests;

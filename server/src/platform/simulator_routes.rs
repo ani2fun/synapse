@@ -148,5 +148,4 @@ fn content_type_of(path: &Path) -> &'static str {
 }
 
 #[cfg(test)]
-#[path = "simulator_routes_tests.rs"]
 mod tests;

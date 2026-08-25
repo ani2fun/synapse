@@ -87,5 +87,4 @@ impl TutorClient for OllamaTutorClient {
 }
 
 #[cfg(test)]
-#[path = "wire_tests.rs"]
 mod tests;

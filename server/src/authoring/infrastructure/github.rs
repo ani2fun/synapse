@@ -287,5 +287,4 @@ async fn failed(response: reqwest::Response, what: &str) -> AuthoringError {
 }
 
 #[cfg(test)]
-#[path = "github_tests.rs"]
 mod tests;

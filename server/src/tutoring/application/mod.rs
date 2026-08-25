@@ -72,5 +72,4 @@ pub fn system_prompt_for(context: &ChatContext) -> String {
 }
 
 #[cfg(test)]
-#[path = "service_tests.rs"]
 mod tests;

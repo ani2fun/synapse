@@ -88,5 +88,4 @@ pub fn lessons_in_reading_order(book: &Book) -> Vec<(String, &Lesson)> {
 }
 
 #[cfg(test)]
-#[path = "resolver_tests.rs"]
 mod tests;

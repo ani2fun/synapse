@@ -294,5 +294,4 @@ impl<R: ContentRepository> CatalogService<R> {
 }
 
 #[cfg(test)]
-#[path = "service_tests.rs"]
 mod tests;

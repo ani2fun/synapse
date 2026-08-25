@@ -10,18 +10,21 @@
 #   2. VIZ ENGINE PURITY: files under viz-wasm/src/engine/ neither import nor
 #      name leptos / web-sys / wasm-bindgen / js-sys / gloo — the engine stays
 #      pure and native-testable.
-#   3. FILE-SIZE CAPS: server & shared ≤ 500 lines/file, viz-wasm & web ≤ 800 —
-#      source AND tests. A file over its cap is doing too much or explaining
-#      too much; split it along the layer seams. `*.gen.ts` is exempt: a
-#      generated schema is machine output, not prose to split — the same way
-#      dist/pkg/node_modules are not walked at all.
+#   3. FILE-SIZE CAPS: server & shared ≤ 500 lines/file, viz-wasm & web ≤ 800.
+#      A file over its cap is doing too much or explaining too much; split it
+#      along the layer seams. Rust TEST code is exempt — a suite is a list, it
+#      grows with the surface it covers, and splitting one to satisfy a budget
+#      invents module boundaries that describe nothing. `*.gen.ts` is exempt
+#      too: a generated schema is machine output, not prose to split — the same
+#      way dist/pkg/node_modules are not walked at all.
 #   4. RENDER-LOCAL-ONLY: the image build never enables the cargo feature that
 #      publishes local-only study material (ADR-RS002).
-#   5. TEST PLACEMENT: server & shared unit tests live in a sibling
-#      `<module>_tests.rs` behind `#[cfg(test)] #[path]` — never inline, always
-#      plural, always declared. coverage.sh tells test code from production BY
-#      FILENAME and the caps count every line, so placement moves lines across
-#      a measured boundary; every way of getting it wrong is otherwise green.
+#   5. TEST PLACEMENT: a module's unit tests live at its natural child path —
+#      `<module>/tests.rs`, with anything they need under `<module>/tests/`.
+#      No inline blocks, no flat `*_tests.rs` siblings, and no `#[path]`, which
+#      exists only to defeat the resolution this convention relies on.
+#      coverage.sh excludes test code by that PATH, so misplacing a test moves
+#      its lines into the production number without failing anything else.
 #
 # Run from the repo root (CI runs it first — it needs no toolchain, only
 # find/grep/sed/awk/wc). Every check accumulates into `fail` and the exit comes
@@ -109,9 +112,10 @@ else
   echo "  ok"
 fi
 
-echo "→ file-size caps (server/shared ≤ 500 · viz-wasm/web ≤ 800 · *.gen.ts exempt)"
+echo "→ file-size caps (server/shared ≤ 500 · viz-wasm/web ≤ 800 · tests + *.gen.ts exempt)"
 server_ok=0
-check_caps 500 find server shared -name "*.rs" -not -path "*/target/*" || server_ok=1
+check_caps 500 find server shared -name "*.rs" -not -path "*/target/*" \
+  -not -name "tests.rs" -not -path "*/tests/*" || server_ok=1
 client_ok=0
 check_caps 800 find viz-wasm \( -name "*.rs" -o -name "*.ts" \) \
   -not -path "*/node_modules/*" -not -path "*/target/*" -not -path "*/dist/*" \
@@ -131,16 +135,17 @@ fi
 
 
 # ── 5 · Test placement ───────────────────────────────────────────────────────
-# Unit tests live in a SIBLING `<module>_tests.rs` reached by `#[cfg(test)] #[path]`, never in an
-# inline block. Two gates depend on that file name and neither can see inside a file:
-# coverage.sh tells test code from production purely by `_tests\.rs$`, and the 500-line cap counts
-# whatever the file holds. So a misplaced or misnamed test is not a style nit — it moves lines
-# across a measured boundary, and every way of getting it wrong stays green without this check.
-echo "→ test placement (sibling *_tests.rs behind #[cfg(test)]; server/src + shared/src)"
+# A module's tests live at its natural child path: `foo.rs` (or `foo/mod.rs`) is tested by
+# `foo/tests.rs`, and whatever that suite needs — fixtures, fakes, topical sub-suites — sits
+# under `foo/tests/`. coverage.sh excludes exactly that shape, by PATH, so a misplaced test is
+# counted as production code and silently lifts the number the 88% floor is measured against.
+# Rust resolves this layout on its own; `#[path]` is what a flat layout needs, and it is banned
+# here precisely because reaching for it is how the flat layout comes back.
+echo "→ test placement (a module's tests at <module>/tests.rs; server/src + shared/src)"
 placement=0
 
-# 5a · An inline `mod tests { … }` puts test lines in a production file, where coverage counts
-# them as covered production code.
+# 5a · An inline `mod tests { … }` leaves test lines inside a production file, where nothing
+# can separate them from the code they test.
 inline=""
 while IFS= read -r -d '' file; do
   hit=$(awk '
@@ -152,44 +157,59 @@ while IFS= read -r -d '' file; do
   [[ -n "$hit" ]] && inline+=$(sed "s|^|    ${file}:|" <<<"$hit")$'\n'
 done < <(find server/src shared/src -name "*.rs" -print0 2>/dev/null)
 if [[ -n "$inline" ]]; then
-  echo "  ✗ inline test blocks — these lines count as COVERED PRODUCTION code and eat the file cap:"
+  echo "  ✗ inline test blocks — move each to <module>/tests.rs:"
   printf '%s' "$inline"
-  echo "    move each to a sibling *_tests.rs: #[cfg(test)] #[path = \"x_tests.rs\"] mod tests;"
   placement=1
 fi
 
-# 5b · The exclusion regex is `_tests\.rs$`. A singular `_test.rs` misses it, and the file is
-# measured as production.
-singular=$(find server/src shared/src -name "*_test.rs" 2>/dev/null || true)
-if [[ -n "$singular" ]]; then
-  echo "  ✗ singular *_test.rs — coverage.sh excludes *_tests.rs only, so these read as production:"
-  sed 's|^|    |' <<<"$singular"
+# 5b · A flat sibling is the old layout. It needs `#[path]`, and its name is the only thing
+# saying it is a test — which is what let a production adapter named `problem_tests.rs` out of
+# the coverage gate entirely.
+flat=$(find server/src shared/src \( -name "*_tests.rs" -o -name "*_test.rs" \) 2>/dev/null || true)
+if [[ -n "$flat" ]]; then
+  echo "  ✗ flat test siblings — these belong at <module>/tests.rs or under <module>/tests/:"
+  sed 's|^|    |' <<<"$flat"
   placement=1
 fi
 
-# 5c · A `*_tests.rs` is test code only because something declares it one. A bare `mod x_tests;`
-# compiles it unconditionally AND drops it from coverage; a file nothing declares is not compiled
-# at all. Both are silent — the suite still passes, with fewer tests in it.
-orphan=""; unguarded=""
+# 5c · `#[path]` defeats the resolution the layout depends on, and one use pulls in the next:
+# a `#[path]`-loaded file resolves ITS submodules beside the parent, so they need `#[path]` too.
+paths=$(grep -rn '#\[path' --include="*.rs" server/src shared/src 2>/dev/null || true)
+if [[ -n "$paths" ]]; then
+  echo "  ✗ #[path] on a module declaration — the natural child path needs no attribute:"
+  sed 's|^|    |' <<<"$paths"
+  placement=1
+fi
+
+# 5d · A tests.rs its owner never declares is not compiled, and a suite that does not run looks
+# exactly like a suite that passes.
+undeclared=""
 while IFS= read -r -d '' t; do
-  base=$(basename "$t"); stem=${base%.rs}; dir=$(dirname "$t")
-  decl=$(grep -rn -E "#\[path = \"${base}\"\]|^[[:space:]]*mod ${stem};" "$dir" --include="*.rs" || true)
-  if [[ -z "$decl" ]]; then orphan+="    $t"$'\n'; continue; fi
-  while IFS= read -r line; do
-    df=${line%%:*}; rest=${line#*:}; dn=${rest%%:*}
-    start=$((dn > 2 ? dn - 2 : 1))
-    sed -n "${start},$((dn - 1))p" "$df" | grep -q '#\[cfg(test)\]' || unguarded+="    ${df}:${dn}"$'\n'
-  done <<<"$decl"
-done < <(find server/src shared/src -name "*_tests.rs" -print0 2>/dev/null)
-if [[ -n "$orphan" ]]; then
-  echo "  ✗ *_tests.rs declared nowhere — not compiled, so its tests silently do not run:"
-  printf '%s' "$orphan"
+  d=$(dirname "$t")
+  if [[ -f "$d/mod.rs" ]]; then owner="$d/mod.rs"; elif [[ -f "$d.rs" ]]; then owner="$d.rs"; else owner=""; fi
+  if [[ -z "$owner" ]]; then
+    undeclared+="    $t — no owning module (expected $d/mod.rs or $d.rs)"$'\n'
+  elif ! grep -A1 '#\[cfg(test)\]' "$owner" | grep -q '^[[:space:]]*mod tests;'; then
+    undeclared+="    $t — $owner does not declare it behind #[cfg(test)]"$'\n'
+  fi
+done < <(find server/src shared/src -name "tests.rs" -print0 2>/dev/null)
+if [[ -n "$undeclared" ]]; then
+  echo "  ✗ test roots that do not compile into the crate:"
+  printf '%s' "$undeclared"
   placement=1
 fi
-if [[ -n "$unguarded" ]]; then
-  echo "  ✗ test module declared without #[cfg(test)] above it — ships in the binary, and if the"
-  echo "    file is production code its name still hides it from the coverage gate:"
-  printf '%s' "$unguarded"
+
+# 5e · Same hazard one level down: a file under tests/ that its tests.rs never names.
+orphan=""
+while IFS= read -r -d '' c; do
+  root="$(dirname "$c").rs"
+  stem=$(basename "$c" .rs)
+  [[ -f "$root" ]] || continue
+  grep -qE "^[[:space:]]*mod ${stem};" "$root" || orphan+="    $c — not declared in $root"$'\n'
+done < <(find server/src shared/src -path "*/tests/*" -name "*.rs" -print0 2>/dev/null)
+if [[ -n "$orphan" ]]; then
+  echo "  ✗ test support files nothing declares:"
+  printf '%s' "$orphan"
   placement=1
 fi
 

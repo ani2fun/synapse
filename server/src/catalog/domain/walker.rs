@@ -458,9 +458,4 @@ fn build_book_entries(
 }
 
 #[cfg(test)]
-#[path = "walker_tests.rs"]
 mod tests;
-
-#[cfg(test)]
-#[path = "walker_exclusion_tests.rs"]
-mod exclusion_tests;

@@ -57,5 +57,4 @@ pub struct D2Board {
 }
 
 #[cfg(test)]
-#[path = "d2_board_tests.rs"]
 mod tests;

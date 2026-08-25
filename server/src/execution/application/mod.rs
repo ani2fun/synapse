@@ -80,5 +80,4 @@ fn ensure_within(field: &'static str, value: &str, limit: usize) -> Result<(), E
 }
 
 #[cfg(test)]
-#[path = "service_tests.rs"]
 mod tests;

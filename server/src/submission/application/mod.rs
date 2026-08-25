@@ -375,5 +375,4 @@ fn describe(error: &ExecutionError) -> String {
 }
 
 #[cfg(test)]
-#[path = "service_tests.rs"]
 mod tests;

@@ -78,5 +78,4 @@ impl Language {
 }
 
 #[cfg(test)]
-#[path = "language_tests.rs"]
 mod tests;

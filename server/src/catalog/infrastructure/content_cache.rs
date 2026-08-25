@@ -226,5 +226,4 @@ fn safe_join(dest: &Path, relative: &Path) -> Option<PathBuf> {
 }
 
 #[cfg(test)]
-#[path = "content_cache_tests.rs"]
 mod tests;

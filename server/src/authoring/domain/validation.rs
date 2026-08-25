@@ -103,5 +103,4 @@ fn title_of(content: &str) -> Option<String> {
 }
 
 #[cfg(test)]
-#[path = "validation_tests.rs"]
 mod tests;

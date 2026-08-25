@@ -2,15 +2,15 @@
 //!
 //! A registered satellite is positioned by its row and by nothing else; the walked spine is
 //! positioned by its own `book.json` and by nothing else; and a level that receives a graft
-//! re-sorts around it. Its own file because `merge_tests` sits against the 500-line cap and
-//! because this is a single question, separate from the merge's cross-source behaviour.
+//! re-sorts around it. Its own file because this is a single question, separate from the
+//! merge's cross-source behaviour.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::fixtures::*;
-use super::*;
 use crate::catalog::domain::catalog::BookEntry;
 use crate::catalog::domain::content_tree::{BookMeta, CategoryMeta, ContentEntry};
+use crate::catalog::domain::merge::*;
 
 /// A satellite guide repo whose `book.json` still carries the `order` a migration left behind.
 fn satellite(id: &str, slug: &str, book_json_order: Option<i32>) -> SourceTree {

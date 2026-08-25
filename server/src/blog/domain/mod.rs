@@ -74,5 +74,4 @@ impl BlogPost {
 // catalog); this module keeps blog's VOCABULARY (title/summary/publishedAt/tags/readMinutes/eyebrow).
 
 #[cfg(test)]
-#[path = "blog_tests.rs"]
 mod tests;

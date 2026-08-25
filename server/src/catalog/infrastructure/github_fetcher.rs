@@ -160,5 +160,4 @@ fn check(response: Response, what: &str) -> Result<Response, FetchError> {
 }
 
 #[cfg(test)]
-#[path = "github_fetcher_tests.rs"]
 mod tests;

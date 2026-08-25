@@ -25,5 +25,4 @@ impl ComponentDoc {
 }
 
 #[cfg(test)]
-#[path = "component_doc_tests.rs"]
 mod tests;

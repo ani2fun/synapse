@@ -159,5 +159,4 @@ fn crumb(titles: &BTreeMap<Vec<String>, String>, path: &[String]) -> Vec<String>
 }
 
 #[cfg(test)]
-#[path = "documents_tests.rs"]
 mod tests;

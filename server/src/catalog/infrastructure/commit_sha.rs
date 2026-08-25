@@ -86,5 +86,4 @@ fn sha_like(s: &str) -> bool {
 }
 
 #[cfg(test)]
-#[path = "commit_sha_tests.rs"]
 mod tests;

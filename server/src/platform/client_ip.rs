@@ -48,5 +48,4 @@ pub fn client_ip(headers: &HeaderMap, peer: Option<SocketAddr>) -> String {
 }
 
 #[cfg(test)]
-#[path = "client_ip_tests.rs"]
 mod tests;

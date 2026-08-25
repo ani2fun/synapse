@@ -79,5 +79,4 @@ impl ContentForge for ConfiguredForge {
 }
 
 #[cfg(test)]
-#[path = "configured_tests.rs"]
 mod tests;

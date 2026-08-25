@@ -275,5 +275,4 @@ impl From<OutcomeJson> for SuiteOutcome {
 }
 
 #[cfg(test)]
-#[path = "postgres_tests.rs"]
 mod tests;

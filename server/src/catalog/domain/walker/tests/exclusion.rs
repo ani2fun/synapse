@@ -4,9 +4,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::*;
 use crate::catalog::domain::catalog::{Book, BookEntry, CatalogEntry};
 use crate::catalog::domain::content_tree::{BookMeta, ContentEntry};
+use crate::catalog::domain::walker::*;
 
 fn file(name: &str, content: &str) -> ContentEntry {
     ContentEntry::File {

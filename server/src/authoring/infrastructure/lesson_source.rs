@@ -90,5 +90,4 @@ fn unreadable(error: &ContentError) -> AuthoringError {
 }
 
 #[cfg(test)]
-#[path = "lesson_source_tests.rs"]
 mod tests;

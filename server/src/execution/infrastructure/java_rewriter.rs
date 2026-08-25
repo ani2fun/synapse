@@ -53,5 +53,4 @@ fn normalize_entrypoint(source: &str) -> String {
 }
 
 #[cfg(test)]
-#[path = "java_rewriter_tests.rs"]
 mod tests;

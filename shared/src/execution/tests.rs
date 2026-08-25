@@ -4,6 +4,8 @@
 
 #![allow(clippy::unwrap_used)]
 
+mod judge_vectors;
+
 use super::*;
 
 #[test]

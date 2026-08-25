@@ -4,7 +4,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::fixtures::*;
+// The builders live inside `tests` so both suites reach them: `order` is a CHILD of this
+// module, and a child sees its ancestors' private items.
+mod fixtures;
+mod order;
+
+use self::fixtures::*;
 use super::*;
 use crate::catalog::domain::content_tree::{BookMeta, CategoryMeta};
 use crate::catalog::domain::resolver;

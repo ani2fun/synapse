@@ -2,7 +2,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::*;
+use crate::catalog::domain::search::*;
 
 pub(super) fn doc(title: &str, body: &str) -> DocInput {
     DocInput {

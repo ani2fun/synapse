@@ -228,5 +228,4 @@ pub fn grouping_to_string(grouping: &[String]) -> String {
 }
 
 #[cfg(test)]
-#[path = "content_sources_tests.rs"]
 mod tests;

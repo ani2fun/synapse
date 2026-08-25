@@ -2,8 +2,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::index_tests::{doc, index_of};
-use super::*;
+use super::index::{doc, index_of};
+use crate::catalog::domain::search::*;
 
 #[test]
 fn several_words_narrow_rather_than_widen() {

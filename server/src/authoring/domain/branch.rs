@@ -159,5 +159,4 @@ fn truncate(value: &str, max: usize) -> String {
 }
 
 #[cfg(test)]
-#[path = "branch_tests.rs"]
 mod tests;

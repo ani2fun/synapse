@@ -490,7 +490,4 @@ async fn get_unknown_is_unknown_submission() {
 
 // Boot-time reconciliation lives in the child module `service_tests/reconcile.rs` (it shares the
 // fakes + builders above via `super`) so this file stays under the 500-line cap. The explicit
-// `#[path]` is needed because this file is itself `#[path]`-loaded — submodule resolution would
-// otherwise look beside `mod.rs`, not beside this file.
-#[path = "service_tests/reconcile.rs"]
 mod reconcile;

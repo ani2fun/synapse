@@ -3,7 +3,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-#[path = "service_fakes.rs"]
 mod fakes;
 
 use fakes::{

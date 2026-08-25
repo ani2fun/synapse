@@ -106,5 +106,4 @@ pub fn judge(result: &RunResult, expected: Option<&str>) -> Verdict {
 }
 
 #[cfg(test)]
-#[path = "test_run_tests.rs"]
 mod tests;

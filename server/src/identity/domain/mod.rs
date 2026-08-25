@@ -56,5 +56,4 @@ pub struct AuthenticatedUser {
 }
 
 #[cfg(test)]
-#[path = "username_tests.rs"]
 mod tests;

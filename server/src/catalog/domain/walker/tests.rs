@@ -2,6 +2,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod exclusion;
+
 use super::*;
 use crate::catalog::domain::catalog::{BookEntry, CatalogEntry};
 use crate::catalog::domain::content_tree::{BookMeta, CategoryMeta, ContentEntry};

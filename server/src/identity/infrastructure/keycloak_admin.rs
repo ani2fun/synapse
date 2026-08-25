@@ -104,5 +104,4 @@ impl KeycloakAdmin for KeycloakAdminClient {
 }
 
 #[cfg(test)]
-#[path = "keycloak_admin_tests.rs"]
 mod tests;

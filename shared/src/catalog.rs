@@ -220,5 +220,4 @@ pub struct CatalogWarningDto {
 }
 
 #[cfg(test)]
-#[path = "catalog_tests.rs"]
 mod tests;

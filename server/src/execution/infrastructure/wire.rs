@@ -120,5 +120,4 @@ pub(crate) fn parse_run_result(compiled: bool, body: &str) -> Result<RunResult, 
 }
 
 #[cfg(test)]
-#[path = "wire_tests.rs"]
 mod tests;

@@ -120,5 +120,4 @@ fn csp_for(auth_origin: &str) -> String {
 }
 
 #[cfg(test)]
-#[path = "security_headers_tests.rs"]
 mod tests;

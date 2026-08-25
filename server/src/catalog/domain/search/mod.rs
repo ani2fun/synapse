@@ -395,9 +395,4 @@ impl IndexBuilder {
 }
 
 #[cfg(test)]
-#[path = "index_tests.rs"]
-mod index_tests;
-
-#[cfg(test)]
-#[path = "query_tests.rs"]
-mod query_tests;
+mod tests;

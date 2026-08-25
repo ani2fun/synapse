@@ -130,5 +130,4 @@ fn content_type_of(path: &Path) -> &'static str {
 }
 
 #[cfg(test)]
-#[path = "media_routes_tests.rs"]
 mod tests;

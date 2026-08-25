@@ -134,5 +134,4 @@ fn watermark(root: &Path) -> String {
 }
 
 #[cfg(test)]
-#[path = "filesystem_tests.rs"]
 mod tests;

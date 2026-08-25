@@ -157,5 +157,4 @@ pub fn bad_id(raw: &str) -> (StatusCode, Json<ApiError>) {
 }
 
 #[cfg(test)]
-#[path = "dto_tests.rs"]
 mod tests;

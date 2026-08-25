@@ -65,5 +65,4 @@ fn elide(value: &str, limit: usize) -> String {
 }
 
 #[cfg(test)]
-#[path = "message_tests.rs"]
 mod tests;

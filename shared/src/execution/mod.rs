@@ -4,10 +4,6 @@
 
 mod test_run;
 
-#[cfg(test)]
-#[path = "judge_vectors_tests.rs"]
-mod judge_vectors_tests;
-
 pub use test_run::{ArgSpec, TestCase, TestSpec, Verdict, judge, stdin_for};
 
 use serde::{Deserialize, Serialize};
@@ -82,5 +78,4 @@ pub struct RunResult {
 // keeps it a pure wire kernel.
 
 #[cfg(test)]
-#[path = "run_status_tests.rs"]
 mod tests;

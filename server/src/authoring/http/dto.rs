@@ -126,5 +126,4 @@ pub fn to_error(error: &AuthoringError) -> Reject {
 }
 
 #[cfg(test)]
-#[path = "dto_tests.rs"]
 mod tests;

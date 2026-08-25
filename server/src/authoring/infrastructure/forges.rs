@@ -137,5 +137,4 @@ impl<S: ContentSources> Forges for ConfiguredForges<S> {
 }
 
 #[cfg(test)]
-#[path = "forges_tests.rs"]
 mod tests;

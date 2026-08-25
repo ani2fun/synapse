@@ -104,5 +104,4 @@ impl<R: BlogRepository> BlogService<R> {
 }
 
 #[cfg(test)]
-#[path = "service_tests.rs"]
 mod tests;

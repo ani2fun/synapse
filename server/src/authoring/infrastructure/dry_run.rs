@@ -77,5 +77,4 @@ impl ContentForge for DryRunForge {
 }
 
 #[cfg(test)]
-#[path = "dry_run_tests.rs"]
 mod tests;

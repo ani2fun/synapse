@@ -80,5 +80,4 @@ impl MountOrder {
 }
 
 #[cfg(test)]
-#[path = "mount_order_tests.rs"]
 mod tests;
