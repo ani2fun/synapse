@@ -12,11 +12,11 @@
 #      pure and native-testable.
 #   3. FILE-SIZE CAPS: server & shared ≤ 500 lines/file, viz-wasm & web ≤ 800.
 #      A file over its cap is doing too much or explaining too much; split it
-#      along the layer seams. Rust TEST code is exempt — a suite is a list, it
-#      grows with the surface it covers, and splitting one to satisfy a budget
-#      invents module boundaries that describe nothing. `*.gen.ts` is exempt
-#      too: a generated schema is machine output, not prose to split — the same
-#      way dist/pkg/node_modules are not walked at all.
+#      along the layer seams. TEST code is exempt everywhere — a suite is a
+#      list, it grows with the surface it covers, and splitting one to satisfy
+#      a budget invents module boundaries that describe nothing. `*.gen.ts`
+#      is exempt too: a generated schema is machine output, not prose to split
+#      — the same way dist/pkg/node_modules are not walked at all.
 #   4. RENDER-LOCAL-ONLY: the image build never enables the cargo feature that
 #      publishes local-only study material (ADR-RS002).
 #   5. TEST PLACEMENT: a module's unit tests live at its natural child path —
@@ -119,12 +119,13 @@ check_caps 500 find server shared -name "*.rs" -not -path "*/target/*" \
 client_ok=0
 check_caps 800 find viz-wasm \( -name "*.rs" -o -name "*.ts" \) \
   -not -path "*/node_modules/*" -not -path "*/target/*" -not -path "*/dist/*" \
-  -not -path "*/pkg/*" -not -name "*.gen.ts" || client_ok=1
+  -not -path "*/pkg/*" -not -name "*.gen.ts" \
+  -not -name "tests.rs" -not -path "*/tests/*" || client_ok=1
 web_ok=0
 if [[ -d web ]]; then
   check_caps 800 find web \( -name "*.ts" -o -name "*.tsx" -o -name "*.astro" \) \
     -not -path "*/node_modules/*" -not -path "*/dist/*" -not -path "*/.astro/*" \
-    -not -name "*.gen.ts" || web_ok=1
+    -not -name "*.gen.ts" -not -name "*.test.ts" -not -name "*.test.tsx" || web_ok=1
 fi
 if ((server_ok == 0 && client_ok == 0 && web_ok == 0)); then
   echo "  ok"
@@ -141,7 +142,7 @@ fi
 # counted as production code and silently lifts the number the 88% floor is measured against.
 # Rust resolves this layout on its own; `#[path]` is what a flat layout needs, and it is banned
 # here precisely because reaching for it is how the flat layout comes back.
-echo "→ test placement (a module's tests at <module>/tests.rs; server/src + shared/src)"
+echo "→ test placement (a module's tests at <module>/tests.rs; server · shared · viz-wasm)"
 placement=0
 
 # 5a · An inline `mod tests { … }` leaves test lines inside a production file, where nothing
@@ -155,7 +156,7 @@ while IFS= read -r -d '' file; do
     p                                         { p = 0 }
   ' "$file")
   [[ -n "$hit" ]] && inline+=$(sed "s|^|    ${file}:|" <<<"$hit")$'\n'
-done < <(find server/src shared/src -name "*.rs" -print0 2>/dev/null)
+done < <(find server/src shared/src viz-wasm/src -name "*.rs" -print0 2>/dev/null)
 if [[ -n "$inline" ]]; then
   echo "  ✗ inline test blocks — move each to <module>/tests.rs:"
   printf '%s' "$inline"
@@ -165,7 +166,7 @@ fi
 # 5b · A flat sibling is the old layout. It needs `#[path]`, and its name is the only thing
 # saying it is a test — which is what let a production adapter named `problem_tests.rs` out of
 # the coverage gate entirely.
-flat=$(find server/src shared/src \( -name "*_tests.rs" -o -name "*_test.rs" \) 2>/dev/null || true)
+flat=$(find server/src shared/src viz-wasm/src \( -name "*_tests.rs" -o -name "*_test.rs" \) 2>/dev/null || true)
 if [[ -n "$flat" ]]; then
   echo "  ✗ flat test siblings — these belong at <module>/tests.rs or under <module>/tests/:"
   sed 's|^|    |' <<<"$flat"
@@ -174,7 +175,7 @@ fi
 
 # 5c · `#[path]` defeats the resolution the layout depends on, and one use pulls in the next:
 # a `#[path]`-loaded file resolves ITS submodules beside the parent, so they need `#[path]` too.
-paths=$(grep -rn '#\[path' --include="*.rs" server/src shared/src 2>/dev/null || true)
+paths=$(grep -rn '#\[path' --include="*.rs" server/src shared/src viz-wasm/src 2>/dev/null || true)
 if [[ -n "$paths" ]]; then
   echo "  ✗ #[path] on a module declaration — the natural child path needs no attribute:"
   sed 's|^|    |' <<<"$paths"
@@ -192,7 +193,7 @@ while IFS= read -r -d '' t; do
   elif ! grep -A1 '#\[cfg(test)\]' "$owner" | grep -q '^[[:space:]]*mod tests;'; then
     undeclared+="    $t — $owner does not declare it behind #[cfg(test)]"$'\n'
   fi
-done < <(find server/src shared/src -name "tests.rs" -print0 2>/dev/null)
+done < <(find server/src shared/src viz-wasm/src -name "tests.rs" -print0 2>/dev/null)
 if [[ -n "$undeclared" ]]; then
   echo "  ✗ test roots that do not compile into the crate:"
   printf '%s' "$undeclared"
@@ -206,7 +207,7 @@ while IFS= read -r -d '' c; do
   stem=$(basename "$c" .rs)
   [[ -f "$root" ]] || continue
   grep -qE "^[[:space:]]*mod ${stem};" "$root" || orphan+="    $c — not declared in $root"$'\n'
-done < <(find server/src shared/src -path "*/tests/*" -name "*.rs" -print0 2>/dev/null)
+done < <(find server/src shared/src viz-wasm/src -path "*/tests/*" -name "*.rs" -print0 2>/dev/null)
 if [[ -n "$orphan" ]]; then
   echo "  ✗ test support files nothing declares:"
   printf '%s' "$orphan"

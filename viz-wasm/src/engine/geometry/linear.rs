@@ -62,5 +62,4 @@ pub fn stack(nodes: &[VizNode], _edges: &[VizEdge]) -> LayoutResult {
 }
 
 #[cfg(test)]
-#[path = "linear_tests.rs"]
 mod tests;

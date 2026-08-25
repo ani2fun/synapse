@@ -134,5 +134,4 @@ pub fn tree(nodes: &[VizNode], edges: &[VizEdge]) -> LayoutResult {
 }
 
 #[cfg(test)]
-#[path = "tree_tests.rs"]
 mod tests;

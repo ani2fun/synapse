@@ -214,5 +214,4 @@ impl<'de> Deserialize<'de> for VizCases {
 }
 
 #[cfg(test)]
-#[path = "graph_tests.rs"]
 mod tests;

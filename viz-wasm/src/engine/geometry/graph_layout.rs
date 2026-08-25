@@ -290,5 +290,4 @@ fn force(nodes: &[VizNode], edges: &[VizEdge]) -> LayoutResult {
 }
 
 #[cfg(test)]
-#[path = "graph_layout_tests.rs"]
 mod tests;

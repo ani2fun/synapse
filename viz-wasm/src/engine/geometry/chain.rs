@@ -76,5 +76,4 @@ pub fn chain(nodes: &[VizNode], edges: &[VizEdge]) -> ChainLayout {
 }
 
 #[cfg(test)]
-#[path = "chain_tests.rs"]
 mod tests;
