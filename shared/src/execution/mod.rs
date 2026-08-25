@@ -24,6 +24,21 @@ use serde::{Deserialize, Serialize};
 // translated by an explicit match in `execution::infrastructure::wire`, so the sandbox's
 // vocabulary can change without touching this type, and this type can gain a variant without the
 // sandbox knowing.
+/// The wire form is the CASE NAME — never an index, so adding a variant cannot renumber the
+/// others, and a payload stays readable without a lookup table.
+///
+/// ```
+/// use synapse_shared::execution::RunStatus;
+///
+/// let json = serde_json::to_string(&RunStatus::TimeLimitExceeded).unwrap();
+/// assert_eq!(json, "\"TimeLimitExceeded\"");
+/// assert_eq!(serde_json::from_str::<RunStatus>(&json).unwrap(), RunStatus::TimeLimitExceeded);
+///
+/// // Only one status is a pass; every other carries a human label for the reader.
+/// assert!(RunStatus::Accepted.is_success());
+/// assert!(!RunStatus::CompileError.is_success());
+/// assert_eq!(RunStatus::CompileError.label(), "Compilation Error");
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub enum RunStatus {

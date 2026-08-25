@@ -83,6 +83,28 @@ pub enum Verdict {
 
 /// The stdin a case feeds the program: ONE LINE PER DECLARED ARG, in declaration order
 /// (missing values become empty lines), with a trailing newline.
+///
+/// Declaration order wins over map order, and an arg the case never set still costs its line —
+/// otherwise every later argument would shift up one and the program would read the wrong value.
+///
+/// ```
+/// use std::collections::BTreeMap;
+/// use synapse_shared::execution::{ArgSpec, stdin_for};
+///
+/// let arg = |id: &str| ArgSpec {
+///     id: id.to_owned(),
+///     label: id.to_owned(),
+///     tpe: "string".to_owned(),
+///     placeholder: None,
+/// };
+/// let args = vec![arg("n"), arg("missing"), arg("k")];
+///
+/// let mut values = BTreeMap::new();
+/// values.insert("k".to_owned(), "3".to_owned());
+/// values.insert("n".to_owned(), "10".to_owned());
+///
+/// assert_eq!(stdin_for(&args, &values), "10\n\n3\n");
+/// ```
 pub fn stdin_for(args: &[ArgSpec], values: &BTreeMap<String, String>) -> String {
     let mut lines: Vec<&str> = args
         .iter()
@@ -94,6 +116,31 @@ pub fn stdin_for(args: &[ArgSpec], values: &BTreeMap<String, String>) -> String 
 
 /// Judge one run: a non-clean run is `Errored`; a clean run with no expected output is
 /// `Finished`; otherwise TRIMMED stdout comparison.
+///
+/// The comparison trims both sides, so a trailing newline never fails a correct answer.
+///
+/// ```
+/// use synapse_shared::execution::{RunResult, RunStatus, Verdict, judge};
+///
+/// let run = |status: RunStatus, stdout: &str| RunResult {
+///     status,
+///     stdout: stdout.to_owned(),
+///     stderr: String::new(),
+///     compile_output: String::new(),
+///     time_seconds: None,
+///     memory_kb: None,
+/// };
+///
+/// // A case with nothing to compare against only has to finish cleanly.
+/// assert_eq!(judge(&run(RunStatus::Accepted, "42\n"), None), Verdict::Finished);
+///
+/// // Expected output is compared trimmed.
+/// assert_eq!(judge(&run(RunStatus::Accepted, "42\n"), Some("42")), Verdict::Accepted);
+/// assert_eq!(judge(&run(RunStatus::Accepted, "41"), Some("42")), Verdict::WrongAnswer);
+///
+/// // A run that did not complete is never graded on its stdout.
+/// assert_eq!(judge(&run(RunStatus::TimeLimitExceeded, "42"), Some("42")), Verdict::Errored);
+/// ```
 pub fn judge(result: &RunResult, expected: Option<&str>) -> Verdict {
     if !result.status.is_success() {
         return Verdict::Errored;
