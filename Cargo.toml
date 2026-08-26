@@ -38,7 +38,11 @@ figment = { version = "0.10", features = ["env"] }
 anyhow = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
-jsonwebtoken = "9"
+# jsonwebtoken 11 moved to rustls's CryptoProvider model: a backend feature is now mandatory,
+# and without one every sign/verify PANICS at runtime rather than failing to compile.
+# `rust_crypto` over `aws_lc_rs` for the same reason flate2 takes `rust_backend` and reqwest
+# takes `rustls-tls` — pure Rust, no C toolchain in the image build.
+jsonwebtoken = { version = "11", features = ["rust_crypto"] }
 sqlx = { version = "0.8", default-features = false, features = ["postgres", "runtime-tokio", "macros", "migrate", "chrono", "uuid", "json"] }
 
 # ── viz wasm ──

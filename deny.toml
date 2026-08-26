@@ -41,7 +41,26 @@ yanked = "deny"
 # conclusion, same reasons, recorded at length in rust-toolchain.toml — which is where it
 # becomes a hard error, since the channel is pinned.
 unmaintained = "workspace"
-ignore = []
+ignore = [
+  # RUSTSEC-2023-0071 — Marvin Attack: a timing sidechannel in `rsa`, reachable only through
+  # PRIVATE-key operations, and with no fixed version to upgrade to ("No safe upgrade is
+  # available"). It arrives under `jsonwebtoken`'s `rust_crypto` backend.
+  #
+  # Ignored because the vulnerable operation is one this server never performs. `jwks.rs` only
+  # ever calls `decode`, verifying against Keycloak's PUBLIC JWKS; no RSA private key exists in
+  # the image, in config, or in any environment variable. The single place that signs is
+  # `server/tests/common`, with a committed test-only key, in-process, against no attacker.
+  #
+  # The alternative was the `aws_lc_rs` backend, which is clean here but compiles AWS-LC from C
+  # on every cold build and needs cmake added to the builder — paid on every CI run, against a
+  # 20-minute budget, to close a hole this shape of usage does not open.
+  #
+  # This buys the fix for GHSA-h395-gr6q-cpjc, jsonwebtoken 9's type confusion leading to
+  # authorization bypass — which IS on the path this server runs, on every authenticated request.
+  #
+  # Revisit when `rsa` ships a fixed release: drop this entry, do not widen it.
+  "RUSTSEC-2023-0071",
+]
 
 # ── licences ──────────────────────────────────────────────────────────────────
 # Every crate in the current tree is permissive (MIT / Apache-2.0 dominate, with
