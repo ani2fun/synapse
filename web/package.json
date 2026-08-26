@@ -9,10 +9,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@astrojs/node": "^9.2.0",
-    "@astrojs/preact": "^4.0.0",
+    "@astrojs/node": "^11.1.4",
+    "@astrojs/preact": "^6.0.4",
     "@terrastruct/d2": "^0.1.33",
-    "astro": "^5.7.0",
+    "astro": "^7.2.7",
     "keycloak-js": "^26.2.4",
     "mdast-util-to-hast": "^13.2.0",
     "mermaid": "^11.17.0",
@@ -33,9 +33,5 @@
     "postcss": "8.5.26",
     "typescript": "^7.0.2",
     "vitest": "^4.1.7"
-  },
-  "overrides": {
-    "sharp": "^0.35.0",
-    "js-yaml": "^4.3.1"
   }
 }
