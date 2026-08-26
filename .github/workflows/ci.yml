@@ -5,6 +5,10 @@ on:
     branches: [main]
     tags: ["step-*"]
   pull_request:
+  # Re-run the graph against a ref without inventing a commit. A push event that GitHub
+  # drops (it happens) otherwise leaves main green-looking with no run behind it, and the
+  # only recourse is an empty commit that says nothing in the history it lands in.
+  workflow_dispatch:
 
 jobs:
   # ── The convention gate runs FIRST — it needs nothing but grep/find/wc, so a
