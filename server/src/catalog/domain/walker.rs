@@ -54,6 +54,23 @@ const RESERVED_AUX_DIRS: [&str; 4] = ["examples", "c4", "local-only", "local-onl
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Non-empty, every char alphanumeric, `-`, or `_`.
+///
+/// This is the traversal guard. Layers above it parse permissively ON PURPOSE — `BoardFile::parse`
+/// will happily split `../../secret.svg` into a stem and an extension — because exactly one place
+/// should decide what a servable name is, and this is that place.
+///
+/// ```
+/// use synapse_server::catalog::domain::walker::slug_like;
+///
+/// assert!(slug_like("01-intro"));
+/// assert!(slug_like("binary_search"));
+///
+/// // The cases the layers above hand over rather than rejecting themselves.
+/// assert!(!slug_like(""));
+/// assert!(!slug_like("../../secret"));
+/// assert!(!slug_like("a/b"));
+/// assert!(!slug_like("a b"));
+/// ```
 pub fn slug_like(s: &str) -> bool {
     !s.is_empty() && s.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_')
 }

@@ -65,6 +65,20 @@ impl Language {
     }
 
     /// Resolve a fence alias: trimmed, case-insensitive; blank or unknown → `None`.
+    ///
+    /// An alias belongs to exactly one language, so resolution never depends on iteration order.
+    ///
+    /// ```
+    /// use synapse_server::execution::domain::Language;
+    ///
+    /// assert_eq!(Language::resolve("rust"), Some(Language::Rust));
+    /// assert_eq!(Language::resolve("  RS  "), Some(Language::Rust));
+    /// assert_eq!(Language::resolve("node"), Some(Language::JavaScript));
+    ///
+    /// // An unknown or blank fence is not a guess.
+    /// assert_eq!(Language::resolve("cobol"), None);
+    /// assert_eq!(Language::resolve("   "), None);
+    /// ```
     pub fn resolve(alias: &str) -> Option<Language> {
         let needle = alias.trim().to_lowercase();
         if needle.is_empty() {

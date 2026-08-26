@@ -81,6 +81,23 @@ impl VizStructure {
 
     /// Parse an authored `viz=` value: `<structure>[:<root>]` → the structure + an optional
     /// root variable (which may be dotted, e.g. `list:self.head`). `None` on an unknown name.
+    ///
+    /// An unknown structure is `None` rather than a default, because a wrong structure draws a
+    /// confidently wrong picture — the one failure a reader cannot detect.
+    ///
+    /// ```
+    /// use viz_wasm::engine::vocabulary::VizStructure;
+    ///
+    /// assert_eq!(VizStructure::parse("stack"), Some((VizStructure::Stack, None)));
+    /// assert_eq!(
+    ///     VizStructure::parse("list:self.head"),
+    ///     Some((VizStructure::List, Some("self.head".to_owned()))),
+    /// );
+    ///
+    /// // A colon with nothing after it declares no root, rather than an empty one.
+    /// assert_eq!(VizStructure::parse("stack:"), Some((VizStructure::Stack, None)));
+    /// assert_eq!(VizStructure::parse("btree"), None);
+    /// ```
     #[must_use]
     pub fn parse(token: &str) -> Option<(Self, Option<String>)> {
         let t = token.trim();
