@@ -24,6 +24,19 @@ use serde::{Deserialize, Serialize};
 // translated by an explicit match in `execution::infrastructure::wire`, so the sandbox's
 // vocabulary can change without touching this type, and this type can gain a variant without the
 // sandbox knowing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub enum RunStatus {
+    Accepted,
+    CompileError,
+    RuntimeError,
+    TimeLimitExceeded,
+    InternalError,
+}
+
+// The example lives on the impl, not the enum: utoipa lifts a TYPE's `///` into the OpenAPI
+// description, so a doc test on `RunStatus` itself would ship Rust into schema.gen.ts.
+//
 /// The wire form is the CASE NAME — never an index, so adding a variant cannot renumber the
 /// others, and a payload stays readable without a lookup table.
 ///
@@ -39,16 +52,6 @@ use serde::{Deserialize, Serialize};
 /// assert!(!RunStatus::CompileError.is_success());
 /// assert_eq!(RunStatus::CompileError.label(), "Compilation Error");
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
-pub enum RunStatus {
-    Accepted,
-    CompileError,
-    RuntimeError,
-    TimeLimitExceeded,
-    InternalError,
-}
-
 impl RunStatus {
     pub fn is_success(self) -> bool {
         self == Self::Accepted
