@@ -41,6 +41,26 @@ export function remove(key: string): void {
   }
 }
 
+/** Drop every key under a prefix. The inventory below holds two kinds of name: exact keys, which
+ *  `remove` handles, and PREFIXES, whose real keys are minted at runtime and so cannot be listed
+ *  ahead of time. The account page's "erase all my data" needs both. Enumeration and removal are
+ *  guarded together — a profile that denies `localStorage` throws on `key()` just as it does on
+ *  `getItem`. */
+export function removeByPrefix(prefix: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const doomed: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i += 1) {
+      const key = window.localStorage.key(i);
+      if (key !== null && key.startsWith(prefix)) doomed.push(key);
+    }
+    // Collected first: removing during the walk reindexes the store underneath it.
+    for (const key of doomed) window.localStorage.removeItem(key);
+  } catch {
+    // swallow — see the module doc.
+  }
+}
+
 // ── the key inventory ───────────────────────────────────────────────────────────────────────
 // One name per feature, spelled once, so a typo in a second call site can't silently start a
 // new key instead of colliding with a lint.
@@ -73,3 +93,8 @@ export const DIAGRAM_LAB_DRAFT_PREFIX = "diagram-lab-draft";
  *  (`content-draft:<username>:<lesson-path>`) so one browser can hold a draft for each page a
  *  contributor is editing, and a draft never leaks across accounts. See islands/authoring/draft. */
 export const CONTENT_DRAFT_PREFIX = "content-draft:";
+/** The popup codebench's edited buffer — a key PREFIX. The username, the page path, the language
+ *  and a fingerprint of the authored fence are appended, so two snippets never overwrite each
+ *  other's draft, a draft never surfaces under another account, and an edit to the lesson retires
+ *  the draft that no longer applies. See islands/widgets/codebenchDraft. */
+export const CODEBENCH_DRAFT_PREFIX = "codebench-draft:";

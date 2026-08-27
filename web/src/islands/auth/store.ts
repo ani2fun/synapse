@@ -62,6 +62,9 @@ function installSeams(): void {
   window.__synapseVizToken = currentToken;
   // The workbench/problem gates read this at render time (contracts.ts).
   window.__synapseAuth = () => state.kind === "authed";
+  // The codebench keys its draft per account (contracts.ts) — the gates need only the boolean
+  // above, but a per-account storage key needs the name.
+  window.__synapseUser = () => (state.kind === "authed" ? state.me.username : null);
 }
 
 /** Flip the state: notify Preact subscribers AND dispatch AUTH_CHANGED so already-mounted
@@ -174,8 +177,15 @@ const LOCAL_KEYS = [
   storage.READER_LAST_KEY,
 ] as const;
 
+/** Both callers run while still signed in — the erase legs need the bearer, and `deleteAccount`
+ *  only signs out afterwards — so the handle needed for the per-account sweep is still readable. */
 function clearReaderStorage(): void {
   for (const key of LOCAL_KEYS) storage.remove(key);
+  // The codebench's drafts are keyed per account, so their real key names are minted at runtime
+  // and cannot sit in the list above.
+  if (state.kind === "authed") {
+    storage.removeByPrefix(`${storage.CODEBENCH_DRAFT_PREFIX}${state.me.username}:`);
+  }
 }
 
 /** Erase every submission of the caller ("reset my data"). Returns the deleted count. */

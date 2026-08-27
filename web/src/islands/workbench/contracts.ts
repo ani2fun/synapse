@@ -57,6 +57,12 @@ declare global {
   interface Window {
     /** The auth store installs the real provider; absent = anonymous. */
     __synapseAuth?: () => boolean;
+    /** The signed-in handle, or null when anonymous. Separate from `__synapseAuth` because the
+     *  gates only ever need the boolean, while anything that KEYS per-account storage needs the
+     *  name — the codebench's draft does. Same seam rather than an import: the codebench modal
+     *  mounts on every page kind, and pulling in the auth store would drag its module graph into
+     *  every page's eager bundle. */
+    __synapseUser?: () => string | null;
     /** The viz loader installs the viz entry; its presence is what makes Visualise render at all. */
     __synapseViz?: (detail: {
       language: string;
@@ -73,4 +79,10 @@ declare global {
 
 export function isAuthed(): boolean {
   return window.__synapseAuth?.() ?? false;
+}
+
+/** The signed-in handle, or null when anonymous (or before the auth store has installed its
+ *  provider). Read per call — a sign-in mid-session changes the answer without a re-install. */
+export function currentUser(): string | null {
+  return window.__synapseUser?.() ?? null;
 }
