@@ -1,6 +1,11 @@
 # RS007 — D2 figures are drawn in the content repository's CI, not at read time
 
-**Status:** accepted · 2026-08-10
+**Status:** superseded by [RS009](rs009-on-demand-d2.md) · 2026-08-27 · accepted 2026-08-10
+
+> The measurement below stands and is why this was right at the time: the **wasm engine under
+> Node, in the page tier** peaks at 5252 MB. RS009 does not contradict that — it moves the work
+> to the native engine in a container of its own, where the same lesson peaks at 160 MB, and
+> drops the committed artifacts this ADR introduced.
 
 ## Context
 

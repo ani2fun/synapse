@@ -125,22 +125,13 @@
       "url": "{{ _.base_url }}/api/synapse/c4-doc/synapse.client.reader?lesson=learn/dsa/lists/singly"
     },
     {
-      "_id": "req_catalog_d2_manifest",
-      "_type": "request",
-      "parentId": "fld_catalog",
-      "name": "GET /api/synapse/d2/{fence}/boards.json?lesson=",
-      "description": "A d2 walkthrough's board graph — the co-located _d2/<fence>/boards.json sidecar next to the lesson. 404 until the content repo's CI has drawn it, which is normal: the page then falls back to the client renderer.",
-      "method": "GET",
-      "url": "{{ _.base_url }}/api/synapse/d2/url-shortener/boards.json?lesson=learn/dsa/lists/singly"
-    },
-    {
       "_id": "req_catalog_d2_board",
       "_type": "request",
       "parentId": "fld_catalog",
-      "name": "GET /api/synapse/d2/{fence}/{board}.svg?lesson=",
-      "description": "One drawn board of a walkthrough, served as image/svg+xml with an hour of cache. The board name is the slug from boards.json; the root board is always `root`.",
+      "name": "GET /api/synapse/d2/{hash}/{slug}",
+      "description": "One board of a d2 walkthrough, proxied from the d2-render sidecar as image/svg+xml, immutable. CONTENT-ADDRESSED (ADR-RS009): {hash} is the fence source's fnv1a and {slug} the board's, both from the manifest the lesson page inlines on the .d2-boards element — there is no lesson path and no fence name any more. The renderer drew every board when the page asked for the root, so this is a cache read. 404 if the walkthrough was never rendered; 502 if the sidecar is down. Unmounted entirely when SYNAPSE_D2_RENDER_URL is unset, and the reader's viewer compiles the walkthrough itself.",
       "method": "GET",
-      "url": "{{ _.base_url }}/api/synapse/d2/url-shortener/container.svg?lesson=learn/dsa/lists/singly"
+      "url": "{{ _.base_url }}/api/synapse/d2/53db05c7/container"
     },
     {
       "_id": "fld_submissions",

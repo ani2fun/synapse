@@ -37,16 +37,38 @@ if [[ ! -f web/dist/server/entry.mjs ]]; then
   echo "→ no web/dist — building the Astro app"
   (cd web && npm run build)
 fi
-# The cluster runs pre-rendering ON (ani2fun/infra deployment.yaml) — since it became a FILE
-# LOOKUP rather than a compile, it is the cheap path and the whole point. The main pass runs it
-# off anyway, because that is the FALLBACK every un-drawn fence lands in and it is the heavier of
-# the two: it makes the budget below the worst case a reader can be served rather than the best.
-# The prod shape follows at the end, in the feature's own pass.
-export SYNAPSE_D2_PRERENDER="${SYNAPSE_D2_PRERENDER:-off}"
+# The cluster runs the d2 renderer (ani2fun/infra deployment.yaml) and every figure arrives as
+# inline SVG. The main pass runs WITHOUT it anyway, because that is the FALLBACK a dead or
+# unreachable sidecar lands in and it is the heavier of the two: it makes the budget below the
+# worst case a reader can be served rather than the best. The prod shape follows at the end, in
+# the feature's own pass.
+#
+# Unset, not "off": the address IS the switch, so there is no configuration in which the renderer
+# is named and ignored.
+unset SYNAPSE_D2_RENDER_URL
+
+D2_RENDER_PORT="${D2_RENDER_PORT:-8391}"
+D2_RENDER_PID=""
+
+start_d2_render() {
+  reclaim "$D2_RENDER_PORT" "d2-render"
+  echo "→ starting the d2 renderer on :$D2_RENDER_PORT"
+  go build -C d2-render -o "$PWD/target/d2-render" .
+  # A fresh cache per run: a warm one would let a broken renderer pass on last run's figures.
+  rm -rf "$PWD/target/e2e-d2-cache"
+  D2_RENDER_CACHE="$PWD/target/e2e-d2-cache" D2_RENDER_ADDR=":$D2_RENDER_PORT" \
+    ./target/d2-render >/tmp/e2e-d2-render.log 2>&1 &
+  D2_RENDER_PID=$!
+  for _ in $(seq 1 60); do
+    curl -sf "http://127.0.0.1:$D2_RENDER_PORT/healthz" >/dev/null && return 0
+    sleep 1
+  done
+  echo "✗ the d2 renderer never answered on :$D2_RENDER_PORT"; tail -20 /tmp/e2e-d2-render.log; return 1
+}
 
 start_sidecar() {
   reclaim "$SIDECAR_PORT" "astro-sidecar"
-  echo "→ starting the sidecar on :$SIDECAR_PORT (d2 pre-render: $SYNAPSE_D2_PRERENDER)"
+  echo "→ starting the sidecar on :$SIDECAR_PORT (d2 renderer: ${SYNAPSE_D2_RENDER_URL:-none})"
   # Same pipe hygiene as the server below: log to a file, one PID to clean up.
   HOST=127.0.0.1 PORT="$SIDECAR_PORT" node web/dist/server/entry.mjs >/tmp/e2e-sidecar.log 2>&1 &
   SIDECAR_PID=$!
@@ -66,26 +88,33 @@ export SYNAPSE_ASTRO_URL="http://127.0.0.1:$SIDECAR_PORT"
 echo "→ building the server"
 cargo build -p synapse-server --quiet
 
-echo "→ starting the server on :$SYNAPSE_PORT"
 # Run the BINARY, and send its output to a file rather than this script's stdout. Two reasons,
 # both learned from the first CI run of this suite, which hung for 39 minutes:
 #   · CI runs `dev-tools/e2e | tee`, and a background process that inherits the pipe keeps its
 #     write end open after this script exits — `tee` never sees EOF and the step never ends.
 #   · `cargo run` spawns children; killing cargo can leave rustc/the server behind holding that
 #     same pipe. Exec'ing the built binary means there is exactly one PID to clean up.
-./target/debug/synapse-server >/tmp/e2e-server.log 2>&1 &
-SERVER_PID=$!
-trap 'kill "$SERVER_PID" 2>/dev/null || true; [[ -n "$SIDECAR_PID" ]] && kill "$SIDECAR_PID" 2>/dev/null || true' EXIT
-
-for _ in $(seq 1 60); do
-  curl -sf "http://localhost:$SYNAPSE_PORT/api/health" >/dev/null && break
-  sleep 1
-done
-curl -sf "http://localhost:$SYNAPSE_PORT/api/health" >/dev/null || {
+#
+# A FUNCTION because the d2 pass restarts it: the board proxy is mounted from
+# SYNAPSE_D2_RENDER_URL at boot, so a server started without it serves the fallback shape no
+# matter what the page tier does — which is exactly the prod requirement, both halves or neither.
+start_server() {
+  echo "→ starting the server on :$SYNAPSE_PORT (d2 renderer: ${SYNAPSE_D2_RENDER_URL:-none})"
+  ./target/debug/synapse-server >/tmp/e2e-server.log 2>&1 &
+  SERVER_PID=$!
+  for _ in $(seq 1 60); do
+    curl -sf "http://localhost:$SYNAPSE_PORT/api/health" >/dev/null && return 0
+    sleep 1
+  done
   echo "✗ the server never became ready — its log:"
   sed 's/^/    /' /tmp/e2e-server.log
-  exit 1
+  return 1
 }
+
+start_server
+trap 'kill "$SERVER_PID" 2>/dev/null || true; [[ -n "$SIDECAR_PID" ]] && kill "$SIDECAR_PID" 2>/dev/null || true; [[ -n "$D2_RENDER_PID" ]] && kill "$D2_RENDER_PID" 2>/dev/null || true' EXIT
+
+
 if [[ -n "$SIDECAR_PID" ]]; then
   # The page path must actually flow through the proxy before the suite starts.
   curl -sf "http://localhost:$SYNAPSE_PORT/" >/dev/null || {
@@ -134,10 +163,16 @@ dev-tools/check-page-budget.sh "http://localhost:$SYNAPSE_PORT"
 # Skipped when the caller filtered the suite — `dev-tools/e2e frames` means "just that one".
 if [[ $# -eq 0 ]]; then
   echo
-  echo "→ re-running the d2 spec with pre-rendering ON"
+  echo "→ re-running the d2 spec with the renderer UP"
   kill "$SIDECAR_PID" 2>/dev/null || true
   wait "$SIDECAR_PID" 2>/dev/null || true
-  export SYNAPSE_D2_PRERENDER=on
+  kill "$SERVER_PID" 2>/dev/null || true
+  wait "$SERVER_PID" 2>/dev/null || true
+  start_d2_render
+  export SYNAPSE_D2_RENDER_URL="http://127.0.0.1:$D2_RENDER_PORT"
+  # BOTH halves, or the reader gets a drawn root board whose links 404: the page tier inlines the
+  # root, and the server proxies every board behind it.
+  start_server
   start_sidecar
   set +e
   (cd e2e && npx playwright test d2-prerender)

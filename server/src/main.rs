@@ -148,6 +148,7 @@ async fn main() -> anyhow::Result<()> {
         authoring,
         content_sources: Some(source_admin),
         astro_url: cfg.astro_url().map(str::to_owned),
+        d2_render_url: cfg.d2_render_url().map(str::to_owned),
         site_url: cfg.site_url,
         mounted: content.mounted.clone(),
         likec4_url: cfg.likec4_url.clone(),

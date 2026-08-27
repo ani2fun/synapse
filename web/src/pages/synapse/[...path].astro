@@ -77,17 +77,14 @@ let errorMessage = "";
 try {
   payload = await fetchLesson(segments);
   mode = payload.frontmatter.kind === "problem" ? "problem" : "lesson";
-  // A ```d2 boards walkthrough's figures are drawn into THIS lesson's `_d2/` sidecar, so the
-  // pipeline needs to know which lesson it is rendering to find them.
-  const renderCtx = { lessonPath: segments.join("/") };
   if (mode === "problem") {
     // The FIRST `<details` at line start outside a fence splits description from editorial; the
     // inline editorial wins, else the co-located sidecar the payload already carries.
     const [descMd, inlineEditorial] = problemContentSplit(payload.raw);
-    descriptionHtml = await renderLesson(descMd, renderCtx);
+    descriptionHtml = await renderLesson(descMd);
     editorialMd = inlineEditorial.trim() !== "" ? inlineEditorial : (payload.editorial ?? "");
   } else {
-    html = await renderLesson(payload.raw, renderCtx);
+    html = await renderLesson(payload.raw);
   }
   // The sidebar needs the FULL book tree (payload.book is only a ref). Best-effort: if the index
   // can't load, the sidebar degrades to absent rather than failing the whole page. The

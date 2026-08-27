@@ -82,6 +82,21 @@
 .diagram__edit--gated:hover { background: hsl(var(--primary) / 0.08);
                               border-color: hsl(var(--primary) / 0.3); }
 
+/* ── the pending state: what a figure shows while its renderer works ──
+   Silence and failure looked identical before this: an un-drawn figure compiles in the browser
+   behind a ~5.9 MB gz engine, and until it lands the card was simply empty. Overlaid on .diagram
+   (already positioned) rather than inside .diagram__figure, whose innerHTML a renderer owns;
+   pointer-events stay off so a slideshow's transport is still usable while slide 0 draws.
+   Fixed colours — the card is fixed-light on both themes. */
+.diagram__pending { position: absolute; inset: 0; z-index: 1; pointer-events: none;
+                    display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+                    color: #64748b; font-size: 0.875rem; }
+.diagram__pending-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #cbd5e1;
+                        border-top-color: #64748b; animation: diagram-pending-spin 0.7s linear infinite; }
+@keyframes diagram-pending-spin { to { transform: rotate(360deg); } }
+/* A looping spinner is the motion this reader asked not to see; the label alone still says it. */
+@media (prefers-reduced-motion: reduce) { .diagram__pending-dot { display: none; } }
+
 /* Loud failure (ADR-S026): a visible card with the raw source — never a blank figure. */
 .diagram-error { width: 100%; margin: 1rem 0; padding: 0.75rem 1rem;
                  border: 1px solid hsl(var(--status-err) / 0.4); border-radius: 12px;

@@ -3,10 +3,10 @@
  * the split and the route to a pull request; this owns what makes a d2 document a d2 document.
  *
  * Three things do. A walkthrough has a NAME and a root board title, so its identity is an editable
- * heading rather than a labelled field, with the sidecar path as one quiet line of metadata under
- * it. Its figures are a tree rather than a picture, so the preview mounts the reader's own board
- * walk and clicking a node drills down exactly as it will in a lesson. And its artifacts are files
- * a content repo's CI commits, so an author on a repo with no workflow yet can export them here.
+ * heading rather than a labelled field, with the name as one quiet line of metadata under it. Its
+ * figures are a tree rather than a picture, so the preview mounts the reader's own board walk and
+ * clicking a node drills down exactly as it will in a lesson. And it is several figures at once,
+ * so they can be exported together.
  */
 import { h, render } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
@@ -87,8 +87,7 @@ function useD2Doc({ source, subject, openedMeta, say, goToLine }: LabContext): L
 
   // A draft is a walkthrough; an edit is whatever kind it opened as. A plain ```d2 fence must go
   // back as a plain one: writing `boards` onto it would convert a simple diagram into a one-board
-  // walkthrough, move its artifact out of the shared pool into a `_d2/` sidecar, and change how it
-  // renders — none of which anyone asked for by clicking Edit.
+  // walkthrough and change how it renders — neither of which anyone asked for by clicking Edit.
   const isBoards = subject == null || (openedMeta != null && isBoardsFence(openedMeta));
   const meta = isBoards ? `boards name="${name}" root="${rootTitle}"` : "";
 
@@ -97,7 +96,6 @@ function useD2Doc({ source, subject, openedMeta, say, goToLine }: LabContext): L
     // A plain figure has no name of its own — it is the Nth diagram in its lesson, and calling its
     // buffer `walkthrough.d2` would name it after a thing it is not.
     fileName: isBoards ? `${name}.d2` : `diagram-${(subject?.at ?? 0) + 1}.d2`,
-    sidecar: isBoards ? `_d2/${name}/` : null,
     draftLabel: "D2 walkthrough",
     identity: isBoards ? (
       <>
@@ -123,17 +121,18 @@ function useD2Doc({ source, subject, openedMeta, say, goToLine }: LabContext): L
           </button>
         </span>
         <div class="lab-meta">
+          {/* A LABEL, not a path. The name used to be a directory under `_d2/`; figures are
+              content-addressed now (ADR-RS009), so it names nothing on disk and rides the fence's
+              info string. Showing it as a path would promise a file this never writes. */}
           <span class="lab-meta__path">
-            _d2/
+            {"walkthrough "}
             <input
               value={name}
               size={Math.max(4, name.length)}
               onInput={(event) => setName((event.currentTarget as HTMLInputElement).value)}
-              aria-label="The walkthrough's name — its sidecar directory"
+              aria-label="The walkthrough's name"
             />
-            {/* Before the closing slash: the pencil marks the NAME as editable, and putting
-                it after the separator would attach it to the path as a whole. */}
-            <Icon name="pencil" size={11} />/
+            <Icon name="pencil" size={11} />
           </span>
           <Meta source={source} />
         </div>
@@ -152,9 +151,9 @@ function useD2Doc({ source, subject, openedMeta, say, goToLine }: LabContext): L
       </>
     ),
     actions: isBoards ? (
-      <button onClick={() => void exportSidecar(source, meta, say)}>
+      <button onClick={() => void exportBoards(source, meta, say)}>
         <Icon name="package" size={15} />
-        Export _d2/
+        Export boards
       </button>
     ) : undefined,
     preview: <Preview source={source} meta={meta} onGoToLine={goToLine} />,
@@ -173,8 +172,9 @@ function Meta({ source }: { source: string }) {
   );
 }
 
-/** The `_d2/<name>/` directory a content repo's CI would commit, for a repo with no workflow yet. */
-async function exportSidecar(source: string, meta: string, say: (m: string) => void): Promise<void> {
+/** Every board of this walkthrough, zipped. Nothing in the app reads these — a figure is drawn on
+ *  demand and content-addressed — so this is for taking them somewhere else. */
+async function exportBoards(source: string, meta: string, say: (m: string) => void): Promise<void> {
   say("Drawing every board…");
   try {
     const provider = await engineProvider(source, meta);

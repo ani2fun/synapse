@@ -42,7 +42,6 @@ const pathOf = (entry: SearchEntry): string | null =>
 export function AddToLesson({
   lang,
   fence,
-  sidecar,
   subject,
   published,
   onClose,
@@ -51,9 +50,6 @@ export function AddToLesson({
    *  the pill that opened the editor. */
   lang: DiagramLang;
   fence: string;
-  /** The sidecar directory the boards will land in, or null for a plain figure — which is drawn
-   *  into the shared pool and has no directory of its own. */
-  sidecar: string | null;
   /** The diagram this page was opened on, when it was. Its presence is what turns this dialog
    *  from "choose a lesson and add" into "put this back where it came from". */
   subject?: Subject | null;
@@ -238,20 +234,14 @@ export function AddToLesson({
 
         {phase.kind === "placing" && (
           <>
-            {/* The sidecar is named only when there will BE one. A plain figure is drawn into
-                the shared, content-addressed pool, and claiming a `_d2/` directory for it would
-                describe a file the change never creates. */}
+            {/* Only the lesson and the repo: the change writes a fence and nothing else. Every
+                figure is drawn on demand and content-addressed, so there is no artifact path to
+                promise here. */}
             <p class="mdl__where">
               {updating ? "Replacing the diagram in " : "Adding to "}
               <code>{phase.lessonPath}</code>
               {" in "}
               <code>{phase.source.repo}</code>
-              {sidecar != null && (
-                <>
-                  {" as "}
-                  <code>{sidecar}</code>
-                </>
-              )}
             </p>
             {!updating && (
               <label class="mdl__field">

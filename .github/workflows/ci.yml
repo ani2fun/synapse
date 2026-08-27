@@ -271,6 +271,34 @@ jobs:
   # step that calls the script, or the ordering reads as accidental rather than a dependency.
   # 20-minute budget: a cold `cargo build -p synapse-server` inside a job with no prior Rust
   # cache made the old 15-minute figure tight.
+  # The d2 renderer (ADR-RS009). It draws every figure a reader sees, and it reimplements two
+  # things the TypeScript also implements — `fnv1a` and `boardSlug` — so its unit tests are the
+  # contract, not a formality: both failures are silent, showing up as a walkthrough that quietly
+  # falls back rather than as an error.
+  d2-render:
+    timeout-minutes: 15
+    needs: conventions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          # From go.mod, so the compiler here is the one the Dockerfile and a local build use.
+          go-version-file: d2-render/go.mod
+          cache-dependency-path: d2-render/go.sum
+      - name: gofmt
+        working-directory: d2-render
+        run: test -z "$(gofmt -l .)" || { gofmt -d .; exit 1; }
+      - name: go vet
+        working-directory: d2-render
+        run: go vet ./...
+      - name: go test
+        working-directory: d2-render
+        run: go test ./...
+      - name: build
+        working-directory: d2-render
+        run: CGO_ENABLED=0 go build -o /dev/null .
+
   web:
     timeout-minutes: 20
     needs: conventions
@@ -362,6 +390,11 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
+      # `dev-tools/e2e` builds and starts the d2 renderer for the server-drawn pass.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: d2-render/go.mod
+          cache-dependency-path: d2-render/go.sum
       - uses: taiki-e/install-action@v2.86.6
         with:
           tool: wasm-bindgen@0.2.126
@@ -446,6 +479,10 @@ jobs:
       - uses: docker/setup-buildx-action@v4
       - name: docker smoke build
         run: docker buildx build --file Dockerfile --tag synapse-rs:ci .
+      # The renderer is a SEPARATE image with its own memory limit (ADR-RS009), so it needs its
+      # own proof that it builds — the app image says nothing about it.
+      - name: docker smoke build (d2-render)
+        run: docker buildx build --file d2-render/Dockerfile --tag synapse-d2-render:ci d2-render
 
   # ── RELEASE (automatic since 2026-07-18) ──────────────────────────────────────
   # Every push to main that clears the gates above ships: build → ghcr → patch the image tag
@@ -475,7 +512,7 @@ jobs:
     # `coverage` is here deliberately: it runs on every push anyway, and a floor that cannot
     # block a deploy is a report, not a ratchet. The cost is the coverage job's minutes on
     # the release path; the alternative is shipping under a floor nobody has to respect.
-    needs: [changes, conventions, supply-chain, build-test, coverage, web, gojudge-it, e2e]
+    needs: [changes, conventions, supply-chain, build-test, coverage, web, d2-render, gojudge-it, e2e]
     permissions:
       contents: read
       packages: write
@@ -492,4 +529,35 @@ jobs:
       # so promotes patch that overlay rather than a synapse-rs one that would duplicate them.
       infra_kustomization_file: deploy/apps/synapse/overlays/prod/kustomization.yaml
       commit_message: "chore(synapse): promote image to"
+    secrets: inherit
+
+  # ── THE d2 RENDERER'S IMAGE ───────────────────────────────────────────────────
+  # Its own image because it needs its own memory limit: a render peaks near 172 MB and the app
+  # lives in 256Mi (ADR-RS009). Tagged with the same commit SHA as the app, so the pair rolls
+  # forward and back together and a rollback cannot leave a reader's page talking to a renderer
+  # from a different contract.
+  #
+  # `needs: [release]` rather than running beside it: both promote into the SAME kustomization,
+  # and while the patch is keyed by image name and rebases before pushing, sequencing them costs
+  # a couple of minutes and removes the race entirely.
+  release-d2-render:
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+      && needs.changes.outputs.code != 'false'
+    needs: [changes, release]
+    permissions:
+      contents: read
+      packages: write
+    concurrency:
+      group: synapse-d2-render-release
+      cancel-in-progress: false
+    uses: ./.github/workflows/_build-push-promote.yml
+    with:
+      image_repo: ghcr.io/ani2fun/synapse-d2-render
+      dockerfile: d2-render/Dockerfile
+      # The build context is the module, not the repo: the renderer shares no source with the app,
+      # and a repo-wide context would ship the whole checkout to the daemon for a 33 MB image.
+      context: d2-render
+      infra_kustomization_file: deploy/apps/synapse/overlays/prod/kustomization.yaml
+      commit_message: "chore(synapse): promote d2-render image to"
     secrets: inherit

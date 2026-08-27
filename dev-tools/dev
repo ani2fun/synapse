@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 
 echo "──────────────────────────────────────────────────────────"
 echo "  synapse dev loop"
-echo "  branch: $(git branch --show-current)   api :${SYNAPSE_PORT:-8280}   web :5373"
+echo "  branch: $(git branch --show-current)   api :${SYNAPSE_PORT:-8280}   web :5373   d2 :${D2_RENDER_PORT:-8390}"
 echo "──────────────────────────────────────────────────────────"
 
 
@@ -16,6 +16,7 @@ echo "────────────────────────�
 source "$(dirname "$0")/lib-ports.sh"
 reclaim "${SYNAPSE_PORT:-8280}" "synapse-server"
 reclaim 5373 "astro-dev"
+reclaim "${D2_RENDER_PORT:-8390}" "d2-render"
 
 # ── PREFLIGHT: POSTGRES ──────────────────────────────────────────────────────
 # Postgres is the system of record and the server applies migrations at boot, so a DSN that
@@ -85,6 +86,19 @@ export SYNAPSE_LOCAL_SOURCES="${SYNAPSE_LOCAL_SOURCES:-$SATELLITES}"
 # mounted above.
 export SYNAPSE_CONTENT_SYNC_SECONDS="${SYNAPSE_CONTENT_SYNC_SECONDS:-0}"
 
+# ── THE d2 RENDERER ──────────────────────────────────────────────────────────
+# Figures are drawn on demand by this sidecar and inlined at SSR (ADR-RS009), so an edited fence is
+# correct on the next refresh with no CI, no commit and no artifact in the content repository.
+# Unset the URL and every figure falls back to the client renderer — the same floor a dead sidecar
+# lands on, which is what makes that the honest kill switch.
+#
+# Its cache lives under target/ rather than a temp dir: a figure is a pure function of its source,
+# so keeping it across restarts costs nothing and saves redrawing the catalog every morning.
+go build -C d2-render -o "$PWD/target/d2-render" .
+D2_RENDER_CACHE="$PWD/target/d2-render-cache" D2_RENDER_ADDR=":${D2_RENDER_PORT:-8390}" ./target/d2-render &
+D2_RENDER_PID=$!
+export SYNAPSE_D2_RENDER_URL="${SYNAPSE_D2_RENDER_URL:-http://localhost:${D2_RENDER_PORT:-8390}}"
+
 # `render-local-only` renders `local-only-content/` — study material that is gitignored and must
 # never be served. A cargo feature rather than an env var on purpose: the production binary does
 # not contain the branch at all, so ADR-RS002's guarantee stays structural. Only this loop enables
@@ -92,7 +106,8 @@ export SYNAPSE_CONTENT_SYNC_SECONDS="${SYNAPSE_CONTENT_SYNC_SECONDS:-0}"
 cargo build -p synapse-server --features render-local-only --quiet
 ./target/debug/synapse-server &
 SERVER_PID=$!
-trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+
+trap 'kill "$SERVER_PID" "$D2_RENDER_PID" 2>/dev/null || true' EXIT
 
 # ── WAIT FOR THE API ─────────────────────────────────────────────────────────
 # The server is backgrounded and Astro holds the foreground, so a boot failure otherwise scrolls

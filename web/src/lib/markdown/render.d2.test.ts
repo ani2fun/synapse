@@ -29,15 +29,24 @@ vi.mock("@terrastruct/d2", () => ({
   },
 }));
 
-/** Stand in for the media route. `drawn` lists the hashes a content repo has committed. */
-function serveMedia(drawn: (source: string) => boolean = () => true) {
+/**
+ * Stand in for the render sidecar. `drawn` decides which diagrams it agrees to draw — a `false` is
+ * every way the real one can decline at once: unreachable, timed out, or a diagram it cannot parse.
+ *
+ * The request carries the SOURCE, not a hash: the sidecar addresses its own cache and the caller
+ * has no filename to ask for any more. `seen` collects the hashes so a test can still assert how
+ * many distinct diagrams were requested.
+ */
+function serveRenderer(drawn: (hash: string) => boolean = () => true) {
   const seen: string[] = [];
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (url: string) => {
-      const hash = String(url).match(/\/media\/d2\/([0-9a-f]{8})\.svg$/)?.[1];
-      seen.push(String(url));
-      if (hash === undefined || !drawn(hash)) return { ok: false, text: async () => "" };
+    vi.fn(async (url: string, init?: { body?: string }) => {
+      if (!String(url).endsWith("/render")) return { ok: false, text: async () => "" };
+      const source = String(JSON.parse(init?.body ?? "{}").source ?? "");
+      const hash = fnv1a(source);
+      seen.push(hash);
+      if (!drawn(hash)) return { ok: false, text: async () => "" };
       // Shaped like the real thing: the salt baked in is the diagram's FIRST-occurrence salt.
       return { ok: true, text: async () => `<svg data-salt="d2-${hash}">figure ${hash}</svg>` };
     }),
@@ -45,15 +54,19 @@ function serveMedia(drawn: (source: string) => boolean = () => true) {
   return seen;
 }
 
-/** Run `body` with the lookup enabled, then restore the ambient setting. */
+/** A renderer address that no test ever connects to — `fetch` is stubbed. Its only job is to make
+ *  `rendererUrl()` non-null, which is what turns server-side drawing on. */
+const RENDERER = "http://d2-render.test";
+
+/** Run `body` with a renderer configured, then restore the ambient setting. */
 async function withPrerender<T>(body: () => Promise<T>): Promise<T> {
-  const previous = process.env.SYNAPSE_D2_PRERENDER;
-  process.env.SYNAPSE_D2_PRERENDER = "on";
+  const previous = process.env.SYNAPSE_D2_RENDER_URL;
+  process.env.SYNAPSE_D2_RENDER_URL = RENDERER;
   try {
     return await body();
   } finally {
-    if (previous === undefined) delete process.env.SYNAPSE_D2_PRERENDER;
-    else process.env.SYNAPSE_D2_PRERENDER = previous;
+    if (previous === undefined) delete process.env.SYNAPSE_D2_RENDER_URL;
+    else process.env.SYNAPSE_D2_RENDER_URL = previous;
   }
 }
 
@@ -93,7 +106,7 @@ describe("d2 fences → source-carrying placeholders", () => {
 
 describe("d2 fences → figures drawn ahead of time", () => {
   it("inlines the committed SVG and drops data-source, so nothing can recompile it", async () => {
-    serveMedia();
+    serveRenderer();
     const html = await withPrerender(() => renderLesson("```d2\nx -> y\n```"));
     expect(html).toContain('data-prerendered="1"');
     expect(html).toContain('class="diagram__figure"');
@@ -104,19 +117,19 @@ describe("d2 fences → figures drawn ahead of time", () => {
 
   // Each of these uses its OWN diagram: the lookup cache is module-level and outlives a test, so
   // reusing a source would serve a neighbour's answer and assert nothing.
-  it("looks a diagram up by CONTENT, so one file serves it wherever it appears", async () => {
+  it("keys a diagram by CONTENT, so one render serves it wherever it appears", async () => {
     const source = "content -> addressed";
-    const urls = serveMedia();
+    const asked = serveRenderer();
     await withPrerender(() => renderLesson(`\`\`\`d2\n${source}\n\`\`\``));
     await withPrerender(() => renderLesson(`Prose first.\n\n\`\`\`d2\n${source}\n\`\`\``));
-    // Same source → same filename, independent of position. The second render is served from
-    // cache, so the assertion is on the URL asked for, not on how many times.
-    expect(urls[0]).toContain(`/media/d2/${fnv1a(source)}.svg`);
-    expect(urls).toHaveLength(1);
+    // Same source → same key, independent of position, and the second document is served from
+    // this process's cache without asking again. That is what keeps a repeated diagram — across
+    // documents, not just within one — a single render for the whole catalog's lifetime.
+    expect(asked).toEqual([fnv1a(source)]);
   });
 
   it("re-salts a repeat within one document so element ids stay unique", async () => {
-    serveMedia();
+    serveRenderer();
     const html = await withPrerender(() =>
       renderLesson("```d2\nx -> y\n```\n\nBetween.\n\n```d2\nx -> y\n```"),
     );
@@ -127,7 +140,7 @@ describe("d2 fences → figures drawn ahead of time", () => {
   });
 
   it("falls back to the source placeholder when nobody has drawn the diagram yet", async () => {
-    serveMedia(() => false); // a fence newer than its repo's last CI run
+    serveRenderer(() => false); // a fence newer than its repo's last CI run
     const html = await withPrerender(() => renderLesson("```d2\nbrand -> new\n```"));
     expect(html).toContain('class="d2-block"');
     expect(html).not.toContain("data-prerendered");
@@ -142,7 +155,7 @@ describe("d2 fences → figures drawn ahead of time", () => {
   });
 
   it("draws a slideshow's FIRST slide only, and still ships every slide's source", async () => {
-    serveMedia();
+    serveRenderer();
     const html = await withPrerender(() => renderLesson("```d2\na -> b\n```\n```d2\nc -> d\n```"));
     expect(html).toContain('class="d2-slideshow"');
     expect(html).toContain('data-prerendered="1"');
@@ -153,13 +166,14 @@ describe("d2 fences → figures drawn ahead of time", () => {
   });
 
   it("the kill switch restores the placeholder output exactly", async () => {
-    serveMedia();
+    serveRenderer();
     const LESSON = "```d2\nx -> y\n```";
-    const previous = process.env.SYNAPSE_D2_PRERENDER;
+    const previous = process.env.SYNAPSE_D2_RENDER_URL;
     try {
-      process.env.SYNAPSE_D2_PRERENDER = "on";
+      process.env.SYNAPSE_D2_RENDER_URL = RENDERER;
       const on = await renderLesson(LESSON);
-      process.env.SYNAPSE_D2_PRERENDER = "off";
+      // Emptying the address is the kill switch: no renderer, so the reader compiles.
+      process.env.SYNAPSE_D2_RENDER_URL = "";
       const off = await renderLesson(LESSON);
       // Both directions, or this passes without the switch doing anything.
       expect(on).not.toBe(off);
@@ -168,26 +182,27 @@ describe("d2 fences → figures drawn ahead of time", () => {
         `<div class="d2-block" data-fence-at="0" data-source="${encodeURIComponent("x -> y")}"></div>`,
       );
     } finally {
-      if (previous === undefined) delete process.env.SYNAPSE_D2_PRERENDER;
-      else process.env.SYNAPSE_D2_PRERENDER = previous;
+      if (previous === undefined) delete process.env.SYNAPSE_D2_RENDER_URL;
+      else process.env.SYNAPSE_D2_RENDER_URL = previous;
     }
   });
 });
 
 // ── WALKTHROUGHS ─────────────────────────────────────────────────────────────────────────────
-// A ```d2 boards fence is the one d2 shape whose artifacts are CO-LOCATED with the lesson, so it
-// is also the one that needs to know which lesson it is in. Everything here turns on a single
-// rule: the ELEMENT is chosen by the fence, and only the FIGURE by whether the lookup hit. Get
-// that backwards and every miss — a repo with no CI, the authoring preview, the kill switch —
-// silently degrades to a single root board with dead links, which is the bug this replaces.
+// A ```d2 boards fence is one source that compiles to a TREE of boards, drawn by the renderer and
+// addressed by CONTENT like every other figure — which is what retired the lesson-relative `_d2/`
+// sidecars, and `RenderContext` with them. Everything here turns on a single rule: the ELEMENT is
+// chosen by the fence, and only the FIGURE by whether the render succeeded. Get that backwards and
+// every miss — a dead sidecar, the authoring preview, the kill switch — silently degrades to a
+// single root board with dead links, which is the bug this replaces.
 
-/** A walkthrough fence. Every case gets its OWN source: the SSR cache is module-level and keyed
- *  by lesson + source, exactly as it is in the running server, so sharing one would make these
+/** A walkthrough fence. Every case gets its OWN source: the SSR cache is module-level and keyed by
+ *  source, exactly as it is in the running server, so sharing one would make these
  *  order-dependent. */
 const walkthroughOf = (source: string) =>
   `\`\`\`d2 boards name="url-shortener" root="Context"\n${source}\n\`\`\``;
 
-/** Stand in for `/api/synapse/d2`. `drawn` decides whether this lesson's sidecar exists. */
+/** Stand in for the sidecar's `/boards`. `drawn` decides whether it agrees to draw this one. */
 function serveBoards(source: string, drawn = true) {
   const seen: string[] = [];
   const manifest = {
@@ -202,19 +217,18 @@ function serveBoards(source: string, drawn = true) {
   };
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (url: string) => {
+    vi.fn(async (url: string, init?: { body?: string }) => {
       seen.push(String(url));
-      if (!drawn) return { ok: false, text: async () => "" };
-      if (String(url).includes("boards.json")) {
-        return { ok: true, text: async () => JSON.stringify(manifest) };
-      }
-      return { ok: true, text: async () => "<svg>root board</svg>" };
+      if (!drawn) return { ok: false, json: async () => ({}) };
+      const asked = String(JSON.parse(init?.body ?? "{}").source ?? "");
+      // The sidecar answers for whatever it was handed; the manifest is built from the source the
+      // TEST named, so a mismatch between the two is what the staleness case exercises.
+      void asked;
+      return { ok: true, json: async () => ({ manifest, rootSvg: "<svg>root board</svg>" }) };
     }),
   );
   return { seen, manifest };
 }
-
-const LESSON_CTX = { lessonPath: "learn/dsa/lists/singly" };
 
 describe("```d2 boards → the walkthrough viewer", () => {
   it("emits .d2-boards whether or not anything is drawn", async () => {
@@ -227,9 +241,7 @@ describe("```d2 boards → the walkthrough viewer", () => {
     expect(decodeAttr(cold, "data-meta")).toBe('boards name="url-shortener" root="Context"');
 
     serveBoards("warm -> board");
-    const warm = await withPrerender(() =>
-      renderLesson(walkthroughOf("warm -> board"), LESSON_CTX),
-    );
+    const warm = await withPrerender(() => renderLesson(walkthroughOf("warm -> board")));
     expect(warm).toContain('class="d2-boards"');
     expect(warm).toContain('data-prerendered="1"');
     expect(warm).toContain("<svg>root board</svg>");
@@ -237,59 +249,92 @@ describe("```d2 boards → the walkthrough viewer", () => {
     expect(d2Spy.compileCalls).toBe(0);
   });
 
-  it("carries the board graph and the address of the rest", async () => {
+  it("carries the board graph, which is the whole address of the rest", async () => {
     const { manifest } = serveBoards("graph -> board");
-    const html = await withPrerender(() =>
-      renderLesson(walkthroughOf("graph -> board"), LESSON_CTX),
-    );
+    const html = await withPrerender(() => renderLesson(walkthroughOf("graph -> board")));
     expect(JSON.parse(decodeAttr(html, "data-boards")!)).toEqual(manifest);
-    expect(decodeAttr(html, "data-fence")).toBe("url-shortener");
-    expect(decodeAttr(html, "data-lesson")).toBe(LESSON_CTX.lessonPath);
+    // The manifest's `source` IS the address: the viewer fetches /d2-board/<source>/<slug>. No
+    // fence name and no lesson path travel with it any more — the same walkthrough in two lessons
+    // is one set of boards.
+    expect(manifest.source).toBe(fnv1a("graph -> board"));
+    expect(html).not.toContain("data-fence=");
+    expect(html).not.toContain("data-lesson=");
   });
 
-  it("fetches the ROOT board only — the rest are a click the reader may never take", async () => {
-    const { seen } = serveBoards("one -> fetch");
-    await withPrerender(() => renderLesson(walkthroughOf("one -> fetch"), LESSON_CTX));
-    expect(seen.filter((url) => url.includes(".svg"))).toHaveLength(1);
-    expect(seen.some((url) => url.includes("root.svg"))).toBe(true);
-    expect(seen.some((url) => url.includes("a.svg"))).toBe(false);
+  it("asks once and inlines the ROOT only — the rest are a click the reader may never take", async () => {
+    const { seen } = serveBoards("one -> request");
+    const html = await withPrerender(() => renderLesson(walkthroughOf("one -> request")));
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatch(/\/boards$/);
+    // One figure in the HTML, though the manifest names two boards.
+    expect(html.match(/<svg/g) ?? []).toHaveLength(1);
   });
 
-  it("falls back to the source when the lesson is unknown, without asking the server", async () => {
-    // The authoring preview and the blog render through this pipeline with no lesson at all.
-    const { seen } = serveBoards("no -> lesson");
-    const html = await withPrerender(() => renderLesson(walkthroughOf("no -> lesson")));
+  it("falls back with no renderer configured, without asking anything", async () => {
+    // The authoring preview and the blog render through this pipeline with no renderer at all.
+    const { seen } = serveBoards("no -> renderer");
+    const html = await renderLesson(walkthroughOf("no -> renderer"));
     expect(html).toContain('class="d2-boards"');
     expect(html).not.toContain("data-prerendered");
+    expect(decodeAttr(html, "data-source")).toBe("no -> renderer");
     expect(seen).toHaveLength(0);
   });
 
-  it("falls back when the repo has not drawn it yet", async () => {
+  it("falls back when the renderer declines", async () => {
     serveBoards("not -> drawn", false);
-    const html = await withPrerender(() => renderLesson(walkthroughOf("not -> drawn"), LESSON_CTX));
+    const html = await withPrerender(() => renderLesson(walkthroughOf("not -> drawn")));
     expect(html).toContain('class="d2-boards"');
     expect(html).not.toContain("data-prerendered");
     expect(decodeAttr(html, "data-source")).toBe("not -> drawn");
   });
 
   it("refuses a manifest it cannot read rather than painting half a viewer", async () => {
-    const bodies = ["<!doctype html>", "{}", '{"generator":99,"boards":[]}', "{"];
-    for (const [i, body] of bodies.entries()) {
+    const payloads: unknown[] = [
+      null,
+      {},
+      { manifest: { generator: 99, boards: [] }, rootSvg: "<svg/>" },
+      { manifest: { generator: 1, source: "x", root: "root", boards: [] }, rootSvg: "<svg/>" },
+      { manifest: null, rootSvg: "<svg/>" },
+    ];
+    for (const [i, payload] of payloads.entries()) {
       const source = `bad -> manifest ${i}`;
-      vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, text: async () => body })));
-      const html = await withPrerender(() => renderLesson(walkthroughOf(source), LESSON_CTX));
-      expect(html, body).not.toContain("data-prerendered");
-      expect(html, body).toContain('class="d2-boards"');
+      vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => payload })));
+      const html = await withPrerender(() => renderLesson(walkthroughOf(source)));
+      expect(html, JSON.stringify(payload)).not.toContain("data-prerendered");
+      expect(html, JSON.stringify(payload)).toContain('class="d2-boards"');
     }
   });
 
-  it("ignores boards drawn from a source the fence no longer holds", async () => {
-    // CI has not caught up with the edit. Serving the drawn boards would show the reader the
-    // PREVIOUS diagram with no error at all; the client draws what the author actually wrote.
-    serveBoards("the -> old source");
-    const html = await withPrerender(() =>
-      renderLesson(walkthroughOf("the -> new source"), LESSON_CTX),
+  it("refuses a root board that is not an SVG", async () => {
+    // A proxy or an error page answering in the sidecar's place must be a miss, never a figure
+    // made of someone else's markup.
+    const source = "not -> an svg";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          manifest: {
+            generator: 1,
+            source: fnv1a(source),
+            root: "root",
+            boards: [{ id: "root", slug: "root", title: "C", parent: null, links: [] }],
+            warnings: [],
+          },
+          rootSvg: "<!doctype html><html>nope</html>",
+        }),
+      })),
     );
+    const html = await withPrerender(() => renderLesson(walkthroughOf(source)));
+    expect(html).not.toContain("data-prerendered");
+    expect(html).not.toContain("doctype");
+  });
+
+  it("ignores boards drawn from a source the fence no longer holds", async () => {
+    // Serving them would show the reader the PREVIOUS diagram with no error at all; the client
+    // draws what the author actually wrote.
+    serveBoards("the -> old source");
+    const html = await withPrerender(() => renderLesson(walkthroughOf("the -> new source")));
     expect(html).not.toContain("data-prerendered");
     expect(decodeAttr(html, "data-source")).toBe("the -> new source");
   });
@@ -328,8 +373,8 @@ describe("```d2 boards → the walkthrough viewer", () => {
   });
 
   it("leaves a plain ```d2 fence in the pool", async () => {
-    serveMedia();
-    const html = await withPrerender(() => renderLesson("```d2\nx -> y\n```", LESSON_CTX));
+    serveRenderer();
+    const html = await withPrerender(() => renderLesson("```d2\nx -> y\n```"));
     expect(html).toContain('class="d2-block"');
     expect(html).not.toContain("d2-boards");
   });
