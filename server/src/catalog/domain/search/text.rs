@@ -13,10 +13,33 @@ const MAX_TOKEN: usize = 32;
 /// `R`, and inverse document frequency already makes genuinely common terms weightless, so a
 /// length floor would only lose the rare ones.
 pub fn tokenize(text: &str) -> Vec<String> {
+    tokens(text).map(std::borrow::Cow::into_owned).collect()
+}
+
+/// The same tokens, BORROWED where possible.
+///
+/// `index_of` runs this over every body in the catalog, and almost all of those tokens are already
+/// lowercase — so `to_lowercase`'s unconditional allocation was one of two per token, the other
+/// being the map key in `index_field`.
+///
+/// Worth having, not dramatic: measured A/B on a release build over the production corpus, the
+/// index build went 190 ms → 176 ms. It reads much larger under `cargo build` with
+/// `render-local-only`, where the corpus is 4.6× bigger and nothing is optimised — a debug profile
+/// is not where to judge an allocation change.
+///
+/// The lowercase test is "no alphabetic character that is not already lowercase" rather than "no
+/// uppercase character", because a TITLECASE character (`ǅ`) reports neither upper nor lower and
+/// would otherwise be borrowed unchanged where `to_lowercase` would have folded it.
+pub fn tokens(text: &str) -> impl Iterator<Item = std::borrow::Cow<'_, str>> {
     text.split(|c: char| !c.is_alphanumeric())
         .filter(|token| !token.is_empty() && token.chars().count() <= MAX_TOKEN)
-        .map(str::to_lowercase)
-        .collect()
+        .map(|token| {
+            if token.chars().all(|c| !c.is_alphabetic() || c.is_lowercase()) {
+                std::borrow::Cow::Borrowed(token)
+            } else {
+                std::borrow::Cow::Owned(token.to_lowercase())
+            }
+        })
 }
 
 /// The three things a document is made of, kept apart so a title can outrank a passing mention.
