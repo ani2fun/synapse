@@ -81,7 +81,6 @@ export interface LabDoc {
   fileName: string;
   /** The directory a submit will create, named in the confirm step — or null when it creates
    *  none, in which case claiming one would describe a file the change never writes. */
-  sidecar: string | null;
   /** The eyebrow's second half for a blank draft: "D2 walkthrough · draft". */
   draftLabel: string;
   /** The title + the metadata line under the eyebrow. */
@@ -349,7 +348,6 @@ export function Lab({
         <AddToLesson
           lang={lang}
           fence={fence}
-          sidecar={doc.sidecar}
           subject={subject}
           published={published}
           onClose={() => setAdding(false)}

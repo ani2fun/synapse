@@ -82,6 +82,8 @@ pub struct AppDeps<
     /// runtime serves both without a redeploy.
     pub mounted: catalog::infrastructure::MountedSources,
     pub likec4_url: String,
+    /// The `d2-render` sidecar. `None` leaves `/api/synapse/d2` unmounted entirely.
+    pub d2_render_url: Option<String>,
     /// Answers `/api/ready`: Postgres in the binary, the same lazy pool in ITs (which then
     /// report 503 — the honest answer for a store that is not there).
     pub readiness: Arc<dyn platform::health::ReadinessProbe>,
@@ -174,6 +176,12 @@ where
         .merge(media.routes())
         .merge(simulators.routes())
         .merge(platform::likec4_proxy::routes(&deps.likec4_url))
+        .merge(
+            deps.d2_render_url
+                .as_deref()
+                .map(platform::d2_render_proxy::routes)
+                .unwrap_or_default(),
+        )
         .merge(platform::seo_routes::routes(seo));
     if let Some(astro_url) = deps.astro_url.as_deref() {
         // The page front door: a FALLBACK, so every registered route above keeps winning and
@@ -227,7 +235,6 @@ where
         catalog::http::routes::get_synapse_index,
         catalog::http::routes::search_catalog,
         catalog::http::routes::get_component_doc,
-        catalog::http::routes::get_d2_board,
         catalog::http::routes::get_synapse_lesson,
         execution::http::run_code,
         submission::http::submit_solution,

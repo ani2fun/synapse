@@ -21,3 +21,7 @@ e2e/playwright-report/
 
 # coverage output (dev-tools/coverage.sh + vitest --coverage); target/ is already ignored
 web/coverage/
+
+# The d2 renderer's compiled binary: `go build` in d2-render/ drops it beside the source, and it
+# is ~38 MB. The image builds its own; dev-tools/dev builds into target/.
+/d2-render/d2-render

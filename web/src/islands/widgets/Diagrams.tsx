@@ -15,7 +15,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 
 import { D2BoardsHost } from "./D2Boards";
 import { DiagramEdit } from "./DiagramEdit";
-import { ZoomAffordance } from "./Zoom";
+import { DiagramPending, ZoomAffordance } from "./Zoom";
 import { type DiagramLang } from "../diagramlab/lang";
 import { decodeManifest } from "../../lib/islands/diagram/boards";
 
@@ -136,13 +136,8 @@ export function hydrateDiagrams(root: ParentNode): number {
         ? (host.querySelector(".diagram__figure")?.innerHTML ?? null)
         : null;
     const manifest = decodeManifest(jsonAttr(element, "data-boards"));
-    const fence = decodedAttr(element, "data-fence");
-    const lessonPath = decodedAttr(element, "data-lesson");
     const source = decodedAttr(element, "data-source");
-    const drawn =
-      manifest != null && fence != null && lessonPath != null && rootSvg != null
-        ? { manifest, fence, lessonPath, rootSvg }
-        : null;
+    const drawn = manifest != null && rootSvg != null ? { manifest, rootSvg } : null;
     const raw = source != null ? { source, meta: decodedAttr(element, "data-meta") ?? "" } : null;
     if (drawn == null && raw == null) continue;
     host.replaceChildren();
@@ -230,6 +225,7 @@ function MermaidCard({
       <div class={failed != null ? "diagram not-prose hidden" : "diagram not-prose"}>
         <ZoomAffordance svgHtml={svgHtml} edit={editPill("mermaid", fenceAt, fenceCount)} />
         <div class="diagram__figure" ref={figureRef}></div>
+        {svgHtml == null && failed == null && <DiagramPending />}
       </div>
     </>
   );
@@ -306,6 +302,7 @@ function D2Card({
       <div class={failed != null ? "diagram not-prose hidden" : "diagram not-prose"}>
         <ZoomAffordance svgHtml={svgHtml} edit={editPill("d2", fenceAt, fenceCount)} />
         <div class="diagram__figure" ref={figureRef}></div>
+        {svgHtml == null && failed == null && <DiagramPending />}
       </div>
     </>
   );
@@ -377,6 +374,7 @@ function D2Slideshow({
     >
       <ZoomAffordance svgHtml={svgHtml} edit={editPill("d2", fenceAt, fenceCount)} />
       <div class="diagram__figure" ref={figureRef}></div>
+      {svgHtml == null && <DiagramPending />}
       <div class="transport">
         <button
           class="transport__btn"

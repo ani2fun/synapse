@@ -19,9 +19,8 @@ import { type ComponentChildren, h } from "preact";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import { DiagramEdit } from "./DiagramEdit";
-import { ZoomAffordance } from "./Zoom";
+import { DiagramPending, ZoomAffordance } from "./Zoom";
 import { Icon } from "../diagramlab/icons";
-import { apiBase } from "../../lib/api/client";
 import { fnv1a } from "../../lib/hash";
 import {
   type BoardHistory,
@@ -488,12 +487,15 @@ export function BoardBar({ walk }: { walk: BoardWalk }) {
 // PROVIDERS — the two ways a board's SVG arrives
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Drawn boards, served from the lesson's own `_d2/<fence>/` sidecar. */
-export function sidecarProvider(
-  manifest: BoardManifest,
-  fence: string,
-  lessonPath: string,
-): BoardProvider {
+/**
+ * Drawn boards, fetched one at a time as the reader walks into them.
+ *
+ * Addressed by the manifest's own source hash, so a walkthrough needs no fence name and no lesson
+ * path — the same diagram in two lessons is one set of boards. `/api/synapse/d2` proxies to the
+ * renderer, which drew every board of this walkthrough when the root was requested; these are
+ * cache reads, not renders.
+ */
+export function drawnProvider(manifest: BoardManifest): BoardProvider {
   const cache = new Map<string, Promise<string>>();
   return {
     manifest,
@@ -502,9 +504,7 @@ export function sidecarProvider(
       if (board == null) return Promise.reject(new Error(`no board ${id}`));
       const held = cache.get(id);
       if (held != null) return held;
-      const url =
-        `${apiBase()}/api/synapse/d2/${encodeURIComponent(fence)}/${encodeURIComponent(`${board.slug}.svg`)}` +
-        `?lesson=${encodeURIComponent(lessonPath)}`;
+      const url = `/api/synapse/d2/${encodeURIComponent(manifest.source)}/${encodeURIComponent(board.slug)}`;
       const pending = fetch(url).then((response) => {
         if (!response.ok) throw new Error(`board ${board.slug} is not drawn`);
         return response.text();
@@ -553,8 +553,9 @@ export async function engineProvider(source: string, meta: string): Promise<Boar
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface BoardsHostProps {
-  /** The drawn shape: a manifest, the fence's directory, and the lesson to fetch the rest from. */
-  drawn: { manifest: BoardManifest; fence: string; lessonPath: string; rootSvg: string } | null;
+  /** The drawn shape: the board graph and the board it opens on. The manifest carries the source
+   *  hash, which is the whole address for the boards behind the root. */
+  drawn: { manifest: BoardManifest; rootSvg: string } | null;
   /** The undrawn shape: the source to compile in this tab. */
   raw: { source: string; meta: string } | null;
   /** The element the placeholder occupied, watched so nothing compiles off-screen. */
@@ -573,7 +574,7 @@ export interface BoardsHostProps {
  */
 export function D2BoardsHost({ drawn, raw, host, fenceAt, fenceCount }: BoardsHostProps) {
   const [provider, setProvider] = useState<BoardProvider | null>(() =>
-    drawn == null ? null : sidecarProvider(drawn.manifest, drawn.fence, drawn.lessonPath),
+    drawn == null ? null : drawnProvider(drawn.manifest),
   );
   const [failed, setFailed] = useState<string | null>(null);
   const [near, setNear] = useState(false);
@@ -607,7 +608,13 @@ export function D2BoardsHost({ drawn, raw, host, fenceAt, fenceCount }: BoardsHo
       </div>
     );
   }
-  if (provider == null) return <div class="diagram diagram--boards not-prose" />;
+  if (provider == null) {
+    return (
+      <div class="diagram diagram--boards not-prose">
+        <DiagramPending label="Drawing walkthrough" />
+      </div>
+    );
+  }
   return (
     <D2BoardsCard
       provider={provider}

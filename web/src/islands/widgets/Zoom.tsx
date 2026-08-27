@@ -79,6 +79,26 @@ export function ZoomAffordance({ svgHtml, children, chrome, edit, onFigureClick,
   );
 }
 
+/**
+ * What a figure shows while its renderer is still working.
+ *
+ * An empty card is indistinguishable from a broken one, and the wait here is long enough to need
+ * saying: a figure nobody drew ahead of time compiles in the browser, behind a ~5.9 MB gz engine
+ * that boots once per page. Silence for that long reads as failure.
+ *
+ * It overlays `.diagram` rather than sitting inside `.diagram__figure`, because a renderer writes
+ * that box's `innerHTML` imperatively and would tear this out from under Preact. Fixed colours,
+ * like everything else on the card, which is fixed-light on both themes.
+ */
+export function DiagramPending({ label = "Drawing diagram" }: { label?: string }) {
+  return (
+    <div class="diagram__pending" role="status" aria-live="polite">
+      <span class="diagram__pending-dot" aria-hidden="true"></span>
+      <span>{`${label}…`}</span>
+    </div>
+  );
+}
+
 export function ZoomOverlay({
   svg,
   children,

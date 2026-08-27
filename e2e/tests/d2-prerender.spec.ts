@@ -3,20 +3,21 @@ import { expect, test } from "@playwright/test";
 /**
  * Where a lone ```d2 fence is drawn, asserted against WHICHEVER mode the stack is running.
  *
- * Both modes ship, and both are reached in production. The cluster runs pre-rendering ON — it is
- * a file lookup, not a compile — but every fence CI has not drawn yet falls back to the client,
- * so the fallback is not a hypothetical configuration. `dev-tools/e2e` runs its main pass with
- * the switch off, measuring the budget against that heavier path, and re-runs this file alone
- * with it on, which is what the cluster serves.
+ * Both modes ship, and both are reached in production. The cluster runs the `d2-render` sidecar
+ * and every figure arrives as inline SVG, but a sidecar that is down, slow or handed a diagram it
+ * cannot parse falls back to the client — so the fallback is not a hypothetical configuration.
+ * `dev-tools/e2e` runs its main pass with no renderer, measuring the budget against that heavier
+ * path, and re-runs this file alone with the renderer up, which is what the cluster serves.
  *
  * The point of splitting it this way: each mode asserts the other's markers are ABSENT. A spec
- * that only checked the happy path would stay green if pre-rendering silently stopped — which is
- * exactly how this failure behaves, because a failed pre-render falls back to the client and
- * renders a perfectly good page.
+ * that only checked the happy path would stay green if server-side drawing silently stopped —
+ * which is exactly how this failure behaves, because a miss falls back to the client and renders
+ * a perfectly good page.
  */
 
 const LESSON = "/synapse/learn/smoke/intro";
-const PRERENDER = (process.env.SYNAPSE_D2_PRERENDER ?? "off").toLowerCase() === "on";
+/** The address IS the switch: a renderer that is named is a renderer that is expected to answer. */
+const PRERENDER = (process.env.SYNAPSE_D2_RENDER_URL ?? "").trim() !== "";
 
 /**
  * Asserted by SIZE, not by chunk name. Rollup names several unrelated chunks `index.<hash>.js`,
@@ -41,8 +42,8 @@ function boardsTag(body: string): string {
   return tags[0]!;
 }
 
-test.describe("server-drawn (SYNAPSE_D2_PRERENDER=on)", () => {
-  test.skip(!PRERENDER, "stack is running the fallback, with pre-rendering off");
+test.describe("server-drawn (the d2 renderer is up)", () => {
+  test.skip(!PRERENDER, "stack is running the fallback, with no renderer configured");
 
   test("a lone d2 fence arrives as SVG in the HTML, not as source for the client", async ({
     request,
@@ -88,7 +89,10 @@ test.describe("server-drawn (SYNAPSE_D2_PRERENDER=on)", () => {
     const tag = boardsTag(body);
     expect(tag).toContain('data-prerendered="1"');
     expect(tag).toContain("data-boards="); // the graph the viewer navigates by
-    expect(tag).toContain("data-fence=");
+    // …and nothing else. The manifest carries the source hash, which is the WHOLE address of the
+    // boards behind the root, so no fence name and no lesson path travel with it any more.
+    expect(tag).not.toContain("data-fence=");
+    expect(tag).not.toContain("data-lesson=");
     expect(tag).not.toContain("data-source"); // nothing may recompile a drawn walkthrough
 
     // The other boards are a click away and the reader may never take it.

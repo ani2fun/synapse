@@ -64,6 +64,12 @@ pub struct AppConfig {
     /// serves UNDER `/c4`, so the value ends in `/c4` and the stripped prefix cancels.
     /// Env: `LIKEC4_URL`.
     pub likec4_url: String,
+    /// The `d2-render` sidecar a walkthrough's boards are fetched from (ADR-RS009). `None` leaves
+    /// `/api/synapse/d2` unmounted — a structural 404, and the reader's viewer compiles the
+    /// walkthrough itself. The page tier reads the same address as `SYNAPSE_D2_RENDER_URL`; both
+    /// halves must agree, since one inlines the root board and the other serves the rest.
+    /// Env: `SYNAPSE_D2_RENDER_URL`.
+    pub d2_render_url: Option<String>,
     /// Anonymous run/submit budget: per-IP fixed window. Envs:
     /// `RATE_LIMIT_ANON_WINDOW_SECONDS` / `RATE_LIMIT_ANON_LIMIT`.
     pub rate_limit_anon_window_seconds: u64,
@@ -135,6 +141,7 @@ impl Default for AppConfig {
             astro_url: None,
             site_url: "https://synapse.kakde.eu".to_owned(),
             likec4_url: "http://localhost:8190".to_owned(),
+            d2_render_url: None,
             rate_limit_anon_window_seconds: 60,
             rate_limit_anon_limit: 10,
             rate_limit_auth_window_seconds: 3600,
@@ -182,6 +189,16 @@ impl AppConfig {
     /// guarantee for every other way the binary can be launched.
     pub fn astro_url(&self) -> Option<&str> {
         self.astro_url
+            .as_deref()
+            .map(str::trim)
+            .filter(|url| !url.is_empty())
+    }
+
+    /// The renderer's address, empty treated as absent — same rule as [`Self::astro_url`] and for
+    /// the same reason: figment reads an empty variable as `Some("")`, which would mount the proxy
+    /// pointed at nowhere and 502 every board a reader clicks into while the page itself is fine.
+    pub fn d2_render_url(&self) -> Option<&str> {
+        self.d2_render_url
             .as_deref()
             .map(str::trim)
             .filter(|url| !url.is_empty())

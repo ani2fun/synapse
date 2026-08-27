@@ -10,7 +10,6 @@ use crate::catalog::application::content_repository::{ContentError, ContentRepos
 use crate::catalog::application::content_sources::Placements;
 use crate::catalog::domain::catalog::{CatalogWarning, LessonFileRef, SynapseContentCatalog, WalkResult};
 use crate::catalog::domain::component_doc::ComponentDoc;
-use crate::catalog::domain::d2_board::{BOARDS_DIR, BoardFile, D2Board};
 use crate::catalog::domain::lesson::LessonContent;
 use crate::catalog::domain::search::{SearchHit, SearchIndex};
 use crate::catalog::domain::{frontmatter, merge, resolver, search, walker};
@@ -161,44 +160,6 @@ impl<R: ContentRepository> CatalogService<R> {
         let sidecar = file_path.neighbour(&format!("_c4-docs/{leaf}.md"));
         let raw = self.repo.read_lesson(&sidecar.source_id, &sidecar.path).await?;
         Ok(ComponentDoc::parse(&raw))
-    }
-
-    /// One board of a `d2 boards` walkthrough: the co-located `_d2/<fence>/<file>` sidecar next
-    /// to the lesson, drawn by the content repo's CI.
-    ///
-    /// `fence` and the file's stem are joined to a real filesystem path, so both are checked
-    /// against `slug_like` rather than trusted, and `BoardFile` admits only a board or its
-    /// manifest. Absent → `NotFound` → 404, exactly like a missing `_c4-docs` sidecar: a repo
-    /// whose CI has not drawn its figures yet is a normal state, not an error.
-    pub async fn d2_board(
-        &self,
-        lesson_path: &[String],
-        fence: &str,
-        file: &str,
-    ) -> Result<D2Board, ContentError> {
-        let missing = || ContentError::NotFound(format!("no board '{fence}/{file}'"));
-        let (stem, kind) = BoardFile::parse(file).ok_or_else(missing)?;
-        if !walker::slug_like(fence) || !walker::slug_like(stem) {
-            return Err(missing());
-        }
-        if lesson_path.is_empty() || !lesson_path.iter().all(|s| walker::slug_like(s)) {
-            return Err(ContentError::NotFound(format!(
-                "no lesson at '{}'",
-                lesson_path.join("/")
-            )));
-        }
-        let walk = Arc::clone(&self.current().await?.walk);
-        let (book, in_book_path, _) = resolver::resolve_lesson(&walk.catalog, lesson_path)
-            .ok_or_else(|| ContentError::NotFound(format!("no lesson at '{}'", lesson_path.join("/"))))?;
-        let file_path = walk
-            .lesson_files
-            .get(&book.slug)
-            .and_then(|files| files.get(&in_book_path))
-            .ok_or_else(|| ContentError::NotFound(format!("no source for '{in_book_path}'")))?;
-
-        let sidecar = file_path.neighbour(&format!("{BOARDS_DIR}/{fence}/{file}"));
-        let body = self.repo.read_lesson(&sidecar.source_id, &sidecar.path).await?;
-        Ok(D2Board { file: kind, body })
     }
 
     /// `kind: problem` lessons may carry a `<lesson>.editorial.md` sidecar; its absence is

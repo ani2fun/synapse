@@ -50,7 +50,6 @@ function useMermaidDoc({ source, setSource, subject, goToLine }: LabContext): La
     meta: "",
     fileName: subject == null ? "diagram.mmd" : `diagram-${subject.at + 1}.mmd`,
     // Nothing is drawn ahead of time, so a mermaid change creates no directory.
-    sidecar: null,
     draftLabel: "Mermaid diagram",
     identity: (
       <>

@@ -183,38 +183,26 @@ function parseQuiz(raw: string): { quiz?: QuizJson; error?: string } {
 }
 
 // ── D2 diagrams ──────────
-// Where a ```d2 fence is drawn depends on WHERE THIS PIPELINE RUNS. Under
-// SSR a lone fence is compiled here and ships as a `.d2-block[data-
-// prerendered]` holding its SVG, so the reader sees the diagram at first
-// paint and never fetches the engine. In the BROWSER — the authoring
-// preview runs this same pipeline — it emits `.d2-block[data-source]`
-// carrying the URI-encoded source, and Diagrams.tsx compiles it. A run of
-// *consecutive* fences is always `.d2-slideshow[data-slides]`, client-side,
-// because only its first slide is ever on screen.
+// Where a ```d2 fence's figure comes from depends on WHERE THIS PIPELINE
+// RUNS. Under SSR it is LOOKED UP, never compiled: the source hashes to a
+// file the content repo's CI drew (`_media/d2/<hash>.svg`), and that SVG is
+// inlined into a `.d2-block[data-prerendered]`, so the reader sees the
+// diagram at first paint and never fetches the engine. Compiling here is
+// what the pod cannot afford — d2Prerender.ts holds the measurement. In the
+// BROWSER — the authoring preview runs this same pipeline — no lookup is
+// possible, so it emits `.d2-block[data-source]` carrying the URI-encoded
+// source, and Diagrams.tsx compiles it.
 //
-// The placeholder is also the FALLBACK: a failed or over-budget compile
-// emits it, so the floor is the client-rendered behaviour and a malformed
-// diagram still reaches the reader as a loud error card rather than a blank
-// figure. That makes a broken pre-render indistinguishable from a working
-// page, which is why the e2e asserts on the SVG being in the response body.
+// The placeholder is also the FALLBACK: a missed lookup emits it — a fence
+// its repo has not drawn yet, or a fetch past d2Prerender.ts's budget — so
+// the floor is the client-rendered behaviour and a malformed diagram still
+// reaches the reader as a loud error card rather than a blank figure. That
+// makes a broken pre-render indistinguishable from a working page, which is
+// why the e2e asserts on the SVG being in the response body.
 
 /** A raw-HTML mdast node (passes through remark-rehype under allowDangerousHtml). */
 function html(value: string): RootContent {
   return { type: "html", value } as RootContent;
-}
-
-/**
- * Which lesson is being rendered, for the vocabularies whose artifacts are CO-LOCATED with it.
- *
- * Only ```d2 boards needs this today: its boards are drawn into the lesson's own `_d2/` sidecar,
- * so they cannot be addressed without knowing the lesson. Everything else in this pipeline is
- * content-addressed and renders the same wherever it appears — which is why the parameter is
- * optional, and why the blog, the authoring preview and the practice panes pass nothing and get
- * the client-rendered floor.
- */
-export interface RenderContext {
-  /** The lesson's directory-mirror path, no leading slash — what `/api/synapse/d2` expects. */
-  lessonPath: string;
 }
 
 /**
@@ -239,18 +227,18 @@ const isD2Fence = (node: RootContent): node is Code =>
 // with the CI renderer) reads the marker off the fence's info string.
 
 /**
- * The d2 pre-pass: group adjacent fences, then draw what the server can.
+ * The d2 pre-pass: group adjacent fences, then inline what the content repo already drew.
  *
  * A lone fence becomes a `.d2-block`, a run of *consecutive* ones a `.d2-slideshow`. Under SSR a
- * lone block is compiled here and ships with its figure already inside it, marked
- * `data-prerendered` so the client adopts rather than recompiles. Everything else — every slide
- * of a slideshow, every block whose compile failed or ran out of budget, and the whole transform
- * in the browser — emits the source-carrying placeholder the client renders from.
+ * lone block's figure is looked up and ships already inside it, marked `data-prerendered` so the
+ * client adopts rather than compiles. Everything else — every block whose lookup missed, every
+ * slide past the first, and the whole transform in the browser — emits the source-carrying
+ * placeholder the client renders from.
  *
- * Slideshows stay client-side on purpose: only the first slide is ever visible, so inlining all
- * N would pay for figures nobody has stepped to yet.
+ * A slideshow gets SLIDE 0 only: that is the one its transport paints at mount, so inlining it
+ * removes the eager engine load, while inlining all N would ship figures nobody has stepped to.
  */
-function d2Transform(ctx?: RenderContext) {
+function d2Transform() {
   return async (tree: Root): Promise<void> => {
     const kids = tree.children;
     if (!kids.some(isD2Fence)) return;
@@ -323,19 +311,17 @@ function d2Transform(ctx?: RenderContext) {
 
     /**
      * A walkthrough: one placeholder carrying the board graph, with the root board already
-     * painted when the sidecar has been drawn.
+     * painted when the renderer drew it.
      *
-     * The class is chosen by the FENCE, never by whether the lookup succeeded. A miss here — a
-     * satellite with no workflow, a fence newer than its repo's last CI run, the authoring
-     * preview, which has no lesson at all — still has to mount the board viewer, or every one of
-     * those surfaces silently falls back to a single root board with dead links, which is exactly
-     * the bug this feature exists to fix.
+     * The class is chosen by the FENCE, never by whether the render succeeded. A miss here — a
+     * sidecar that is down, or the authoring preview, which has no renderer at all — still has to
+     * mount the board viewer, or every one of those surfaces silently falls back to a single root
+     * board with dead links, which is exactly the bug this feature exists to fix.
      */
     const walkthrough = async (node: Code, at: number): Promise<void> => {
       const source = node.value;
       const meta = node.meta ?? "";
-      const set =
-        session && ctx?.lessonPath ? await session.renderBoards(source, meta, ctx.lessonPath) : null;
+      const set = session ? await session.renderBoards(source, meta) : null;
       if (set == null) {
         const attrs = [
           `class="d2-boards"`,
@@ -348,13 +334,13 @@ function d2Transform(ctx?: RenderContext) {
       }
       // `data-source` is dropped on a hit for the same reason a drawn `.d2-block` drops it:
       // nothing may recompile this, and re-sending the source would be dead weight beside the SVG.
+      // The manifest carries the source HASH, which is the whole address the viewer needs to fetch
+      // the boards behind the root — no fence name, no lesson path.
       const attrs = [
         `class="d2-boards"`,
         `data-fence-at="${at}"`,
         `data-prerendered="1"`,
         `data-boards="${encodeURIComponent(JSON.stringify(set.manifest))}"`,
-        `data-fence="${encodeURIComponent(set.fence)}"`,
-        `data-lesson="${encodeURIComponent(ctx!.lessonPath)}"`,
       ];
       out.push(
         html(
@@ -474,11 +460,11 @@ function mermaidOrdinals() {
  * a Promise boundary via dynamic import, so the contract stays stable when
  * async plugins (katex, mermaid) arrive later.
  */
-export async function renderLesson(raw: string, ctx?: RenderContext): Promise<string> {
+export async function renderLesson(raw: string): Promise<string> {
   const file = await unified()
     .use(remarkParse)
     .use(remarkGfm)
-    .use(d2Transform, ctx) // parse-time d2 → SVG placeholders (before rehype; no-op without a d2 fence)
+    .use(d2Transform) // parse-time d2 → SVG placeholders (before rehype; no-op without a d2 fence)
     .use(frameSequenceTransform) // frame-image runs → ONE stepping figure (no-op without images)
     .use(mermaidOrdinals) // number the mermaid fences, so a figure can name the one it came from
     .use(remarkRehype, {

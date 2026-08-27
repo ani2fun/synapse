@@ -2,9 +2,10 @@
 // D2 RENDERER — ```d2 fence source → SVG string, via @terrastruct/d2
 // ──────────────────────────────────────────────────────────────────
 // d2, like mermaid, is a self-contained declarative-diagram renderer (ADR-S026, orthogonal to
-// the viz engine). `@terrastruct/d2` resolves per environment — the browser build in the client,
-// `dist/node-esm` under SSR — so this one module serves both sides and a server-rendered lesson
-// is byte-identical to what the client would have produced from the same source and salt.
+// the viz engine). The ENGINE half here is the CLIENT's alone: every caller of it is an island,
+// and the prod image drops `@terrastruct/d2` from node_modules, so it cannot load in the pod.
+// `d2Salt` is the half SSR shares — it needs the same salt to find a pre-drawn figure, which
+// `dev-tools/render-d2.mjs` writes out of the `dist/node-esm` build.
 //
 // ONE instance, and every compile+render serialised through it. A `D2` is not a cheap handle:
 // constructing one spawns a worker and instantiates a ~21 MB WASM module, and in the browser it
