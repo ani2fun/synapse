@@ -121,6 +121,16 @@ struct Posting {
 }
 
 impl Posting {
+    /// A posting for a term's FIRST occurrence in one document.
+    fn first(doc: u32, field: Field) -> Self {
+        let mut posting = Self {
+            doc,
+            ..Self::default()
+        };
+        posting.bump(field, 1);
+        posting
+    }
+
     fn bump(&mut self, field: Field, by: u16) {
         let slot = match field {
             Field::Title => &mut self.title,
@@ -161,6 +171,9 @@ pub struct SearchHit {
 #[derive(Debug, Clone, Default)]
 pub struct SearchIndex {
     docs: Vec<Doc>,
+    /// A `BTreeMap`, and the ordering is load-bearing: `score_prefix` walks `range` from the
+    /// prefix, so sorted order IS the prefix scan. A hash map would be a faster build and no
+    /// as-you-type search at all.
     terms: BTreeMap<Box<str>, Vec<Posting>>,
     total_len: usize,
 }
@@ -372,22 +385,24 @@ impl IndexBuilder {
     /// Returns the token count, so the caller can accumulate the document's length.
     fn index_field(&mut self, doc: u32, field: Field, source: &str) -> u32 {
         let mut count = 0_u32;
-        for token in text::tokenize(source) {
+        for token in text::tokens(source) {
             count += 1;
-            let postings = self.index.terms.entry(token.into_boxed_str()).or_default();
-            // Documents are added in ascending id, so the posting for THIS document — if the term
-            // has been seen in it already — is always the last one. That keeps the build a single
-            // pass with one allocation per genuinely new term.
-            match postings.last_mut() {
-                Some(last) if last.doc == doc => last.bump(field, 1),
-                _ => {
-                    let mut posting = Posting {
-                        doc,
-                        ..Posting::default()
-                    };
-                    posting.bump(field, 1);
-                    postings.push(posting);
+            // `get_mut` BORROWS the token. `entry` takes ownership, so it allocated a key for every
+            // OCCURRENCE of a term rather than every term — and a corpus is mostly repetition, so
+            // nearly all of those allocations were thrown away by the map on arrival.
+            if let Some(postings) = self.index.terms.get_mut(token.as_ref()) {
+                // Documents are added in ascending id, so the posting for THIS document — if the
+                // term has been seen in it already — is always the last one.
+                match postings.last_mut() {
+                    Some(last) if last.doc == doc => last.bump(field, 1),
+                    _ => postings.push(Posting::first(doc, field)),
                 }
+            } else {
+                // Genuinely new: the one place a key is allocated.
+                self.index.terms.insert(
+                    token.into_owned().into_boxed_str(),
+                    vec![Posting::first(doc, field)],
+                );
             }
         }
         count

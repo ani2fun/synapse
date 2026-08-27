@@ -3,8 +3,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+
+use tokio::sync::Semaphore;
 
 use super::*;
 use crate::catalog::domain::content_tree::{BookMeta, ContentEntry, PRIMARY_SOURCE_ID, SourceTree};
@@ -18,6 +20,10 @@ struct StubRepo {
     files: BTreeMap<String, String>,
     loads: AtomicUsize,
     reads: AtomicUsize,
+    /// When set, `load_sources` waits for a permit — which lets a test hold one rebuild open and
+    /// watch what the readers arriving during it actually do. Without it the stub returns so fast
+    /// that a "concurrent" test would pass whether or not anything is single-flighted.
+    gate: Option<Arc<Semaphore>>,
 }
 
 impl StubRepo {
@@ -33,6 +39,9 @@ impl ContentRepository for StubRepo {
 
     async fn load_sources(&self) -> Result<Vec<SourceTree>, ContentError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
+        if let Some(gate) = &self.gate {
+            gate.acquire().await.expect("gate closed").forget();
+        }
         Ok(vec![SourceTree {
             id: PRIMARY_SOURCE_ID.to_owned(),
             book_meta: None,
@@ -162,6 +171,89 @@ async fn index_rebuilds_only_when_the_version_moves() {
     service.repo.bump_version("v2");
     service.index().await.unwrap();
     assert_eq!(service.repo.loads.load(Ordering::SeqCst), 2);
+}
+
+/// The behaviour this exists for: readers arriving while the index is being rebuilt get the
+/// PREVIOUS snapshot immediately, and only one rebuild runs.
+///
+/// Before, each of them ran a full rebuild of its own — correct, because the walk is idempotent,
+/// and wasteful in proportion to how many readers arrived. Measured against the real catalog:
+/// five concurrent readers, five rebuilds, on a pod with one CPU.
+#[tokio::test]
+async fn readers_during_a_rebuild_get_the_previous_snapshot_and_do_not_rebuild() {
+    let gate = Arc::new(Semaphore::new(1)); // one permit: the warm-up build passes straight through
+    let mut repo = fixture();
+    repo.gate = Some(Arc::clone(&gate));
+    let service = Arc::new(CatalogService::new(repo));
+
+    service.index().await.unwrap();
+    assert_eq!(service.repo.loads.load(Ordering::SeqCst), 1, "warm-up");
+
+    // Invalidate. The gate is empty now, so whoever rebuilds next parks inside `load_sources`.
+    service.repo.bump_version("v2");
+    let building = tokio::spawn({
+        let service = Arc::clone(&service);
+        async move { service.index().await }
+    });
+    while service.repo.loads.load(Ordering::SeqCst) < 2 {
+        tokio::task::yield_now().await;
+    }
+
+    // Four readers arrive mid-rebuild. Each must return the stale snapshot rather than queue
+    // behind the rebuild or start one — so `loads` must not move.
+    for _ in 0..4 {
+        service
+            .index()
+            .await
+            .expect("a reader mid-rebuild is served, not blocked");
+    }
+    assert_eq!(
+        service.repo.loads.load(Ordering::SeqCst),
+        2,
+        "four readers during a rebuild must add no loads of their own"
+    );
+
+    gate.add_permits(1);
+    building.await.unwrap().unwrap();
+    assert_eq!(
+        service.repo.loads.load(Ordering::SeqCst),
+        2,
+        "and the rebuild was the only one"
+    );
+}
+
+/// The one case that must still wait: nothing has ever been built, so there is no stale snapshot
+/// to hand back. A reader arriving then queues rather than being told the catalog is empty.
+#[tokio::test]
+async fn a_cold_start_waits_for_the_first_build_rather_than_serving_nothing() {
+    let gate = Arc::new(Semaphore::new(0)); // the FIRST build parks
+    let mut repo = fixture();
+    repo.gate = Some(Arc::clone(&gate));
+    let service = Arc::new(CatalogService::new(repo));
+
+    let first = tokio::spawn({
+        let service = Arc::clone(&service);
+        async move { service.index().await }
+    });
+    while service.repo.loads.load(Ordering::SeqCst) < 1 {
+        tokio::task::yield_now().await;
+    }
+    let second = tokio::spawn({
+        let service = Arc::clone(&service);
+        async move { service.index().await }
+    });
+
+    gate.add_permits(1);
+    first.await.unwrap().unwrap();
+    second
+        .await
+        .unwrap()
+        .expect("the queued reader gets the first build, not an error");
+    assert_eq!(
+        service.repo.loads.load(Ordering::SeqCst),
+        1,
+        "the second reader waited for the first build instead of starting its own"
+    );
 }
 
 // ── lessons ───────────────────────────────────────────────────────────────────
