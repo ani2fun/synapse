@@ -184,17 +184,18 @@ function parseQuiz(raw: string): { quiz?: QuizJson; error?: string } {
 
 // ── D2 diagrams ──────────
 // Where a ```d2 fence's figure comes from depends on WHERE THIS PIPELINE
-// RUNS. Under SSR it is LOOKED UP, never compiled: the source hashes to a
-// file the content repo's CI drew (`_media/d2/<hash>.svg`), and that SVG is
-// inlined into a `.d2-block[data-prerendered]`, so the reader sees the
-// diagram at first paint and never fetches the engine. Compiling here is
-// what the pod cannot afford — d2Prerender.ts holds the measurement. In the
+// RUNS. Under SSR it is ASKED FOR, never compiled: the source goes to the
+// `d2-render` sidecar, which draws it and caches it by content, and the SVG
+// comes back to be inlined into a `.d2-block[data-prerendered]`, so the
+// reader sees the diagram at first paint and never fetches the engine.
+// Compiling here is what the pod cannot afford — d2Prerender.ts holds the
+// measurement, and ADR-RS009 holds the reasoning. In the
 // BROWSER — the authoring preview runs this same pipeline — no lookup is
 // possible, so it emits `.d2-block[data-source]` carrying the URI-encoded
 // source, and Diagrams.tsx compiles it.
 //
 // The placeholder is also the FALLBACK: a missed lookup emits it — a fence
-// its repo has not drawn yet, or a fetch past d2Prerender.ts's budget — so
+// the sidecar could not draw, or a fetch past d2Prerender.ts's budget — so
 // the floor is the client-rendered behaviour and a malformed diagram still
 // reaches the reader as a loud error card rather than a blank figure. That
 // makes a broken pre-render indistinguishable from a working page, which is

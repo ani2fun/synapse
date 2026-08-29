@@ -1,12 +1,11 @@
 // Spec for ```d2 fences, split out of render.test.ts because they are the one fence family whose
-// output depends on WHERE the pipeline runs and on what a content repo has already drawn.
+// output depends on WHERE the pipeline runs and on whether a renderer is reachable.
 //
-// The same `renderLesson` serves two callers. Under SSR it looks each diagram up in
-// `_media/d2/<hash>.svg` — drawn ahead of time by `dev-tools/render-d2.mjs` in the content repo's
-// CI — and inlines what it finds. In the browser (the authoring preview) it cannot, and ships the
-// source for the client to compile. Both shapes are pinned here, along with the fallback that
-// connects them: a fence nobody has drawn yet renders a perfectly good page the slow way, so only
-// an assertion can tell a working lookup from a dead one.
+// The same `renderLesson` serves two callers. Under SSR it hands each diagram to the `d2-render`
+// sidecar and inlines what comes back. In the browser (the authoring preview) it cannot, and ships
+// the source for the client to compile. Both shapes are pinned here, along with the fallback that
+// connects them: a fence the sidecar could not draw renders a perfectly good page the slow way, so
+// only an assertion can tell a drawn figure from a silently undrawn one.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderLesson } from "./render";

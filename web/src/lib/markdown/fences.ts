@@ -4,7 +4,8 @@
 // Three things have to agree about what a d2 fence is:
 //
 //   · remark, when the reader's page is rendered (`render.ts`);
-//   · `dev-tools/render-d2.mjs`, when a content repo's CI draws the figures;
+//   · `dev-tools/render-d2.mjs`, which no longer draws anything for the reader (ADR-RS009 put a
+//     renderer beside the app) but is still pinned to this shape by `renderD2Script.test.ts`;
 //   · this, when `/d2` reaches into a lesson to load the diagram someone clicked Edit on.
 //
 // The script cannot import this file — it runs from a plain Node checkout in a content repo with
