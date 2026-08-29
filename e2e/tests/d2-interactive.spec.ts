@@ -65,6 +65,20 @@ test("back, forward and home walk the boards", async ({ page }) => {
   await expect(page.locator("#home")).toBeDisabled();
 });
 
+test("the arrows walk the boards before any history exists", async ({ page }) => {
+  // A freshly opened page has been nowhere, so history leaves both arrows dead; forward falls
+  // back to stepping the manifest's order rather than describing its own uselessness.
+  await page.goto(pageUrl);
+  await expect(page.locator(".trail .here")).toHaveText("URL Shortener");
+  await expect(page.locator("#back")).toBeDisabled();
+  await expect(page.locator("#home")).toBeDisabled();
+  await expect(page.locator("#fwd")).toBeEnabled();
+
+  await page.locator("#fwd").click();
+  await expect(page.locator(".trail .here")).toHaveText("Container");
+  await expect(page.locator("#back")).toBeEnabled();
+});
+
 test("the browser's own Back and Forward step through the boards", async ({ page }) => {
   // The one place this behaviour is right: nothing else is on the page for Back to mean.
   await page.goto(pageUrl);

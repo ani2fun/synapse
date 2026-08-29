@@ -1,8 +1,8 @@
 /**
  * The ```d2 boards viewer — one source, a TREE of boards, and a reader who drives it.
  *
- * Clicking a node that carries `link:` drills into that board; ◀ ▶ ⌂ and a board menu walk back
- * out. The whole thing works identically on the card and inside the Enlarge overlay, because both
+ * Clicking a node that carries `link:` drills into that board; ◀ ▶ ⌂ and a board menu walk the
+ * rest. The whole thing works identically on the card and inside the Enlarge overlay, because both
  * render the same figure and the same chrome (`Zoom.tsx` takes the chrome as a slot).
  *
  * Navigation is a DELEGATED click, not a rewrite of the SVG: d2 writes the absolute board id into
@@ -14,6 +14,10 @@
  * Board history is the component's own, never the browser's: a reader four levels deep still
  * leaves the lesson with one press of Back. The URL still carries the board (`?board=<slug>`,
  * written with `replaceState`) so a walkthrough is shareable — see `lib/islands/diagram/boards`.
+ *
+ * ◀ ▶ spend history first and STEP the manifest's order when there is none, so a page that has
+ * been nowhere — a fresh load, a deep link — still has working arrows instead of three disabled
+ * buttons and a menu the reader has to find.
  */
 import { type ComponentChildren, h } from "preact";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
@@ -30,13 +34,13 @@ import {
   BOARD_PARAM,
   boardFromSearch,
   boardSearch,
-  canGoBack,
-  canGoForward,
   canNavigate,
+  canStepBack,
+  canStepForward,
   currentBoard,
-  goBack,
-  goForward,
   goHome,
+  walkBack,
+  walkForward,
   indexBoards,
   pushBoard,
   rootTitleOf,
@@ -216,8 +220,8 @@ export function useBoardWalk({
   const onKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if (event.key === "Escape" && menuOpen) setMenuOpen(false);
-      else if (event.key === "ArrowLeft") setHistory(goBack);
-      else if (event.key === "ArrowRight") setHistory(goForward);
+      else if (event.key === "ArrowLeft") setHistory((was) => walkBack(index, was));
+      else if (event.key === "ArrowRight") setHistory((was) => walkForward(index, was));
       else if (event.key === "Home") setHistory((was) => goHome(was, index.root));
       else return;
       event.preventDefault();
@@ -235,8 +239,8 @@ export function useBoardWalk({
     menuOpen,
     setMenuOpen,
     show,
-    back: () => setHistory(goBack),
-    forward: () => setHistory(goForward),
+    back: () => setHistory((was) => walkBack(index, was)),
+    forward: () => setHistory((was) => walkForward(index, was)),
     home: () => setHistory((was) => goHome(was, index.root)),
     onFigureClick,
     onKeyDown,
@@ -345,14 +349,14 @@ export function BoardChrome({ walk }: { walk: BoardWalk }) {
   return (
     <div class="boards-bar">
       <div class="transport boards-bar__nav">
-        <button class="transport__btn" aria-label="Back" title="Back" disabled={!canGoBack(history)} onClick={back}>
+        <button class="transport__btn" aria-label="Back" title="Back" disabled={!canStepBack(index, history)} onClick={back}>
           ‹
         </button>
         <button
           class="transport__btn"
           aria-label="Forward"
           title="Forward"
-          disabled={!canGoForward(history)}
+          disabled={!canStepForward(index, history)}
           onClick={forward}
         >
           ›
@@ -426,14 +430,14 @@ export function BoardBar({ walk }: { walk: BoardWalk }) {
   return (
     <div class="bbar">
       <div class="bbar__nav">
-        <button class="bnav" aria-label="Back" title="Back" disabled={!canGoBack(history)} onClick={back}>
+        <button class="bnav" aria-label="Back" title="Back" disabled={!canStepBack(index, history)} onClick={back}>
           <Icon name="left" size={15} />
         </button>
         <button
           class="bnav"
           aria-label="Forward"
           title="Forward"
-          disabled={!canGoForward(history)}
+          disabled={!canStepForward(index, history)}
           onClick={forward}
         >
           <Icon name="right" size={15} />

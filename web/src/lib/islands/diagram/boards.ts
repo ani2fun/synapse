@@ -315,6 +315,44 @@ export const goForward = (history: BoardHistory): BoardHistory =>
 export const goHome = (history: BoardHistory, root: string): BoardHistory =>
   pushBoard(history, root);
 
+/**
+ * The board one STEP away in walk order, or null at either end.
+ *
+ * History alone leaves the transport dead on arrival: a freshly loaded page has been nowhere, so
+ * back and forward are both correctly disabled and the only way deeper is the node in the figure
+ * or the menu. Readers read that as broken controls. Stepping is the fallback — when history has
+ * nothing to offer, the arrows walk the boards in the order the manifest lists them, which for a
+ * C4 stack is exactly context → container → code.
+ *
+ * History still wins where it exists, so a reader who jumped somewhere with the menu gets back to
+ * where they came from rather than to whatever happens to sit beside it.
+ */
+export function stepBoard(index: BoardIndex, at: string, delta: 1 | -1): string | null {
+  const i = index.order.findIndex((board) => board.id === at);
+  if (i === -1) return null;
+  return index.order[i + delta]?.id ?? null;
+}
+
+/** Whether the transport can move at all in that direction — history first, then a step. */
+export const canStepBack = (index: BoardIndex, history: BoardHistory): boolean =>
+  canGoBack(history) || stepBoard(index, currentBoard(history), -1) != null;
+
+export const canStepForward = (index: BoardIndex, history: BoardHistory): boolean =>
+  canGoForward(history) || stepBoard(index, currentBoard(history), 1) != null;
+
+/** Back, then a step backwards when there is no history to spend. */
+export function walkBack(index: BoardIndex, history: BoardHistory): BoardHistory {
+  if (canGoBack(history)) return goBack(history);
+  const prev = stepBoard(index, currentBoard(history), -1);
+  return prev == null ? history : pushBoard(history, prev);
+}
+
+export function walkForward(index: BoardIndex, history: BoardHistory): BoardHistory {
+  if (canGoForward(history)) return goForward(history);
+  const next = stepBoard(index, currentBoard(history), 1);
+  return next == null ? history : pushBoard(history, next);
+}
+
 // ── THE URL ──────────────────────────────────────────────────────
 // A query parameter, not the fragment: `rehypeSlug` gives every heading an id, so the fragment
 // belongs to the prose. A reader can deep-link a heading and a board at the same time this way.

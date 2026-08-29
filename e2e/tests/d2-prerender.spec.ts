@@ -127,6 +127,27 @@ test.describe("server-drawn (the d2 renderer is up)", () => {
     expect(heavy).toEqual([]);
   });
 
+  test("the arrows walk the boards on a page that has been nowhere", async ({ page }) => {
+    // History alone left both arrows disabled at first paint, and readers reported that as broken
+    // controls: the only ways deeper were the node in the figure and the menu. Forward now steps
+    // through the manifest's order when there is no history to spend.
+    await page.goto(LESSON);
+    const card = page.locator(".diagram--boards");
+    await expect(card.locator(".diagram__figure svg").first()).toBeVisible();
+    const bar = card.locator(".boards-bar");
+
+    await expect(card.locator(".boards-bar__here")).toHaveText("Context");
+    await expect(bar.locator('[aria-label="Forward"]')).toBeEnabled();
+    await expect(bar.locator('[aria-label="Back"]')).toBeDisabled();
+    await expect(bar.locator('[aria-label="Root board"]')).toBeDisabled();
+
+    await bar.locator('[aria-label="Forward"]').click();
+    await expect(card.locator(".boards-bar__here")).toHaveText("Inside");
+    await bar.locator('[aria-label="Forward"]').click();
+    await expect(card.locator(".boards-bar__here")).toHaveText("Deeper");
+    await expect(bar.locator('[aria-label="Forward"]')).toBeDisabled(); // the end of the walk
+  });
+
   test("back, forward and home walk the boards", async ({ page }) => {
     await page.goto(LESSON);
     const card = page.locator(".diagram--boards");

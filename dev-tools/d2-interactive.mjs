@@ -2,7 +2,7 @@
 // ── d2-interactive — a multi-board .d2 → ONE self-contained interactive page ──────────────────
 // `d2 --animate-interval` packages a multi-board diagram as an SVG that cycles on a timer. This
 // packages the same boards as a page the READER drives: click a node carrying `link:` to drill
-// in, ◀ ▶ ⌂ to walk back out, a menu to jump, `#board` to deep-link.
+// in, ◀ ▶ ⌂ to walk the boards, a menu to jump, `#board` to deep-link.
 //
 // The output is one file with no network at runtime — every board, the stylesheet and the viewer
 // are inlined — so it opens over `file://` and survives being emailed.
@@ -148,8 +148,8 @@ const VIEWER = `
       }
     });
 
-    btnBack.disabled = at <= 0;
-    btnFwd.disabled = at >= stack.length - 1;
+    btnBack.disabled = !canStep(-1);
+    btnFwd.disabled = !canStep(1);
     btnHome.disabled = board.id === data.root;
     menu.querySelectorAll("button").forEach(function (item) {
       item.setAttribute("aria-current", String(item.dataset.board === board.id));
@@ -166,12 +166,36 @@ const VIEWER = `
     paint();
   }
 
+  // The board one step away in walk order, or null at either end. History alone leaves both
+  // arrows disabled on a freshly opened page — it has been nowhere — which reads as broken
+  // controls, so stepping is the fallback and walks the boards in the order the manifest lists them.
+  function neighbour(delta) {
+    for (var i = 0; i < boards.length; i++) {
+      if (boards[i].id === stack[at]) {
+        var next = boards[i + delta];
+        return next ? next.id : null;
+      }
+    }
+    return null;
+  }
+
+  function canStep(delta) {
+    var next = at + delta;
+    if (next >= 0 && next < stack.length) return true;
+    return neighbour(delta) != null;
+  }
+
   function step(delta) {
     var next = at + delta;
-    if (next < 0 || next >= stack.length) return;
-    at = next;
-    history.pushState({ id: stack[at] }, "", "#" + byId[stack[at]].slug);
-    paint();
+    if (next >= 0 && next < stack.length) {
+      at = next;
+      history.pushState({ id: stack[at] }, "", "#" + byId[stack[at]].slug);
+      paint();
+      return;
+    }
+    // History wins wherever it exists; only when it is spent does the arrow walk the boards.
+    var sideways = neighbour(delta);
+    if (sideways) go(sideways, true);
   }
 
   function applyTransform() {

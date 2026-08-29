@@ -13,6 +13,8 @@ import {
   boardsOf,
   canGoBack,
   canGoForward,
+  canStepBack,
+  canStepForward,
   canNavigate,
   currentBoard,
   decodeManifest,
@@ -21,6 +23,9 @@ import {
   goForward,
   goHome,
   indexBoards,
+  stepBoard,
+  walkBack,
+  walkForward,
   isBoardsFence,
   pushBoard,
   resolveBoardLink,
@@ -300,5 +305,58 @@ describe("resolving a link the author wrote", () => {
     expect(resolveBoardLink("https://d2lang.com", "root")).toBeNull();
     expect(resolveBoardLink("mailto:a@b.c", "root")).toBeNull();
     expect(resolveBoardLink("", "root")).toBeNull();
+  });
+});
+
+// ── STEPPING: the transport on a page that has been nowhere ──────
+// History alone leaves both arrows disabled at first paint, which reads as broken controls. These
+// pin the fallback: with no history to spend, the arrows walk the manifest's order.
+
+describe("stepping the boards", () => {
+  it("stepsForwardThroughWalkOrderAndStopsAtTheEnd", () => {
+    expect(stepBoard(index, "root", 1)).toBe("root.layers.container");
+    expect(stepBoard(index, "root.layers.container", 1)).toBe("root.layers.component");
+    expect(stepBoard(index, "root.layers.component", 1)).toBeNull();
+  });
+
+  it("stepsBackwardAndStopsAtTheRoot", () => {
+    expect(stepBoard(index, "root.layers.component", -1)).toBe("root.layers.container");
+    expect(stepBoard(index, "root", -1)).toBeNull();
+  });
+
+  it("anUnknownBoardStepsNowhere", () => {
+    expect(stepBoard(index, "root.layers.nope", 1)).toBeNull();
+  });
+
+  it("aFreshlyLoadedRootCanStepForwardButNotBack", () => {
+    const fresh = startHistory("root");
+    expect(canGoForward(fresh)).toBe(false); // no history…
+    expect(canStepForward(index, fresh)).toBe(true); // …but a board to step to
+    expect(canStepBack(index, fresh)).toBe(false); // nothing before the root
+  });
+
+  it("aDeepLinkedBoardCanStepBackOutWithNoHistory", () => {
+    // `?board=component` lands mid-tree with an empty trail; the reader must not be stranded.
+    const deep = startHistory("root.layers.component");
+    expect(canGoBack(deep)).toBe(false);
+    expect(canStepBack(index, deep)).toBe(true);
+    expect(currentBoard(walkBack(index, deep))).toBe("root.layers.container");
+  });
+
+  it("historyWinsOverSteppingWhereverItExists", () => {
+    // Jump to the deepest board, then back: Back must return where the reader CAME from, not to
+    // whatever happens to sit beside it in the manifest.
+    let history = startHistory("root");
+    history = pushBoard(history, "root.layers.component");
+    expect(currentBoard(walkBack(index, history))).toBe("root");
+    history = walkBack(index, history);
+    expect(currentBoard(walkForward(index, history))).toBe("root.layers.component");
+  });
+
+  it("walkingPastEitherEndIsANoOp", () => {
+    const last = startHistory("root.layers.component");
+    expect(walkForward(index, last)).toBe(last);
+    const first = startHistory("root");
+    expect(walkBack(index, first)).toBe(first);
   });
 });
