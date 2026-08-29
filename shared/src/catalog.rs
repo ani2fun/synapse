@@ -126,16 +126,6 @@ pub struct LessonPayloadDto {
     pub tests: Option<TestSpec>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
-#[serde(rename_all = "camelCase")]
-pub struct ComponentDocDto {
-    pub title: Option<String>,
-    pub kind: Option<String>,
-    pub technology: Option<String>,
-    pub body: String,
-}
-
 /// A registered content repository, as the admin panel sees it. The sync fields are read-only —
 /// they are the fetch loop's report, and they are what turns "I registered it" into "it landed".
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -162,20 +152,6 @@ pub struct ContentSourceDto {
     /// the book to stale, not to absent, and the panel should say which.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_error: Option<String>,
-}
-
-/// One repository the merged LikeC4 workspace should pull `.c4` files from.
-///
-/// Deliberately unauthenticated and deliberately minimal: the consumer is a CI job with no token,
-/// and every repository named here is already public. It carries no sync state and no grouping —
-/// the build wants sources, not the library.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
-#[serde(rename_all = "camelCase")]
-pub struct C4SourceDto {
-    /// `owner/name`.
-    pub repo: String,
-    pub branch: String,
 }
 
 /// Register or re-register a repository. Keyed server-side on the id derived from `repo`, so

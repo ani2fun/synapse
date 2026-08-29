@@ -46,7 +46,6 @@ async fn robots(State(state): State<SeoRoutesState>) -> Response {
          Disallow: /api/\n\
          Disallow: /account\n\
          Disallow: /admin\n\
-         Disallow: /c4/\n\
          Disallow: /simulators/\n\
          \n\
          Sitemap: {}/sitemap.xml\n",

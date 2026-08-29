@@ -82,11 +82,6 @@ async fn stamps_errors_and_every_route_class_too() {
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert_eq!(value(&headers, "x-content-type-options"), "nosniff");
 
-    // The /c4 proxy's degrade path (upstream down → 502) is stamped.
-    let (status, headers) = headers_of(app(tmp.path()), "/c4/view").await;
-    assert_eq!(status, StatusCode::BAD_GATEWAY);
-    assert_eq!(value(&headers, "x-content-type-options"), "nosniff");
-
     // The API-only root (no page tier configured) is stamped.
     let (status, headers) = headers_of(app(tmp.path()), "/").await;
     assert_eq!(status, StatusCode::OK);

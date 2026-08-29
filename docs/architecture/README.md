@@ -1,8 +1,8 @@
 # Architecture — synapse-rs
 
-The C4 model for the rebuild. LikeC4 sources join when the shape has enough parts to be worth a
-model (the oracle's `docs/architecture/` is the reference until then); each build-book chapter
-opens with its HLD delta as a Mermaid diagram, and this page holds the current container view.
+The C4 model for the rebuild. Each build-book chapter opens with its HLD delta as a diagram, and
+this page holds the current container view. Diagrams are `d2` or `mermaid` fences drawn from the
+source beside them (ADR-RS009, ADR-RS010) — there is no separate model file and no viewer.
 
 ## Containers (step 01)
 
@@ -17,5 +17,5 @@ graph LR
     server -. uses .-> shared
 ```
 
-The web tier (Astro SSR + islands), content tree, Postgres, go-judge, Keycloak, and LikeC4 join this
-diagram as their steps land — the oracle's final shape is the destination.
+The web tier (Astro SSR + islands), content tree, Postgres, go-judge, Keycloak and the `d2-render`
+sidecar join this diagram as their steps land.

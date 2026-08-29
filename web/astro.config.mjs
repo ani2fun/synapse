@@ -77,7 +77,6 @@ export default defineConfig({
       proxy: {
         "/api": "http://localhost:8280",
         "/media": "http://localhost:8280",
-        "/c4": "http://localhost:8280",
         "/simulators": "http://localhost:8280",
       },
       fs: {

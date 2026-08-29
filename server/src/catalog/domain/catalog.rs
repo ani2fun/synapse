@@ -115,15 +115,6 @@ impl LessonFileRef {
         let stem = self.path.strip_suffix(".md").unwrap_or(&self.path);
         Self::new(&self.source_id, format!("{stem}{suffix}"))
     }
-
-    /// A file in the lesson's own directory: `a/b/x.md` + `_c4-docs/y.md` → `a/b/_c4-docs/y.md`.
-    #[must_use]
-    pub fn neighbour(&self, relative: &str) -> Self {
-        match self.path.rsplit_once('/') {
-            Some((dir, _)) => Self::new(&self.source_id, format!("{dir}/{relative}")),
-            None => Self::new(&self.source_id, relative),
-        }
-    }
 }
 
 /// The walk's full output: the catalog plus, per book slug, the map from in-book lesson

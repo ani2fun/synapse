@@ -31,10 +31,6 @@ fn seed(root: &Path) {
         &root.join("01-learn/02-dsa/02-lists/01-singly.editorial.md"),
         "spoilers",
     );
-    write(
-        &root.join("01-learn/02-dsa/02-lists/_c4-docs/reader.md"),
-        "---\ntitle: Reader\ntechnology: Leptos\n---\nHow it works.",
-    );
 }
 
 async fn get(app: axum::Router, uri: &str) -> (StatusCode, Option<String>, Value) {
@@ -118,25 +114,6 @@ async fn missing_lessons_404_with_the_api_error_envelope_uncached() {
     assert_eq!(cache, None, "errors must never carry the cache header");
     assert_eq!(json["error"], "Not found");
     assert!(json["detail"].is_string());
-}
-
-#[tokio::test]
-async fn component_docs_resolve_dotted_fqns_past_the_lesson_catch_all() {
-    let tmp = tempfile::tempdir().unwrap();
-    seed(tmp.path());
-    let app = common::app_over(tmp.path());
-    let (status, _, json) = get(
-        app.clone(),
-        "/api/synapse/c4-doc/synapse.client.reader?lesson=learn/dsa/lists/singly",
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(json["technology"], "Leptos");
-    assert_eq!(json["body"], "How it works.");
-
-    let (status, _, json) = get(app, "/api/synapse/c4-doc/ghost?lesson=learn/dsa/lists/singly").await;
-    assert_eq!(status, StatusCode::NOT_FOUND);
-    assert_eq!(json["error"], "Not found");
 }
 
 #[tokio::test]

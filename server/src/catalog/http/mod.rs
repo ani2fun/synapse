@@ -3,7 +3,6 @@
 //! `main`, and nothing else varies.
 
 pub mod admin;
-pub mod c4;
 mod dto;
 pub mod routes;
 

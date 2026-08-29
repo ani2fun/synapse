@@ -3,7 +3,7 @@
  * iframe over `/simulators/<name>/` — a self-contained static bundle a content repo ships under
  * `_simulators/<name>/`. A HEAD probe of the bundle's index.html gates the mount, so a missing
  * bundle earns the loud `.diagram-error` card (ADR-S026), never a blank frame. Raw authored
- * `<iframe src="/simulators/…">` gets the same Enlarge chrome (the LikeC4 wrap pattern).
+ * `<iframe src="/simulators/…">` gets the Enlarge chrome (the same wrap pattern).
  *
  * The `sandbox` attribute is belt-and-braces, not a trust boundary: the bundle is same-origin
  * first-party content (ADR-S015), so `allow-same-origin` + `allow-scripts` only blocks popups,
@@ -41,7 +41,7 @@ export function hydrateSimulators(root: ParentNode): number {
     const wrap = document.createElement("div");
     wrap.className = "sim-embed not-prose";
     parent.insertBefore(wrap, frame);
-    wrap.appendChild(frame); // re-parenting reloads the iframe — accepted, same as the c4 wrap
+    wrap.appendChild(frame); // re-parenting reloads the iframe — accepted; the load listener rewires
     const host = document.createElement("div");
     wrap.appendChild(host);
     render(h(ZoomAffordance, { src, title: frame.title || "Simulator" }), host);
@@ -122,7 +122,7 @@ function ZoomAffordance({ src, title }: { src: string; title: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // THE FULLSCREEN ZOOM
 // A NEW iframe with the same src fills the modal — moving an iframe reloads it anyway, so a
-// fresh instance (state reset included) is the honest trade, same as the C4 zoom.
+// fresh instance (state reset included) is the honest trade.
 // ─────────────────────────────────────────────────────────────────────────────
 
 function SimZoom({ src, title, onClose }: { src: string; title: string; onClose: () => void }) {

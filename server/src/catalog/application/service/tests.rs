@@ -126,10 +126,6 @@ fn fixture() -> StubRepo {
             "01-learn/02-dsa/02-lists/02-doubly.md".to_owned(),
             "doubly body".to_owned(),
         ),
-        (
-            "01-learn/02-dsa/02-lists/_c4-docs/reader.md".to_owned(),
-            "---\ntitle: Reader\nkind: component\ntechnology: Laminar\n---\nHow it works.".to_owned(),
-        ),
         // A ```d2 boards walkthrough, drawn beside the lessons that show it.
         (
             "01-learn/02-dsa/02-lists/_d2/url-shortener/boards.json".to_owned(),
@@ -358,43 +354,5 @@ async fn convention_violations_surface_as_index_invalid() {
     assert!(matches!(
         service.index().await,
         Err(ContentError::IndexInvalid(_))
-    ));
-}
-
-// ── component docs ────────────────────────────────────────────────────────────
-
-#[tokio::test]
-async fn component_doc_reads_the_colocated_sidecar_by_leaf_id() {
-    let service = CatalogService::new(fixture());
-    let lesson_path = path(&["learn", "dsa", "lists", "singly"]);
-    // The bare leaf and a container-view FQN resolve the same sidecar.
-    for id in ["reader", "synapse.client.reader"] {
-        let doc = service.component_doc(&lesson_path, id).await.unwrap();
-        assert_eq!(doc.title.as_deref(), Some("Reader"), "id {id}");
-        assert_eq!(doc.technology.as_deref(), Some("Laminar"));
-        assert_eq!(doc.body, "How it works.");
-    }
-}
-
-#[tokio::test]
-async fn component_doc_rejects_bad_ids_unknown_lessons_and_absent_sidecars() {
-    let service = CatalogService::new(fixture());
-    let lesson_path = path(&["learn", "dsa", "lists", "singly"]);
-    let reads_before = service.repo.reads.load(Ordering::SeqCst);
-    assert!(matches!(
-        service.component_doc(&lesson_path, "../../etc/passwd").await,
-        Err(ContentError::NotFound(_))
-    ));
-    // Rejected before any read.
-    assert_eq!(service.repo.reads.load(Ordering::SeqCst), reads_before);
-    assert!(matches!(
-        service
-            .component_doc(&path(&["learn", "nope", "x"]), "reader")
-            .await,
-        Err(ContentError::NotFound(_))
-    ));
-    assert!(matches!(
-        service.component_doc(&lesson_path, "unknown-component").await,
-        Err(ContentError::NotFound(_))
     ));
 }

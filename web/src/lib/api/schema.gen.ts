@@ -229,26 +229,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/c4/sources": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Enabled sources only, in mount order. A disabled repository is one an admin has taken out of
-         *     the library, and its diagrams should leave the workspace with it.
-         */
-        get: operations["listC4Sources"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/edits": {
         parameters: {
             query?: never;
@@ -480,23 +460,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/synapse/c4-doc/{element_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** A LikeC4 component's tutorial doc, looked up next to the given lesson. */
-        get: operations["getComponentDoc"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/synapse/index": {
         parameters: {
             query?: never;
@@ -678,18 +641,6 @@ export interface components {
             slug: string;
             title: string;
         };
-        /**
-         * @description One repository the merged LikeC4 workspace should pull `.c4` files from.
-         *
-         *     Deliberately unauthenticated and deliberately minimal: the consumer is a CI job with no token,
-         *     and every repository named here is already public. It carries no sync state and no grouping —
-         *     the build wants sources, not the library.
-         */
-        C4SourceDto: {
-            branch: string;
-            /** @description `owner/name`. */
-            repo: string;
-        };
         CatalogEntryDto: (components["schemas"]["CategoryDto"] & {
             /** @enum {string} */
             kind: "category";
@@ -734,12 +685,6 @@ export interface components {
         ChatMessage: {
             content: string;
             role: string;
-        };
-        ComponentDocDto: {
-            body: string;
-            kind?: string | null;
-            technology?: string | null;
-            title?: string | null;
         };
         /**
          * @description A registered content repository, as the admin panel sees it. The sync fields are read-only —
@@ -1733,26 +1678,6 @@ export interface operations {
             };
         };
     };
-    listC4Sources: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Repositories to gather .c4 files from */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["C4SourceDto"][];
-                };
-            };
-        };
-    };
     listMyEdits: {
         parameters: {
             query?: never;
@@ -2466,41 +2391,6 @@ export interface operations {
             };
             /** @description Someone else's */
             403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiError"];
-                };
-            };
-        };
-    };
-    getComponentDoc: {
-        parameters: {
-            query: {
-                /** @description The lesson's directory-mirror path */
-                lesson: string;
-            };
-            header?: never;
-            path: {
-                /** @description LikeC4 element id (FQN or leaf) */
-                element_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The component doc */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ComponentDocDto"];
-                };
-            };
-            /** @description No such doc */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };

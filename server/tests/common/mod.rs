@@ -45,7 +45,7 @@ pub fn username(raw: &str) -> Username {
 
 /// The default wiring over a content root — tests tweak fields before `synapse_server::app`.
 /// A nonexistent root is valid (empty catalog + blog); port 9 (discard) refuses connections,
-/// so executor/issuer/likec4 default to unreachable; the pool is LAZY so store-free routes
+/// so executor/issuer default to unreachable; the pool is LAZY so store-free routes
 /// stay green; `astro_url` is absent so `/` falls back to the plain API-only pointer text.
 #[allow(dead_code)] // each IT binary compiles common on its own; not all use every helper
 pub fn deps(content_root: &Path) -> AppDeps {
@@ -119,7 +119,6 @@ where
         site_url: base.site_url,
         mounted: base.mounted,
         d2_render_url: None,
-        likec4_url: base.likec4_url,
         readiness: base.readiness,
         authoring: base.authoring,
     })
@@ -216,7 +215,6 @@ pub fn deps_with(
         // The single-checkout shape the binary boots with before any satellite lands.
         mounted: MountedSources::new(vec![SourceRoot::new(PRIMARY_SOURCE_ID, content_root)]),
         d2_render_url: None,
-        likec4_url: "http://127.0.0.1:9".to_owned(),
         readiness,
         authoring,
         content_sources: None,

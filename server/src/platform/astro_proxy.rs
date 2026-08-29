@@ -1,8 +1,8 @@
 //! The Astro front door — forwards page requests to the SSR sidecar.
 //!
-//! Modeled on `likec4_proxy` (buffered, GET-shaped, 502 on an unreachable upstream) but mounted
+//! Buffered, GET-shaped, and a 502 on an unreachable upstream, but mounted
 //! as the router's **fallback**, not a wildcard route. Registered routes — `/api`, `/media`,
-//! `/c4`, robots/sitemap — always win over the fallback in axum. **A greedy wildcard route
+//! robots/sitemap — always win over the fallback in axum. **A greedy wildcard route
 //! must never be used for page serving** — mounting the proxy as anything other than the
 //! fallback risks a wildcard shadowing `/api` and silently swallowing API requests as page
 //! requests. Mounting it as the fallback makes that impossible by construction, and the

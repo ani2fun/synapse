@@ -11,7 +11,6 @@ pub mod d2_render_proxy;
 pub(crate) mod frontmatter;
 pub mod health;
 pub mod http;
-pub mod likec4_proxy;
 pub mod limits;
 pub mod media_routes;
 pub mod rate_limiter;

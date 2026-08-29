@@ -2,7 +2,6 @@
 # (dev-tools/dev), never in Docker — only the things it talks to live here.
 #
 #   docker compose up -d                  # db + keycloak + go-judge
-#   docker compose --profile c4 up -d     # ... plus the LikeC4 viewer behind /c4
 #
 # Host ports are offset +100 from the Cortex stack so both run side by side.
 #
@@ -62,50 +61,5 @@ services:
     ports:
       - "127.0.0.1:5150:5050"
 
-  # LikeC4 viewer for the LESSON C4 diagrams, opt-in via the c4 profile. The /c4 proxy fronts it and
-  # system-design lessons embed <iframe src="/c4/view/<id>">, so it builds the merged CONTENT c4
-  # workspace — every .c4 under synapse-content — NOT this repo's architecture model. That one is a
-  # separate host tool: `npx likec4 start docs/architecture/c4`.
-  likec4:
-    image: node:22-alpine
-    profiles: ["c4"]
-    working_dir: /c4
-    command:
-      - "sh"
-      - "-c"
-      # --base /c4/: the viewer is served THROUGH the app's /c4 proxy, so its own asset URLs must be
-      # /c4/assets/* (with --base /, the SPA's <script src="/assets/…"> resolves to the Synapse
-      # origin inside the iframe, the viewer JS never loads, and no diagram renders).
-      # --no-use-dot: use the WASM layouter — `likec4 build` otherwise auto-enables Graphviz `dot`
-      # in a container, which node:alpine lacks.
-      # serve, not `likec4 serve`: the latter binds localhost only, unreachable from the host.
-      - "npx -y likec4@latest build --base /c4/ --no-use-dot --output /dist . && npx -y serve --single --listen tcp://0.0.0.0:5173 /dist"
-    volumes:
-      # The spine's own .c4, plus one explicit mount per satellite that carries any. The merged
-      # workspace CI builds gathers satellites from the registry (`c4-sources.json`); this dev
-      # service has no registry to ask, so each one is named here by hand.
-      #
-      # Without the satellite mounts the failure is SILENT and looks like a rendering bug: the
-      # build simply omits those views, and `serve --single` answers /c4/view/<missing-id> with
-      # the SPA shell and a 200. Every `sdfp_*` view of the system-design guide was unreachable
-      # in local dev until this line existed. Check with:
-      #   docker compose --profile c4 exec likec4 sh -c 'find /c4 -name "*.c4" | wc -l'
-      # Expect 3 (spine) + 14 (system-design guide) = 17.
-      #
-      # Both nest UNDER /c4 rather than one being /c4: a read-only bind cannot host a mountpoint,
-      # so mounting the spine at /c4 makes any satellite mount inside it fail at container start
-      # with "read-only file system". /c4 is left as a normal container directory and each repo
-      # is a child of it; `likec4 build .` globs the tree, so the merge still happens.
-      #
-      # Each satellite is mounted at its REPO ROOT, not at the chapter that happens to hold the
-      # .c4 files today. Pinning the deeper path breaks the moment a chapter is renumbered, and
-      # breaks silently — see above. likec4 globs recursively, so the root costs nothing.
-      - ../synapse-content-github/synapse-content:/c4/spine:ro
-      - ../synapse-content-github/system-design-guide:/c4/system-design-guide:ro
-      - likec4-cache:/root/.npm
-    ports:
-      - "127.0.0.1:8190:5173"
-
 volumes:
   pgdata:
-  likec4-cache:

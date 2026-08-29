@@ -44,7 +44,7 @@ import { CoachPane } from "./coach/CoachPane";
 import { hydrateDiagrams } from "./widgets/Diagrams";
 import { hydrateSimulators } from "./widgets/Simulator";
 // Side-effect import: mounts the page-wide codebench modal — a description-pane fence
-// group can still carry a "Try in Editor" button even though the whole-document quiz/diagram/c4
+// group can still carry a "Try in Editor" button even though the whole-document quiz/diagram
 // pass this module also offers stands down on a problem page (see its own module doc).
 import "./widgets/index";
 
@@ -119,8 +119,8 @@ function hydrateContent(root: ParentNode, lessonPath: string[]): void {
     render(h(Workbench, { variants: decoded.variants, spec: decoded.spec, lessonPath, root: host }), host);
     count += 1;
   }
-  // Diagrams and simulators, but NOT quiz/c4 — the docked description pane hydrates these
-  // alongside its workbenches/fence-groups and leaves quiz/c4 to the lesson body
+  // Diagrams and simulators, but NOT quiz — the docked description pane hydrates these
+  // alongside its workbenches/fence-groups and leaves quiz furniture to the lesson body
   // (islands/widgets' whole-document pass, which stands down on this page).
   const diagrams = hydrateDiagrams(root);
   const sims = hydrateSimulators(root);

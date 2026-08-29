@@ -147,17 +147,7 @@
 .diagram-zoom__level { min-width: 3.2rem; text-align: center; font-family: var(--font-mono);
                        font-size: 0.8rem; color: hsl(var(--muted-foreground));
                        user-select: none; }
-/* The C4 fullscreen's zoom column: BOTTOM-LEFT, vertical — the deployed LikeC4 build ships no
-   zoom buttons of its own (pinch/scroll only), so these are the only ones the modal has.
-   .diagram-zoom__ctl owns the button look. */
-.diagram-zoom__ctlcol { position: absolute; bottom: 16px; left: 14px; z-index: 2;
-                        display: flex; flex-direction: column; gap: 6px; padding: 6px;
-                        border: 1px solid hsl(var(--border)); border-radius: 12px;
-                        background: hsl(var(--card) / 0.92);
-                        box-shadow: 0 8px 24px -12px hsl(var(--foreground) / 0.5);
-                        backdrop-filter: blur(4px); }
-
-/* Top-LEFT, deliberately: LikeC4's own chrome lives top-right, so ours never collides.
+/* Top-LEFT, deliberately — the house rule for diagram chrome.
    Positioning only; .modal-btn owns the look. */
 .diagram-zoom__close { position: absolute; top: 12px; left: 14px; z-index: 3; }
 
@@ -263,25 +253,6 @@
 .diagram__caption { margin: 8px 0 0; max-width: 60ch; text-align: center; font-size: 0.85rem;
                     color: hsl(var(--muted-foreground)); }
 
-/* ── the LikeC4 lesson embed: the authored <iframe> on a rounded dark frame ──
-   Targeted `.reader-prose iframe[…]` until step 46, which matched NOTHING: the prose container
-   is `lesson-body synapse-prose`, and the only `reader-prose*` classes in the app are the BEM
-   children `__back` / `__title` / `__lede`. So the width cap never applied and an authored
-   `width="800"` iframe ran straight off a phone. `.c4-embed` is the wrapper c4.rs actually
-   creates around every `iframe[src^='/c4/']`, so this now binds. */
-.c4-embed iframe { width: 100%; max-width: 100%; border: 1px solid hsl(var(--border));
-                   border-radius: 12px; background: #101014; }
-
-/* ── the LikeC4 embed chrome (step 33): Enlarge top-LEFT; guard steps it aside ── */
-.c4-embed { position: relative; }
-.c4-embed__zoom { position: absolute; top: 10px; left: 10px; z-index: 2;
-                  border: 1px solid hsl(var(--primary) / 0.3); border-radius: 6px;
-                  background: hsl(var(--primary) / 0.08); color: hsl(var(--primary));
-                  font-size: 13px; font-weight: 500; padding: 6px 12px; cursor: pointer;
-                  backdrop-filter: blur(4px); }
-.c4-embed__zoom:hover { background: hsl(var(--primary) / 0.16); }
-.c4-embed--overlay .c4-embed__zoom { display: none; }
-
 /* ─────────────────────────────────────────────────────────────────────────────
    SIMULATOR EMBEDS — the ```simulator fence's iframe over /simulators/<name>/.
    The chrome mirrors the diagram cards: Enlarge top-LEFT (house rule), revealed
@@ -308,37 +279,3 @@
                         background: transparent; pointer-events: auto; }
 .diagram-zoom--fill { max-width: none; max-height: none; padding: 0; overflow: hidden;
                       background: hsl(var(--card)); }
-.diagram-zoom--c4-overlay .diagram-zoom__close,
-.diagram-zoom--c4-overlay .diagram-zoom__controls,
-.diagram-zoom--c4-overlay .diagram-zoom__ctlcol { display: none; }
-
-/* ── the C4 docs panel (step 34): the component guide slides in from the right.
-      z-index sits ABOVE the diagram-zoom scrim (70) so the guide stays readable over the
-      fullscreen LikeC4 view, below the ⌘K modal (oracle: c4-docs.css, 250). ── */
-.c4-docs { position: fixed; top: 0; right: 0; bottom: 0; z-index: 250;
-           width: min(440px, 92vw); overflow-y: auto; padding: 18px 22px 28px;
-           background: hsl(var(--card)); border-left: 1px solid hsl(var(--border));
-           box-shadow: -14px 0 44px hsl(var(--foreground) / 0.16);
-           animation: c4-docs-in 0.22s ease; }
-@keyframes c4-docs-in { from { transform: translateX(24px); opacity: 0; }
-                        to { transform: translateX(0); opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .c4-docs { animation: none; } }
-.c4-docs__head { display: flex; align-items: center; justify-content: space-between;
-                 padding-bottom: 10px; border-bottom: 1px solid hsl(var(--border));
-                 margin-bottom: 14px; }
-.c4-docs__eyebrow { font-family: var(--font-mono); font-size: 11px; font-weight: 600;
-                    letter-spacing: 0.14em; color: hsl(var(--primary)); }
-.c4-docs__close { display: inline-flex; align-items: center; justify-content: center;
-                  width: 30px; height: 30px; border-radius: 8px; border: 0;
-                  background: transparent; color: hsl(var(--muted-foreground));
-                  cursor: pointer; }
-.c4-docs__close:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
-.c4-docs__title { margin: 0 0 8px; font-size: 22px; }
-.c4-docs__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-.c4-docs__chip { font-family: var(--font-mono); font-size: 10.5px;
-                 border: 1px solid hsl(var(--border)); border-radius: 999px;
-                 padding: 2px 9px; color: hsl(var(--muted-foreground)); }
-.c4-docs__status { color: hsl(var(--muted-foreground)); font-size: 14px; }
-.c4-docs__missing { font-size: 14px; }
-.c4-docs__body { font-size: 14.5px; line-height: 1.65; }
-.c4-docs__body :is(h1, h2, h3) { margin-top: 1.1em; }

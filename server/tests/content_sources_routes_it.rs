@@ -1,6 +1,6 @@
-//! Integration: `/api/admin/content-sources` and `/api/c4/sources` through the REAL router — the
+//! Integration: `/api/admin/content-sources` through the REAL router — the
 //! admin gate, the validation that keeps a malformed grouping out of the sitemap, and the
-//! unauthenticated C4 list a CI job reads.
+//! registry a satellite is mounted from.
 //!
 //! Over a fake registry (the SQL is the gated Postgres IT) and a local JWKS stub minting real
 //! tokens, so what is exercised here is the HTTP layer and nothing beneath it.
@@ -102,8 +102,7 @@ fn app(issuer: &str, registry: Arc<FakeRegistry>, sync: Option<SyncTrigger>) -> 
         catalog: Arc::new(CatalogService::new(repo)),
         sync,
     };
-    synapse_server::catalog::http::admin::routes(state.clone())
-        .merge(synapse_server::catalog::http::c4::routes(state))
+    synapse_server::catalog::http::admin::routes(state)
 }
 
 async fn call(
@@ -268,32 +267,6 @@ async fn listing_reports_the_sync_state_the_panel_shows() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body[0]["lastSha"], "abc123");
     assert_eq!(body[0]["repo"], "ani2fun/java-guide");
-}
-
-// ── the C4 list ──────────────────────────────────────────────────────────────
-
-/// Unauthenticated by design: the consumer is a CI job with no token, and every repository named
-/// is already public.
-#[tokio::test]
-async fn the_c4_source_list_needs_no_credential_and_omits_disabled_sources() {
-    let issuer = stub_realm().await;
-    let registry = seeded(vec![
-        record("system-design-guide", "", true),
-        record("parked-guide", "", false),
-    ]);
-
-    let (status, body) = call(app(&issuer, registry, None), "GET", "/api/c4/sources", None, None).await;
-
-    assert_eq!(status, StatusCode::OK);
-    let repos: Vec<&str> = body
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|s| s["repo"].as_str().unwrap())
-        .collect();
-    assert_eq!(repos, vec!["ani2fun/system-design-guide"]);
-    // Sync state is deliberately absent: the build wants sources, not the library.
-    assert!(body[0].get("lastSha").is_none(), "{body}");
 }
 
 // ── sync now ─────────────────────────────────────────────────────────────────

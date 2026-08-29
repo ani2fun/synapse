@@ -85,6 +85,12 @@ commit into the wrong repository. `content_edit_request.repo` exists to make tha
 
 ### One merged C4 workspace, gathered from many repositories
 
+> **Superseded by [RS010](rs010-retiring-likec4.md) (2026-08-28).** LikeC4 is retired; every
+> diagram is a `d2` fence in the lesson that shows it. There is no merged workspace, no
+> `specification {}`, no gathering build, and no `/api/c4/sources`. The consequences recorded
+> below — a satellite's diagrams needing a deployed build, and the duplicate-workspace window
+> during a cutover — no longer exist.
+
 The `/c4` viewer stays ONE workspace with exactly one `specification {}`. Its build gathers `.c4`
 files from the registered sources rather than from one checkout. Keeping it merged is what lets
 every existing `<iframe src="/c4/view/…">` keep working untouched — view ids encode no repository.

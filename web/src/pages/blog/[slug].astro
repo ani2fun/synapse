@@ -11,8 +11,8 @@
 // The head (title/description) is server-rendered fresh on every request, same as
 // blog/index.astro.
 //
-// `islands/widgets` (the lesson body's quiz + diagram + c4 pass) is wired here too: blog posts
-// share the exact SAME `renderLesson` pipeline a lesson does, so a diagram/quiz/c4 fence in a
+// `islands/widgets` (the lesson body's quiz + diagram pass) is wired here too: blog posts
+// share the exact SAME `renderLesson` pipeline a lesson does, so a diagram/quiz fence in a
 // post is not hypothetical — it renders the identical placeholder markup and deserves the
 // identical hydration.
 import Base from "../../layouts/Base.astro";

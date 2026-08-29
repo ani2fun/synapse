@@ -1,4 +1,4 @@
-//! The catalog endpoints. Route shape matters: `/index`, `/search`, `/c4-doc/{id}` and
+//! The catalog endpoints. Route shape matters: `/index`, `/search` and
 //! `/d2/{fence}/{file}` are more specific than the `{*paths}` lesson catch-all, and axum's router
 //! picks the most specific match. The cost is that a top-level book slugged `search` would be
 //! unreachable, exactly as one slugged `index` already is.
@@ -11,7 +11,7 @@ use axum::routing::get;
 use axum::{Json, Router};
 use serde::Deserialize;
 use synapse_shared::api::ApiError;
-use synapse_shared::catalog::{ComponentDocDto, LessonPayloadDto, SynapseIndexDto};
+use synapse_shared::catalog::{LessonPayloadDto, SynapseIndexDto};
 use synapse_shared::search::SearchResultsDto;
 
 use crate::catalog::application::CatalogService;
@@ -47,7 +47,6 @@ pub fn routes<V: LessonViewStore + 'static>(state: CatalogRoutesState<V>) -> Rou
     Router::new()
         .route("/api/synapse/index", get(get_synapse_index::<V>))
         .route("/api/synapse/search", get(search_catalog::<V>))
-        .route("/api/synapse/c4-doc/{element_id}", get(get_component_doc::<V>))
         .route("/api/synapse/{*paths}", get(get_synapse_lesson::<V>))
         .with_state(state)
 }
@@ -116,49 +115,6 @@ pub async fn get_synapse_index<V: LessonViewStore>(
     tracing::info!("GET /api/synapse/index");
     match state.service.index().await {
         Ok(catalog) => Ok(Json(dto::to_index(&catalog))),
-        Err(error) => fail(&error),
-    }
-}
-
-/// Both sidecar lookups name their lesson the same way: a co-located file is only addressable
-/// relative to the lesson that owns it.
-#[derive(Deserialize)]
-pub struct LessonQuery {
-    lesson: String,
-}
-
-/// A lesson's directory-mirror path, as the sidecar routes receive it.
-fn lesson_segments(lesson: &str) -> Vec<String> {
-    lesson
-        .split('/')
-        .filter(|s| !s.is_empty())
-        .map(str::to_owned)
-        .collect()
-}
-
-/// A LikeC4 component's tutorial doc, looked up next to the given lesson.
-#[utoipa::path(
-    get,
-    path = "/api/synapse/c4-doc/{element_id}",
-    operation_id = "getComponentDoc",
-    params(
-        ("element_id" = String, Path, description = "LikeC4 element id (FQN or leaf)"),
-        ("lesson" = String, Query, description = "The lesson's directory-mirror path")
-    ),
-    responses(
-        (status = 200, description = "The component doc", body = ComponentDocDto),
-        (status = 404, description = "No such doc", body = ApiError)
-    )
-)]
-pub async fn get_component_doc<V: LessonViewStore>(
-    State(state): CatalogState<V>,
-    Path(element_id): Path<String>,
-    Query(query): Query<LessonQuery>,
-) -> ApiResult<ComponentDocDto> {
-    tracing::info!(element_id, lesson = query.lesson, "GET /api/synapse/c4-doc");
-    let lesson_path = lesson_segments(&query.lesson);
-    match state.service.component_doc(&lesson_path, &element_id).await {
-        Ok(doc) => Ok(Json(dto::to_component_doc(&doc))),
         Err(error) => fail(&error),
     }
 }

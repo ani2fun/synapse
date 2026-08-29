@@ -10,10 +10,8 @@ import {
   problemContentSplit,
   pruneEntries,
   readingOrder,
-  resolveC4Node,
   chapterCount,
   lessonCount,
-  type C4PathHop,
 } from "./tree";
 
 type Book = components["schemas"]["BookDto"];
@@ -73,10 +71,6 @@ function index(): SynapseIndex {
   };
 }
 
-function hop(tag: string, classes: string, id: string | null): C4PathHop {
-  return [tag, classes, id];
-}
-
 describe("tree", () => {
   it("readingOrderIsPreorderWithFullPaths", () => {
     const paths = readingOrder(book()).map(({ path }) => path);
@@ -103,32 +97,6 @@ describe("tree", () => {
     const b = book();
     expect(lessonCount(b)).toBe(2);
     expect(chapterCount(b)).toBe(1);
-  });
-
-  it("aNodeBodyClickResolvesToItsDottedFqn", () => {
-    const path: C4PathHop[] = [
-      hop("DIV", "likec4-element", null),
-      hop("DIV", "react-flow__node react-flow__node-element", "btPersonal.btSmallWeb"),
-      hop("DIV", "react-flow__pane", null),
-    ];
-    expect(resolveC4Node(path)).toBe("btPersonal.btSmallWeb");
-  });
-
-  it("aButtonBeforeTheNodeIsLikec4sOwnControl", () => {
-    const path: C4PathHop[] = [
-      hop("BUTTON", "mantine-ActionIcon-root", null),
-      hop("DIV", "react-flow__node", "sfClient"),
-    ];
-    expect(resolveC4Node(path)).toBeNull();
-  });
-
-  it("edgesAndTokenSubstringsNeverResolve", () => {
-    const edge: C4PathHop[] = [hop("G", "react-flow__edge", "hash-1a2b")];
-    expect(resolveC4Node(edge)).toBeNull();
-    const substring: C4PathHop[] = [hop("DIV", "react-flow__node-toolbar", "x")];
-    expect(resolveC4Node(substring)).toBeNull();
-    const emptyId: C4PathHop[] = [hop("DIV", "react-flow__node", "")];
-    expect(resolveC4Node(emptyId)).toBeNull();
   });
 
   it("pruneKeepsMatchingLessonsAndWholeMatchingChapters", () => {

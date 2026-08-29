@@ -3,7 +3,7 @@
  * figure: mermaid, d2, a d2 walkthrough, the frame slideshow.
  *
  * House rule: the diagram chrome — Enlarge on the card AND Close in the overlay — sits top-LEFT
- * (LikeC4 owns top-right, see C4Embed.tsx). A viewer with its own controls passes them as
+ * A viewer with its own controls passes them as
  * `chrome`, which lands top-CENTRE, clear of Close and of the zoom bar along the bottom.
  *
  * The overlay is a real dialog: it takes focus, traps Tab, and gives focus back on close. That

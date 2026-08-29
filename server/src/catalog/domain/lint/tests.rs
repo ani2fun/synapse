@@ -159,7 +159,6 @@ fn a_problem_with_a_tests_json_sidecar_is_clean() {
     );
     let sidecars = Sidecars {
         test_suites: vec!["01-two-sum/two-sum.tests.json".to_owned()],
-        ..Sidecars::default()
     };
     assert!(errors(&lint(&source, &sidecars)).is_empty());
 }
@@ -177,7 +176,6 @@ fn a_suite_whose_lesson_was_renamed_away_is_flagged() {
     let source = book_source(Some("dsa"), vec![file("01-new-name.md", &lesson("x"))]);
     let sidecars = Sidecars {
         test_suites: vec!["01-old-name.tests.json".to_owned()],
-        ..Sidecars::default()
     };
     let findings = lint(&source, &sidecars);
     assert!(

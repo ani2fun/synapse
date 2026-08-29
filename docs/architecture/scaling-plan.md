@@ -64,7 +64,7 @@ Decisions already in the codebase that the plan leans on rather than revisits:
 ## Stage 0 — today (single node, hundreds of users)
 
 k3s on one node: origin pod (pages + API + media, non-root) with the git-sync sidecar, go-judge pod,
-Keycloak, Postgres, LikeC4 via the `/c4` proxy; Cloudflare in front; GitOps deploy loop
+Keycloak, Postgres, the `d2-render` sidecar; Cloudflare in front; GitOps deploy loop
 (push → CI → ghcr → promote → ArgoCD). Fine as-is; the only Stage-0 action items are the ones
 already on the roadmap: the Cloudflare cache rule for `/api/synapse/*` + `/api/blog/*`, and a load
 baseline (k6 scripts for the three traffic classes) so every later stage has a before/after.

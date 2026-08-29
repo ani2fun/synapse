@@ -18,7 +18,7 @@ pub const DEFAULT_ESSENTIAL: bool = true;
 
 /// Dirs that are never content (checked order-prefix-stripped).
 ///
-/// `examples` and `c4` are aux dirs a book may carry alongside its chapters.
+/// `examples` is an aux dir a book may carry alongside its chapters.
 ///
 /// `local-only-content` is different in kind and is here for a REASON WORTH KNOWING. The content
 /// tree carries material that must never be served — most of it adapted from a commercial course,
@@ -47,7 +47,7 @@ pub const DEFAULT_ESSENTIAL: bool = true;
 ///
 /// Releasing it here instead would also double-mount it: walked inside the primary AND mounted as
 /// a source, every book in it duplicated, which is a hard error.
-const RESERVED_AUX_DIRS: [&str; 4] = ["examples", "c4", "local-only", "local-only-content"];
+const RESERVED_AUX_DIRS: [&str; 3] = ["examples", "local-only", "local-only-content"];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NAMING RULES — the public helpers the whole context leans on

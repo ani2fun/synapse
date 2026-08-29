@@ -29,7 +29,7 @@ pub struct ContentSourceRoutesState<S> {
     pub identity: Arc<LiveIdentityService>,
     pub admin_users: Arc<HashSet<Username>>,
     /// The live catalog, for the conflicts it had to resolve. Concrete rather than generic: one
-    /// implementation exists, and a type parameter here would spread through the C4 routes that
+    /// implementation exists, and a type parameter here would spread through the admin routes that
     /// share this state for no variation anyone uses.
     pub catalog: Arc<LiveCatalogService>,
     /// Absent when the reconcile loop is disabled (`content_sync_seconds = 0`, which is how the

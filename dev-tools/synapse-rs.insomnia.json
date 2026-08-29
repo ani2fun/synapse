@@ -116,15 +116,6 @@
       ]
     },
     {
-      "_id": "req_catalog_c4doc",
-      "_type": "request",
-      "parentId": "fld_catalog",
-      "name": "GET /api/synapse/c4-doc/{elementId}?lesson=",
-      "description": "A LikeC4 component's tutorial doc — the co-located _c4-docs/<leaf>.md sidecar next to the lesson. (step 06)",
-      "method": "GET",
-      "url": "{{ _.base_url }}/api/synapse/c4-doc/synapse.client.reader?lesson=learn/dsa/lists/singly"
-    },
-    {
       "_id": "req_catalog_d2_board",
       "_type": "request",
       "parentId": "fld_catalog",

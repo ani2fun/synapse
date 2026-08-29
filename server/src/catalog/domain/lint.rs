@@ -55,8 +55,6 @@ impl Finding {
 pub struct Sidecars {
     /// Source-root-relative paths of every `*.tests.json`.
     pub test_suites: Vec<String>,
-    /// Source-root-relative paths of every `*.c4`.
-    pub c4_files: Vec<String>,
 }
 
 /// Lint one content source.
@@ -121,7 +119,7 @@ fn walk(
     for entry in entries {
         match entry {
             // A directory the walker skips carries no lessons, so linting inside one reports
-            // problems about files that never render — `_c4-docs/` click-docs most of all.
+            // problems about files that never render — `_d2-blocks/` sources most of all.
             ContentEntry::Dir { name, children, .. } if walker::includes_as_content(name) => {
                 let mut inner = dirs.to_vec();
                 inner.push(name.clone());

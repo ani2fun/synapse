@@ -123,7 +123,6 @@ async fn main() -> anyhow::Result<()> {
         auto_reload = cfg.auto_reload,
         executor_url = cfg.executor_url,
         astro_url = cfg.astro_url().unwrap_or("(api only)"),
-        likec4_url = cfg.likec4_url,
         "synapse-rs server started"
     );
 
@@ -151,7 +150,6 @@ async fn main() -> anyhow::Result<()> {
         d2_render_url: cfg.d2_render_url().map(str::to_owned),
         site_url: cfg.site_url,
         mounted: content.mounted.clone(),
-        likec4_url: cfg.likec4_url.clone(),
         readiness,
     });
     // Connect info feeds the anonymous rate-limit key's socket-peer fallback.

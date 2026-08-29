@@ -2,7 +2,7 @@
 
 use synapse_shared::api::ApiError;
 use synapse_shared::catalog::{
-    BookDto, BookEntryDto, BookRefDto, CatalogEntryDto, CategoryDto, ChapterDto, ComponentDocDto, LessonDto,
+    BookDto, BookEntryDto, BookRefDto, CatalogEntryDto, CategoryDto, ChapterDto, LessonDto,
     LessonFrontmatterDto, LessonPayloadDto, SynapseIndexDto,
 };
 
@@ -10,7 +10,6 @@ use synapse_shared::search::{SearchHitDto, SnippetSegmentDto};
 
 use crate::catalog::application::ContentError;
 use crate::catalog::domain::catalog::{BookEntry, CatalogEntry, Lesson, SynapseContentCatalog};
-use crate::catalog::domain::component_doc::ComponentDoc;
 use crate::catalog::domain::lesson::LessonContent;
 use crate::catalog::domain::search::{DocKind, SearchHit};
 
@@ -97,15 +96,6 @@ pub fn to_payload(content: &LessonContent) -> LessonPayloadDto {
         next: content.next_path.as_deref().map(full),
         editorial: content.editorial.clone(),
         tests: content.sample_tests.clone(),
-    }
-}
-
-pub fn to_component_doc(doc: &ComponentDoc) -> ComponentDocDto {
-    ComponentDocDto {
-        title: doc.title.clone(),
-        kind: doc.kind.clone(),
-        technology: doc.technology.clone(),
-        body: doc.body.clone(),
     }
 }
 

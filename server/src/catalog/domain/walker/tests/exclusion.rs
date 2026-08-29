@@ -80,8 +80,7 @@ fn reserved_aux_dirs_and_hidden_files_are_skipped_inside_books() {
         vec![
             dir("examples", vec![file("snippet.md", "x")]),
             dir("01-examples", vec![file("snippet.md", "x")]),
-            dir("c4", vec![file("model.md", "x")]),
-            dir("_c4-docs", vec![file("reader.md", "x")]),
+            dir("_d2-blocks", vec![file("theme.md", "x")]),
             dir(".hidden", vec![file("h.md", "x")]),
             file("_draft.md", "x"),
             file(".notes.md", "x"),

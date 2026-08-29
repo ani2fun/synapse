@@ -27,7 +27,7 @@ use platform::rate_limiter::RateLimiter;
 use submission::http::{LiveSubmitSolution, SubmissionRoutesState};
 use synapse_shared::api::{ApiError, HealthStatus};
 use synapse_shared::blog::{BlogPostDto, BlogSummaryDto};
-use synapse_shared::catalog::{BookEntryDto, ChapterDto, ComponentDocDto, LessonPayloadDto, SynapseIndexDto};
+use synapse_shared::catalog::{BookEntryDto, ChapterDto, LessonPayloadDto, SynapseIndexDto};
 use synapse_shared::execution::{RunRequest, RunResult};
 use synapse_shared::identity::{AuthConfigDto, MeDto};
 use synapse_shared::insights::LessonViewDto;
@@ -81,7 +81,6 @@ pub struct AppDeps<
     /// checkout's `_media/` / `_simulators/` tree through it, so a satellite registered at
     /// runtime serves both without a redeploy.
     pub mounted: catalog::infrastructure::MountedSources,
-    pub likec4_url: String,
     /// The `d2-render` sidecar. `None` leaves `/api/synapse/d2` unmounted entirely.
     pub d2_render_url: Option<String>,
     /// Answers `/api/ready`: Postgres in the binary, the same lazy pool in ITs (which then
@@ -103,7 +102,7 @@ pub struct AppDeps<
 
 /// The assembled HTTP surface. Contexts contribute their routers here; integration tests drive
 /// this exact router, so what the suite exercises is what the binary serves. Precedence: API
-/// (cache-stamped) → `/media` → `/c4` proxy → robots/sitemap → the Astro page proxy as the
+/// (cache-stamped) → `/media` → robots/sitemap → the Astro page proxy as the
 /// FALLBACK, so a registered route can never be shadowed by a page path.
 pub fn app<L, V, C>(deps: AppDeps<L, V, C>) -> Router
 where
@@ -167,15 +166,12 @@ where
     // The registry mounts wherever a store is wired; without it, satellites simply cannot be
     // registered and the library is the primary checkout alone.
     if let Some(state) = deps.content_sources {
-        api = api
-            .merge(catalog::http::c4::routes(state.clone()))
-            .merge(catalog::http::admin::routes(state));
+        api = api.merge(catalog::http::admin::routes(state));
     }
     let mut router = api
         .layer(axum::middleware::from_fn(platform::content_cache_control::stamp))
         .merge(media.routes())
         .merge(simulators.routes())
-        .merge(platform::likec4_proxy::routes(&deps.likec4_url))
         .merge(
             deps.d2_render_url
                 .as_deref()
@@ -234,7 +230,6 @@ where
         platform::http::get_ready,
         catalog::http::routes::get_synapse_index,
         catalog::http::routes::search_catalog,
-        catalog::http::routes::get_component_doc,
         catalog::http::routes::get_synapse_lesson,
         execution::http::run_code,
         submission::http::submit_solution,
@@ -268,8 +263,7 @@ where
         catalog::http::admin::register_content_source,
         catalog::http::admin::remove_content_source,
         catalog::http::admin::sync_now,
-        catalog::http::admin::content_warnings,
-        catalog::http::c4::list_c4_sources
+        catalog::http::admin::content_warnings
     ),
     components(schemas(
         HealthStatus,
@@ -288,7 +282,6 @@ where
         BookEntryDto,
         ChapterDto,
         LessonPayloadDto,
-        ComponentDocDto,
         // Reached only through `LessonPayloadDto.tests` — list them so the `$ref` resolves for
         // `openapi-typescript` (a stricter reader than the contract-lock test).
         synapse_shared::execution::ArgSpec,
@@ -319,7 +312,6 @@ where
         synapse_shared::authoring::EditRequestDto,
         synapse_shared::catalog::ContentSourceDto,
         synapse_shared::catalog::RegisterContentSourceDto,
-        synapse_shared::catalog::C4SourceDto,
         synapse_shared::catalog::CatalogWarningDto
     ))
 )]

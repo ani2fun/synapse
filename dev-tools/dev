@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ── DEV LOOP ─────────────────────────────────────────────────────────────────
 # axum API on :8280 (background) + Astro dev on :5373 (foreground, HMR, proxies
-# /api /media /c4). Ctrl-C stops both. :5373 is pinned by the Keycloak dev realm
+# /api /media). Ctrl-C stops both. :5373 is pinned by the Keycloak dev realm
 # origin allowlist — a silent port bump 403s the silent-SSO iframe.
 set -euo pipefail
 cd "$(dirname "$0")/.."

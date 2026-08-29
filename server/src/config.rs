@@ -60,10 +60,6 @@ pub struct AppConfig {
     /// The site's public origin, used for the sitemap's absolute URLs.
     /// Env: `SYNAPSE_SITE_URL` (or the bare `SITE_URL`).
     pub site_url: String,
-    /// The LikeC4 upstream the `/c4` proxy forwards to. Prod gotcha: the image
-    /// serves UNDER `/c4`, so the value ends in `/c4` and the stripped prefix cancels.
-    /// Env: `LIKEC4_URL`.
-    pub likec4_url: String,
     /// The `d2-render` sidecar a walkthrough's boards are fetched from (ADR-RS009). `None` leaves
     /// `/api/synapse/d2` unmounted — a structural 404, and the reader's viewer compiles the
     /// walkthrough itself. The page tier reads the same address as `SYNAPSE_D2_RENDER_URL`; both
@@ -140,7 +136,6 @@ impl Default for AppConfig {
             identity_audience: "synapse-web".to_owned(),
             astro_url: None,
             site_url: "https://synapse.kakde.eu".to_owned(),
-            likec4_url: "http://localhost:8190".to_owned(),
             d2_render_url: None,
             rate_limit_anon_window_seconds: 60,
             rate_limit_anon_limit: 10,
@@ -236,7 +231,7 @@ impl AppConfig {
         });
         // Deploy-manifest spellings accepted without the SYNAPSE_ prefix.
         let platform = Env::raw()
-            .only(&["LIKEC4_URL", "SITE_URL", "ASTRO_URL"])
+            .only(&["SITE_URL", "ASTRO_URL"])
             .map(|key| key.as_str().to_lowercase().into());
         let rate = Env::raw()
             .only(&[

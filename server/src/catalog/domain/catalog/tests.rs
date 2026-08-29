@@ -35,26 +35,8 @@ fn a_stem_sidecar_keeps_the_order_prefix() {
 }
 
 #[test]
-fn a_neighbour_resolves_against_the_lessons_directory() {
-    let file = lesson("06-case-studies/url-shortener.md");
-    assert_eq!(
-        file.neighbour("_c4-docs/rusApi.md").path,
-        "06-case-studies/_c4-docs/rusApi.md"
-    );
-}
-
-#[test]
-fn a_neighbour_of_a_root_level_lesson_has_no_directory_to_prepend() {
-    assert_eq!(
-        lesson("index.md").neighbour("_c4-docs/x.md").path,
-        "_c4-docs/x.md"
-    );
-}
-
-#[test]
 fn derivation_never_leaves_the_owning_source() {
     // The invariant the whole type exists for.
     let file = lesson("a/b.md");
     assert_eq!(file.sidecar(".tests.json").source_id, "java");
-    assert_eq!(file.neighbour("_c4-docs/x.md").source_id, "java");
 }

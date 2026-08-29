@@ -163,24 +163,6 @@ export function chapterCount(book: Book): number {
   return book.entries.filter((entry) => entry.kind === "chapter").length;
 }
 
-/** One hop of a click's composed path, target-first: `[tagName, classAttr, dataId]`. */
-export type C4PathHop = [tag: string, classes: string, dataId: string | null];
-
-/**
- * Resolve a click inside the LikeC4 viewer to an element FQN. Walking target-first: a `<button>`
- * BEFORE the node is one of LikeC4's own controls (relationships/details) — let the viewer keep
- * it. A node must carry the EXACT `react-flow__node` class token (edges carry random-hash ids
- * but not the token) and a non-empty `data-id` — the dotted element FQN.
- */
-export function resolveC4Node(path: C4PathHop[]): string | null {
-  for (const [tag, classes, dataId] of path) {
-    if (tag.toLowerCase() === "button") return null;
-    const isNode = classes.split(/\s+/).some((c) => c === "react-flow__node");
-    if (isNode) return dataId && dataId.length > 0 ? dataId : null;
-  }
-  return null;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // PROBLEM CONTENT SPLIT — the first `<details` at line start OUTSIDE a code fence divides
 // description from editorial.

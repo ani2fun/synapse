@@ -15,7 +15,6 @@ export type ApiErrorBody = components["schemas"]["ApiError"];
 export type SynapseIndex = components["schemas"]["SynapseIndexDto"];
 export type CatalogEntry = components["schemas"]["CatalogEntryDto"];
 export type LessonPayload = components["schemas"]["LessonPayloadDto"];
-export type ComponentDoc = components["schemas"]["ComponentDocDto"];
 export type RunRequest = components["schemas"]["RunRequest"];
 export type RunResult = components["schemas"]["RunResult"];
 export type SubmitRequest = components["schemas"]["SubmitRequestDto"];
@@ -193,11 +192,6 @@ export function searchCatalog(query: string): Promise<SearchResults> {
 /** A lesson by its full directory-mirror path. */
 export function lesson(path: string[]): Promise<LessonPayload> {
   return get<LessonPayload>(`/api/synapse/${path.join("/")}`);
-}
-
-/** A LikeC4 component's tutorial doc, co-located next to the given lesson. */
-export function c4Doc(elementId: string, lesson: string[]): Promise<ComponentDoc> {
-  return get<ComponentDoc>(`/api/synapse/c4-doc/${elementId}?lesson=${lesson.join("/")}`);
 }
 
 /** Run one snippet in the sandbox — a badly-running program is still a resolved `RunResult`. */

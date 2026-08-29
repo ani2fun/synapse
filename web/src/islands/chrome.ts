@@ -378,12 +378,18 @@ function scrollToHeading(id: string): void {
 }
 
 /** Harvest h2[id]/h3[id] from the rendered prose (the leading h1 is the page title and has no
- *  id). */
+ *  id).
+ *
+ *  A heading inside a `<details>` is skipped. Two reasons, and they agree: the outline should
+ *  describe what the page is showing, and a collapsed section is not showing eleven components —
+ *  it is showing one line the reader can open. And `scrollToHeading` measures a bounding rect,
+ *  which is all zeros while the ancestor is closed, so such a row would not even scroll where it
+ *  claims. The section's own heading sits OUTSIDE the `<details>` and keeps its row. */
 function harvestHeadings(body: Element): Heading[] {
   const out: Heading[] = [];
   body.querySelectorAll<HTMLElement>("h2[id], h3[id]").forEach((el) => {
     const id = el.getAttribute("id");
-    if (!id) return;
+    if (!id || el.closest("details") !== null) return;
     out.push({ id, text: el.textContent ?? "", level: el.tagName.toLowerCase() === "h3" ? 3 : 2 });
   });
   return out;

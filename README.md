@@ -5,7 +5,7 @@ practice problems, and step-through execution visualizations. Live at
 [synapse.kakde.eu](https://synapse.kakde.eu).
 
 - **Server** (`server/`): Rust — axum + tokio, hexagonal by bounded context. Owns `/api`,
-  `/media`, the LikeC4 proxy, security headers, compression, robots/sitemap.
+  `/media`, security headers, compression, robots/sitemap.
 - **Web** (`web/`): Astro SSR + TypeScript islands, served by a Node sidecar behind the axum
   front door. Prose is HTML in the response; the editor, diagrams, search and the visualiser
   hydrate as lazy per-feature islands.
@@ -25,8 +25,7 @@ dev-tools/dev          # axum API on :8280 + Astro dev (HMR) on :5373
 curl localhost:8280/api/health
 ```
 
-The database is `synapse_rs` on :5532. The LikeC4 viewer behind `/c4` is opt-in:
-`docker compose --profile c4 up -d`.
+The database is `synapse_rs` on :5532.
 
 ## Test & gates
 

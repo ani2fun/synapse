@@ -45,7 +45,6 @@ async fn main() -> anyhow::Result<()> {
 
     let sidecars = scan_sidecars(&dir);
     let mut findings = lint::lint(&source, &sidecars);
-    findings.extend(c4_findings(&dir, source.book_meta.is_some(), &sidecars));
     findings.extend(placement_findings(source.book_meta.as_ref()));
 
     // The walk itself is the structural authority: duplicate slugs, over-deep chapters and
@@ -116,20 +115,13 @@ fn collect(root: &Path, dir: &Path, out: &mut Sidecars) {
             collect(root, &path, out);
         } else if let Ok(relative) = path.strip_prefix(root) {
             let relative = relative.to_string_lossy().replace('\\', "/");
-            // Case-sensitive on purpose, like the walker's own `.md` check: content extensions
-            // are lowercase by convention, and `.C4` should not silently count.
             if name.ends_with(".tests.json") {
                 out.test_suites.push(relative);
-            } else if std::path::Path::new(&name).extension().is_some_and(|e| e == "c4") {
-                out.c4_files.push(relative);
             }
         }
     }
 }
 
-/// The C4 rules a satellite has to keep. The merged `/c4` workspace carries exactly ONE
-/// `specification {}`, and it lives in the spine — a satellite that ships its own makes the whole
-/// workspace ambiguous, and the failure is a blank iframe rather than an error.
 /// A root-level `book.json` means the repository IS the book — a satellite — and a satellite is
 /// positioned by its registration row, never by its own file. An `order` here is therefore read by
 /// nobody: harmless today, misleading forever, because the next person to reorder the library will
@@ -154,59 +146,4 @@ fn placement_findings(book_meta: Option<&BookMeta>) -> Vec<lint::Finding> {
             ),
         }],
     }
-}
-
-fn c4_findings(root: &Path, is_book_source: bool, sidecars: &Sidecars) -> Vec<lint::Finding> {
-    let mut findings = Vec::new();
-    if !is_book_source {
-        return findings;
-    }
-    for file in &sidecars.c4_files {
-        let Ok(body) = std::fs::read_to_string(root.join(file)) else {
-            continue;
-        };
-        if body
-            .lines()
-            .any(|line| line.trim_start().starts_with("specification") && line.contains('{'))
-        {
-            findings.push(lint::Finding {
-                severity: Severity::Error,
-                path: file.clone(),
-                message: "a satellite must not declare `specification {}` — the merged /c4 \
-                          workspace has exactly one, in the spine repository"
-                    .to_owned(),
-            });
-        }
-        findings.extend(view_prefix_findings(file, &body));
-    }
-    findings
-}
-
-/// View ids share ONE global namespace across the merged workspace, so a satellite's must carry a
-/// prefix nobody else uses. A collision does not error — it silently resolves to whichever view
-/// the build saw last, and the wrong diagram appears in someone else's book.
-fn view_prefix_findings(file: &str, body: &str) -> Vec<lint::Finding> {
-    let ids: Vec<&str> = body
-        .lines()
-        .filter_map(|line| line.trim_start().strip_prefix("view "))
-        .filter_map(|rest| rest.split_whitespace().next())
-        .filter(|id| *id != "{")
-        .collect();
-    let unprefixed: Vec<&&str> = ids.iter().filter(|id| !id.contains('_')).collect();
-    if unprefixed.is_empty() {
-        return Vec::new();
-    }
-    vec![lint::Finding {
-        severity: Severity::Warning,
-        path: file.to_owned(),
-        message: format!(
-            "view id(s) with no `<prefix>_` segment ({}) — ids are global across the merged /c4 \
-             workspace, so an unprefixed one can collide with another repository's",
-            unprefixed
-                .iter()
-                .map(|id| (**id).to_owned())
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-    }]
 }

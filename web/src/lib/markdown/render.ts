@@ -4,7 +4,7 @@
 // ──────────────────────────────────────────────────────────────────
 // Turns trusted first-party lesson markdown (synapse-content, ADR-S010)
 // into an HTML string a caller injects via innerHTML (the lesson page,
-// editorial panes, C4 docs). Loaded lazily behind loader.ts, so shiki + the
+// editorial panes). Loaded lazily behind loader.ts, so shiki + the
 // plugin graph only land when a lesson first opens. Pipeline decisions
 // live in ADR-S015.
 

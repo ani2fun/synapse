@@ -27,10 +27,8 @@ fn env_overrides_use_the_synapse_prefix() {
 #[test]
 fn platform_and_rate_limit_envs_are_read_without_the_synapse_prefix() {
     figment::Jail::expect_with(|jail| {
-        jail.set_env("LIKEC4_URL", "http://synapse-likec4/c4");
         jail.set_env("RATE_LIMIT_ANON_LIMIT", "3");
         let cfg = AppConfig::load().map_err(|e| *e)?;
-        assert_eq!(cfg.likec4_url, "http://synapse-likec4/c4");
         assert_eq!(cfg.rate_limit_anon_limit, 3);
         assert_eq!(cfg.rate_limit_anon_window_seconds, 60, "default stays");
         Ok(())

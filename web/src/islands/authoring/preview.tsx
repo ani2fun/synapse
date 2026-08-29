@@ -69,14 +69,12 @@ export async function hydratePreview(body: HTMLElement): Promise<void> {
   const [
     { hydrateQuizzes },
     { hydrateDiagrams },
-    { hydrateC4Embeds },
     { hydrateSimulators },
     { hydrateWorkbenches },
     { hydratePractices },
   ] = await Promise.all([
     import("../widgets/Quiz"),
     import("../widgets/Diagrams"),
-    import("../widgets/C4Embed"),
     import("../widgets/Simulator"),
     import("../workbench"),
     import("../practice"),
@@ -84,9 +82,6 @@ export async function hydratePreview(body: HTMLElement): Promise<void> {
 
   hydrateQuizzes(body);
   hydrateDiagrams(body);
-  hydrateC4Embeds(body, () => {
-    /* the preview has no C4 docs panel — selecting a component is a no-op here */
-  });
   hydrateSimulators(body);
   hydrateWorkbenches(body);
   hydratePractices(body);

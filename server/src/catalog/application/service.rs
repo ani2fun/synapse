@@ -9,7 +9,6 @@ use tokio::sync::{Mutex, RwLock};
 use crate::catalog::application::content_repository::{ContentError, ContentRepository};
 use crate::catalog::application::content_sources::Placements;
 use crate::catalog::domain::catalog::{CatalogWarning, LessonFileRef, SynapseContentCatalog, WalkResult};
-use crate::catalog::domain::component_doc::ComponentDoc;
 use crate::catalog::domain::lesson::LessonContent;
 use crate::catalog::domain::search::{SearchHit, SearchIndex};
 use crate::catalog::domain::{frontmatter, merge, resolver, search, walker};
@@ -22,14 +21,6 @@ use crate::catalog::domain::{frontmatter, merge, resolver, search, walker};
 struct Snapshot {
     walk: Arc<WalkResult>,
     search: SearchIndex,
-}
-
-/// LikeC4 element ids: dotted FQNs of `[A-Za-z0-9_-]` segments.
-fn element_id_like(id: &str) -> bool {
-    !id.is_empty()
-        && id
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))
 }
 
 pub struct CatalogService<R> {
@@ -133,40 +124,6 @@ impl<R: ContentRepository> CatalogService<R> {
             editorial,
             sample_tests,
         })
-    }
-
-    /// A LikeC4 component's tutorial doc: the co-located `_c4-docs/<leaf>.md` sidecar next to
-    /// the lesson, keyed by the FQN's LEAF segment (a container view's FQN and a sub-view's
-    /// bare leaf resolve the same file). Re-read per request; absent → `NotFound` → 404.
-    pub async fn component_doc(
-        &self,
-        lesson_path: &[String],
-        element_id: &str,
-    ) -> Result<ComponentDoc, ContentError> {
-        if !element_id_like(element_id) {
-            return Err(ContentError::NotFound(format!(
-                "no component doc for '{element_id}'"
-            )));
-        }
-        if lesson_path.is_empty() || !lesson_path.iter().all(|s| walker::slug_like(s)) {
-            return Err(ContentError::NotFound(format!(
-                "no lesson at '{}'",
-                lesson_path.join("/")
-            )));
-        }
-        let walk = Arc::clone(&self.current().await?.walk);
-        let (book, in_book_path, _) = resolver::resolve_lesson(&walk.catalog, lesson_path)
-            .ok_or_else(|| ContentError::NotFound(format!("no lesson at '{}'", lesson_path.join("/"))))?;
-        let file_path = walk
-            .lesson_files
-            .get(&book.slug)
-            .and_then(|files| files.get(&in_book_path))
-            .ok_or_else(|| ContentError::NotFound(format!("no source for '{in_book_path}'")))?;
-
-        let leaf = element_id.rsplit('.').next().unwrap_or(element_id);
-        let sidecar = file_path.neighbour(&format!("_c4-docs/{leaf}.md"));
-        let raw = self.repo.read_lesson(&sidecar.source_id, &sidecar.path).await?;
-        Ok(ComponentDoc::parse(&raw))
     }
 
     /// `kind: problem` lessons may carry a `<lesson>.editorial.md` sidecar; its absence is

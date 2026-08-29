@@ -61,9 +61,8 @@ gen-api-types.sh` → `schema.gen.ts` (2,524 L, git-tracked, CI drift-gated at
 detached root Owners in two documented places (`entry.rs:23-28`, `session.rs:44-50`);
 mounts are marker-idempotent (`blocks.rs:42-47`).
 
-**Content plane** — the spine (`synapse-content`: two remaining books, the blog, ONE
-`category.json`, the single LikeC4 `specification {}`, and the gathering build that
-`likec4 validate`s the merged workspace before any image) plus five satellites whose root
+**Content plane** — the spine (`synapse-content`: two remaining books, the blog and ONE
+`category.json` — it builds no image at all since ADR-RS010) plus five satellites whose root
 IS the book. Registration rows own grouping+order; `book.json` owns the slug
 (`migrations/0006:16-18` states why in the schema itself).
 
@@ -134,7 +133,6 @@ gone with the tier. The error finding has a **successor in weakened form**, next
 | Where | Finding | Sev |
 |---|---|---|
 | satellites' `book.json` `order` + registry row `sort_order` + `dev-tools/dev:74-81` | **`order` is stated in three places** with nothing checking agreement. Today they match; a row registered without an order silently falls back to the (stale-able) `book.json` value. | M |
-| `synapse-content/c4-sources.json` | The gathering build's registry fallback is hand-maintained and fires exactly when nobody is watching ("registry unreachable" → warning + fallback). A future `.c4` in a satellite it doesn't list yields a green build with those diagrams missing — and per the landmine list, a missing diagram is invisible from HTTP status. | M |
 | prod Postgres only | **The production registry rows are unverifiable from any repository.** The only checked-in statement of prod placements is a comment-guarded shell array in `dev-tools/dev` ("Placements MATCH PRODUCTION"). The §4 URL-reproduction proof rests on that comment being true. An `/api/admin/content-sources` export checked into the spine (or an e2e against prod) would close it. | M |
 | `dsa-guide` working tree | 26 uncommitted changes incl. lesson deletions (`_05-recursion/**` — underscore-excluded, so no live URL implicated). Prod serves the `main` tarball; the local tree diverges. | [user] |
 | `synapse-content/.gitignore` (uncommitted diff) | A rewrite of the ADR-RS002 first-line protection sits unreviewed in the spine (coverage verified equivalent — `learn-french` moved under `local-only-content/` — but it should be reviewed and committed deliberately). | [user] |
@@ -283,8 +281,9 @@ first-source-wins ordering (§2b), the JS mirrors (§5.3), `order` agreement (§
    real pin.
 6. **Future book migrations** — the machinery held for five books (URL walks proved 227
    URLs exact), but the preconditions remain manual: slug+grouping reproduction has no
-   automated check against prod rows (§2e), and the c4-sources fallback under-reports
-   (§2e). The next cutover re-runs these risks with less novelty and possibly less care.
+   automated check against prod rows (§2e). The diagram half of the precondition is gone —
+   ADR-RS010 retired the merged workspace, so a cutover no longer has to sequence a gathering
+   build. The next one re-runs the remaining risk with less novelty and possibly less care.
 
 ---
 
@@ -388,7 +387,7 @@ plan at `~/.claude/plans/misty-skipping-lecun.md`; this is the map.
 |---|---|---|
 | **1 — Trust the machinery** | 1.1 gate integrity (`fail=1` + bare-path purity greps) · 1.2 CI guard coverage + release gating · 1.3 `astro_url` empty-string guard | The gates protect every later step, so they go first |
 | **2 — Server invariants** | 2.1 first-source-wins gets one home · 2.2 registry policy into the application · 2.3 `Username` newtype · 2.4 error-payload rule + two erasure sites + `RunStatus` storage comment · *(2.5 optional: aggregate encapsulation)* | The real design debt |
-| **3 — Content authority** | 3.1 the row is the sole order authority · 3.2 satellite `book.json` cleanup (platform prepares, user pushes) · 3.3 registry visibility + `c4-sources.json` derived from `/api/c4/sources` | One truth per fact, and make the truth visible |
+| **3 — Content authority** | 3.1 the row is the sole order authority · 3.2 satellite `book.json` cleanup (platform prepares, user pushes) · 3.3 registry visibility | One truth per fact, and make the truth visible |
 | **4 — Web tier & test reach** | 4.1 web tidy quartet · 4.2 admin registry e2e · 4.3 judge-vector mirror pin | Close §2d and the §5.3 asymmetry |
 | **5 — Housekeeping** | 5.1 residue batch (dead `DEFAULT_INTERVAL`, cortex-golden doc drift, stale oracle prose, two island logging gaps) | Trivia, batched |
 

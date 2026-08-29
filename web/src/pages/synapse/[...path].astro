@@ -16,7 +16,7 @@
 // canonical `/synapse/{path}`, and the Open Graph tags Base already emits.
 //
 // The Editorial tab has its own stepper island; the lesson body hydrates quiz/diagram/
-// LikeC4-embed placeholders (`islands/widgets`), the docked problem page's 4th tab is Coach
+// diagram placeholders (`islands/widgets`), the docked problem page's 4th tab is Coach
 // (`islands/coach/CoachPane`), and fence bars carry the codebench modal ("Try in Editor"). The
 // sidebar is structure only here — its interactive faces live in `islands/chrome.ts`.
 import Base from "../../layouts/Base.astro";
@@ -460,7 +460,7 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
     isLesson && payload && (
       <script>
         import "../../islands/reader";
-        // The quiz/diagram/c4 pass, guarded the same way workbench/practice are.
+        // The quiz/diagram pass, guarded the same way workbench/practice are.
         import "../../islands/widgets";
         // The viz loader: no-ops unless the page planted `.viz-widget`s or a workbench
         // variant carries a viz hint — the 280 KiB wasm is fetched lazily, never eagerly.

@@ -48,6 +48,53 @@
    standard idiom: the table keeps its natural column widths and scrolls INSIDE the prose
    column instead of widening the page. Done in CSS rather than by wrapping tables in a div in
    render.ts — that would need a pipeline change and a vitest for no extra benefit. */
+/* ── a collapsed aside: reference material, an editorial, a spoiler ──────────
+   The default marker is a bare triangle against body text, which reads as a paragraph rather
+   than a control — and where the <details> is the only route to the content inside it (a
+   lesson's component reference), missing it means missing the material entirely. So the
+   summary gets a card's affordances: a border, a hover, and a marker that turns. */
+.synapse-prose details {
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  margin: 1.25em 0;
+  background: hsl(var(--muted) / 0.25);
+}
+.synapse-prose summary {
+  cursor: pointer;
+  padding: 0.7em 1em;
+  font-weight: 600;
+  color: var(--text-primary);
+  list-style: none;
+  display: flex;
+  align-items: baseline;
+  gap: 0.6em;
+  border-radius: 8px;
+}
+.synapse-prose summary::-webkit-details-marker { display: none; }
+/* The disclosure triangle, drawn rather than inherited so it can rotate. `flex: none` keeps it
+   from shrinking against a summary long enough to wrap. */
+.synapse-prose summary::before {
+  content: "▸";
+  flex: none;
+  color: hsl(var(--primary));
+  transition: transform 0.15s ease;
+}
+.synapse-prose details[open] > summary::before { transform: rotate(90deg); }
+.synapse-prose summary:hover { background: hsl(var(--muted) / 0.6); }
+.synapse-prose summary:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: -2px; }
+.synapse-prose details[open] > summary {
+  border-bottom: 1px solid hsl(var(--border));
+  border-radius: 8px 8px 0 0;
+}
+/* The body is padded as a unit; the first and last children lose their own margins so the
+   padding is what shows. */
+.synapse-prose details > :not(summary) { margin-left: 1em; margin-right: 1em; }
+.synapse-prose details > :not(summary):first-of-type { margin-top: 1em; }
+.synapse-prose details > :not(summary):last-child { margin-bottom: 1em; }
+@media (prefers-reduced-motion: reduce) {
+  .synapse-prose summary::before { transition: none; }
+}
+
 .synapse-prose table { border-collapse: collapse; margin: 1em 0;
                        display: block; width: max-content; max-width: 100%; overflow-x: auto; }
 .synapse-prose th, .synapse-prose td { border: 1px solid hsl(var(--border)); padding: 0.4em 0.75em; }

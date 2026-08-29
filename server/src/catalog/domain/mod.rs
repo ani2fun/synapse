@@ -3,7 +3,6 @@
 //! infrastructure import in this tree means a port was skipped.
 
 pub mod catalog;
-pub mod component_doc;
 pub mod content_tree;
 pub mod frontmatter;
 pub mod lesson;

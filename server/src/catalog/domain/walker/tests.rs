@@ -438,7 +438,7 @@ fn a_dot_separated_order_prefix_is_still_a_chapter() {
         assert!(includes_as_content(name), "{name} should be content");
     }
     // Only the NUMERIC prefix form. A dot anywhere else is still not a slug.
-    for name in ["foo.bar", "_media", ".git", "examples", "c4", "1.2.3"] {
+    for name in ["foo.bar", "_media", ".git", "examples", "1.2.3"] {
         assert!(!includes_as_content(name), "{name} should not be content");
     }
 

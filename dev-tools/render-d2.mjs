@@ -6,7 +6,7 @@
 //   ```d2         → `_media/d2/<hash>.svg`, one file in a content-addressed pool
 //   ```d2 boards  → `<lesson-dir>/_d2/<name>/`, one SVG per board plus `boards.json`
 //
-// A walkthrough's figures sit beside the lesson that shows them, the way `_c4-docs/` and
+// A walkthrough's figures sit beside the lesson that shows them, the way
 // `<stem>.editorial.md` do, so moving a lesson moves its diagrams and deleting one deletes them.
 //
 // It lives here, in the app repo, rather than in each content repo, because the hash and the
