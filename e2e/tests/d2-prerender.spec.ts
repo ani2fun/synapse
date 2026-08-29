@@ -111,13 +111,13 @@ test.describe("server-drawn (the d2 renderer is up)", () => {
     await page.goto(LESSON);
     const card = page.locator(".diagram--boards");
     await expect(card.locator(".diagram__figure svg").first()).toBeVisible();
-    await expect(card.locator(".boards-bar__here")).toHaveText("Context");
+    await expect(card.locator(".boards-bar__at")).toHaveText("Context");
 
     // Each board links to the next: Context → Inside → Deeper, clicked exactly as a reader does.
     await card.locator(".diagram__figure a").first().click();
-    await expect(card.locator(".boards-bar__here")).toHaveText("Inside");
+    await expect(card.locator(".boards-bar__at")).toHaveText("Inside");
     await card.locator(".diagram__figure a").first().click();
-    await expect(card.locator(".boards-bar__here")).toHaveText("Deeper");
+    await expect(card.locator(".boards-bar__at")).toHaveText("Deeper");
 
     // Shareable, but the page's own Back is untouched — the diagram never pushes history.
     // RETRYING, because the URL is written in an effect and therefore lands a tick after the
@@ -136,16 +136,16 @@ test.describe("server-drawn (the d2 renderer is up)", () => {
     await expect(card.locator(".diagram__figure svg").first()).toBeVisible();
     const bar = card.locator(".boards-bar");
 
-    await expect(card.locator(".boards-bar__here")).toHaveText("Context");
-    await expect(bar.locator('[aria-label="Forward"]')).toBeEnabled();
-    await expect(bar.locator('[aria-label="Back"]')).toBeDisabled();
+    await expect(card.locator(".boards-bar__at")).toHaveText("Context");
+    await expect(bar.locator('[aria-label="Next board"]')).toBeEnabled();
+    await expect(bar.locator('[aria-label="Previous board"]')).toBeDisabled();
     await expect(bar.locator('[aria-label="Root board"]')).toBeDisabled();
 
-    await bar.locator('[aria-label="Forward"]').click();
-    await expect(card.locator(".boards-bar__here")).toHaveText("Inside");
-    await bar.locator('[aria-label="Forward"]').click();
-    await expect(card.locator(".boards-bar__here")).toHaveText("Deeper");
-    await expect(bar.locator('[aria-label="Forward"]')).toBeDisabled(); // the end of the walk
+    await bar.locator('[aria-label="Next board"]').click();
+    await expect(card.locator(".boards-bar__at")).toHaveText("Inside");
+    await bar.locator('[aria-label="Next board"]').click();
+    await expect(card.locator(".boards-bar__at")).toHaveText("Deeper");
+    await expect(bar.locator('[aria-label="Next board"]')).toBeDisabled(); // the end of the walk
   });
 
   test("back, forward and home walk the boards", async ({ page }) => {
@@ -153,14 +153,14 @@ test.describe("server-drawn (the d2 renderer is up)", () => {
     const card = page.locator(".diagram--boards");
     await expect(card.locator(".diagram__figure svg").first()).toBeVisible();
     await card.locator(".diagram__figure a").first().click();
-    await expect(card.locator(".boards-bar__here")).toHaveText("Inside");
+    await expect(card.locator(".boards-bar__at")).toHaveText("Inside");
 
-    await card.getByRole("button", { name: "Back" }).click();
-    await expect(card.locator(".boards-bar__here")).toHaveText("Context");
-    await card.getByRole("button", { name: "Forward" }).click();
-    await expect(card.locator(".boards-bar__here")).toHaveText("Inside");
+    await card.getByRole("button", { name: "Previous board" }).click();
+    await expect(card.locator(".boards-bar__at")).toHaveText("Context");
+    await card.getByRole("button", { name: "Next board" }).click();
+    await expect(card.locator(".boards-bar__at")).toHaveText("Inside");
     await card.getByRole("button", { name: "Root board" }).click();
-    await expect(card.locator(".boards-bar__here")).toHaveText("Context");
+    await expect(card.locator(".boards-bar__at")).toHaveText("Context");
 
     // The root board drops the parameter, so an unopened diagram has the bare lesson URL.
     await expect(page).not.toHaveURL(/[?&]board=/);
@@ -169,7 +169,7 @@ test.describe("server-drawn (the d2 renderer is up)", () => {
   test("a deep link opens the board it names", async ({ page }) => {
     await page.goto(`${LESSON}?board=deeper`);
     const card = page.locator(".diagram--boards");
-    await expect(card.locator(".boards-bar__here")).toHaveText("Deeper");
+    await expect(card.locator(".boards-bar__at")).toHaveText("Deeper");
     // The breadcrumb still reads from the root, so the reader knows where they landed.
     await expect(card.locator(".boards-bar__crumb").first()).toHaveText("Context");
   });
@@ -183,23 +183,23 @@ test.describe("server-drawn (the d2 renderer is up)", () => {
 
     const overlay = page.getByRole("dialog");
     await expect(overlay).toBeVisible();
-    await expect(overlay.locator(".diagram-zoom__chrome .boards-bar__here")).toHaveText("Context");
+    await expect(overlay.locator(".diagram-zoom__chrome .boards-bar__at")).toHaveText("Context");
     await overlay.locator(".diagram-zoom__figure a").first().click();
-    await expect(overlay.locator(".diagram-zoom__chrome .boards-bar__here")).toHaveText("Inside");
+    await expect(overlay.locator(".diagram-zoom__chrome .boards-bar__at")).toHaveText("Inside");
 
     await page.keyboard.press("Escape");
     await expect(overlay).toHaveCount(0);
     // The card behind it followed the same navigation — one state, two views of it.
-    await expect(card.locator(".boards-bar__here")).toHaveText("Inside");
+    await expect(card.locator(".boards-bar__at")).toHaveText("Inside");
   });
 
   test("the board menu jumps straight to any board", async ({ page }) => {
     await page.goto(LESSON);
     const card = page.locator(".diagram--boards");
     await expect(card.locator(".diagram__figure svg").first()).toBeVisible();
-    await card.getByRole("button", { name: "Jump to a board" }).click();
+    await card.locator(".boards-bar__at").click();
     await card.getByRole("option", { name: "Deeper" }).click();
-    await expect(card.locator(".boards-bar__here")).toHaveText("Deeper");
+    await expect(card.locator(".boards-bar__at")).toHaveText("Deeper");
   });
 });
 

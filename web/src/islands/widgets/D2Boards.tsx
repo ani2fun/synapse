@@ -305,105 +305,202 @@ export function D2BoardsCard(props: {
 // same either way, which is what keeps them the thing tests and screen readers address.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** The board list, shared by both controls — the only part of them that is genuinely identical. */
+/** The board list, shared by both controls — the only part of them that is genuinely identical.
+ *
+ *  `eyebrow` and `hint` are the reader control's furniture. Passing NEITHER renders the bare
+ *  `<ul class={listClass}>` this has always rendered, which is what `/d2`'s `.bmenu` is written
+ *  against — it styles that element as the list itself (its own `max-height`, its own scroll), so
+ *  wrapping it unconditionally would quietly override both.
+ *
+ *  Depth indentation is not optional and is inline, so it costs neither skin a rule: a tree
+ *  flattened into a list stops looking like a tree otherwise. */
 function BoardMenu({
   walk,
   listClass,
   itemClass,
+  eyebrow,
+  hint,
 }: {
   walk: BoardWalk;
   listClass: string;
   itemClass: string;
+  eyebrow?: string;
+  hint?: string;
 }) {
   const { index, at, show, setMenuOpen } = walk;
+  const decorated = eyebrow != null || hint != null;
+
+  const items = index.order.map((board) => {
+    // `trail` walks parents to the root, so its length IS the depth — one lookup instead of the
+    // single `parent != null` step this used to make, which flattened every level past the first
+    // into the same indent.
+    const depth = Math.max(0, index.trail(board.id).length - 1);
+    return (
+      <li key={board.id}>
+        <button
+          class={board.id === at ? `${itemClass} ${itemClass}--at` : itemClass}
+          role="option"
+          aria-selected={board.id === at}
+          style={depth === 0 ? undefined : `padding-left: ${10 + depth * 13}px`}
+          onClick={() => {
+            show(board.id);
+            setMenuOpen(false);
+          }}
+        >
+          {decorated && <span class="boards-menu__dot" aria-hidden="true" />}
+          {board.title}
+        </button>
+      </li>
+    );
+  });
+
+  if (!decorated) {
+    return (
+      <ul class={listClass} role="listbox">
+        {items}
+      </ul>
+    );
+  }
+
   return (
-    <ul class={listClass} role="listbox">
-      {index.order.map((board) => (
-        <li key={board.id}>
-          <button
-            class={board.id === at ? `${itemClass} ${itemClass}--at` : itemClass}
-            role="option"
-            aria-selected={board.id === at}
-            // Depth reads as indentation, so a tree stays a tree in a flat list.
-            style={board.parent == null ? undefined : "padding-left: 22px"}
-            onClick={() => {
-              show(board.id);
-              setMenuOpen(false);
-            }}
-          >
-            {board.title}
-          </button>
-        </li>
-      ))}
-    </ul>
+    <div class={listClass}>
+      {eyebrow != null && <div class="boards-menu__eyebrow">{eyebrow}</div>}
+      <ul class="boards-menu__list" role="listbox">
+        {items}
+      </ul>
+      {hint != null && <div class="boards-menu__hint">{hint}</div>}
+    </div>
+  );
+}
+
+/** The transport's glyphs, inline so they inherit `currentColor` and need no icon font. */
+const CHEVRON_LEFT = "m15 18-6-6 6-6";
+const CHEVRON_RIGHT = "m9 18 6-6-6-6";
+const CHEVRON_DOWN = "m6 9 6 6 6-6";
+
+function Glyph({ d, size = 16 }: { d: string; size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d={d} />
+    </svg>
+  );
+}
+
+function HomeGlyph() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+      <path d="M9 22V12h6v10" />
+    </svg>
   );
 }
 
 /** The reader's control: it sits under the figure in a lesson, in the transport's own idiom. */
 export function BoardChrome({ walk }: { walk: BoardWalk }) {
   const { index, history, at, menuOpen, setMenuOpen, show, back, forward, home } = walk;
-  const trail = index.trail(at);
 
   if (!canNavigate(index)) return null;
 
+  // Ancestors only. The board you are ON is the menu button below, so repeating it here would put
+  // the answer to "where am I" at one end of the bar and the way to change it at the other.
+  const ancestors = index.trail(at).slice(0, -1);
+  // The counter reads off `index.order` — the same array the arrows step — so the readout and the
+  // transport can never disagree about how far along the walk you are.
+  const pos = index.order.findIndex((board) => board.id === at) + 1;
+  const pad = (n: number) => String(n).padStart(2, "0");
+
   return (
     <div class="boards-bar">
-      <div class="transport boards-bar__nav">
-        <button class="transport__btn" aria-label="Back" title="Back" disabled={!canStepBack(index, history)} onClick={back}>
-          ‹
+      <div class="boards-bar__nav">
+        <button
+          class="boards-bar__btn"
+          aria-label="Previous board"
+          title="Previous board"
+          disabled={!canStepBack(index, history)}
+          onClick={back}
+        >
+          <Glyph d={CHEVRON_LEFT} />
         </button>
         <button
-          class="transport__btn"
-          aria-label="Forward"
-          title="Forward"
+          class="boards-bar__btn"
+          aria-label="Next board"
+          title="Next board"
           disabled={!canStepForward(index, history)}
           onClick={forward}
         >
-          ›
+          <Glyph d={CHEVRON_RIGHT} />
         </button>
         <button
-          class="transport__btn"
+          class="boards-bar__btn"
           aria-label="Root board"
           title="Root board"
           disabled={at === index.root}
           onClick={home}
         >
-          ⌂
+          <HomeGlyph />
         </button>
       </div>
-      <nav class="boards-bar__trail" aria-label="Diagram breadcrumb">
-        {trail.map((board: BoardMeta, i: number) => (
-          <span key={board.id}>
-            {i > 0 && (
-              <span class="boards-bar__sep" aria-hidden="true">
-                ›
+
+      <div class="boards-bar__where">
+        <span class="boards-bar__rule" aria-hidden="true" />
+        {ancestors.length > 0 && (
+          <nav class="boards-bar__trail" aria-label="Diagram breadcrumb">
+            {ancestors.map((board: BoardMeta) => (
+              <span key={board.id}>
+                <button class="boards-bar__crumb" onClick={() => show(board.id)}>
+                  {board.title}
+                </button>
+                <span class="boards-bar__sep" aria-hidden="true">
+                  /
+                </span>
               </span>
-            )}
-            {board.id === at ? (
-              <span class="boards-bar__here" aria-current="true">
-                {board.title}
-              </span>
-            ) : (
-              <button class="boards-bar__crumb" onClick={() => show(board.id)}>
-                {board.title}
-              </button>
-            )}
-          </span>
-        ))}
-      </nav>
-      <div class="boards-bar__menu">
+            ))}
+          </nav>
+        )}
         <button
-          class="transport__btn"
+          class="boards-bar__at"
           aria-haspopup="listbox"
           aria-expanded={menuOpen}
-          aria-label="Jump to a board"
           title="Jump to a board"
           onClick={() => setMenuOpen(!menuOpen)}
         >
-          ☰
+          {index.get(at)?.title ?? ""}
+          <Glyph d={CHEVRON_DOWN} size={14} />
         </button>
+      </div>
+
+      <div class="boards-bar__end">
+        <span class="boards-bar__count">
+          {pad(pos)} / {pad(index.order.length)}
+        </span>
         {menuOpen && (
-          <BoardMenu walk={walk} listClass="boards-menu" itemClass="boards-menu__item" />
+          <BoardMenu
+            walk={walk}
+            listClass="boards-menu"
+            itemClass="boards-menu__item"
+            eyebrow="Boards"
+            hint="← → step · esc close"
+          />
         )}
       </div>
     </div>
