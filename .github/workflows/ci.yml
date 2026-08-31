@@ -281,7 +281,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           # From go.mod, so the compiler here is the one the Dockerfile and a local build use.
           go-version-file: d2-render/go.mod
@@ -391,7 +391,7 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       # `dev-tools/e2e` builds and starts the d2 renderer for the server-drawn pass.
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: d2-render/go.mod
           cache-dependency-path: d2-render/go.sum
