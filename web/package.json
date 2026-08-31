@@ -12,7 +12,7 @@
     "@astrojs/node": "^11.1.4",
     "@astrojs/preact": "^6.0.4",
     "@terrastruct/d2": "^0.1.33",
-    "astro": "^7.2.7",
+    "astro": "^7.2.9",
     "keycloak-js": "^26.2.4",
     "mdast-util-to-hast": "^13.2.0",
     "mermaid": "^11.17.0",
