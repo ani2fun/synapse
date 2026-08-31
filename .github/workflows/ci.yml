@@ -246,7 +246,7 @@ jobs:
         with:
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2.86.6
+      - uses: taiki-e/install-action@v2.87.0
         with:
           tool: cargo-llvm-cov
       - name: coverage (server + shared lines ≥ floor)
@@ -309,7 +309,7 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2.86.6
+      - uses: taiki-e/install-action@v2.87.0
         with:
           tool: wasm-bindgen@0.2.126
       - uses: actions/setup-node@v7
@@ -395,7 +395,7 @@ jobs:
         with:
           go-version-file: d2-render/go.mod
           cache-dependency-path: d2-render/go.sum
-      - uses: taiki-e/install-action@v2.86.6
+      - uses: taiki-e/install-action@v2.87.0
         with:
           tool: wasm-bindgen@0.2.126
       - name: wasm-opt (binaryen, upstream — NOT apt)
