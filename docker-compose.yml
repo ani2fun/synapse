@@ -58,6 +58,11 @@ services:
     build: ./runner/go-judge
     restart: unless-stopped
     privileged: true
+    # Docker's default private cgroup namespace puts the container at the root of its OWN
+    # namespace, so /proc/self/cgroup reads "0::/" with nothing to nest under — go-judge needs
+    # its real path in the surrounding cgroup tree (Docker Desktop's own Linux VM, not the Mac
+    # host) to create the per-submission cgroups it sandboxes code with, or it fatals at boot.
+    cgroup: host
     ports:
       - "127.0.0.1:5150:5050"
 
