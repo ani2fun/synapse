@@ -11,6 +11,7 @@
 pub mod api;
 pub mod authoring;
 pub mod blog;
+pub mod canvas;
 pub mod catalog;
 pub mod execution;
 pub mod identity;

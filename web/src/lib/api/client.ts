@@ -22,6 +22,10 @@ export type SubmissionAccepted = components["schemas"]["SubmissionAcceptedDto"];
 export type Submission = components["schemas"]["SubmissionDto"];
 export type DeleteResult = components["schemas"]["DeleteResultDto"];
 export type ProgressList = components["schemas"]["ProgressListDto"];
+export type CanvasBodyWire = components["schemas"]["CanvasBodyDto"];
+export type CanvasIdeaWire = components["schemas"]["CanvasIdeaDto"];
+export type CanvasEntry = components["schemas"]["CanvasEntryDto"];
+export type SaveCanvasRequest = components["schemas"]["SaveCanvasRequestDto"];
 export type Me = components["schemas"]["MeDto"];
 export type AuthConfig = components["schemas"]["AuthConfigDto"];
 export type SearchResults = components["schemas"]["SearchResultsDto"];
@@ -259,6 +263,30 @@ export async function markProgress(path: string): Promise<string[]> {
 export async function unmarkProgress(path: string): Promise<string[]> {
   const encoded = path.split("/").map(encodeURIComponent).join("/");
   return (await del<ProgressList>(`/api/progress/${encoded}`)).completed;
+}
+
+// ── the design canvas ───────────────────────────────────────────────────────────────────────
+// The reader's PLAN for a problem, saved the way their code is. The list ships full bodies, so
+// opening a saved entry costs no second request.
+
+/** The caller's OWN canvas entries for one problem, newest first (anonymous → `[]`). */
+export function canvasEntriesFor(path: string[]): Promise<CanvasEntry[]> {
+  return get<CanvasEntry[]>(`/api/canvas?path=${path.join("/")}`);
+}
+
+/** Save one entry — the 201 carries the stored row, whose id and timestamp the store minted. */
+export function saveCanvasEntry(request: SaveCanvasRequest): Promise<CanvasEntry> {
+  return post<CanvasEntry>("/api/canvas", request);
+}
+
+/** Owner-only delete; a 403 means the id exists but is someone else's. */
+export function deleteCanvasEntry(id: string): Promise<DeleteResult> {
+  return del<DeleteResult>(`/api/canvas/${id}`);
+}
+
+/** Erase every canvas entry of the caller — the account page's "erase my data" leg. */
+export function eraseCanvasEntries(): Promise<DeleteResult> {
+  return del<DeleteResult>("/api/canvas");
 }
 
 /** Reset the caller's progress — clears every ✓ tick server-side; submissions are untouched. */

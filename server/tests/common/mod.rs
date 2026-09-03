@@ -12,6 +12,7 @@ use synapse_server::authoring::infrastructure::{
 };
 use synapse_server::blog::application::BlogService;
 use synapse_server::blog::infrastructure::FileSystemBlogRepository;
+use synapse_server::canvas::PostgresCanvasStore;
 use synapse_server::catalog::application::CatalogService;
 use synapse_server::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
 use synapse_server::catalog::infrastructure::{FileSystemContentRepository, MountedSources, SourceRoot};
@@ -115,6 +116,7 @@ where
         blog: base.blog,
         limiter: base.limiter,
         progress: base.progress,
+        canvas: base.canvas,
         astro_url: base.astro_url,
         site_url: base.site_url,
         mounted: base.mounted,
@@ -140,6 +142,7 @@ pub fn deps_with(
         pool.clone(),
     ));
     let progress = Arc::new(PostgresProblemProgress::new(pool.clone()));
+    let canvas = Arc::new(PostgresCanvasStore::new(pool.clone()));
     let editors = Arc::new(PostgresContentEditors::new(pool.clone()));
     let edit_requests = Arc::new(PostgresEditRequests::new(pool.clone()));
     // Gate OFF (the dev default) — the gate tests exercise it over in-memory fakes.
@@ -196,6 +199,7 @@ pub fn deps_with(
         allowlist,
         views,
         progress,
+        canvas,
         // The dev default: coach OFF — chat is a structural 404 (the tutor ITs build their own).
         tutor: TutorRoutesState {
             service: Arc::new(TutoringService::new(OllamaTutorClient::new(

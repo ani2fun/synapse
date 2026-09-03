@@ -185,6 +185,7 @@ function clearReaderStorage(): void {
   // and cannot sit in the list above.
   if (state.kind === "authed") {
     storage.removeByPrefix(`${storage.CODEBENCH_DRAFT_PREFIX}${state.me.username}:`);
+    storage.removeByPrefix(`${storage.CANVAS_DRAFT_PREFIX}${state.me.username}:`);
   }
 }
 
@@ -203,9 +204,12 @@ export async function resetProgress(): Promise<number> {
   return result.deleted;
 }
 
-/** Erase server data (submissions + progress) AND this browser's reading state, then reload. */
+/** Erase server data (submissions + canvas entries + progress) AND this browser's reading
+ *  state, then reload. Every store the account owns is named here — a leg left out is data that
+ *  outlives the erase that promised to remove it. */
 export async function eraseAllData(): Promise<void> {
   await api.eraseSubmissions();
+  await api.eraseCanvasEntries();
   await api.resetProgress();
   clearReaderStorage();
   window.location.reload();
@@ -214,6 +218,7 @@ export async function eraseAllData(): Promise<void> {
 /** Erase → delete → sign out; any failed leg throws before the next, stopping the chain. */
 export async function deleteAccount(): Promise<void> {
   await api.eraseSubmissions();
+  await api.eraseCanvasEntries();
   await api.resetProgress();
   await api.deleteMe();
   clearReaderStorage();

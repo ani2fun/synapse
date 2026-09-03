@@ -1,0 +1,337 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   THE THINK PANE — the Algorithm Design Canvas over a problem's workbench, plus
+   the right pane's Think | Code tab bar. Tokens only (tokens.css): the canvas
+   renders in both themes without a single literal colour.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── the right pane's tab bar: the left pane's `.problem-tab` idiom, so the two bars in one
+      frame read as one control rather than two ── */
+.pwb__rtabs { display: flex; align-items: center; gap: 6px; flex: 0 0 auto;
+              padding: 10px 14px 0; border-bottom: 1px solid hsl(var(--border)); }
+.pwb__rtab { position: relative; display: inline-flex; align-items: center; gap: 6px;
+             padding: 7px 12px 9px; border: 0; background: transparent; cursor: pointer;
+             border-radius: 8px 8px 0 0; font-size: 13px; font-weight: 600;
+             color: hsl(var(--muted-foreground)); transition: color 120ms var(--ease-out); }
+.pwb__rtab-ic { width: 15px; height: 15px; opacity: 0.75; flex: 0 0 auto; }
+.pwb__rtab:hover { color: hsl(var(--primary)); }
+.pwb__rtab--active { color: hsl(var(--primary)); background: hsl(var(--primary) / 0.08); }
+.pwb__rtab--active .pwb__rtab-ic { opacity: 1; }
+.pwb__rtab--active::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px;
+                            height: 2px; border-radius: 2px; background: hsl(var(--primary)); }
+
+/* ── the default-mode pin: which side every problem OPENS on ── */
+.pwb__rtabs-spacer { flex: 1 1 auto; }
+.pwb__rpin { display: inline-flex; align-items: center; gap: 5px; height: 24px; margin-bottom: 6px;
+             padding: 0 9px; border: 1px solid hsl(var(--border)); border-radius: 999px;
+             background: transparent; cursor: pointer; font-family: var(--font-mono);
+             font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase;
+             color: hsl(var(--muted-foreground)); white-space: nowrap;
+             transition: color 120ms var(--ease-out), background 120ms var(--ease-out),
+                         border-color 120ms var(--ease-out); }
+.pwb__rpin-ic { width: 12px; height: 12px; flex: 0 0 auto; }
+.pwb__rpin:hover { border-color: hsl(var(--primary) / 0.5); color: hsl(var(--primary)); }
+/* Pressed = this tab is ALREADY the default. The filled state is a readout, not just feedback:
+   it is how the reader learns what the current setting is without clicking to find out. */
+.pwb__rpin--on { border-color: hsl(var(--primary) / 0.45); background: hsl(var(--primary) / 0.1);
+                 color: hsl(var(--primary)); }
+.pwb__rpin--on .pwb__rpin-ic { fill: hsl(var(--primary) / 0.2); }
+@container (max-width: 420px) {
+  .pwb__rpin-text { display: none; }
+  .pwb__rpin { padding: 0 7px; }
+}
+.pwb__rtabs { container-type: inline-size; }
+
+/* ── the nudge beside the problem title ── */
+.pwb__head-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.pwb__plan-pill { display: inline-flex; align-items: center; gap: 8px; padding: 5px 11px;
+                  border: 1px solid hsl(var(--primary) / 0.35); background: hsl(var(--primary) / 0.08);
+                  border-radius: 999px; font-size: 12.5px; line-height: 1.3;
+                  color: hsl(var(--muted-foreground)); text-wrap: pretty; }
+.pwb__plan-pill strong { font-weight: 600; color: hsl(var(--foreground)); }
+.pwb__plan-ic { width: 14px; height: 14px; flex: 0 0 auto; color: hsl(var(--primary)); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   THE CANVAS
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.pcanvas { display: flex; flex-direction: column; gap: 10px; flex: 1 1 auto; min-height: 0; }
+
+/* Full screen: the canvas is a planning surface, and planning wants the whole window. `fixed`
+   escapes the pane's clipping entirely, so nothing above it needs a z-index of its own.
+   No padding-top here either, and for the same reason as the pane below — this is a scroller with
+   a sticky child, so the top gutter has to belong to the bar or content shows through it. */
+.pcanvas--expanded { position: fixed; inset: 0; z-index: 80; padding: 0 22px 22px;
+                     background: hsl(var(--background)); overflow-y: auto; }
+/* Over the plain overlay there is no card layer to match — just the page. */
+.pcanvas--expanded .pcanvas__bar { padding-top: 18px; background: hsl(var(--background)); }
+
+/* ── the header strip ──
+   Sticky at top: 0 of the Think pane, and it owns the pane's TOP GUTTER rather than sitting below
+   one. A `padding-top` on the scroll container is a strip the sticky child pins beneath and can
+   never cover, so scrolled content slides through it — a sliver of the canvas visible above its
+   own header. The gutter is the bar's padding instead, which its background paints over.
+   The background is the pane's own surface, not the page's: `.pwb__panes` lays `--card` at 40%
+   over the page, so painting plain `--background` here would be a subtly darker rectangle sitting
+   on a lighter one. The gradient is that 40% card composited to an OPAQUE layer — the bar must be
+   opaque to hide what scrolls under it, and this is the colour that hiding should be. */
+.pcanvas__bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center;
+                gap: 10px; flex-wrap: wrap; flex: 0 0 auto; padding: 12px 0 8px;
+                background: linear-gradient(hsl(var(--card) / 0.4), hsl(var(--card) / 0.4)),
+                            hsl(var(--background)); }
+.pcanvas__bar-title { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+                      letter-spacing: 0.14em; text-transform: uppercase;
+                      color: hsl(var(--muted-foreground)); }
+.pcanvas__bar-spacer { flex: 1 1 auto; }
+.pcanvas__meter { width: 78px; height: 4px; border-radius: 999px; background: hsl(var(--muted));
+                  overflow: hidden; flex: 0 0 auto; }
+.pcanvas__meter-fill { display: block; height: 100%; border-radius: 999px;
+                       background: hsl(var(--primary));
+                       transition: width 200ms var(--ease-out); }
+.pcanvas__meter-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em;
+                        color: hsl(var(--muted-foreground)); }
+
+/* ── the Canvas | Saved segmented control ── */
+.pcanvas__seg { display: inline-flex; align-items: center; gap: 2px; padding: 2px;
+                border: 1px solid hsl(var(--border)); border-radius: 999px;
+                background: hsl(var(--card)); }
+.pcanvas__seg-btn { height: 24px; padding: 0 11px; border: 0; border-radius: 999px;
+                    background: transparent; cursor: pointer; font-family: var(--font-mono);
+                    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+                    color: hsl(var(--muted-foreground)); white-space: nowrap; }
+.pcanvas__seg-btn--on { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+
+/* ── the header's buttons ── */
+.pcanvas__btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px;
+                border: 1px solid hsl(var(--border)); border-radius: 9px; background: transparent;
+                cursor: pointer; font-family: var(--font-mono); font-size: 10.5px;
+                letter-spacing: 0.1em; text-transform: uppercase;
+                color: hsl(var(--muted-foreground)); white-space: nowrap;
+                transition: color 120ms var(--ease-out), background 120ms var(--ease-out); }
+.pcanvas__btn:hover { background: hsl(var(--muted) / 0.7); color: hsl(var(--foreground)); }
+.pcanvas__btn--primary { border-color: transparent; background: hsl(var(--primary));
+                         color: hsl(var(--primary-foreground)); padding: 0 13px; }
+.pcanvas__btn--primary:hover { background: hsl(var(--primary) / 0.88);
+                               color: hsl(var(--primary-foreground)); }
+.pcanvas__btn--danger:hover { color: hsl(var(--destructive));
+                              border-color: hsl(var(--destructive) / 0.5); }
+.pcanvas__btn--icon { width: 30px; padding: 0; justify-content: center; }
+.pcanvas__btn--icon svg { width: 14px; height: 14px; }
+.pcanvas__btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.pcanvas__btn:disabled:hover { background: transparent; color: hsl(var(--muted-foreground)); }
+
+/* ── the "reading a saved entry" banner ── */
+.pcanvas__viewing { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 0 0 auto;
+                    padding: 8px 12px; border: 1px solid hsl(var(--primary) / 0.35);
+                    background: hsl(var(--primary) / 0.08); border-radius: var(--radius-sm); }
+.pcanvas__viewing-label { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.1em;
+                          text-transform: uppercase; color: hsl(var(--primary)); }
+.pcanvas__viewing-title { font-size: 13px; color: hsl(var(--foreground)); }
+
+.pcanvas__body { flex: 1 1 auto; min-height: 0; }
+
+/* ── the grid: Problem across the top, then the pairs and triples the method groups ── */
+.pcanvas__grid { display: flex; flex-direction: column; gap: 10px; }
+.pcanvas__row { display: grid; gap: 10px; }
+.pcanvas__row--2 { grid-template-columns: 1fr 1fr; }
+.pcanvas__row--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* Container queries resolve against the pane's own width, so the canvas collapses when the
+   SPLITTER squeezes it, not only when the window narrows. */
+.pcanvas__grid { container-type: inline-size; }
+@container (max-width: 620px) {
+  .pcanvas__row--2, .pcanvas__row--3 { grid-template-columns: 1fr; }
+}
+
+/* ── one area card ── */
+.pcanvas__card { display: flex; flex-direction: column; gap: 7px; min-width: 0;
+                 padding: 11px 13px; border: 1px solid hsl(var(--border));
+                 border-radius: var(--radius-md); background: hsl(var(--card)); }
+.pcanvas__card-head { display: flex; align-items: center; gap: 6px; }
+.pcanvas__card-title { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+                       letter-spacing: 0.14em; text-transform: uppercase;
+                       color: hsl(var(--muted-foreground)); }
+.pcanvas__card-hint { margin-left: auto; font-family: var(--font-mono); font-size: 9px;
+                      letter-spacing: 0.12em; text-transform: uppercase;
+                      color: hsl(var(--muted-foreground)); opacity: 0.8; }
+.pcanvas__card-spacer { flex: 1 1 auto; }
+
+/* The ℹ️ is the whole point of the guidance feature — it is how a reader who does not yet know
+   what belongs in an area finds out. Sized to be SEEN and hit (24px target, 18px glyph) and given
+   a resting colour that reads as a control rather than as punctuation after the label. */
+.pcanvas__info { width: 24px; height: 24px; display: inline-flex; align-items: center;
+                 justify-content: center; border: 0; border-radius: 7px;
+                 background: hsl(var(--primary) / 0.09); color: hsl(var(--primary) / 0.85);
+                 cursor: pointer; flex: 0 0 auto;
+                 transition: background 120ms var(--ease-out), color 120ms var(--ease-out); }
+.pcanvas__info svg { width: 18px; height: 18px; }
+.pcanvas__info:hover, .pcanvas__info:focus-visible { background: hsl(var(--primary) / 0.18);
+                                                     color: hsl(var(--primary)); }
+
+.pcanvas__field { width: 100%; resize: vertical; border: 0; outline: none; padding: 0;
+                  background: transparent; font-family: var(--font-mono); font-size: 12.5px;
+                  line-height: 1.65; color: hsl(var(--foreground)); }
+.pcanvas__field--sm { min-height: 56px; }
+.pcanvas__field--md { min-height: 92px; }
+.pcanvas__field--lg { min-height: 120px; }
+.pcanvas__field:read-only { color: hsl(var(--muted-foreground)); }
+
+/* ── placeholders read as PROMPTS, never as content ──
+   An empty canvas is the normal state of one being worked on, so the hints have to be legible —
+   but rendered in the same mono face and size as real writing they look like text somebody
+   already typed, and the reader cannot tell a filled area from an empty one without reading it.
+   The face is what fixes that: content is monospace, hints are sans. That reads at a glance,
+   before a single word is parsed, and it survives the size and colour being tuned later.
+   Colour and size only reinforce it. `opacity` is set explicitly because Firefox applies its own
+   default to ::placeholder and would otherwise fade these twice. */
+.pcanvas__field::placeholder,
+.pcanvas__idea-name::placeholder,
+.pcanvas__cost input::placeholder {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+  opacity: 0.62;
+}
+.pcanvas__cost input::placeholder { font-size: 11px; }
+/* A focused field is the one being written in — the prompt steps further back rather than
+   competing with the caret. */
+.pcanvas__field:focus::placeholder,
+.pcanvas__idea-name:focus::placeholder,
+.pcanvas__cost input:focus::placeholder { opacity: 0.38; }
+
+/* ── chips: a prompt you finish typing, so they are dashed rather than solid ── */
+.pcanvas__chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.pcanvas__chip { flex: 0 0 auto; padding: 3px 8px; border: 1px dashed hsl(var(--border));
+                 border-radius: 999px; background: transparent; cursor: pointer;
+                 font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.08em;
+                 text-transform: uppercase; color: hsl(var(--muted-foreground));
+                 white-space: nowrap; }
+.pcanvas__chip:hover { border-color: hsl(var(--primary)); color: hsl(var(--primary)); }
+.pcanvas__chip--add { margin-left: auto; padding: 3px 9px; letter-spacing: 0.1em; }
+
+/* ── ideas ── */
+.pcanvas__idea { display: grid; grid-template-columns: minmax(0, 1fr) 104px; gap: 8px;
+                 padding: 9px 10px; border: 1px solid hsl(var(--border) / 0.7);
+                 border-radius: var(--radius-sm); background: hsl(var(--muted) / 0.35); }
+.pcanvas__idea-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pcanvas__idea-head { display: flex; align-items: center; gap: 6px; }
+.pcanvas__idea-name { flex: 1 1 auto; min-width: 0; height: 24px; border: 0; outline: none;
+                      background: transparent; font-family: var(--font-mono); font-size: 10.5px;
+                      font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase;
+                      color: hsl(var(--primary)); }
+.pcanvas__idea-drop { width: 20px; height: 20px; display: inline-flex; align-items: center;
+                      justify-content: center; border: 0; border-radius: 6px; background: transparent;
+                      color: hsl(var(--muted-foreground)); cursor: pointer; }
+.pcanvas__idea-drop svg { width: 13px; height: 13px; }
+.pcanvas__idea-drop:hover { background: hsl(var(--destructive) / 0.12);
+                            color: hsl(var(--destructive)); }
+.pcanvas__idea-cost { display: flex; flex-direction: column; gap: 6px; }
+.pcanvas__cost { display: flex; align-items: center; gap: 5px; }
+.pcanvas__cost-key { width: 12px; font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+                     color: hsl(var(--muted-foreground)); cursor: help; }
+.pcanvas__cost input { flex: 1 1 auto; min-width: 0; height: 26px; padding: 0 7px; outline: none;
+                       border: 1px solid hsl(var(--border)); border-radius: 8px;
+                       background: hsl(var(--card)); font-family: var(--font-mono);
+                       font-size: 11.5px; color: hsl(var(--foreground)); }
+@container (max-width: 460px) {
+  .pcanvas__idea { grid-template-columns: 1fr; }
+  .pcanvas__idea-cost { flex-direction: row; }
+}
+
+/* ── the footer ── */
+.pcanvas__foot { display: flex; align-items: center; gap: 10px; padding: 2px 2px 6px; }
+.pcanvas__foot-note { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.1em;
+                      text-transform: uppercase; color: hsl(var(--muted-foreground)); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   THE SAVED VIEW
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.pcanvas__note { font-size: 13.5px; color: hsl(var(--muted-foreground)); }
+.pcanvas__note--error { color: hsl(var(--status-err)); }
+
+.pcanvas__empty { padding: 28px; text-align: center; border: 1px dashed hsl(var(--border));
+                  border-radius: var(--radius-md); }
+.pcanvas__empty-label { margin: 0 0 6px; font-family: var(--font-mono); font-size: 11px;
+                        letter-spacing: 0.12em; text-transform: uppercase;
+                        color: hsl(var(--muted-foreground)); }
+.pcanvas__empty-body { margin: 0; font-size: 13.5px; color: hsl(var(--muted-foreground)); }
+.pcanvas__empty-body strong { color: hsl(var(--foreground)); }
+
+.pcanvas__table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.pcanvas__table th { text-align: left; padding: 6px 10px; font-family: var(--font-mono);
+                     font-size: 10.5px; font-weight: 600; letter-spacing: 0.12em;
+                     text-transform: uppercase; color: hsl(var(--muted-foreground));
+                     border-bottom: 1px solid hsl(var(--border)); }
+.pcanvas__th--end { text-align: right; }
+.pcanvas__table td { padding: 10px; border-bottom: 1px solid hsl(var(--border) / 0.5);
+                     color: hsl(var(--foreground)); }
+.pcanvas__td--no { width: 34px; color: hsl(var(--muted-foreground)); }
+.pcanvas__td--mono { font-family: var(--font-mono); font-size: 12px;
+                     color: hsl(var(--muted-foreground)); }
+.pcanvas__td--when { font-size: 11.5px; color: hsl(var(--muted-foreground)); }
+.pcanvas__actions { display: flex; justify-content: flex-end; gap: 4px; }
+.pcanvas__icon { width: 26px; height: 26px; display: inline-flex; align-items: center;
+                 justify-content: center; border: 1px solid hsl(var(--border)); border-radius: 8px;
+                 background: transparent; color: hsl(var(--muted-foreground)); cursor: pointer; }
+.pcanvas__icon svg { width: 13px; height: 13px; }
+.pcanvas__icon:hover { color: hsl(var(--primary)); border-color: hsl(var(--primary)); }
+.pcanvas__icon--danger:hover { color: hsl(var(--destructive));
+                               border-color: hsl(var(--destructive) / 0.5); }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   THE INFO MODAL + THE TOAST
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.pcanvas__scrim { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center;
+                  justify-content: center; padding: 24px;
+                  background: hsl(var(--foreground) / 0.25); backdrop-filter: blur(3px); }
+.pcanvas__modal { width: min(560px, 100%); max-height: 80vh; overflow-y: auto; padding: 20px 22px;
+                  border: 1px solid hsl(var(--border)); border-radius: var(--radius-lg);
+                  background: hsl(var(--card)); box-shadow: var(--shadow-xl); }
+.pcanvas__modal-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.pcanvas__modal-eyebrow { margin: 0 0 4px; font-family: var(--font-mono); font-size: 10px;
+                          letter-spacing: 0.14em; text-transform: uppercase;
+                          color: hsl(var(--primary)); }
+.pcanvas__modal-title { margin: 0; font-family: var(--font-display); font-style: italic;
+                        font-weight: 400; font-size: 26px; line-height: 1;
+                        color: hsl(var(--foreground)); }
+.pcanvas__modal-close { margin-left: auto; width: 28px; height: 28px; display: inline-flex;
+                        align-items: center; justify-content: center; font-size: 18px;
+                        line-height: 1; border: 1px solid hsl(var(--border)); border-radius: 8px;
+                        background: transparent; color: hsl(var(--muted-foreground));
+                        cursor: pointer; flex: 0 0 auto; }
+.pcanvas__modal-close:hover { background: hsl(var(--muted)); }
+.pcanvas__modal-what { margin: 0 0 14px; font-family: var(--font-read); font-size: 15px;
+                       line-height: 1.65; color: hsl(var(--foreground) / 0.86); }
+.pcanvas__modal-label { margin: 0 0 8px; font-family: var(--font-mono); font-size: 10px;
+                        letter-spacing: 0.14em; text-transform: uppercase;
+                        color: hsl(var(--muted-foreground)); }
+.pcanvas__modal-list { margin: 0 0 16px; padding-left: 20px; font-family: var(--font-read);
+                       font-size: 14.5px; line-height: 1.6; color: hsl(var(--foreground) / 0.86); }
+.pcanvas__modal-list li { margin: 4px 0; }
+.pcanvas__modal-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.pcanvas__modal-link { display: inline-flex; align-items: center; gap: 7px; padding: 7px 11px;
+                       border: 1px solid hsl(var(--primary) / 0.4); border-radius: 9px;
+                       font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em;
+                       text-transform: uppercase; color: hsl(var(--primary));
+                       text-decoration: none; }
+.pcanvas__modal-link svg { width: 13px; height: 13px; flex: 0 0 auto; }
+.pcanvas__modal-link:hover { background: hsl(var(--primary) / 0.08); }
+/* The source is secondary to the in-app lesson beside it — same shape, quieter. */
+.pcanvas__modal-link--source { border-color: hsl(var(--border));
+                               color: hsl(var(--muted-foreground)); }
+.pcanvas__modal-link--source:hover { background: hsl(var(--muted) / 0.7);
+                                     color: hsl(var(--foreground)); }
+
+.pcanvas__toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+                  z-index: 95; display: flex; align-items: center; gap: 9px; padding: 9px 15px;
+                  border-radius: 999px; background: hsl(var(--foreground));
+                  color: hsl(var(--background)); font-family: var(--font-mono); font-size: 11px;
+                  letter-spacing: 0.08em; text-transform: uppercase; box-shadow: var(--shadow-lg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pcanvas__meter-fill { transition: none; }
+}

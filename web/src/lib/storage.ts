@@ -77,6 +77,13 @@ export const READER_SIDEBAR_KEY = "reader-sidebar";
 export const PROBLEM_PANE_KEY = "problem-pane";
 /** The problem workbench's remembered editorial approach tab. */
 export const PROBLEM_APPROACH_KEY = "problem-approach";
+/** Which side of the workbench a problem OPENS on — `"think"` or `"code"`. Absent means Think,
+ *  because the method the page is built around says the plan comes first.
+ *
+ *  Written only by the explicit pin, never by switching tabs: peeking at the editor is not the
+ *  same statement as "this is how I want to start", and a preference a casual click can
+ *  overwrite is not a preference. */
+export const PROBLEM_MODE_KEY = "problem-mode";
 /** The runnable block's remembered language tab. */
 export const WB_LANGUAGE_KEY = "wb-language";
 /** `"dark" | "light"` — read pre-paint by `Base.astro`'s inline bootstrap script too. */
@@ -98,3 +105,8 @@ export const CONTENT_DRAFT_PREFIX = "content-draft:";
  *  other's draft, a draft never surfaces under another account, and an edit to the lesson retires
  *  the draft that no longer applies. See islands/widgets/codebenchDraft. */
 export const CODEBENCH_DRAFT_PREFIX = "codebench-draft:";
+/** The design canvas's in-progress draft — a key PREFIX. The username and the problem path
+ *  are appended (`canvas-draft:<username>:<problem-path>`), so a draft never surfaces under
+ *  another account and two problems never overwrite each other. SAVED entries are not here:
+ *  they are the account's, in Postgres, the way submissions are. See islands/canvas/draft. */
+export const CANVAS_DRAFT_PREFIX = "canvas-draft:";
