@@ -1,0 +1,19 @@
+caption: "heap.append(v)   # then sift up to restore the heap property" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+heap: "Binary min-heap" {
+  grid-rows: 2
+  grid-gap: 0
+  c0: "10"
+  c1: "20"
+  c2: "30" { style.fill: "#e1f4eb"; style.stroke: "#307e57" }
+  i0: 0 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+  i1: 1 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+  i2: 2 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+}
+
+direction: down
+n0: "10"
+n1: "20"
+n2: "30" { style.fill: "#e1f4eb"; style.stroke: "#307e57" }
+n0 -> n1: "left"
+n0 -> n2: "right"

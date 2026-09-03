@@ -8,12 +8,15 @@
  *   · it has planted `.viz-widget`s (authored ```viz fences) — load when the FIRST one nears
  *     the viewport (same 600px margin as the workbench's lazy Monaco), eager without IO;
  *   · or a workbench variant carries a `viz=` hint (the Visualise button's fuel) — load on
- *     idle, so the button appears without user action but never blocks hydration.
- * Neither → this module does nothing, and the page never fetches a byte of wasm.
+ *     idle, so the button appears without user action but never blocks hydration;
+ *   · or an island asks outright through `ensureViz()` — the `/viz` page, which is nothing at
+ *     all without the bundle and so has no reason to wait for a heuristic to notice it.
+ * None of those → this module does nothing, and the page never fetches a byte of wasm.
  *
  * Contracts installed after init:
  *   · `window.__synapseViz` (contracts.ts) → `viz_open_modal` — its arrival re-renders
  *     workbenches via VIZ_READY so the Visualise button appears;
+ *   · `window.__synapseVizPanel` → the docked player's mount / trace / vocabulary verbs;
  *   · the crate's bearer seam gets a WRAPPER reading `window.__synapseVizToken` at call time, so
  *     the identity island can install/refresh its provider in either order relative to this load.
  */
@@ -33,12 +36,25 @@ function load(): Promise<VizModule> {
     window.__synapseViz = (detail) => {
       mod.viz_open_modal(detail.language, detail.source, detail.vizHint, detail.stdin);
     };
+    window.__synapseVizPanel = {
+      mount: (host) => mod.viz_mount_panel(host),
+      trace: (detail) =>
+        mod.viz_panel_trace(detail.language, detail.source, detail.vizHint, detail.stdin),
+      exportD2: (mode) => mod.viz_panel_export_d2(mode) ?? null,
+      structures: () => JSON.parse(mod.viz_structures()) as string[],
+    };
     window.dispatchEvent(new Event(VIZ_READY));
     const mounted = mod.viz_mount_widgets();
     log.info(`viz: ready (${mounted} inline widget(s) mounted)`);
     return mod;
   })();
   return loading;
+}
+
+/** Load the bundle now, for a page that IS the visualiser. Resolves once the contracts above are
+ *  installed; every caller shares the one promise, so two islands asking costs one fetch. */
+export async function ensureViz(): Promise<void> {
+  await load();
 }
 
 function workbenchWantsViz(): boolean {

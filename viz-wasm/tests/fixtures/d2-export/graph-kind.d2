@@ -1,0 +1,26 @@
+caption: "for n in node.neighbors:" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+direction: right
+n0: "GraphNode"
+n1: "·"
+n2: "·"
+n3: "GraphNode"
+n4: "·"
+n5: "GraphNode"
+n6: "·"
+n7: "GraphNode"
+n8: "·"
+n0 -> n1: "neighbors"
+n0 -> n2: "neighbors"
+n1 -> n3
+n2 -> n7
+n3 -> n4: "neighbors"
+n4 -> n5
+n5 -> n6: "neighbors"
+n6 -> n0
+n7 -> n8: "neighbors"
+n8 -> n5
+p0: "root" { shape: text; style.font-color: "#0c7d69"; style.bold: true }
+p0 -> n0: { style.stroke: "#0c7d69" }
+p1: "node" { shape: text; style.font-color: "#0c7d69"; style.bold: true }
+p1 -> n3: { style.stroke: "#0c7d69" }

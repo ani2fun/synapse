@@ -15,10 +15,15 @@ import { Store } from "../../lib/store";
 /** One runnable block's state: the FSM in a store, plus the page-local Edit unlock. */
 export class BlockStore {
   readonly state: Store<ExecutorState>;
-  readonly unlocked = new Store(false);
+  readonly unlocked: Store<boolean>;
 
-  constructor(source: string) {
-    this.state = new Store(executor.initial(source));
+  /** `unlocked` starts a block EDITABLE. A lesson's block never does — its source is authored
+   *  content, and Edit is the gate on changing it — but a playground has no authored source to
+   *  protect, and a read-only scratchpad is not a scratchpad. */
+  constructor(source: string, unlocked = false) {
+    const state = executor.initial(source);
+    this.state = new Store(unlocked ? executor.enterEdit(state) : state);
+    this.unlocked = new Store(unlocked);
   }
 
   /**

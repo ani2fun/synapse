@@ -1,0 +1,22 @@
+caption: "node.is_end = True" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+direction: down
+n0: "TrieNode"
+n1: "·"
+n2: "TrieNode"
+n3: "·"
+n4: "TrieNode"
+n5: "·"
+n6: "·" { style.fill: "#e1f4eb"; style.stroke: "#307e57" }
+n7: "TrieNode"
+n8: "TrieNode" { style.fill: "#e1f4eb"; style.stroke: "#307e57" }
+n0 -> n1: "children"
+n1 -> n2: "c"
+n2 -> n3: "children"
+n3 -> n4: "a"
+n4 -> n5: "children"
+n4 -> n6: "children"
+n5 -> n7: "t"
+n6 -> n8: "r"
+p0: "root" { shape: text; style.font-color: "#0c7d69"; style.bold: true }
+p0 -> n0: { style.stroke: "#0c7d69" }

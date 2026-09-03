@@ -1,0 +1,32 @@
+---
+// `/viz` — the visualisation lab. The canvas on the left, a real workbench on the right.
+//
+// The mirror of `/d2`: there the source IS the diagram, so the editor leads; here the source is a
+// PROGRAM and the diagram is what running it produced, so the picture leads and the code answers
+// to it.
+//
+// Fully client-driven. SSR renders the shell and an empty mount host; the buffer lives in the
+// browser, the trace goes through the ordinary `/api/run`, and the canvas is drawn by the lazy
+// viz wasm — which this page always wants, and asks for outright (`ensureViz`) rather than
+// waiting for the loader's page heuristics to notice it.
+//
+// It imports the WORKBENCH's stylesheets as well as its own, because the right pane IS the
+// reader's workbench: `runnable.css` carries the block, `practice.css` the fill-the-pane
+// behaviour it needs in a fixed-height pane, and `viz.css` the player's chrome.
+import Base from "../layouts/Base.astro";
+import "../../styles/labshell.css";
+import "../../styles/runnable.css";
+import "../../styles/practice.css";
+import "../../styles/viz.css";
+import "../../styles/search.css";
+import "../../styles/vizlab.css";
+---
+
+<Base title="Visualisation lab — Synapse">
+  <main class="shell-main">
+    <div data-vizlab-root></div>
+  </main>
+  <script>
+    import "../islands/vizlab/VizLab";
+  </script>
+</Base>

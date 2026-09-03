@@ -6,10 +6,10 @@
 # (Monaco, keycloak-js, mermaid, the viz wasm) are dynamic imports and never appear in the HTML —
 # they stay out of the sum BY CONSTRUCTION, not by glob.
 #
-# Six page kinds, one budget each: the landing, a prose lesson, a problem page, the blog list,
-# and the two diagram editors.
+# Seven page kinds, one budget each: the landing, a prose lesson, a problem page, the blog list,
+# the two diagram editors, and the visualisation lab.
 # Measured against fixture content, in the shape this script runs in (pre-rendering OFF):
-# landing 43 · lesson 54 · problem 52 · blog 13 · d2lab 47 · mmdlab 47 KiB gz. With pre-rendering ON the
+# landing 43 · lesson 54 · problem 53 · blog 13 · d2lab 48 · mmdlab 48 · vizlab 47 KiB gz. With pre-rendering ON the
 # lesson measures ~64 — inline SVG, counted in the document's own gzip, not new JavaScript.
 # (Astro 7 / Vite 8 took 1-2 KiB off every page: rolldown chunks the same graph slightly tighter.)
 # These drift with ordinary feature work (the reader redesign, the long-form stylesheet and the
@@ -85,6 +85,10 @@ measure_page "blog" "/blog" || fail=1
 # shell, so a divergence between these two numbers is itself the signal.
 measure_page "d2lab" "/d2" || fail=1
 measure_page "mmdlab" "/mermaid" || fail=1
+# The visualisation lab. Its whole reason for existing is the viz wasm, and the wasm must STILL
+# be a dynamic import here: the page is useless without it and asks for it outright on mount, so
+# a static import would be the easy mistake — and would land ~280 KiB gz on this line.
+measure_page "vizlab" "/viz" || fail=1
 
 # ── the lazy viz wasm cap (release builds only — see header) ──
 if [[ "${VIZ_WASM_RELEASE:-}" == "1" ]]; then

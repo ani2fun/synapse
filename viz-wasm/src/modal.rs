@@ -4,14 +4,19 @@
 //! the program output. Esc closes; Space toggles play; ←/→ step. The pane's edits and the
 //! stdin box feed one LIVE (source, stdin) pair — every re-trace path (the bar's ↻, the `r`
 //! key, the stdin panel's button) re-traces exactly what is on screen.
+//!
+//! Everything it shows AROUND the canvas comes from `player`, which the docked `/viz` panel
+//! composes differently. What is the modal's alone is the frame, the source pane beside the
+//! canvas, and the stdin that pairs with it.
 
-use crate::engine::graph::{VizCases, VizGraph};
+use crate::engine::graph::VizCases;
 use crate::engine::playback::State;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
 use crate::ffi::editor::{self, EditorCallbacks, MountedEditor};
 use crate::host::WidgetHost;
+use crate::player::{self, FramesPanel};
 use crate::session::{self, Session, TraceState};
 
 /// What the modal shows (set by the workbench's Visualise button).
@@ -149,19 +154,10 @@ fn ModalBody(modal: ModalSession, store: VizModalStore, live: LiveInput) -> impl
     let state = modal.session.state;
     view! {
         {move || match state.get() {
-            TraceState::Tracing => view! {
-                <div class="viz-modal__status">
-                    <span class="viz-modal__spinner"></span>
-                    "Tracing your code…"
-                </div>
-            }
-            .into_any(),
+            TraceState::Tracing => player::tracing_card(),
             TraceState::Failed(message) => view! {
-                <div class="viz-modal__failed">
-                    <p class="viz-modal__failed-title">"Couldn't visualise this run"</p>
-                    <pre class="viz-modal__failed-msg">{message}</pre>
-                    {retry_bar(&modal, store, live)}
-                </div>
+                {player::failed_card(&message)}
+                {retry_bar(&modal, store, live)}
             }
             .into_any(),
             TraceState::Ready(cases, program_out) => {
@@ -197,7 +193,6 @@ fn retry_bar(modal: &ModalSession, modal_store: VizModalStore, live: LiveInput) 
     }
 }
 
-#[allow(clippy::too_many_lines)] // the modal's ready layout is one cohesive block
 fn ready(
     modal: &ModalSession,
     cases: &VizCases,
@@ -209,7 +204,6 @@ fn ready(
     let zoom = RwSignal::new(1.0_f64);
     let diff_mode = RwSignal::new(false);
     let cases = cases.clone();
-    let case_count = cases.cases.len();
     let key = modal.session.key.clone();
     // One playback per case; switching cases resets it (a fresh graph = a fresh animation).
     let step_state = RwSignal::new(State::initial(
@@ -224,114 +218,22 @@ fn ready(
         idx
     });
 
-    // Space/arrows drive the stepper; r re-traces with the panel's stdin; f resets zoom;
-    // d toggles diff. Typing surfaces are ignored.
     let keys_key = modal.session.key.clone();
-    let keys = window_event_listener(leptos::ev::keydown, move |event| {
-        use wasm_bindgen::JsCast;
-        let typing = event
-            .target()
-            .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
-            .is_some_and(|el| {
-                matches!(el.tag_name().as_str(), "INPUT" | "TEXTAREA") || el.class_name().contains("monaco")
-            });
-        if typing || event.meta_key() || event.ctrl_key() {
-            return;
-        }
-        match event.key().as_str() {
-            " " => {
-                event.prevent_default();
-                step_state.update(|s| *s = s.toggle_play());
-            }
-            "ArrowRight" => step_state.update(|s| *s = s.next()),
-            "ArrowLeft" => step_state.update(|s| *s = s.previous()),
-            "f" | "F" => zoom.set(1.0),
-            "d" | "D" => diff_mode.update(|d| *d = !*d),
-            "r" | "R" => {
-                modal_store.open(session::obtain_fresh(live.fresh_key(&keys_key)));
-            }
-            _ => {}
-        }
+    player::wire_keys(step_state, zoom, diff_mode, move || {
+        modal_store.open(session::obtain_fresh(live.fresh_key(&keys_key)));
     });
-    on_cleanup(move || keys.remove());
 
-    let strip_cases = cases.clone();
     let host_cases = cases.clone();
     let pane_cases = cases.clone();
     let timeline_cases = cases.clone();
-    let stops_cases = cases.clone();
+    let stops = player::diff_stops(cases.clone(), case_idx, diff_mode);
     let program_out = program_out.to_owned();
-    // Diff stops: the indices where the structure CHANGED.
-    let stops: Signal<Vec<usize>> = Signal::derive(move || {
-        if !diff_mode.get() {
-            return Vec::new();
-        }
-        let idx = case_idx.get().min(stops_cases.cases.len() - 1);
-        stops_cases.cases[idx]
-            .steps
-            .iter()
-            .enumerate()
-            .filter(|(_, s)| !s.unchanged)
-            .map(|(i, _)| i)
-            .collect()
-    });
     view! {
         <div class="viz-modal__ready">
-            {(case_count > 1).then(|| view! {
-                <div class="viz-modal__casestrip">
-                    {(0..strip_cases.cases.len())
-                        .map(|i| {
-                            let label = format!("Case {}", i + 1);
-                            view! {
-                                <button
-                                    class="viz-modal__case"
-                                    class:viz-modal__case--active=move || case_idx.get() == i
-                                    on:click=move |_| {
-                                        case_idx.set(i);
-                                    }
-                                >
-                                    {label}
-                                </button>
-                            }
-                        })
-                        .collect::<Vec<_>>()}
-                </div>
-            })}
+            {player::case_strip(&cases, case_idx)}
             <div class="viz-modal__layout">
                 <div class="viz-modal__canvas-col">
-                    <div class="viz-modal__controls">
-                        <div class="viz-modal__zoom">
-                            <button
-                                class="viz-modal__zoom-btn"
-                                aria-label="Zoom out"
-                                on:click=move |_| zoom.update(|z| *z = (*z - 0.25).max(0.5))
-                            >
-                                "−"
-                            </button>
-                            <button
-                                class="viz-modal__zoom-pct"
-                                title="Reset zoom (F)"
-                                on:click=move |_| zoom.set(1.0)
-                            >
-                                {move || format!("{:.0}%", zoom.get() * 100.0)}
-                            </button>
-                            <button
-                                class="viz-modal__zoom-btn"
-                                aria-label="Zoom in"
-                                on:click=move |_| zoom.update(|z| *z = (*z + 0.25).min(4.0))
-                            >
-                                "+"
-                            </button>
-                        </div>
-                        <button
-                            class="viz-modal__diff"
-                            class:viz-modal__diff--on=move || diff_mode.get()
-                            title="Diff mode (D) — step only through frames that changed the structure"
-                            on:click=move |_| diff_mode.update(|d| *d = !*d)
-                        >
-                            {move || if diff_mode.get() { "◧ Diff on" } else { "◧ Diff off" }}
-                        </button>
-                    </div>
+                    {player::controls(zoom, diff_mode)}
                     {move || {
                         let idx = case_idx.get().min(host_cases.cases.len() - 1);
                         let graph = host_cases.cases[idx].clone();
@@ -354,7 +256,7 @@ fn ready(
                     }}
                     {move || {
                         let idx = case_idx.get().min(timeline_cases.cases.len() - 1);
-                        timeline(&timeline_cases.cases[idx], step_state)
+                        player::timeline(&timeline_cases.cases[idx], step_state)
                     }}
                 </div>
                 <div class="viz-modal__side-col">
@@ -435,108 +337,9 @@ fn SourcePane(
     view! { <div class="viz-modal__source" node_ref=node_ref></div> }
 }
 
-/// The call-stack panel: per-frame fn + locals, the active frame carrying the line chips.
-#[component]
-fn FramesPanel(cases: VizCases, case_idx: RwSignal<usize>, step_state: RwSignal<State>) -> impl IntoView {
-    view! {
-        <div class="viz-frames">
-            {move || {
-                let idx = case_idx.get();
-                let state = step_state.get();
-                let step = cases
-                    .cases
-                    .get(idx)
-                    .and_then(|g: &VizGraph| g.steps.get(state.index));
-                let Some(step) = step else {
-                    return ().into_any();
-                };
-                let current = step.line;
-                let next_line = cases
-                    .cases
-                    .get(idx)
-                    .and_then(|g: &VizGraph| g.steps.get(state.index + 1))
-                    .map(|s| s.line);
-                step.frames
-                    .iter()
-                    .map(|frame| {
-                        let class = if frame.is_active { "viz-frame viz-frame--active" } else { "viz-frame" };
-                        let chips = (frame.is_active && current > 0).then(|| view! {
-                            <span class="viz-frame__lines">
-                                <span class="viz-frame__line">{format!("L{current}")}</span>
-                                {next_line.map(|n| view! {
-                                    <span class="viz-frame__line viz-frame__line--next">
-                                        {format!("→ L{n}")}
-                                    </span>
-                                })}
-                            </span>
-                        });
-                        let locals: Vec<_> = frame
-                            .locals
-                            .iter()
-                            .map(|l| {
-                                let lclass = if l.changed {
-                                    "viz-frame__local viz-frame__local--changed"
-                                } else {
-                                    "viz-frame__local"
-                                };
-                                view! {
-                                    <div class=lclass>
-                                        <span class="viz-frame__local-name">{l.name.clone()}</span>
-                                        <span class="viz-frame__local-type">{l.type_name.clone()}</span>
-                                        <span class="viz-frame__local-value">{l.value.clone()}</span>
-                                    </div>
-                                }
-                            })
-                            .collect();
-                        view! {
-                            <div class=class>
-                                <div class="viz-frame__fn">{frame.fn_name.clone()}{chips}</div>
-                                <div class="viz-frame__locals">{locals}</div>
-                            </div>
-                        }
-                    })
-                    .collect::<Vec<_>>()
-                    .into_any()
-            }}
-        </div>
-    }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-// TIMELINE · OUTPUT · GUIDE
+// OUTPUT · GUIDE
 // ─────────────────────────────────────────────────────────────────────────────
-
-/// The numbered step chips — reach ANY frame, independent of diff mode; structurally
-/// unchanged steps grey out.
-fn timeline(graph: &VizGraph, step_state: RwSignal<State>) -> AnyView {
-    let ticks: Vec<_> = graph
-        .steps
-        .iter()
-        .enumerate()
-        .map(|(i, step)| {
-            let unchanged = step.unchanged;
-            let title = if unchanged {
-                format!("Step {} (no structural change)", i + 1)
-            } else {
-                format!("Step {}", i + 1)
-            };
-            view! {
-                <button
-                    class="viz-timeline__tick"
-                    class:viz-timeline__tick--unchanged=unchanged
-                    class:viz-timeline__tick--active=move || step_state.get().index == i
-                    title=title
-                    on:click=move |_| step_state.update(|s| {
-                        *s = s.jump_to(i64::try_from(i).unwrap_or(0));
-                    })
-                >
-                    {i + 1}
-                </button>
-            }
-        })
-        .collect();
-    view! { <div class="viz-timeline not-prose">{ticks}</div> }.into_any()
-}
 
 /// Program output (collapsed) + the EDITABLE stdin (the shared live pair): its Re-trace
 /// runs a FRESH trace over the pane's current code and the input typed here.
@@ -546,18 +349,10 @@ fn output_panel(
     modal_store: VizModalStore,
     live: LiveInput,
 ) -> impl IntoView + use<> {
-    let out = if program_out.trim().is_empty() {
-        "(no output)".to_owned()
-    } else {
-        program_out.to_owned()
-    };
     let key = StoredValue::new(key);
     view! {
         <div class="viz-modal__output">
-            <details class="viz-output">
-                <summary class="viz-output__summary">"Program output"</summary>
-                <pre class="viz-output__pre">{out}</pre>
-            </details>
+            {player::program_output(program_out)}
             <div class="viz-stdin">
                 <label class="viz-stdin__label">"stdin"</label>
                 <textarea

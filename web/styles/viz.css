@@ -99,24 +99,24 @@
 .viz-modal__retrace:hover, .viz-modal__close:hover { border-color: hsl(var(--primary)); color: hsl(var(--primary)); }
 .viz-modal__body { flex: 1; overflow: auto; padding: 0.9rem 1rem; }
 
-.viz-modal__status { display: flex; align-items: center; justify-content: center; gap: 0.6rem;
+.viz-status { display: flex; align-items: center; justify-content: center; gap: 0.6rem;
                      height: 100%; color: hsl(var(--muted-foreground)); }
-.viz-modal__spinner { width: 16px; height: 16px; border-radius: 50%;
+.viz-spinner { width: 16px; height: 16px; border-radius: 50%;
                       border: 2px solid hsl(var(--border)); border-top-color: hsl(var(--primary));
                       animation: viz-spin 0.8s linear infinite; }
 @keyframes viz-spin { to { transform: rotate(360deg); } }
-.viz-modal__failed { max-width: 640px; margin: 3rem auto; }
-.viz-modal__failed-title { font-weight: 600; color: hsl(var(--status-err)); margin-bottom: 0.5rem; }
-.viz-modal__failed-msg { font-family: var(--font-mono); font-size: 0.8rem; white-space: pre-wrap;
+.viz-failed { max-width: 640px; margin: 3rem auto; }
+.viz-failed__title { font-weight: 600; color: hsl(var(--status-err)); margin-bottom: 0.5rem; }
+.viz-failed__msg { font-family: var(--font-mono); font-size: 0.8rem; white-space: pre-wrap;
                          border: 1px solid hsl(var(--status-err) / 0.4); border-radius: var(--radius-md);
                          background: hsl(var(--status-err-bg) / 0.08); padding: 0.75rem; }
 
 .viz-modal__ready { display: flex; flex-direction: column; gap: 0.75rem; min-height: 100%; }
-.viz-modal__casestrip { display: flex; gap: 0.4rem; }
-.viz-modal__case { border: 1px solid hsl(var(--border)); border-radius: 999px;
+.viz-cases { display: flex; gap: 0.4rem; }
+.viz-case { border: 1px solid hsl(var(--border)); border-radius: 999px;
                    background: hsl(var(--background)); color: hsl(var(--muted-foreground));
                    font-size: 0.75rem; padding: 0.2rem 0.7rem; cursor: pointer; }
-.viz-modal__case--active { border-color: hsl(var(--primary)); color: hsl(var(--primary));
+.viz-case--active { border-color: hsl(var(--primary)); color: hsl(var(--primary));
                            background: hsl(var(--primary) / 0.1); }
 .viz-modal__layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
                      gap: 0.75rem; align-items: start; }
@@ -124,10 +124,6 @@
 .viz-modal__side-col { display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; }
 .viz-modal__source { height: 280px; border: 1px solid hsl(var(--border));
                      border-radius: var(--radius-md); overflow: hidden; }
-.viz-modal__output summary { cursor: pointer; font-size: 0.85rem; color: hsl(var(--muted-foreground)); }
-.viz-modal__output pre { font-family: var(--font-mono); font-size: 0.8rem; white-space: pre-wrap;
-                         border: 1px solid hsl(var(--border)); border-radius: var(--radius-md);
-                         background: hsl(var(--card) / 0.6); padding: 0.6rem; margin-top: 0.4rem; }
 @media (max-width: 900px) {
   .viz-modal { padding: 0; }
   .viz-modal__frame { border-radius: 0; border: 0; }
@@ -302,21 +298,21 @@
    icon sizes and the language dropdown, the floating editor copy button.
    ───────────────────────────────────────────────────────────────────────────── */
 
-.viz-modal__controls { display: flex; align-items: center; justify-content: space-between;
+.viz-controls { display: flex; align-items: center; justify-content: space-between;
                        margin-bottom: 8px; }
-.viz-modal__zoom { display: flex; gap: 4px; align-items: center; }
-.viz-modal__zoom-btn { width: 24px; height: 24px; display: inline-flex; align-items: center;
+.viz-zoom { display: flex; gap: 4px; align-items: center; }
+.viz-zoom__btn { width: 24px; height: 24px; display: inline-flex; align-items: center;
                        justify-content: center; border: 1px solid hsl(var(--border));
                        border-radius: 6px; background: hsl(var(--card));
                        color: hsl(var(--foreground)); cursor: pointer; font-size: 14px; }
-.viz-modal__zoom-btn:hover { border-color: hsl(var(--primary) / 0.5); color: hsl(var(--primary)); }
-.viz-modal__zoom-pct { min-width: 46px; padding: 2px 6px; border: 0; background: none;
+.viz-zoom__btn:hover { border-color: hsl(var(--primary) / 0.5); color: hsl(var(--primary)); }
+.viz-zoom__pct { min-width: 46px; padding: 2px 6px; border: 0; background: none;
                        font-family: var(--font-mono); font-size: 12px; cursor: pointer;
                        color: hsl(var(--muted-foreground)); }
-.viz-modal__diff { border: 1px solid hsl(var(--border)); border-radius: 6px; background: none;
+.viz-diff { border: 1px solid hsl(var(--border)); border-radius: 6px; background: none;
                    color: hsl(var(--muted-foreground)); font-size: 12px; padding: 3px 10px;
                    cursor: pointer; }
-.viz-modal__diff--on { color: hsl(var(--primary)); border-color: hsl(var(--primary) / 0.5);
+.viz-diff--on { color: hsl(var(--primary)); border-color: hsl(var(--primary) / 0.5);
                        background: hsl(var(--primary) / 0.08); }
 
 /* the taller centered canvas — natural size, only scaling DOWN */

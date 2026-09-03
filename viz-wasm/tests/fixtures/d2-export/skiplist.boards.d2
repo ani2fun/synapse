@@ -1,0 +1,49 @@
+title: skiplist walkthrough
+direction: right
+
+layers: {
+  step-1: {
+    caption: "node = node.forward[level]          # hop along this lane" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+    direction: right
+    n0: "3"
+    n1: "7"
+    n2: "12"
+    n3: "19"
+    n4: "25"
+    n5: "31"
+    n6: "47"
+    n0 -> n1: "next"
+    n1 -> n2: "next"
+    n2 -> n3: "next"
+    n3 -> n4: "next"
+    n4 -> n5: "next"
+    n5 -> n6: "next"
+    p0: "head" { shape: text; style.font-color: "#0c7d69"; style.bold: true }
+    p0 -> n0: { style.stroke: "#0c7d69" }
+    p1: "cur" { shape: text; style.font-color: "#0c7d69"; style.bold: true }
+    p1 -> n1: { style.stroke: "#0c7d69" }
+  }
+  step-2: {
+    caption: "node = node.forward[level]          # hop along this lane" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+    direction: right
+    n0: "3"
+    n1: "7"
+    n2: "12"
+    n3: "19"
+    n4: "25"
+    n5: "31"
+    n6: "47"
+    n0 -> n1: "next"
+    n1 -> n2: "next"
+    n2 -> n3: "next"
+    n3 -> n4: "next"
+    n4 -> n5: "next"
+    n5 -> n6: "next"
+    p0: "head" { shape: text; style.font-color: "#0c7d69"; style.bold: true }
+    p0 -> n0: { style.stroke: "#0c7d69" }
+    p1: "cur" { shape: text; style.font-color: "#0c7d69"; style.bold: true }
+    p1 -> n3: { style.stroke: "#0c7d69" }
+  }
+}

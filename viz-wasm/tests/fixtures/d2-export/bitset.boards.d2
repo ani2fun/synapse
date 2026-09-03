@@ -1,0 +1,125 @@
+title: bitset walkthrough
+direction: right
+
+layers: {
+  step-1: {
+    caption: "# bits starts all-zero; each op sets (1) or clears (0) one position" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+    arr: "Bitset — set & clear" {
+      grid-rows: 2
+      grid-gap: 0
+      c0: "0"
+      c1: "0"
+      c2: "0"
+      c3: "0"
+      c4: "0"
+      c5: "0"
+      c6: "0"
+      c7: "0"
+      i0: 0 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i1: 1 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i2: 2 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i3: 3 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i4: 4 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i5: 5 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i6: 6 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i7: 7 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+    }
+  }
+  step-2: {
+    caption: "bits[i] = val" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+    arr: "Bitset — set & clear" {
+      grid-rows: 2
+      grid-gap: 0
+      c0: "0"
+      c1: "1" { style.stroke: "#0c7d69"; style.stroke-width: 3 }
+      c2: "0"
+      c3: "0"
+      c4: "0"
+      c5: "0"
+      c6: "0"
+      c7: "0"
+      i0: 0 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i1: 1 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i2: 2 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i3: 3 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i4: 4 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i5: 5 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i6: 6 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i7: 7 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+    }
+  }
+  step-3: {
+    caption: "bits[i] = val" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+    arr: "Bitset — set & clear" {
+      grid-rows: 2
+      grid-gap: 0
+      c0: "0"
+      c1: "1"
+      c2: "0"
+      c3: "0"
+      c4: "1" { style.stroke: "#0c7d69"; style.stroke-width: 3 }
+      c5: "0"
+      c6: "0"
+      c7: "0"
+      i0: 0 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i1: 1 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i2: 2 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i3: 3 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i4: 4 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i5: 5 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i6: 6 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i7: 7 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+    }
+  }
+  step-4: {
+    caption: "bits[i] = val" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+    arr: "Bitset — set & clear" {
+      grid-rows: 2
+      grid-gap: 0
+      c0: "0"
+      c1: "1"
+      c2: "0"
+      c3: "0"
+      c4: "1"
+      c5: "0"
+      c6: "1" { style.stroke: "#0c7d69"; style.stroke-width: 3 }
+      c7: "0"
+      i0: 0 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i1: 1 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i2: 2 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i3: 3 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i4: 4 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i5: 5 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i6: 6 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i7: 7 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+    }
+  }
+  step-5: {
+    caption: "bits[i] = val" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+    arr: "Bitset — set & clear" {
+      grid-rows: 2
+      grid-gap: 0
+      c0: "0"
+      c1: "1"
+      c2: "0"
+      c3: "0"
+      c4: "0" { style.stroke: "#0c7d69"; style.stroke-width: 3 }
+      c5: "0"
+      c6: "1"
+      c7: "0"
+      i0: 0 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i1: 1 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i2: 2 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i3: 3 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i4: 4 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i5: 5 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i6: 6 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i7: 7 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+    }
+  }
+}

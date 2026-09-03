@@ -1,0 +1,89 @@
+title: fenwick walkthrough
+direction: right
+
+layers: {
+  step-1: {
+    caption: "acc += tree[i]      # tree[i] covers (i - lowbit(i), i]" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+    arr: "Fenwick tree (BIT) — prefix-sum query(7)" {
+      grid-rows: 2
+      grid-gap: 0
+      c0: "0"
+      c1: "1"
+      c2: "3"
+      c3: "3"
+      c4: "10"
+      c5: "5"
+      c6: "11"
+      c7: "7"
+      c8: "36"
+      i0: 0 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i1: 1 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i2: 2 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i3: 3 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i4: 4 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i5: 5 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i6: 6 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i7: 7 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i8: 8 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+    }
+    p0: "i" { shape: text; style.font-color: "#0c7d69"; style.bold: true }
+    p0 -> arr.c7: { style.stroke: "#0c7d69" }
+  }
+  step-2: {
+    caption: "acc += tree[i]      # tree[i] covers (i - lowbit(i), i]" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+    arr: "Fenwick tree (BIT) — prefix-sum query(7)" {
+      grid-rows: 2
+      grid-gap: 0
+      c0: "0"
+      c1: "1"
+      c2: "3"
+      c3: "3"
+      c4: "10"
+      c5: "5"
+      c6: "11"
+      c7: "7"
+      c8: "36"
+      i0: 0 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i1: 1 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i2: 2 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i3: 3 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i4: 4 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i5: 5 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i6: 6 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i7: 7 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i8: 8 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+    }
+    p0: "i" { shape: text; style.font-color: "#0c7d69"; style.bold: true }
+    p0 -> arr.c6: { style.stroke: "#0c7d69" }
+  }
+  step-3: {
+    caption: "acc += tree[i]      # tree[i] covers (i - lowbit(i), i]" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+    arr: "Fenwick tree (BIT) — prefix-sum query(7)" {
+      grid-rows: 2
+      grid-gap: 0
+      c0: "0"
+      c1: "1"
+      c2: "3"
+      c3: "3"
+      c4: "10"
+      c5: "5"
+      c6: "11"
+      c7: "7"
+      c8: "36"
+      i0: 0 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i1: 1 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i2: 2 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i3: 3 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i4: 4 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i5: 5 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i6: 6 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i7: 7 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i8: 8 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+    }
+    p0: "i" { shape: text; style.font-color: "#0c7d69"; style.bold: true }
+    p0 -> arr.c4: { style.stroke: "#0c7d69" }
+  }
+}

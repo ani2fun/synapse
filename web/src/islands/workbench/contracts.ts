@@ -74,6 +74,25 @@ declare global {
      *  wasm a wrapper that reads it per-request — so identity and the lazy wasm can load in
      *  either order and a token refresh needs no re-install. */
     __synapseVizToken?: () => string | null;
+    /** The docked player, installed by the same loader alongside `__synapseViz` — the `/viz`
+     *  page's seam into the wasm. The page owns the buffer, the stdin and the structure; the
+     *  panel owns the canvas and the playback, and the two only ever meet here. `mount` is
+     *  idempotent, and every verb answers `false`/`null` rather than throwing when the panel is
+     *  not up yet, because the page renders before the wasm arrives. */
+    __synapseVizPanel?: {
+      mount: (host: HTMLElement) => boolean;
+      trace: (detail: {
+        language: string;
+        source: string;
+        vizHint: string;
+        stdin: string;
+      }) => boolean;
+      /** The step on screen, or the whole walkthrough, as d2 SOURCE (no fence — the page owns
+       *  the markdown wrapper). Null when there is nothing traced to export. */
+      exportD2: (mode: "step" | "walkthrough") => string | null;
+      /** The structure tokens the crate can draw — the picker's only source. */
+      structures: () => string[];
+    };
   }
 }
 

@@ -1,0 +1,71 @@
+title: array walkthrough
+direction: right
+
+layers: {
+  step-1: {
+    caption: "arr[left], arr[right] = arr[right], arr[left]" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+    arr: "Array — two-pointer reverse of [1, 2, 3, 4, 5]" {
+      grid-rows: 2
+      grid-gap: 0
+      c0: "1"
+      c1: "2"
+      c2: "3"
+      c3: "4"
+      c4: "5"
+      i0: 0 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i1: 1 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i2: 2 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i3: 3 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i4: 4 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+    }
+    p0: "left" { shape: text; style.font-color: "#0c7d69"; style.bold: true }
+    p0 -> arr.c0: { style.stroke: "#0c7d69" }
+    p1: "right" { shape: text; style.font-color: "#0c7d69"; style.bold: true }
+    p1 -> arr.c4: { style.stroke: "#0c7d69" }
+  }
+  step-2: {
+    caption: "arr[left], arr[right] = arr[right], arr[left]" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+    arr: "Array — two-pointer reverse of [1, 2, 3, 4, 5]" {
+      grid-rows: 2
+      grid-gap: 0
+      c0: "5" { style.stroke: "#0c7d69"; style.stroke-width: 3 }
+      c1: "2"
+      c2: "3"
+      c3: "4"
+      c4: "1" { style.stroke: "#0c7d69"; style.stroke-width: 3 }
+      i0: 0 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i1: 1 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i2: 2 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i3: 3 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i4: 4 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+    }
+    p0: "left" { shape: text; style.font-color: "#0c7d69"; style.bold: true }
+    p0 -> arr.c1: { style.stroke: "#0c7d69" }
+    p1: "right" { shape: text; style.font-color: "#0c7d69"; style.bold: true }
+    p1 -> arr.c3: { style.stroke: "#0c7d69" }
+  }
+  step-3: {
+    caption: "arr[left], arr[right] = arr[right], arr[left]" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+    arr: "Array — two-pointer reverse of [1, 2, 3, 4, 5]" {
+      grid-rows: 2
+      grid-gap: 0
+      c0: "5"
+      c1: "4" { style.stroke: "#0c7d69"; style.stroke-width: 3 }
+      c2: "3"
+      c3: "2" { style.stroke: "#0c7d69"; style.stroke-width: 3 }
+      c4: "1"
+      i0: 0 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i1: 1 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i2: 2 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i3: 3 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+      i4: 4 { style.stroke-width: 0; style.fill: transparent; style.font-color: "#6a6f7c"; style.font-size: 13 }
+    }
+    p0: "left" { shape: text; style.font-color: "#0c7d69"; style.bold: true }
+    p0 -> arr.c2: { style.stroke: "#0c7d69" }
+    p1: "right" { shape: text; style.font-color: "#0c7d69"; style.bold: true }
+    p1 -> arr.c2: { style.stroke: "#0c7d69" }
+  }
+}

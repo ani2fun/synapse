@@ -96,6 +96,23 @@ export const DIAGRAM_LAB_PANE_KEY = "diagram-lab-pane";
  *  languages and two diagrams never overwrite each other's autosave. No account is involved: a
  *  diagram only becomes anyone's when it is copied into a lesson or proposed as an edit. */
 export const DIAGRAM_LAB_DRAFT_PREFIX = "diagram-lab-draft";
+/** `/viz` writes the BLANK d2 draft (`diagram-lab-draft:d2`) and navigates — that is how "Open in
+ *  /d2" hands a traced figure over, since `Lab` opens on `storageGet(draftKey) ?? starter`. Named
+ *  here rather than left implicit: a second page writing another page's key is a real coupling,
+ *  and an unwritten one is the kind that rots. */
+export const D2_BLANK_DRAFT_KEY = `${DIAGRAM_LAB_DRAFT_PREFIX}:d2`;
+/** The viz lab's two-pane split percentage. Its own key, not the diagram editors': the panes hold
+ *  different things (a canvas beside an editor, rather than two views of one document), so a
+ *  reader's preferred width for one says nothing about the other. */
+export const VIZ_LAB_PANE_KEY = "viz-lab-pane";
+/** The viz lab's in-progress program — a key PREFIX with the language appended, so switching tabs
+ *  does not have one language's draft overwrite the other's. */
+export const VIZ_LAB_DRAFT_PREFIX = "viz-lab-draft";
+/** The viz lab's structure choice, stored as the composed `<structure>[:<root>]` hint — the same
+ *  spelling a `viz=` fence carries and the URL's `?s=` uses, so the three never need translating. */
+export const VIZ_LAB_HINT_KEY = "viz-lab-hint";
+/** The viz lab's stdin box. Shared by Run and Trace, so it is remembered like the buffer is. */
+export const VIZ_LAB_STDIN_KEY = "viz-lab-stdin";
 /** The content editor's per-page draft key PREFIX — the username and lesson path are appended
  *  (`content-draft:<username>:<lesson-path>`) so one browser can hold a draft for each page a
  *  contributor is editing, and a draft never leaks across accounts. See islands/authoring/draft. */

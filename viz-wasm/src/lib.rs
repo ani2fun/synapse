@@ -1,7 +1,9 @@
 //! The standalone viz crate: the widget spine (a host that consumes `VizCases`, dispatches
 //! through the pure `RenderFamily` decision, and drives every animation with the one
-//! `Playback` stepper), the trace session, and the Visualise modal. Layout is computed ONCE
-//! over the union of steps; the step signal only toggles drawing.
+//! `Playback` stepper), the trace session, and TWO hosts for it — the Visualise modal that
+//! opens over a lesson's workbench, and the docked panel the `/viz` page pairs with its own
+//! editor. Everything they share is `player`. Layout is computed ONCE over the union of
+//! steps; the step signal only toggles drawing.
 //!
 //! The Astro app loads the cdylib as a lazy wasm bundle through [`entry`]'s wasm-bindgen
 //! surface; the crate also builds as an rlib so the engine tests + goldens run natively under
@@ -22,6 +24,8 @@ pub mod host;
 pub mod log;
 pub mod modal;
 pub mod mount;
+pub mod panel;
+pub mod player;
 pub mod registry;
 pub mod render;
 pub mod session;

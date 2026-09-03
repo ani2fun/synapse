@@ -1,5 +1,6 @@
-//! The wasm-bindgen surface: what the Astro app's lazy `viz.ts` loader calls. Three
-//! verbs — mount the inline widgets, open the Visualise modal, install the bearer provider.
+//! The wasm-bindgen surface: what the Astro app's lazy `viz.ts` loader calls. Mount the inline
+//! widgets, open the Visualise modal, install the bearer provider — and, for the `/viz` page,
+//! mount the docked panel, trace into it, and read the structure vocabulary back out.
 //!
 //! Self-hosting: there is no App shell to hold the modal store, so the entry mints ONE store
 //! under a detached root owner (signals that outlive views must never be owned by a caller's
@@ -16,13 +17,16 @@ use std::cell::RefCell;
 use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 
+use crate::engine::d2;
 use crate::engine::vocabulary::VizStructure;
 use crate::modal::{VisualiseModal, VizModalStore};
+use crate::panel::{VizPanel, VizPanelStore};
 use crate::{blocks, session};
 
 thread_local! {
     static WIDGET_HANDLES: RefCell<Vec<Box<dyn Any>>> = const { RefCell::new(Vec::new()) };
     static MODAL: RefCell<Option<VizModalStore>> = const { RefCell::new(None) };
+    static PANEL: RefCell<Option<VizPanelStore>> = const { RefCell::new(None) };
     // The detached owner for everything that outlives a view (the modal store's signal).
     static ENTRY_OWNER: Owner = Owner::new_root(None);
 }
@@ -107,4 +111,98 @@ pub fn viz_install_token(provider: js_sys::Function) {
             .and_then(|value| value.as_string())
     });
     crate::log::debug("viz: bearer provider installed");
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE DOCKED PANEL — the `/viz` page
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Mount the panel into a host element the page owns. The store is minted under the SAME
+/// detached owner the modal uses, because the page drives it from JS callbacks whose reactive
+/// scopes end the moment they return.
+///
+/// Idempotent: a second call on an already-mounted panel is a no-op rather than a second mount
+/// competing for one element.
+#[wasm_bindgen]
+pub fn viz_mount_panel(host: web_sys::HtmlElement) -> bool {
+    console_error_panic_hook::set_once();
+    if PANEL.with_borrow(Option::is_some) {
+        crate::log::debug("viz: panel already mounted");
+        return true;
+    }
+    let store = ENTRY_OWNER.with(|owner| owner.with(VizPanelStore::new));
+    let handle = crate::mount::mount(host, move || {
+        provide_context(store);
+        view! { <VizPanel /> }
+    });
+    WIDGET_HANDLES.with_borrow_mut(|handles| handles.push(handle));
+    PANEL.with_borrow_mut(|p| *p = Some(store));
+    crate::log::info("viz: panel mounted");
+    true
+}
+
+/// Trace `source` into the mounted panel. `viz_hint` is the same `<structure>[:<root>]` token an
+/// authored fence carries — the page's structure picker composes it — so an unknown one is
+/// refused here exactly as it is for the modal, rather than drawing a confidently wrong picture.
+///
+/// Cached, not forced: the session key covers language, source, structure, root and stdin, so an
+/// edit is already a different key and pressing Trace twice on unchanged input costs nothing.
+#[wasm_bindgen]
+pub fn viz_panel_trace(language: &str, source: &str, viz_hint: &str, stdin: &str) -> bool {
+    console_error_panic_hook::set_once();
+    let Some(store) = PANEL.with_borrow(|p| *p) else {
+        crate::log::warn("viz: trace requested before the panel mounted");
+        return false;
+    };
+    let Some((structure, root)) = VizStructure::parse(viz_hint) else {
+        crate::log::warn(&format!("viz: unusable viz hint “{viz_hint}” — not tracing"));
+        return false;
+    };
+    let token = structure.token();
+    let key = session::Key {
+        language: language.to_owned(),
+        source: source.to_owned(),
+        structure,
+        root,
+        stdin: stdin.to_owned(),
+    };
+    crate::log::info(&format!("viz: panel trace ({language}, {token})"));
+    store.show(session::obtain(key));
+    true
+}
+
+/// The authored structure vocabulary, as a JSON array of tokens — what the page's picker offers.
+/// Served from the crate rather than spelled again in TypeScript: two copies of a closed set is
+/// how one of them silently grows a token the other cannot render.
+#[wasm_bindgen]
+#[must_use]
+pub fn viz_structures() -> String {
+    let tokens: Vec<&str> = VizStructure::ALL.iter().map(|s| s.token()).collect();
+    serde_json::to_string(&tokens).unwrap_or_else(|_| "[]".to_owned())
+}
+
+/// The step on screen — or the whole walkthrough — as **d2 source**.
+///
+/// `mode` is `"step"` or `"walkthrough"`. Source, not a fence: the markdown wrapper is the page's
+/// business, and the `/d2` editor wants the bare document anyway.
+///
+/// `None` when there is nothing to export — no panel, no trace yet, or a trace that failed. The
+/// caller renders its control from that answer rather than offering a button that copies "".
+#[wasm_bindgen]
+#[must_use]
+pub fn viz_panel_export_d2(mode: &str) -> Option<String> {
+    console_error_panic_hook::set_once();
+    let store = PANEL.with_borrow(|p| *p)?;
+    let session = store.current.get_untracked()?;
+    let cases = store.ready_cases()?;
+    let graph = cases
+        .cases
+        .get(store.case_idx.get_untracked().min(cases.cases.len() - 1))?;
+    let structure = session.key.structure;
+    let source = match mode {
+        "walkthrough" => d2::walkthrough_source(graph, structure),
+        _ => d2::step_source(graph, structure, store.step.get_untracked().index),
+    };
+    crate::log::info(&format!("viz: exported {} as d2 ({mode})", structure.token()));
+    Some(source)
 }

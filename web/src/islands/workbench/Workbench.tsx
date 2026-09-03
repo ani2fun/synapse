@@ -58,11 +58,28 @@ export interface WorkbenchProps {
   practice?: boolean;
   /** Problem page right pane: editor fills the free height until a drag pins one. */
   fill?: boolean;
+  /** A playground (`/viz`): the buffer starts unlocked and the Edit/Reset chrome does not render.
+   *  Edit exists to gate changes to AUTHORED source; where there is none, gating is theatre —
+   *  and the gate needs a sign-in, which would leave an anonymous reader unable to type at all. */
+  editable?: boolean;
+  /** stdin for a Run when the block has no suite to read one from — the viz lab's shared input
+   *  pair, so Run and Trace are fed the same thing. Ignored when `spec` is set: a suite's cases
+   *  own the stdin, and two sources for it is how they disagree. */
+  stdin?: () => string | null;
 }
 
-export function Workbench({ variants, spec, lessonPath, root, practice = false, fill = false }: WorkbenchProps) {
+export function Workbench({
+  variants,
+  spec,
+  lessonPath,
+  root,
+  practice = false,
+  fill = false,
+  editable = false,
+  stdin: stdinProp,
+}: WorkbenchProps) {
   // ── stores, minted once ──
-  const stores = useMemo(() => variants.map((v) => new BlockStore(v.source)), []);
+  const stores = useMemo(() => variants.map((v) => new BlockStore(v.source, editable)), []);
   const submit = useMemo(() => new SubmitStore(), []);
   const tests = useMemo(() => (spec ? new TestsState(spec) : null), []);
   const start = useMemo(() => preferredIndex(variants, storageGet(WB_LANGUAGE_KEY)), []);
@@ -97,7 +114,7 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
 
   // ── run, judged against the LAUNCHED case ──
   const stdin = () =>
-    spec && tests ? stdinFor(tests.spec.get().args, tests.values.get()) : null;
+    spec && tests ? stdinFor(tests.spec.get().args, tests.values.get()) : (stdinProp?.() ?? null);
   const run = () => {
     wantsEditor.current = true;
     if (tests) tests.ranCase.set(tests.activeCase.get());
@@ -389,6 +406,7 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
         </span>
         <span class="wb__actions">
           {langChrome}
+          {!editable && (
           <span
             class="wb__tip"
             data-tip={
@@ -413,7 +431,8 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
               )}
             </button>
           </span>
-          {unlocked && authed && (
+          )}
+          {unlocked && authed && !editable && (
             <button
               class="wb__ghost wb__ghost--live wb__ghost--icon"
               title="Restore the starter code"

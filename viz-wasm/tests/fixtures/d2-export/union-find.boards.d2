@@ -1,0 +1,64 @@
+title: union-find walkthrough
+direction: right
+
+layers: {
+  step-1: {
+    caption: "def union(parent, a, b):" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+    direction: up
+    n0: "0"
+    n1: "1"
+    n2: "2"
+    n3: "3"
+    n4: "4"
+  }
+  step-2: {
+    caption: "parent[rb] = ra    # attach one root under the other" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+    direction: up
+    n0: "0"
+    n1: "1" { style.stroke: "#0c7d69"; style.stroke-width: 3 }
+    n2: "2"
+    n3: "3"
+    n4: "4"
+    n0 -> n1
+  }
+  step-3: {
+    caption: "parent[rb] = ra    # attach one root under the other" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+    direction: up
+    n0: "0"
+    n1: "1"
+    n2: "2"
+    n3: "3" { style.stroke: "#0c7d69"; style.stroke-width: 3 }
+    n4: "4"
+    n0 -> n1
+    n2 -> n3
+  }
+  step-4: {
+    caption: "parent[rb] = ra    # attach one root under the other" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+    direction: up
+    n0: "0"
+    n1: "1"
+    n2: "2" { style.stroke: "#0c7d69"; style.stroke-width: 3 }
+    n3: "3"
+    n4: "4"
+    n0 -> n1
+    n0 -> n2
+    n2 -> n3
+  }
+  step-5: {
+    caption: "parent[x] = root       # path compression" { shape: text; near: top-center; style.font-color: "#2a303c"; style.font-size: 15 }
+
+    direction: up
+    n0: "0"
+    n1: "1"
+    n2: "2"
+    n3: "3" { style.stroke: "#0c7d69"; style.stroke-width: 3 }
+    n4: "4"
+    n0 -> n1
+    n0 -> n2
+    n0 -> n3
+  }
+}

@@ -1,0 +1,124 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   THE VISUALISATION LAB (`/viz`) — the canvas left, a real workbench right.
+
+   The room is `labshell.css` (the page, the header, the two framed panes and
+   their rail, the pane header). What is HERE is what makes this page the LAB:
+   the picker row, the canvas the wasm mounts into, the stdin box, and the rules
+   that let the workbench fill a fixed-height pane.
+
+   The player's own chrome — the canvas, the transport, the timeline, the frames
+   and the failure cards — is `viz.css`, shared with the Visualise modal, because
+   the two hosts render the same player.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.vlab__title { margin: 6px 0 0; font-family: var(--font-display); font-style: italic;
+               font-weight: 400; font-size: 30px; line-height: 1.2; letter-spacing: -0.02em;
+               color: var(--text-primary); }
+.vlab__lede { margin: 7px 0 0; max-width: 62ch; font-size: 12.5px; line-height: 1.5;
+              color: var(--text-muted); }
+
+/* ── the export menu ──
+   In the header beside Trace, not over the canvas: it acts on the whole traced figure rather
+   than on anything you can point at. */
+.vlab__export { position: relative; }
+.vlab__export-btn { display: inline-flex; align-items: center; gap: 6px; height: 38px;
+                    padding: 0 13px; border: 1px solid var(--border-default);
+                    border-radius: var(--radius-md); background: hsl(var(--card) / 0.55);
+                    color: var(--text-secondary); font-family: var(--font-sans);
+                    font-size: 13px; white-space: nowrap; cursor: pointer;
+                    transition: background var(--dur-fast) var(--ease-out),
+                                color var(--dur-fast) var(--ease-out); }
+.vlab__export-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+/* The scrim catches the click that closes the menu — a menu that only closes on its own items
+   is one you cannot dismiss. */
+.vlab__export-scrim { position: fixed; inset: 0; z-index: 30; }
+.vlab__export-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 31;
+                     min-width: 15rem; padding: 4px; border: 1px solid var(--border-default);
+                     border-radius: var(--radius-md); background: hsl(var(--card));
+                     box-shadow: var(--shadow-xl); }
+.vlab__export-menu button { display: block; width: 100%; text-align: left; border: 0;
+                            border-radius: 7px; background: none; color: var(--text-primary);
+                            font: inherit; font-size: 13px; padding: 7px 10px; cursor: pointer; }
+.vlab__export-menu button:hover { background: var(--bg-hover); color: var(--brand); }
+
+/* ── the picker row ──
+   Two fields in the pane header rather than a form above the canvas: they name what the canvas
+   is drawing, so they belong to it the way the zoom cluster does. */
+.vlab__pick { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.vlab__pick-label { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+                    letter-spacing: 0.1em; text-transform: uppercase;
+                    color: var(--text-faint); }
+.vlab__select, .vlab__root { height: 28px; border: 1px solid var(--border-default);
+                             border-radius: 7px; background: hsl(var(--background) / 0.6);
+                             color: var(--text-primary); font-family: var(--font-mono);
+                             font-size: 12px; padding: 0 8px; min-width: 0; }
+.vlab__root { width: 11ch; }
+.vlab__select:focus, .vlab__root:focus { outline: none; border-color: hsl(var(--primary));
+                                         box-shadow: 0 0 0 3px hsl(var(--primary) / 0.15); }
+.vlab__select:disabled { opacity: 0.5; cursor: progress; }
+
+/* ── the canvas ──
+   Leptos owns everything inside this box. It relays the flex chain (bounded height,
+   min-height: 0) so the panel's own scroller has something to scroll INSIDE — without that the
+   canvas grows to its content and the pane's stdin row is pushed off the bottom of the page. */
+.vlab__canvas { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.vlab__canvas > .viz-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* ── the stdin box ──
+   One input, read by BOTH Run and Trace. It sits under the canvas rather than beside the editor
+   because it belongs to the run, not to the code — and because a reader fixing a failed trace
+   finds it next to the failure. */
+.vlab__stdin { flex: none; display: flex; flex-direction: column; gap: 5px;
+               padding: 9px 12px 11px; border-top: 1px solid hsl(var(--border) / 0.7); }
+.vlab__stdin-label { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+                     letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
+.vlab__stdin-input { border: 1px solid var(--border-default); border-radius: 8px;
+                     background: hsl(var(--background) / 0.6); color: var(--text-primary);
+                     font-family: var(--font-mono); font-size: 12.5px; padding: 7px 9px;
+                     resize: vertical; }
+.vlab__stdin-input:focus { outline: none; border-color: hsl(var(--primary));
+                           box-shadow: 0 0 0 3px hsl(var(--primary) / 0.15); }
+
+/* ── the workbench in a fixed-height pane ──
+   The same chain the problem page's right pane uses (practice.css), re-declared for this pane's
+   own class. `contain: size` on the fill mode is load-bearing there and here: with height:auto
+   the container sizes from Monaco's root while Monaco (automaticLayout) sizes its root from the
+   container, and one transient frame with an unbounded flex chain latches the editor at
+   thousands of px with nothing left to shrink it. Containment zeroes the intrinsic height, so
+   the flex chain is the only input. */
+.vlab .lab-pane--r { overflow-y: auto; padding: 12px; }
+.vlab .lab-pane--r > div { display: flex; flex-direction: column; min-height: 100%; }
+.vlab .lab-pane--r .runnable { display: flex; flex-direction: column; flex: 1 1 auto;
+                               min-height: 0; }
+.vlab .lab-pane--r .runnable__bar,
+.vlab .lab-pane--r .runnable__out { flex: 0 0 auto; }
+
+/* ── the panel ──
+   Scoped here rather than in viz.css because these are the DOCKED player's proportions: the
+   modal gives its canvas a viewport fraction, and a pane has to be told to share instead. */
+.viz-panel { padding: 10px 12px 12px; overflow: hidden; }
+.viz-panel__ready { display: flex; flex-direction: column; gap: 8px; min-height: 0; flex: 1; }
+.viz-panel__stage { flex: 1; min-height: 0; display: flex; flex-direction: column;
+                    touch-action: none; }
+.viz-panel__stage .viz-widget-host { margin: 0; flex: 1; min-height: 0; display: flex;
+                                     flex-direction: column; }
+/* The drawing scrolls; the transport bar and caption below it do not — which is why the pan
+   handlers drive THIS box rather than the stage around it. */
+.viz-panel__stage .viz-widget-host__canvas { flex: 1; min-height: 0; overflow: auto;
+                                             cursor: grab; }
+.viz-panel__stage .viz-widget-host__canvas:active { cursor: grabbing; }
+.viz-panel__stage .viz-svg { width: auto; max-width: none; }
+
+.viz-panel__empty { margin: auto; max-width: 42ch; text-align: center; padding: 2rem 1rem; }
+.viz-panel__empty-title { margin: 0; font-size: 14px; font-weight: 600;
+                          color: var(--text-secondary); }
+.viz-panel__empty-body { margin: 8px 0 0; font-size: 12.5px; line-height: 1.55;
+                         color: var(--text-muted); }
+
+.viz-panel__strip { flex: none; border-top: 1px solid hsl(var(--border) / 0.7); padding-top: 7px; }
+.viz-panel__strip-summary { cursor: pointer; font-family: var(--font-mono); font-size: 11px;
+                            font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+                            color: var(--text-faint); }
+.viz-panel__strip[open] .viz-frames { max-height: 30vh; overflow: auto; margin-top: 8px; }
+.viz-panel__strip-out { flex: none; border-top: 1px solid hsl(var(--border) / 0.7);
+                        padding-top: 7px; }
