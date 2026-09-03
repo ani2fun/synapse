@@ -5,6 +5,7 @@
 
 pub mod authoring;
 pub mod blog;
+pub mod canvas;
 pub mod catalog;
 pub mod config;
 pub mod execution;
@@ -71,6 +72,9 @@ pub struct AppDeps<
     /// into it, and `/account`'s "Reset progress" clears it. Concrete (one Postgres store) —
     /// no test fakes it through the router, unlike the three generic ports above.
     pub progress: Arc<progress::PostgresProblemProgress>,
+    /// Saved design canvases: the Think pane writes here and `/account`'s erase clears it.
+    /// Concrete for the same reason `progress` is — one Postgres store, nothing fakes it.
+    pub canvas: Arc<canvas::PostgresCanvasStore>,
     /// The Astro SSR sidecar serving the pages. `Some` mounts `astro_proxy` as the router
     /// FALLBACK (registered routes always win); `None` (dev without a web tier) serves the
     /// API alone with a plain-text pointer at `/`.
@@ -143,6 +147,10 @@ where
         progress: deps.progress,
         identity: Arc::clone(&deps.ident.identity),
     };
+    let canvas_state = canvas::http::CanvasRoutesState {
+        canvas: deps.canvas,
+        identity: Arc::clone(&deps.ident.identity),
+    };
     let catalog_state = catalog::http::routes::CatalogRoutesState {
         service: deps.catalog,
         views: deps.views,
@@ -157,6 +165,7 @@ where
         .merge(submission::http::admin::routes(admin))
         .merge(insights::http::routes(readership))
         .merge(progress::http::routes(progress_state))
+        .merge(canvas::http::routes(canvas_state))
         .merge(tutoring::http::routes(deps.tutor));
     // In-app editing mounts only where a forge is configured; `CONTENT_FORGE=off` leaves
     // `/api/edits` and its admin allowlist absent rather than gated.
@@ -250,6 +259,10 @@ where
         progress::http::list_progress,
         progress::http::unmark_progress,
         progress::http::reset_progress,
+        canvas::http::save_entry,
+        canvas::http::list_entries,
+        canvas::http::delete_entry,
+        canvas::http::erase_all,
         tutoring::http::tutor_config,
         tutoring::http::tutor_chat,
         authoring::http::get_config,
@@ -302,6 +315,10 @@ where
         LessonViewDto,
         synapse_shared::progress::ProgressListDto,
         synapse_shared::progress::MarkProgressRequestDto,
+        synapse_shared::canvas::CanvasIdeaDto,
+        synapse_shared::canvas::CanvasBodyDto,
+        synapse_shared::canvas::SaveCanvasRequestDto,
+        synapse_shared::canvas::CanvasEntryDto,
         synapse_shared::tutor::ChatMessage,
         synapse_shared::tutor::TutorConfigDto,
         synapse_shared::tutor::TutorChatRequestDto,

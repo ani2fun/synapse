@@ -7,7 +7,9 @@
  *   · the Description | Editorial | Submissions tabs (mount-once, `.hidden`; opens on Description
  *     unless the URL fragment names a tab, which is how a ⌘K "Solution" hit lands on the
  *     walkthrough rather than the statement),
- *   · the right pane's Workbench, with the FIRST description workbench EXTRACTED into it,
+ *   · the right pane's Think | Code tabs — Code holds the Workbench, with the FIRST description
+ *     workbench EXTRACTED into it; Think mounts the design canvas (`canvas/CanvasPane`) on first
+ *     open, the way the editorial and coach panes mount,
  *   · the remaining description workbenches + fence-group bars, hydrated in place,
  *   · the Submissions feed (lazy, refetched on submit) and the anonymous sign-in bar,
  *   · the Contents pill, which opens the reader's nav drawer by event (`reader.ts`).
@@ -30,7 +32,7 @@ import { h, render } from "preact";
 import { useEffect, useState } from "preact/hooks";
 
 import * as log from "../lib/log";
-import { PROBLEM_PANE_KEY, get as storageGet, set as storageSet } from "../lib/storage";
+import { PROBLEM_MODE_KEY, PROBLEM_PANE_KEY, get as storageGet, set as storageSet } from "../lib/storage";
 import { DEFAULT_LEFT_PCT, MAX_LEFT_PCT, MIN_LEFT_PCT, parseLeftPct, serializeLeftPct } from "../lib/catalog/pane";
 import { parseVariants } from "../lib/execution/blocks";
 import type { Variant } from "../lib/execution/blocks";
@@ -41,6 +43,7 @@ import { AUTH_CHANGED, isAuthed, OPEN_CONTENTS, RELAYOUT, SUBMITTED } from "./wo
 import { SubmissionsFeed } from "./problem-submissions";
 import { EditorialPane } from "./practice/EditorialPane";
 import { CoachPane } from "./coach/CoachPane";
+import { CanvasPane } from "./canvas/CanvasPane";
 import { hydrateDiagrams } from "./widgets/Diagrams";
 import { hydrateSimulators } from "./widgets/Simulator";
 // Side-effect import: mounts the page-wide codebench modal — a description-pane fence
@@ -177,7 +180,7 @@ function mountRightPane(
   extracted: { variants: Variant[]; spec: TestSpec | null },
   lessonPath: string[],
 ): void {
-  const rightPane = pwb.querySelector<HTMLElement>(".pwb__right");
+  const rightPane = pwb.querySelector<HTMLElement>('.pwb__rpane[data-rpane="code"]');
   if (!rightPane) return;
   const wrap = document.createElement("div");
   rightPane.replaceChildren(wrap);
@@ -289,6 +292,88 @@ function wireTabs(pwb: HTMLElement, lessonPath: string[], spec: TestSpec | null)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// THE RIGHT PANE'S TABS — Think | Code, mount-once, opening on Code
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Which side the page opens on. Think unless the reader has PINNED Code — the page exists to put
+ *  the plan before the typing, so that is the default a first visit gets. */
+function openingMode(): "think" | "code" {
+  return storageGet(PROBLEM_MODE_KEY) === "code" ? "code" : "think";
+}
+
+/** Think is the design canvas (`canvas/CanvasPane`), mounted on first open the way the editorial
+ *  and coach panes are — so a reader who pins Code and never opens Think pays nothing for it.
+ *
+ *  Every switch fires RELAYOUT. That is load-bearing rather than tidy: coming back to Code hands
+ *  the reader a Monaco that was measured while its pane was `display: none`, which is precisely
+ *  the case the event exists for (see `contracts.ts`).
+ *
+ *  Switching tabs does NOT write the preference; only the pin does. Peeking at the editor and
+ *  saying "start me here every time" are different statements, and a preference any stray click
+ *  can overwrite is not one. */
+function wireRightTabs(pwb: HTMLElement, lessonPath: string[], title: string): void {
+  const buttons = Array.from(pwb.querySelectorAll<HTMLElement>(".pwb__rtab[data-rtab]"));
+  const panes = Array.from(pwb.querySelectorAll<HTMLElement>(".pwb__rpane[data-rpane]"));
+  if (buttons.length === 0 || panes.length === 0) return;
+  const pin = pwb.querySelector<HTMLElement>("[data-rpin]");
+  const pinText = pwb.querySelector<HTMLElement>("[data-rpin-text]");
+  let canvasMounted = false;
+  let current = openingMode();
+
+  const label = (tab: string) => (tab === "think" ? "Think" : "Code");
+
+  /** The pin reads as a STATE, not an action: pressed when this tab is already what problems open
+   *  on, so the reader can tell at a glance without clicking to find out. */
+  const paintPin = (): void => {
+    if (!pin) return;
+    const isDefault = current === openingMode();
+    pin.classList.toggle("pwb__rpin--on", isDefault);
+    pin.setAttribute("aria-pressed", String(isDefault));
+    // Named `hint` rather than `title`: the enclosing scope already has a `title` (the problem's),
+    // and one of those two being the wrong one is a bug that compiles.
+    const hint = isDefault
+      ? `Problems already open on ${label(current)}`
+      : `Open problems on ${label(current)} by default`;
+    pin.setAttribute("title", hint);
+    pin.setAttribute("aria-label", hint);
+    if (pinText) pinText.textContent = isDefault ? "Default" : "Make default";
+  };
+
+  const activate = (tab: string): void => {
+    current = tab === "code" ? "code" : "think";
+    for (const button of buttons) button.classList.toggle("pwb__rtab--active", button.dataset.rtab === tab);
+    for (const pane of panes) pane.classList.toggle("hidden", pane.dataset.rpane !== tab);
+    if (tab === "think" && !canvasMounted) {
+      const host = pwb.querySelector<HTMLElement>('[data-rpane="think"] .pcanvas-host');
+      if (host) {
+        canvasMounted = true;
+        render(h(CanvasPane, { path: lessonPath, title }), host);
+      }
+    }
+    paintPin();
+    window.dispatchEvent(new Event(RELAYOUT));
+    log.info(`workbench mode → ${tab}`);
+  };
+
+  for (const button of buttons) {
+    const tab = button.dataset.rtab;
+    if (!tab) continue;
+    button.addEventListener("click", () => activate(tab));
+  }
+
+  pin?.addEventListener("click", () => {
+    storageSet(PROBLEM_MODE_KEY, current);
+    log.info(`problems will open on ${current}`);
+    paintPin();
+  });
+
+  // The SSR frame opens on Think; a reader who pinned Code gets flipped here, on the same tick the
+  // island wires everything else. Always called (not only when it differs) so the canvas mount and
+  // the pin's state go through the one path.
+  activate(current);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // THE CONTENTS PILL — opens the reader's nav drawer (reader.ts listens for the event)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -335,7 +420,7 @@ function init(): void {
   if (extracted) {
     mountRightPane(pwb, extracted, lessonPath);
   } else {
-    const rightPane = pwb.querySelector<HTMLElement>(".pwb__right");
+    const rightPane = pwb.querySelector<HTMLElement>('.pwb__rpane[data-rpane="code"]');
     if (rightPane) rightPane.innerHTML = '<div class="pwb__nowb">No runnable block in this problem.</div>';
     log.warn("problem page has no workbench to extract");
   }
@@ -344,6 +429,7 @@ function init(): void {
   document.addEventListener(SUBMITTED, () => log.debug("submit completed (SUBMITTED bubbled to document)"));
 
   wireTabs(pwb, lessonPath, extracted?.spec ?? injected);
+  wireRightTabs(pwb, lessonPath, pwb.querySelector(".pwb__title")?.textContent?.trim() ?? "");
 }
 
 if (document.readyState === "loading") {

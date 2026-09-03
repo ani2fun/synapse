@@ -229,6 +229,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/canvas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's OWN entries for one problem, newest first — private: anonymous callers get `[]`
+         *     and the store is never touched (`list_submissions`' exact policy).
+         */
+        get: operations["listCanvasEntries"];
+        put?: never;
+        /** Save one canvas entry for the caller. Bearer required — a plan saved to nobody is a plan lost. */
+        post: operations["saveCanvasEntry"];
+        /**
+         * Erase every canvas entry of the caller — the "reset my data" leg. Submissions and progress are
+         *     separate stores and survive.
+         */
+        delete: operations["eraseCanvasEntries"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/canvas/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Owner-only delete. */
+        delete: operations["deleteCanvasEntry"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/edits": {
         parameters: {
             query?: never;
@@ -641,6 +683,44 @@ export interface components {
             slug: string;
             title: string;
         };
+        /**
+         * @description The eight areas of the canvas. Every field defaults to empty — a half-filled canvas is the
+         *     normal state of one being worked on, and a partial save must never be a 400.
+         *
+         *     `ret` rather than `return`, which is a Rust keyword; it is `return` on the wire.
+         */
+        CanvasBodyDto: {
+            constraints?: string;
+            errors?: string;
+            ideas?: components["schemas"]["CanvasIdeaDto"][];
+            inputs?: string;
+            maintenance?: string;
+            problem?: string;
+            return?: string;
+            tests?: string;
+        };
+        /**
+         * @description One saved entry. The list ships full bodies, so opening an entry needs no second request —
+         *     the shape `SubmissionDto` uses for `source`.
+         */
+        CanvasEntryDto: {
+            body: components["schemas"]["CanvasBodyDto"];
+            /** @description ISO-8601 instant. */
+            createdAt: string;
+            id: string;
+            path: string[];
+        };
+        /**
+         * @description One approach on the canvas — brute force first, then refined. `time`/`space` are the author's
+         *     own Big-O strings, not parsed: "O(n log n)", "O(n) but only if the input is sorted" and "?"
+         *     are all things a reader legitimately writes while still thinking.
+         */
+        CanvasIdeaDto: {
+            description: string;
+            name: string;
+            space: string;
+            time: string;
+        };
         CatalogEntryDto: (components["schemas"]["CategoryDto"] & {
             /** @enum {string} */
             kind: "category";
@@ -945,6 +1025,12 @@ export interface components {
          * @enum {string}
          */
         RunStatus: "Accepted" | "CompileError" | "RuntimeError" | "TimeLimitExceeded" | "InternalError";
+        /** @description `POST /api/canvas` body. */
+        SaveCanvasRequestDto: {
+            body: components["schemas"]["CanvasBodyDto"];
+            /** @description The problem's directory-mirror path, e.g. `["dsa", "arrays", "move-zeroes"]`. */
+            path: string[];
+        };
         /** @description One hit. No score: the ORDER is the contract, and a float the client must ignore is noise. */
         SearchHitDto: {
             bookSlug: string;
@@ -1668,6 +1754,159 @@ export interface operations {
                 };
             };
             /** @description Unknown slug */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    listCanvasEntries: {
+        parameters: {
+            query: {
+                /** @description The problem's directory-mirror path */
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's entries, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasEntryDto"][];
+                };
+            };
+        };
+    };
+    saveCanvasEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveCanvasRequestDto"];
+            };
+        };
+        responses: {
+            /** @description The stored entry */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CanvasEntryDto"];
+                };
+            };
+            /** @description Anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Store failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    eraseCanvasEntries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Erased */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteResultDto"];
+                };
+            };
+            /** @description Anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Store failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    deleteCanvasEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The entry id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteResultDto"];
+                };
+            };
+            /** @description Anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Someone else's */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Unknown entry */
             404: {
                 headers: {
                     [name: string]: unknown;

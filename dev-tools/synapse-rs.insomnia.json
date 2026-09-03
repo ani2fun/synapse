@@ -207,6 +207,81 @@
       ]
     },
     {
+      "_id": "fld_canvas",
+      "_type": "request_group",
+      "parentId": "wrk_synapse_rs",
+      "name": "canvas",
+      "description": "Saved Algorithm Design Canvas entries — the reader's PLAN for a problem, stored the way submissions store their code. Save/delete/erase require a bearer; GET is [] when anonymous. Erasing canvases touches nothing else."
+    },
+    {
+      "_id": "req_canvas_save",
+      "_type": "request",
+      "parentId": "fld_canvas",
+      "name": "POST /api/canvas",
+      "description": "Save one entry for the caller; the 201 carries the stored row (its id and createdAt are the store's). 401 when anonymous. A half-filled body is legal — every area defaults to empty.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/canvas",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"path\": [\n    \"dsa\",\n    \"arrays\",\n    \"two-sum\"\n  ],\n  \"body\": {\n    \"problem\": \"Return the INDICES of the two numbers that add to target.\",\n    \"constraints\": \"· max N — 1e4\\n· value range — ±10⁹\\n· duplicates? — yes\",\n    \"maintenance\": \"· the complements map stays in step with the index we are at\",\n    \"inputs\": \"nums: array of 32-bit ints, len ≤ 1e4 · target: int\",\n    \"return\": \"int[] of two indices, any order\",\n    \"errors\": \"no pair → the problem guarantees exactly one, so this cannot happen\",\n    \"tests\": \"[2,7,11,15], 9 → [0,1]\\n[3,3], 6 → [0,1]\\n[] , 0 → n/a (constraints forbid)\",\n    \"ideas\": [\n      {\n        \"name\": \"Brute force\",\n        \"description\": \"every pair\",\n        \"time\": \"O(n²)\",\n        \"space\": \"O(1)\"\n      },\n      {\n        \"name\": \"Hash map\",\n        \"description\": \"one pass, complements in a map\",\n        \"time\": \"O(n)\",\n        \"space\": \"O(n)\"\n      }\n    ]\n  }\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ]
+    },
+    {
+      "_id": "req_canvas_list",
+      "_type": "request",
+      "parentId": "fld_canvas",
+      "name": "GET /api/canvas?path=",
+      "description": "The caller's OWN entries for one problem, newest first, with full bodies (opening an entry costs no second request). Anonymous → [] and the store is never touched.",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/canvas?path=dsa/arrays/two-sum",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ]
+    },
+    {
+      "_id": "req_canvas_delete",
+      "_type": "request",
+      "parentId": "fld_canvas",
+      "name": "DELETE /api/canvas/{id}",
+      "description": "Owner-only delete. 404 when no such entry, 403 when it exists but belongs to another account — the two stay distinct so the answer is honest.",
+      "method": "DELETE",
+      "url": "{{ _.base_url }}/api/canvas/00000000-0000-0000-0000-000000000000",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ]
+    },
+    {
+      "_id": "req_canvas_erase",
+      "_type": "request",
+      "parentId": "fld_canvas",
+      "name": "DELETE /api/canvas",
+      "description": "Erase every canvas entry of the caller — the account page's 'erase my data' leg. Submissions and progress are separate stores and survive.",
+      "method": "DELETE",
+      "url": "{{ _.base_url }}/api/canvas",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ]
+    },
+    {
       "_id": "req_submit",
       "_type": "request",
       "parentId": "fld_submissions",

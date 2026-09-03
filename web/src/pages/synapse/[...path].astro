@@ -43,6 +43,7 @@ import "../../../styles/markdown.css";
 import "../../../styles/practice.css";
 import "../../../styles/diagrams.css";
 import "../../../styles/coach.css";
+import "../../../styles/canvas.css";
 import "../../../styles/codebench.css";
 
 type Mode = "lesson" | "problem" | "notFound" | "error";
@@ -300,7 +301,15 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
           <div class="pwb__panes">
             <div class="pwb__left" style={`width: ${DEFAULT_LEFT_PCT}%`}>
               <div class="pwb__head">
-                <h1 class="pwb__title">{payload.frontmatter.title}</h1>
+                <div class="pwb__head-row">
+                  <h1 class="pwb__title">{payload.frontmatter.title}</h1>
+                  <span class="pwb__plan-pill">
+                    <svg class="pwb__plan-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M9 18h6 M10 22h4 M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" />
+                    </svg>
+                    Plan in <strong>Think</strong> before you code.
+                  </span>
+                </div>
                 {payload.frontmatter.summary && <p class="pwb__lede">{payload.frontmatter.summary}</p>}
               </div>
 
@@ -370,7 +379,44 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
             </div>
 
             <div class="pwb__right">
-              <div class="pwb__nowb">Loading the workbench…</div>
+              {/* Think before Code, in that order, and Think is the tab that OPENS — the whole
+                  point of the page is that the plan comes before the typing. A reader who would
+                  rather start in the editor pins that instead; the pin is the only thing that
+                  writes the preference, so peeking at Code never silently rewrites it. */}
+              <div class="pwb__rtabs" role="tablist" aria-label="Workbench mode">
+                <button class="pwb__rtab pwb__rtab--think pwb__rtab--active" data-rtab="think" type="button">
+                  <svg class="pwb__rtab-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 5a3 3 0 0 0-3-3 2.5 2.5 0 0 0-2.5 2.5A2.5 2.5 0 0 0 4 7c0 1 .4 1.7 1 2.2A2.7 2.7 0 0 0 4 11.5c0 1 .5 1.9 1.3 2.4A2.6 2.6 0 0 0 5 15.5C5 17 6.2 18 7.7 18H9a3 3 0 0 0 3-3z" />
+                    <path d="M12 5a3 3 0 0 1 3-3 2.5 2.5 0 0 1 2.5 2.5A2.5 2.5 0 0 1 20 7c0 1-.4 1.7-1 2.2a2.7 2.7 0 0 1 1 2.3c0 1-.5 1.9-1.3 2.4.2.4.3.9.3 1.6 0 1.5-1.2 2.5-2.7 2.5H15a3 3 0 0 1-3-3z" />
+                    <path d="M12 18v4" />
+                  </svg>
+                  Think
+                </button>
+                <button class="pwb__rtab pwb__rtab--code" data-rtab="code" type="button">
+                  <svg class="pwb__rtab-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M16 18l6-6-6-6 M8 6l-6 6 6 6" />
+                  </svg>
+                  Code
+                </button>
+                <span class="pwb__rtabs-spacer" />
+                {/* The preference, made explicit. A tab click is a visit; this button is a
+                    statement about how every problem should open. */}
+                <button class="pwb__rpin" data-rpin type="button" aria-pressed="false">
+                  <svg class="pwb__rpin-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 17v5" />
+                    <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
+                  </svg>
+                  <span class="pwb__rpin-text" data-rpin-text>Default</span>
+                </button>
+              </div>
+              <div class="pwb__rpane-host">
+                <div class="pwb__rpane" data-rpane="think">
+                  <div class="pcanvas-host" />
+                </div>
+                <div class="pwb__rpane hidden" data-rpane="code">
+                  <div class="pwb__nowb">Loading the workbench…</div>
+                </div>
+              </div>
             </div>
           </div>
 

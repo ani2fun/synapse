@@ -13,6 +13,7 @@ use synapse_server::authoring::infrastructure::{
 };
 use synapse_server::blog::application::BlogService;
 use synapse_server::blog::infrastructure::FileSystemBlogRepository;
+use synapse_server::canvas::PostgresCanvasStore;
 use synapse_server::catalog::application::CatalogService;
 use synapse_server::catalog::application::{Placements, grouping_from_str};
 use synapse_server::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
@@ -75,6 +76,7 @@ async fn main() -> anyhow::Result<()> {
     let views = Arc::new(synapse_server::insights::PostgresLessonViews::new(pool.clone()));
     let readiness = Arc::new(PgReadiness::new(pool.clone()));
     let progress = Arc::new(PostgresProblemProgress::new(pool.clone()));
+    let canvas = Arc::new(PostgresCanvasStore::new(pool.clone()));
     let editors = Arc::new(PostgresContentEditors::new(pool.clone()));
     let edit_requests = Arc::new(PostgresEditRequests::new(pool.clone()));
     // Kept back: the submission store takes `pool` by value below, and the source registry is
@@ -143,6 +145,7 @@ async fn main() -> anyhow::Result<()> {
         allowlist,
         views,
         progress,
+        canvas,
         tutor,
         authoring,
         content_sources: Some(source_admin),
