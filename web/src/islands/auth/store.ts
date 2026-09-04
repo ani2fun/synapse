@@ -40,7 +40,14 @@ export function getState(): AuthState {
   return state;
 }
 
-/** Subscribe to state flips; returns an unsubscribe. Preact views use it to re-render. */
+/**
+ * Subscribe to state flips; returns an unsubscribe.
+ *
+ * NOTIFY-ONLY: the listener is not called on registration, so a subscriber that read the state
+ * before subscribing has a snapshot that may already be stale. Read `getState()` again after
+ * subscribing — `useSyncExternalStore` (what `Chip.tsx` uses) does this for you, and the gap is
+ * how the header chip once got stuck on its placeholder for a whole session.
+ */
 export function subscribe(listener: () => void): () => void {
   listeners.add(listener);
   return () => listeners.delete(listener);

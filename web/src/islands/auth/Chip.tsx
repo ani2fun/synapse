@@ -4,16 +4,27 @@
  * account & data, Admin panel (only when `me.admin`; UX-only, the server re-checks per call),
  * Sign out. Classes are `account-chip*` (web/styles/reader.css).
  */
-import { useEffect, useState } from "preact/hooks";
+import { useState } from "preact/hooks";
+import { useSyncExternalStore } from "preact/compat";
 
 import { getState, signIn, signOut, subscribe } from "./store";
 import type { AuthState } from "./store";
 
-/** Re-render on every store flip. */
+/**
+ * Re-render on every store flip.
+ *
+ * `useSyncExternalStore` rather than a `useState` snapshot plus a `useEffect` subscription, for
+ * one reason: it RE-READS the store after subscribing. The hand-rolled pair cannot — it captures
+ * the state at mount and only registers its listener after first paint, so a flip landing in that
+ * window is delivered to nobody and the chip sits on its placeholder for the rest of the session.
+ * That is not hypothetical: `check-sso` answers in microseconds when Keycloak is unreachable, and
+ * it beat the effect every time — the store logged `anonymous` while the header still showed `…`.
+ * The primitive exists to close exactly this gap; `lib/store.ts` reaches for it for the same
+ * reason. `getState` returns the singleton, whose identity changes only when `setState` assigns,
+ * so the snapshot is stable and this never spins.
+ */
 export function useAuthState(): AuthState {
-  const [snapshot, setSnapshot] = useState<AuthState>(getState());
-  useEffect(() => subscribe(() => setSnapshot(getState())), []);
-  return snapshot;
+  return useSyncExternalStore(subscribe, getState);
 }
 
 export function Chip() {

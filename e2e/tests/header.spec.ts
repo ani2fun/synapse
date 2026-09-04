@@ -30,11 +30,12 @@ const POOL_AUTHORS = [
 /**
  * The controls that must agree, in the order they sit in the row.
  *
- * The chip is matched by ANY of its three states. It renders `__quiet` while check-sso is
- * outstanding, and which state a run catches is a race it is not this spec's business to win —
- * the header must not reflow when that race resolves, so all three carry the row's height.
+ * The chip is pinned to `__signin`, not matched across all three of its states: every auth failure
+ * path lands on `anonymous`, so an anonymous page load reaches the Sign in button whether or not
+ * Keycloak is reachable. All three states do carry the row's height — the header must not reflow
+ * when check-sso answers — but only the settled one belongs in a symmetry assertion.
  */
-const CHIP = ".account-chip__signin, .account-chip__user, .account-chip__quiet";
+const CHIP = ".account-chip__signin";
 const CONTROLS = [".header__search", ".header__link", ".header__icon-btn", CHIP];
 
 test("the header carries a quote and keeps to one row", async ({ page }) => {
@@ -107,3 +108,15 @@ test("the quote stands down on a phone, and the row still fits", async ({ page }
   expect(header?.height ?? 0).toBeLessThan(64);
 });
 
+test("the account chip settles instead of sitting on its placeholder", async ({ page }) => {
+  await page.goto("/");
+
+  // The store starts `loading` and every failure path lands on `anonymous`, so this resolves with
+  // or without Keycloak. It once did not, and not visibly: `useAuthState` read the state at mount
+  // and only subscribed after first paint, so a check-sso that answered inside that window was
+  // delivered to no listener at all. The store logged `anonymous`, the header showed `…`, and it
+  // stayed that way for the rest of the session. `useSyncExternalStore` re-reads after
+  // subscribing, which is the whole reason it is the primitive for this.
+  await expect(page.locator(".account-chip__signin")).toBeVisible();
+  await expect(page.locator(".account-chip__quiet")).toHaveCount(0);
+});
