@@ -9,6 +9,11 @@
  * Two callers: the embedded practice widget mounts it REVEALED; the problem-page editorial
  * mounts it behind a reveal gate. The component itself is identical either way — the gate is the
  * editorial's, not the viewer's.
+ *
+ * Monaco is a lazy chunk and is therefore allowed to be UNAVAILABLE. When it is, the viewer falls
+ * back to the plain source in the same box rather than to nothing: the reader came here to read
+ * the code, and highlighting is the only thing actually lost. Language switching keeps working,
+ * because the fallback renders the active variant rather than a buffer someone has to set.
  */
 import { useEffect, useRef, useState } from "preact/hooks";
 
@@ -46,6 +51,7 @@ export function SolutionViewer({ variants, workbenchRoot }: SolutionViewerProps)
   const [menuOpen, setMenuOpen] = useState(false);
   const host = useRef<HTMLDivElement>(null);
   const mounted = useRef<EditorHandle | null>(null);
+  const [unmountable, setUnmountable] = useState(false);
   const activeRef = useRef(active);
   activeRef.current = active;
 
@@ -59,15 +65,26 @@ export function SolutionViewer({ variants, workbenchRoot }: SolutionViewerProps)
     const first = variants[start]!;
     const dark = document.documentElement.classList.contains("dark");
     void (async () => {
-      const { createEditor } = await import("../../lib/islands/editor/monaco");
-      if (mounted.current) return;
-      mounted.current = createEditor(node, {
-        value: first.source,
-        language: first.language,
-        readOnly: true,
-        dark,
-      });
-      log.debug(`solution viewer monaco mounted (${first.language})`);
+      try {
+        const { createEditor } = await import("../../lib/islands/editor/monaco");
+        if (mounted.current) return;
+        mounted.current = createEditor(node, {
+          value: first.source,
+          language: first.language,
+          readOnly: true,
+          dark,
+        });
+        log.debug(`solution viewer monaco mounted (${first.language})`);
+      } catch (error) {
+        // A lazy chunk that will not load is not a hypothetical: a dev server re-optimizes its
+        // dependencies and answers the open page's stale URLs with 504, and a deploy retires the
+        // hashed chunk an already-open tab is about to ask for. Unhandled, the rejection went to
+        // the console and the reader got a box that stayed empty forever -- every other part of
+        // the viewer renders, so nothing on screen suggested anything had failed.
+        // The source is already here; show it.
+        log.warn(`solution viewer: monaco unavailable (${error instanceof Error ? error.message : String(error)}) -- showing plain source`);
+        setUnmountable(true);
+      }
     })();
     return () => {
       mounted.current?.dispose();
@@ -163,7 +180,15 @@ export function SolutionViewer({ variants, workbenchRoot }: SolutionViewerProps)
           </button>
         </span>
       </div>
-      <div class="runnable__editor" style={`height: ${height}px;`} ref={host}></div>
+      <div class="runnable__editor" style={`height: ${height}px;`} ref={host}>
+        {unmountable && (
+          <div class="runnable__preview">
+            <pre>
+              <code>{variant.source}</code>
+            </pre>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

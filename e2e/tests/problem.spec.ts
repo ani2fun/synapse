@@ -67,6 +67,46 @@ test("the editorial tab mounts its stepper", async ({ page }) => {
   await expect(page.getByRole("button", { name: /intuition/i }).first()).toBeVisible();
 });
 
+test("the editorial's solution reveals real code, not an empty box", async ({ page }) => {
+  await page.goto(PROBLEM);
+  await expect(page.locator(".pcanvas")).toBeVisible();
+  await page.locator(".problem-tab--editorial").click();
+  await expect(page.locator(".pwb-escroll")).toBeVisible();
+
+  // The code is behind a gate, so nothing is mounted until this is pressed.
+  const reveal = page.locator(".pwb-ereveal");
+  await expect(reveal).toBeVisible();
+  await reveal.click();
+
+  // The assertion that matters is the TEXT, not the chrome. Monaco arrives as a lazy chunk, and
+  // when that import fails -- a stale dev-server dep cache, a chunk 404 after a deploy -- the
+  // viewer still renders its bar, its language pill and its Copy to editor button, so everything
+  // an element-presence check would look at is present and correct. The only symptom is that the
+  // editor is empty, and the only other trace is a console error. Assert the source is on screen.
+  const solution = page.locator(".pwb-ereveal-open .runnable.solution");
+  await expect(solution.locator(".wb__eyebrow")).toContainText("SOLUTION");
+  await expect(solution.locator(".view-lines")).toContainText("int(input())", { timeout: 30_000 });
+});
+
+test("a solution whose editor cannot load still shows its code", async ({ page }) => {
+  // The lazy chunk, made unreachable. This is the shape of two real failures: a dev server that
+  // has re-optimized its dependencies and answers the open page's stale URLs with 504, and a
+  // deploy that retires the hashed chunk a still-open tab is about to ask for.
+  await page.route(/monaco/i, (route) => route.abort());
+
+  await page.goto(PROBLEM);
+  await expect(page.locator(".pcanvas")).toBeVisible();
+  await page.locator(".problem-tab--editorial").click();
+  await expect(page.locator(".pwb-escroll")).toBeVisible();
+  await page.locator(".pwb-ereveal").click();
+
+  // No editor -- and the code is on screen regardless, in the same box at the same size. The
+  // reader loses highlighting and nothing else, which is the whole point of the fallback.
+  const solution = page.locator(".pwb-ereveal-open .runnable.solution");
+  await expect(solution.locator(".monaco-editor")).toHaveCount(0);
+  await expect(solution.locator(".runnable__preview")).toContainText("int(input())", { timeout: 30_000 });
+});
+
 /**
  * The solution is its own document in the index, and its result row has to keep the promise it
  * makes. "comparison" is written in the editorial and NOWHERE else in the fixture library — not
