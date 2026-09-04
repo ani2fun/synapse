@@ -3,6 +3,12 @@
  * then Constraints beside Maintenance, then Inputs · Return · Error/N-A, then Ideas, then Tests.
  * The order is the order you fill them in, and the widths say which ones deserve room.
  *
+ * The areas carry NO placeholder text. What belongs in each is the ℹ️'s job, said once and at
+ * length; a hint repeated inside the field reads as content the reader has to clear, and an empty
+ * canvas full of grey sentences looks like a filled one. The only survivors are the T and S boxes,
+ * where the hint is a FORMAT ("O(n²)") rather than a restatement of the label — nothing else tells
+ * the reader that Big-O is what goes there.
+ *
  * The textareas are UNCONTROLLED (`defaultValue` + `onInput`). A controlled textarea re-renders
  * the whole canvas on every keystroke, and this pane holds nine of them; the buffer instead lives
  * in the parent's mutable body object and the parent re-renders only when the derived readout
@@ -38,16 +44,6 @@ const AREA_LABEL: Record<Area, string> = {
   ret: "Return",
   errors: "Error / N/A",
   tests: "Tests",
-};
-
-const PLACEHOLDER: Record<Area, string> = {
-  problem: "Restate the problem in one sentence, in your own words.",
-  constraints: "max N? · value range? · unique / sorted? · memory limit? · may I mutate the input?",
-  maintenance: "State you must keep in sync: tail pointer · running best · visited set · counter after the loop",
-  inputs: "types, sizes, shape — array of 32-bit ints, len ≤ 1e4",
-  ret: "value + type · in-place? · void + prints? · order guaranteed?",
-  errors: "bad input → ? · not found → −1 / None / throw · empty input → ?",
-  tests: "One line per case — input → expected.",
 };
 
 /** `ideas` is an area of the canvas but not a text field, so its info key is spelled here rather
@@ -116,7 +112,6 @@ function AreaCard({
         class={`pcanvas__field pcanvas__field--${size}`}
         aria-label={label}
         defaultValue={body[area]}
-        placeholder={PLACEHOLDER[area]}
         readOnly={readOnly}
         onInput={(event) => onArea(area, (event.currentTarget as HTMLTextAreaElement).value)}
       />
@@ -176,8 +171,7 @@ function IdeaRow({
             class="pcanvas__idea-name"
             aria-label="Idea name"
             defaultValue={idea.name}
-            placeholder="Idea name"
-            readOnly={readOnly}
+              readOnly={readOnly}
             onInput={(event) => onIdea(idea.id, "name", (event.currentTarget as HTMLInputElement).value)}
           />
           {!readOnly && removable && (
@@ -193,7 +187,6 @@ function IdeaRow({
           class="pcanvas__field pcanvas__field--sm"
           aria-label="Idea description"
           defaultValue={idea.desc}
-          placeholder="Two or three lines any interviewer can follow — what structure, why it helps."
           readOnly={readOnly}
           onInput={(event) => onIdea(idea.id, "desc", (event.currentTarget as HTMLTextAreaElement).value)}
         />

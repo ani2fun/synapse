@@ -183,7 +183,10 @@ export function CanvasPane({ path, title }: { path: string[]; title: string }) {
   };
 
   const onAddIdea = () => {
-    body.current.ideas = [...body.current.ideas, { id: newIdeaId(), name: "", desc: "", time: "", space: "" }];
+    // Named on arrival, the way the two starters are. The name field carries no placeholder (the
+    // ℹ️ covers what an idea is), so an unnamed row would be a bare box saying nothing at all.
+    const name = `Idea ${body.current.ideas.length + 1}`;
+    body.current.ideas = [...body.current.ideas, { id: newIdeaId(), name, desc: "", time: "", space: "" }];
     setFormKey(`k${Date.now()}`);
     queueSave();
   };
