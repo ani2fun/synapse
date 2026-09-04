@@ -1,0 +1,28 @@
+---
+// The header's centre: one motivating line, changing at 06:00 and again at 18:00.
+//
+// Pure SSR — no island, no script, no eager JS on any page. `lib/quote.ts` answers synchronously
+// from its own cache and refreshes in the background, so rendering this costs a property read even
+// on the render that finds the cache cold.
+//
+// The whole figure is ONE LINE that truncates (shell.css); the `title` carries the full text, so a
+// quote clipped on a narrow monitor is still readable on hover. The author links out only when the
+// feed supplied a source — that anchor is the attribution BrainyQuote asks of its feed readers,
+// and the bundled pool, having no source, renders the name as plain text.
+import { currentQuote } from "../lib/quote";
+
+const { text, author, href } = currentQuote();
+---
+
+<figure class="header-quote" title={`${text} — ${author}`}>
+  <blockquote class="header-quote__text">{text}</blockquote>
+  <figcaption class="header-quote__by">
+    {
+      href ? (
+        <a class="header-quote__src" href={href} target="_blank" rel="noopener nofollow">{author}</a>
+      ) : (
+        author
+      )
+    }
+  </figcaption>
+</figure>

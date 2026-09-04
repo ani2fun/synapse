@@ -20,7 +20,16 @@ SATELLITE='[{"id":"java-guide","root":"e2e/fixture-java-guide","grouping":"progr
 export SYNAPSE_LOCAL_SOURCES="${SYNAPSE_LOCAL_SOURCES:-$SATELLITE}"
 # The reconcile loop is OFF: nothing here is registered, and a tick would only reach the network.
 export SYNAPSE_CONTENT_SYNC_SECONDS="${SYNAPSE_CONTENT_SYNC_SECONDS:-0}"
+# The header quote reads its BUNDLED pool, never BrainyQuote: a suite that fetched the live feed
+# would assert against a third party's uptime and against text that changes twice a day. `off` is
+# the documented kill switch, and header.spec.ts asserts the pool's own quote.
+export SYNAPSE_QUOTE_FEED_URL="${SYNAPSE_QUOTE_FEED_URL:-off}"
 export SYNAPSE_PORT="${SYNAPSE_PORT:-8280}"
+# The sidecar reaches the API through this. DERIVED from the port rather than defaulted
+# separately, or overriding SYNAPSE_PORT moves the server and leaves the sidecar calling
+# :8280 — every page then SSRs against whatever else is listening there, and the suite fails
+# as content 404s rather than as a misconfiguration.
+export SYNAPSE_API_URL="${SYNAPSE_API_URL:-http://localhost:$SYNAPSE_PORT}"
 SIDECAR_PORT="${SIDECAR_PORT:-4321}"
 
 # shellcheck source=lib-ports.sh

@@ -5,44 +5,101 @@
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* ── header ── */
+/* Every control in the action row measures itself against ONE height. Four controls at four
+   heights (a bare text link, a 40px icon square, a 28px pill, a 30px field) is what made the row
+   read as unbalanced; a single custom property is what keeps them agreeing as each is edited.
+   The account chip's own rules live in reader.css and inherit this through the cascade. */
 .header { position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+          --header-control-h: 2.25rem;
           background: hsl(var(--background) / 0.85); backdrop-filter: blur(8px);
           border-bottom: 1px solid hsl(var(--border) / 0.6); }
-/* Full-width, like the design's app-shell header — brand flush-left, actions flush-right, so the
-   bar aligns with the full-bleed reader columns below it (sidebar left edge, rail right edge). */
-.header__nav { padding: 0.75rem 1.25rem; display: flex; justify-content: space-between;
-               align-items: center; gap: 1rem; }
-.header__brand { display: inline-flex; align-items: center; gap: 0.55rem; }
+/* Full-width, like the design's app-shell header — brand flush-left, controls flush-right, so the
+   bar aligns with the full-bleed reader columns below it (sidebar left edge, rail right edge).
+   THREE COLUMNS, and the outer two claim an EQUAL share — that is what puts the quote on the
+   middle of the bar rather than on the middle of the space left over. All three take `flex-basis:
+   0`, so the row is divided evenly instead of by content width; the brand then sits at the left of
+   its share and the controls at the right of theirs. A reserved width would have been a guess at
+   the control row, and it was wrong the moment a longer username rendered. */
+.header__nav { padding: 0.75rem 1.25rem; display: flex; align-items: center; gap: 1rem; }
+.header__brand { flex: 1 1 0; display: inline-flex; align-items: center; gap: 0.55rem; }
 .header__chip { flex: none; }
 .header__wordmark { font-family: var(--font-mono); font-weight: 600; font-size: 1.05rem;
                     color: hsl(var(--foreground)); letter-spacing: -0.01em; }
-.header__mid { flex: 1; display: flex; justify-content: center; min-width: 0; }
+
+/* ── the daily quote (components/HeaderQuote.astro) ── */
+/* The middle column, and the ONLY one that gives. A flex child defaults to `min-width: auto` and
+   would refuse to shrink below its content — which is how a header grows to 95px and wrecks every
+   fixed-header offset below it. `min-width: 0` here (and on the text) means a control row too wide
+   for its even share takes the room it needs from the quote, which truncates and stays ONE LINE at
+   every width. Below 1024px it stands down entirely. */
+.header__mid { flex: 1 1 0; display: flex; justify-content: center; min-width: 0; }
+/* A SERIF, deliberately — the one place on the site that is neither UI nor prose, and the only
+   way a single line of chrome reads as a quotation rather than as another label. The stack is all
+   system faces: a header decoration does not justify a webfont request on every page load, and
+   Georgia was drawn for exactly this size on exactly these screens. Swapping in a loaded face is
+   a change to this one property. */
+.header-quote { --quote-font: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino,
+                              "Noto Serif", "Times New Roman", serif;
+                display: flex; align-items: baseline; gap: 0.4rem; margin: 0; min-width: 0;
+                max-width: min(48rem, 100%); line-height: 1.4; }
+/* Teal comes from `--primary`, never a literal: the token is a deep teal on the light theme and a
+   brighter one on the dark, and a hard-coded colour would be legible on only one of them. */
+.header-quote__text { margin: 0; min-width: 0; font-family: var(--quote-font);
+                      font-size: 0.95rem; font-weight: 700; color: hsl(var(--primary));
+                      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The quotation marks are DRAWN, not stored: `parseFeed` strips whatever the feed wrapped its
+   text in, so every quote — fed or bundled — is punctuated once and identically here. */
+.header-quote__text::before { content: "\201C"; }
+.header-quote__text::after { content: "\201D"; }
+/* The author recedes: smaller, unemphasised and muted, so the line has one voice and one accent. */
+.header-quote__by { flex: none; font-family: var(--quote-font); font-size: 0.8rem;
+                    white-space: nowrap; color: hsl(var(--muted-foreground)); }
+.header-quote__by::before { content: "— "; }
+.header-quote__src { color: inherit; }
+.header-quote__src:hover { color: hsl(var(--primary)); }
+
+/* ── the action row ── */
+/* NOTHING INSIDE THIS ROW SHRINKS. Flex items shrink by default, and a shrunk row is what turns a
+   36px square toggle into a 34px rectangle — silently, because every rule still reads 2.25rem.
+   Every control is `flex: none`, which also makes the row's own min-content its true width: it can
+   claim more than its even share when it needs to, and the quote is what yields. */
+.header__actions { flex: 1 1 0; display: flex; align-items: center; justify-content: flex-end;
+                   gap: 0.5rem; }
+/* Search leads the row as one control among four, not a centrepiece: same height, same radius,
+   narrow enough to leave the middle to the quote. islands/palette.ts finds it by class, so the
+   move out of `.header__mid` costs it nothing.
+   The width is a flat length, NEVER a percentage: a percentage resolves against a container that
+   is itself sized by its content, and the circularity resolves as a squeeze on every sibling. */
 .header__search { display: inline-flex; align-items: center; gap: 0.5rem;
-                  width: min(24rem, 100%); padding: 0.4rem 0.85rem; font-size: 0.85rem;
+                  flex: none; width: 10rem;
+                  height: var(--header-control-h); padding: 0 0.75rem; font-size: 0.85rem;
                   border: 1px solid hsl(var(--border)); border-radius: var(--radius-md);
                   background: hsl(var(--secondary) / 0.3); color: hsl(var(--muted-foreground));
                   cursor: pointer; font-family: inherit; }
 .header__search:hover { border-color: hsl(var(--primary) / 0.4); }
 .header__search-ic { width: 15px; height: 15px; flex: none; }
-/* min-width:0 + ellipsis is the ROOT fix for the phone header: .header__mid is a flex item
-   that shrinks happily, and a flex child's default min-width:auto let this label refuse to
-   shrink with it — so the text escaped a 55px-wide button and collided with the nav beside
-   it, dragging the header to 95px tall. It now truncates inside its box at any width. */
+/* The label truncates inside its own box rather than escaping it — the same `min-width: 0`
+   rule the quote needs, for the same reason. */
 .header__search-text { flex: 1; min-width: 0; text-align: left;
                        overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.header__search-kbd { font-size: 0.68rem; padding: 0.05rem 0.35rem;
+.header__search-kbd { flex: none; font-size: 0.68rem; padding: 0.05rem 0.35rem;
                       border-radius: var(--radius-sm); border: 1px solid hsl(var(--border));
                       background: hsl(var(--muted)); color: hsl(var(--muted-foreground));
                       font-family: var(--font-mono); }
-.header__actions { display: flex; align-items: center; gap: 0.75rem; }
-.header__link { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.875rem;
-                font-weight: 500; color: hsl(var(--foreground) / 0.85); }
-.header__link:hover { color: hsl(var(--primary)); }
+/* Blog is a control, not a bare text link: without the box it sat ~20px tall beside a 40px
+   toggle, which is the asymmetry the shared height exists to remove. */
+.header__link { display: inline-flex; align-items: center; gap: 0.4rem; flex: none;
+                height: var(--header-control-h); padding: 0 0.7rem;
+                border: 1px solid hsl(var(--border)); border-radius: var(--radius-md);
+                font-size: 0.875rem; font-weight: 500; color: hsl(var(--foreground) / 0.85); }
+.header__link:hover { background: hsl(var(--accent)); color: hsl(var(--primary));
+                      border-color: hsl(var(--primary) / 0.4); }
 .header__link-ic { width: 16px; height: 16px; flex: none; }
 
 /* the shadcn outline icon button (theme toggle) */
-.header__icon-btn { display: inline-flex; align-items: center; justify-content: center;
-                    width: 2.5rem; height: 2.5rem; border-radius: var(--radius-md);
+.header__icon-btn { display: inline-flex; align-items: center; justify-content: center; flex: none;
+                    width: var(--header-control-h); height: var(--header-control-h);
+                    border-radius: var(--radius-md);
                     border: 1px solid hsl(var(--input)); background: hsl(var(--background));
                     color: hsl(var(--foreground)); cursor: pointer; transition: background 0.15s; }
 .header__icon-btn:hover { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
@@ -52,19 +109,23 @@
 .dark .header__icon-btn__sun { display: block; }
 .dark .header__icon-btn__moon { display: none; }
 
-/* Below 640px the header has no room for a 24rem search box beside the brand and the nav.
-   The label and the ⌘K hint stand down and the trigger becomes a square icon button, so the
-   bar stays one row — it was wrapping to three, and a 95px header is what defeated the first
-   attempt at offsetting the nav drawer (step 43). */
+/* Below 1024px the four controls and the brand claim the whole row, and a quote squeezed into
+   what is left would be an ellipsis with an author attached. It stands down entirely rather than
+   competing for width — the reader loses nothing they can act on. */
+@media (max-width: 1023px) {
+  .header__mid { display: none; }
+}
+
+/* Below 640px the row has no width for a 14rem search field either. The label and the ⌘K hint
+   stand down and the trigger becomes a square matching the theme toggle, so the bar stays ONE
+   row — a 95px header is what defeated the first attempt at offsetting the nav drawer. */
 @media (max-width: 640px) {
   .header__nav { padding: 0.6rem 0.85rem; gap: 0.5rem; }
-  .header__mid { flex: 0 0 auto; }
-  .header__search { width: 2.25rem; height: 2.25rem; padding: 0; justify-content: center; }
+  .header__search { width: var(--header-control-h); padding: 0; justify-content: center; }
   .header__search-text, .header__search-kbd { display: none; }
   /* The label carries the meaning; the glyph is what a 390px row cannot afford. */
   .header__link-ic { display: none; }
-  .header__actions { gap: 0.5rem; }
-  .header__icon-btn { width: 2.25rem; height: 2.25rem; }
+  .header__link { padding: 0 0.55rem; }
 }
 
 .shell-main { padding: 4.75rem var(--shell-gutter) 1.25rem; max-width: 72rem; margin: 0 auto; }

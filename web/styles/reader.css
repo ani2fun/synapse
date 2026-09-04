@@ -82,20 +82,33 @@ html[data-reader-width] .lesson.lesson--problem,
 .sidebar-chapter .sidebar-lessons { margin-left: 0.75rem; }
 
 /* ── the account chip (step 17) ── */
+/* The chip renders LAST in the header's control row, so it answers to that row's shared height
+   (`--header-control-h`, declared on `.header` in shell.css) rather than to a padding of its own —
+   a chip sized independently is exactly how the row ended up with four different heights. The
+   literal fallback in each `var()` keeps the chip sensible anywhere else it is ever mounted. */
 .shell-spacer { flex: 1; }
-.account-chip__signin { padding: 0.35rem 0.9rem; font-size: 0.85rem; font-weight: 600;
+[data-account-chip], .account-chip { display: inline-flex; align-items: center; flex: none; }
+.account-chip__signin { display: inline-flex; align-items: center;
+                        height: var(--header-control-h, 2.25rem); padding: 0 0.9rem;
+                        font-size: 0.875rem; font-weight: 600;
                         border: none; border-radius: var(--radius-md);
                         background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
                         cursor: pointer; }
 .account-chip__signin:hover { filter: brightness(1.06); }
-.account-chip__quiet { opacity: 0.5; }
-.account-chip__menu-wrap { position: relative; }
-.account-chip__user { padding: 0.35rem 0.75rem; font-size: 0.85rem; font-weight: 600;
+.account-chip__quiet { display: inline-flex; align-items: center;
+                        height: var(--header-control-h, 2.25rem); opacity: 0.5; }
+.account-chip__menu-wrap { position: relative; display: inline-flex; align-items: center; }
+.account-chip__user { display: inline-flex; align-items: center;
+                      height: var(--header-control-h, 2.25rem); padding: 0 0.75rem;
+                      font-size: 0.875rem; font-weight: 600;
                       border: 1px solid hsl(var(--border)); border-radius: var(--radius-md);
                       background: hsl(var(--secondary) / 0.4);
                       color: hsl(var(--foreground)); cursor: pointer; }
 .account-chip__user:hover { border-color: hsl(var(--primary) / 0.4); }
-.account-chip__menu { position: absolute; right: 0; top: 2.2rem; z-index: 40; display: flex;
+/* Offset from the BUTTON, not a literal: a hard 2.2rem was tuned to a shorter chip and overlaps
+   the taller one. */
+.account-chip__menu { position: absolute; right: 0; top: calc(var(--header-control-h, 2.25rem) + 0.4rem);
+                      z-index: 40; display: flex;
                       flex-direction: column; min-width: 11rem; background: hsl(var(--card));
                       border: 1px solid hsl(var(--border)); border-radius: 0.5rem;
                       box-shadow: 0 8px 24px hsl(var(--foreground) / 0.12); overflow: hidden; }

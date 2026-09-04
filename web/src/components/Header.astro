@@ -1,9 +1,20 @@
 ---
-// The site header: brand link home, the `.header__search` button that islands/palette.ts
-// hydrates into the ⌘K command palette (also the e2e selector `reader.spec.ts` clicks), the
-// Blog link (glyph + label; the glyph stands down on a phone, where the row has no spare
-// width), the light/dark theme toggle (islands/theme.ts flips `.dark` on <html>), and the
-// account chip mount host.
+// The site header, in three parts: the brand home link, the twice-daily quote holding the centre
+// (components/HeaderQuote.astro — SSR only, no script), and the control row.
+//
+// Every control in `.header__actions` shares ONE height and radius (`--header-control-h`, declared
+// in shell.css): the search trigger, the Blog link, the theme toggle and the account chip read as
+// one row rather than four sizes. Search leads the row because it is a utility, not the page's
+// centrepiece — and islands/palette.ts binds it by `document.querySelectorAll(".header__search")`,
+// so where it sits in the DOM is the header's business alone.
+//
+// The search label is the SHORT one. The row's width is what pushes the quote off the middle of
+// the bar, and `title`/`aria-label` still carry the full phrase for anyone who needs it.
+//
+// The pieces with behaviour: `.header__search` becomes the ⌘K palette (islands/palette.ts), the
+// toggle flips `.dark` on <html> (islands/theme.ts), and `[data-account-chip]` is where
+// islands/auth mounts the Preact chip.
+import HeaderQuote from "./HeaderQuote.astro";
 ---
 
 <header class="header">
@@ -25,6 +36,9 @@
       <span class="header__wordmark">synapse</span>
     </a>
     <div class="header__mid">
+      <HeaderQuote />
+    </div>
+    <div class="header__actions">
       <button class="header__search" type="button" title="Search the library (⌘K)" aria-label="Search the library">
         <svg
           class="header__search-ic"
@@ -39,11 +53,9 @@
           <circle cx="11" cy="11" r="8"></circle>
           <path d="m21 21-4.3-4.3"></path>
         </svg>
-        <span class="header__search-text">Search the library…</span>
+        <span class="header__search-text">Search…</span>
         <kbd class="header__search-kbd">⌘K</kbd>
       </button>
-    </div>
-    <div class="header__actions">
       <a class="header__link" href="/blog">
         <svg
           class="header__link-ic"
@@ -73,7 +85,7 @@
         </svg>
       </button>
       <!-- The account chip's mount host. islands/auth (loaded globally from Base) renders the
-           Preact `Chip` in here, after the Blog link; its own root carries `account-chip`. -->
+           Preact `Chip` in here, last in the control row; its own root carries `account-chip`. -->
       <span data-account-chip></span>
     </div>
   </nav>
