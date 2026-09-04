@@ -74,6 +74,14 @@ export function SolutionViewer({ variants, workbenchRoot }: SolutionViewerProps)
           readOnly: true,
           dark,
         });
+        // Measure NOW, against the box as it actually is. The reveal broadcasts RELAYOUT the
+        // moment it mounts this component, which is BEFORE this import resolves -- so the
+        // listener below has no editor to nudge and the event never comes again. An editor
+        // created into a container that was 0x0, or whose size monaco's ResizeObserver never
+        // saw change, then renders no lines forever: mounted, sized, and blank.
+        // Between the two, both orders are covered -- this call for a reveal that happened
+        // before the editor existed, the listener for one that happens after.
+        mounted.current.relayout();
         log.debug(`solution viewer monaco mounted (${first.language})`);
       } catch (error) {
         // A lazy chunk that will not load is not a hypothetical: a dev server re-optimizes its

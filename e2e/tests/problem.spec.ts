@@ -88,6 +88,31 @@ test("the editorial's solution reveals real code, not an empty box", async ({ pa
   await expect(solution.locator(".view-lines")).toContainText("int(input())", { timeout: 30_000 });
 });
 
+test("a slow-loading editor still ends up showing its lines", async ({ page }) => {
+  // Coverage for a slow chunk, not a guard on the measure race. The reveal broadcasts RELAYOUT
+  // before the lazy editor exists, so the viewer re-measures itself on arrival instead of relying
+  // on that event -- but the blank-editor case this protects against only reproduces when the
+  // container is genuinely 0x0 at construction, which a delay alone does not force here, and
+  // forcing it by hiding the pane would test the listener rather than the arrival. So this pins
+  // the honest half: a chunk that takes its time still ends up with lines on screen.
+  await page.route(/monaco/i, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await route.continue();
+  });
+
+  await page.goto(PROBLEM);
+  await expect(page.locator(".pcanvas")).toBeVisible();
+  await page.locator(".problem-tab--editorial").click();
+  await expect(page.locator(".pwb-escroll")).toBeVisible();
+  await page.locator(".pwb-ereveal").click();
+
+  // Mounted AND measured. An editor that missed its nudge renders no lines at all while every
+  // other part of it -- the box, the bar, the language pill -- looks entirely correct.
+  const solution = page.locator(".pwb-ereveal-open .runnable.solution");
+  await expect(solution.locator(".monaco-editor")).toBeVisible({ timeout: 30_000 });
+  await expect(solution.locator(".view-lines")).toContainText("int(input())", { timeout: 30_000 });
+});
+
 test("a solution whose editor cannot load still shows its code", async ({ page }) => {
   // The lazy chunk, made unreachable. This is the shape of two real failures: a dev server that
   // has re-optimized its dependencies and answers the open page's stale URLs with 504, and a
