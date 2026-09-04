@@ -100,7 +100,7 @@ function AreaCard({
   const chips = CHIPS[area] ?? [];
   const label = AREA_LABEL[area];
   return (
-    <div class="pcanvas__card">
+    <div class={`pcanvas__card pcanvas__card--${area}`}>
       <div class="pcanvas__card-head">
         <span class="pcanvas__card-title">{label}</span>
         <InfoButton area={INFO_KEY[area]} label={label} onInfo={onInfo} />
@@ -254,15 +254,17 @@ export function CanvasForm({
     <div class="pcanvas__grid">
       {card("problem", "sm")}
 
-      <div class="pcanvas__row pcanvas__row--2">
+      {/* The SPEC block: what the function is, in one grid. Column one is the signature (what
+          comes in, above what goes out), column two is the limits (what is allowed, above what
+          happens when nothing is), and Maintenance takes the third column whole — it is the one
+          area that grows into a list, and it is the one you keep glancing back at while writing
+          the other four. DOM order is reading order, so tab order matches the layout. */}
+      <div class="pcanvas__row pcanvas__row--spec">
+        {card("inputs", "md")}
         {card("constraints", "md", "Ask, don't assume")}
         {card("maintenance", "md")}
-      </div>
-
-      <div class="pcanvas__row pcanvas__row--3">
-        {card("inputs", "sm")}
-        {card("ret", "sm")}
-        {card("errors", "sm")}
+        {card("ret", "md")}
+        {card("errors", "md")}
       </div>
 
       <div class="pcanvas__card">

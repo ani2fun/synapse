@@ -129,16 +129,42 @@
 
 .pcanvas__body { flex: 1 1 auto; min-height: 0; }
 
-/* ── the grid: Problem across the top, then the pairs and triples the method groups ── */
+/* ── the grid: Problem across the top, then the SPEC block, then Ideas and Tests ── */
 .pcanvas__grid { display: flex; flex-direction: column; gap: 10px; }
 .pcanvas__row { display: grid; gap: 10px; }
-.pcanvas__row--2 { grid-template-columns: 1fr 1fr; }
-.pcanvas__row--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* The spec block. Placed by NAME, not by source position: the areas read in one order and sit in
+   another, and named placement keeps those two facts independent — reordering the markup for tab
+   order cannot silently reshuffle the layout, and vice versa.
+     inputs      constraints   maintenance
+     ret         errors        maintenance
+   Column one is the signature (in, then out), column two the limits (what is allowed, then what
+   happens when nothing is), and Maintenance spans both rows because it is the one area that grows
+   into a list and the one you keep glancing back at while filling the other four. */
+.pcanvas__row--spec { grid-template-columns: repeat(3, minmax(0, 1fr));
+                      grid-template-areas: "inputs constraints maintenance"
+                                           "ret    errors      maintenance"; }
+.pcanvas__card--inputs { grid-area: inputs; }
+.pcanvas__card--constraints { grid-area: constraints; }
+.pcanvas__card--maintenance { grid-area: maintenance; }
+.pcanvas__card--ret { grid-area: ret; }
+.pcanvas__card--errors { grid-area: errors; }
+/* Grid rows are as tall as their tallest card, so most cards are TALLER than their field's
+   min-height. The field takes that slack (see `.pcanvas__field`) rather than leaving a short
+   scrolling box above dead space — which is what a `min-height` alone gives you here. */
+
 /* Container queries resolve against the pane's own width, so the canvas collapses when the
-   SPLITTER squeezes it, not only when the window narrows. */
+   SPLITTER squeezes it, not only when the window narrows. Stacking drops the named areas and
+   falls back to source order, which is already the reading order. */
 .pcanvas__grid { container-type: inline-size; }
-@container (max-width: 620px) {
-  .pcanvas__row--2, .pcanvas__row--3 { grid-template-columns: 1fr; }
+@container (max-width: 700px) {
+  .pcanvas__row--spec { grid-template-columns: 1fr 1fr;
+                        grid-template-areas: "inputs      constraints"
+                                             "ret         errors"
+                                             "maintenance maintenance"; }
+}
+@container (max-width: 460px) {
+  .pcanvas__row--spec { grid-template-columns: 1fr; grid-template-areas: none; }
 }
 
 /* ── one area card ── */
@@ -168,7 +194,15 @@
 
 .pcanvas__field { width: 100%; resize: vertical; border: 0; outline: none; padding: 0;
                   background: transparent; font-family: var(--font-mono); font-size: 12.5px;
-                  line-height: 1.65; color: hsl(var(--foreground)); }
+                  line-height: 1.65; color: hsl(var(--foreground));
+                  /* Fill the card. A row is as tall as its tallest member, so a card is usually
+                     taller than its field wants to be; without this the writing area stays at its
+                     min-height and SCROLLS a couple of lines while empty card sits beneath it.
+                     `min-height: 0` lets the flex item shrink below its content, which is what
+                     keeps a long entry inside the card instead of stretching the whole row. */
+                  flex: 1 1 auto; min-height: 0; }
+/* The floors: what the field is worth when the card has no slack to give (a stacked column, or a
+   full-width card sized by its own content). */
 .pcanvas__field--sm { min-height: 56px; }
 .pcanvas__field--md { min-height: 92px; }
 .pcanvas__field--lg { min-height: 120px; }
@@ -191,12 +225,15 @@
 .pcanvas__cost input:focus::placeholder { opacity: 0.3; }
 
 /* ── chips: a prompt you finish typing, so they are dashed rather than solid ── */
-.pcanvas__chips { display: flex; flex-wrap: wrap; gap: 5px; }
-.pcanvas__chip { flex: 0 0 auto; padding: 3px 8px; border: 1px dashed hsl(var(--border));
+/* Seven chips wrapped to three rows and pushed the whole grid row taller, which every card in
+   that row then inherits. They are a prompt, not a toolbar: tighter tracking and less padding fit
+   the same seven into fewer lines without shrinking the text or hiding any of them. */
+.pcanvas__chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.pcanvas__chip { flex: 0 0 auto; padding: 2px 7px; border: 1px dashed hsl(var(--border));
                  border-radius: 999px; background: transparent; cursor: pointer;
-                 font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.08em;
+                 font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.02em;
                  text-transform: uppercase; color: hsl(var(--muted-foreground));
-                 white-space: nowrap; }
+                 white-space: nowrap; line-height: 1.5; }
 .pcanvas__chip:hover { border-color: hsl(var(--primary)); color: hsl(var(--primary)); }
 .pcanvas__chip--add { margin-left: auto; padding: 3px 9px; letter-spacing: 0.1em; }
 

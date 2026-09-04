@@ -161,13 +161,16 @@ test("the pin remembers which side problems open on", async ({ page }) => {
 test("Think mounts the canvas with every area of the method", async ({ page }) => {
   await openThink(page);
 
-  // The eight areas, by their headings — the canvas is only the canvas if all of them are here.
+  // The eight areas, by their headings, in READING order — which is also DOM order, so this
+  // doubles as the tab order. The spec block is placed by named grid areas, so the layout can be
+  // rearranged without this list changing; a change HERE is a change to the sequence a keyboard
+  // walks, which is worth noticing.
   const titles = page.locator(".pcanvas__card-title");
   await expect(titles).toHaveText([
     "Problem",
+    "Inputs",
     "Constraints",
     "Maintenance",
-    "Inputs",
     "Return",
     "Error / N/A",
     "Ideas",
