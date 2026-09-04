@@ -15,13 +15,17 @@
           border-bottom: 1px solid hsl(var(--border) / 0.6); }
 /* Full-width, like the design's app-shell header — brand flush-left, controls flush-right, so the
    bar aligns with the full-bleed reader columns below it (sidebar left edge, rail right edge).
-   THREE COLUMNS, and the outer two claim an EQUAL share — that is what puts the quote on the
-   middle of the bar rather than on the middle of the space left over. All three take `flex-basis:
-   0`, so the row is divided evenly instead of by content width; the brand then sits at the left of
-   its share and the controls at the right of theirs. A reserved width would have been a guess at
-   the control row, and it was wrong the moment a longer username rendered. */
-.header__nav { padding: 0.75rem 1.25rem; display: flex; align-items: center; gap: 1rem; }
-.header__brand { flex: 1 1 0; display: inline-flex; align-items: center; gap: 0.55rem; }
+   `1fr auto 1fr` IS THE WHOLE LAYOUT, and it buys two things at once that fought each other
+   under flex. The middle track is `auto`, so the quote takes the width it actually wants; the
+   outer tracks are one `fr` each, so whatever is left over is split EQUALLY and the quote lands
+   on the middle of the bar by construction. Equal thirds centred it too, but rationed the quote
+   to a third of the bar while the brand sat in a share four times its size — a long quote was
+   ellipsised with hundreds of pixels standing empty beside it.
+   No reserved width anywhere: the tracks measure the real controls, so a longer username or
+   another control moves the quote rather than silently overlapping it. */
+.header__nav { padding: 0.75rem 1.25rem; display: grid; grid-template-columns: 1fr auto 1fr;
+               align-items: center; gap: 1rem; }
+.header__brand { justify-self: start; display: inline-flex; align-items: center; gap: 0.55rem; }
 .header__chip { flex: none; }
 .header__wordmark { font-family: var(--font-mono); font-weight: 600; font-size: 1.05rem;
                     color: hsl(var(--foreground)); letter-spacing: -0.01em; }
@@ -32,7 +36,8 @@
    fixed-header offset below it. `min-width: 0` here (and on the text) means a control row too wide
    for its even share takes the room it needs from the quote, which truncates and stays ONE LINE at
    every width. Below 1024px it stands down entirely. */
-.header__mid { flex: 1 1 0; display: flex; justify-content: center; min-width: 0; }
+.header__mid { justify-self: center; display: flex; justify-content: center; min-width: 0;
+               max-width: 100%; }
 /* A SERIF, deliberately — the one place on the site that is neither UI nor prose, and the only
    way a single line of chrome reads as a quotation rather than as another label. The stack is all
    system faces: a header decoration does not justify a webfont request on every page load, and
@@ -41,7 +46,7 @@
 .header-quote { --quote-font: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino,
                               "Noto Serif", "Times New Roman", serif;
                 display: flex; align-items: baseline; gap: 0.4rem; margin: 0; min-width: 0;
-                max-width: min(48rem, 100%); line-height: 1.4; }
+                max-width: 100%; line-height: 1.4; }
 /* Teal comes from `--primary`, never a literal: the token is a deep teal on the light theme and a
    brighter one on the dark, and a hard-coded colour would be legible on only one of them. */
 .header-quote__text { margin: 0; min-width: 0; font-family: var(--quote-font);
@@ -63,8 +68,7 @@
    36px square toggle into a 34px rectangle — silently, because every rule still reads 2.25rem.
    Every control is `flex: none`, which also makes the row's own min-content its true width: it can
    claim more than its even share when it needs to, and the quote is what yields. */
-.header__actions { flex: 1 1 0; display: flex; align-items: center; justify-content: flex-end;
-                   gap: 0.5rem; }
+.header__actions { justify-self: end; display: flex; align-items: center; gap: 0.5rem; }
 /* Search leads the row as one control among four, not a centrepiece: same height, same radius,
    narrow enough to leave the middle to the quote. islands/palette.ts finds it by class, so the
    move out of `.header__mid` costs it nothing.
@@ -114,6 +118,8 @@
    competing for width — the reader loses nothing they can act on. */
 @media (max-width: 1023px) {
   .header__mid { display: none; }
+  /* Two tracks now, or the controls land in the middle one and stop being flush right. */
+  .header__nav { grid-template-columns: 1fr auto; }
 }
 
 /* Below 640px the row has no width for a 14rem search field either. The label and the ⌘K hint

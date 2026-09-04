@@ -61,6 +61,35 @@ test("the header carries a quote and keeps to one row", async ({ page }) => {
   expect(header?.height ?? 0).toBeLessThan(64);
 });
 
+test("a long quote takes the room beside it, not a third of the bar", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".header-quote")).toBeVisible();
+
+  // Longer than any bar can hold, so what shows is decided purely by the layout.
+  await page.locator(".header-quote__text").evaluate((el) => {
+    el.textContent =
+      "You gotta try your luck at least once a day, because you could be going around lucky all day and not even know it.";
+  });
+
+  const quote = (await page.locator(".header-quote").boundingBox())!;
+  const brand = (await page.locator(".header__brand").boundingBox())!;
+  const actions = (await page.locator(".header__actions").boundingBox())!;
+  const width = page.viewportSize()!.width;
+
+  // Three equal columns centred the quote but rationed it to a third of the bar, ellipsising a
+  // long one while the brand's identical share sat four-fifths empty. `1fr auto 1fr` sizes the
+  // middle to the quote and splits what is left, so the spare room goes where the text is. Half
+  // the bar is the discriminator: a third can never reach it.
+  expect(quote.width).toBeGreaterThan(width * 0.5);
+
+  // Taking the spare room must never mean taking someone else's. Both neighbours stay clear.
+  expect(Math.round(quote.x)).toBeGreaterThanOrEqual(Math.round(brand.x + brand.width));
+  expect(Math.round(quote.x + quote.width)).toBeLessThanOrEqual(Math.round(actions.x));
+
+  // And it is still one line on one row.
+  expect((await page.locator(".header").boundingBox())?.height ?? 0).toBeLessThan(64);
+});
+
 test("search leads the control row instead of the middle", async ({ page }) => {
   await page.goto("/");
 
