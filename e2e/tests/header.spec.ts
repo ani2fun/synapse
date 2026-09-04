@@ -49,8 +49,12 @@ test("the header carries a quote and keeps to one row", async ({ page }) => {
   expect(text.length).toBeGreaterThan(0);
   expect(POOL_AUTHORS, `unexpected author ${author} — did the feed kill switch not apply?`).toContain(author);
 
-  // The full line stays reachable on hover even where the text truncates.
-  await expect(quote).toHaveAttribute("title", `${text} — ${author}`);
+  // The full line stays reachable on hover even where the text truncates, and the block names
+  // itself: without it a screen reader meets a bare blockquote in the nav with no context. The
+  // name is the LABEL alone — the quote is the figure's content, and putting it in both would
+  // have it announced twice.
+  await expect(quote).toHaveAttribute("title", `Featured quote: ${text} — ${author}`);
+  await expect(quote).toHaveAttribute("aria-label", "Featured quote");
 
   // The quote must never grow the bar. A 95px header breaks every fixed-header offset below it.
   const header = await page.locator(".header").boundingBox();

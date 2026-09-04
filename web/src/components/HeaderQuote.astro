@@ -9,12 +9,16 @@
 // quote clipped on a narrow monitor is still readable on hover. The author links out only when the
 // feed supplied a source — that anchor is the attribution BrainyQuote asks of its feed readers,
 // and the bundled pool, having no source, renders the name as plain text.
+//
+// `aria-label` NAMES the figure and nothing more. Putting the quote itself in the label would make
+// a screen reader announce the name and then the identical contents, so the block says what it is
+// and lets its own text speak once.
 import { currentQuote } from "../lib/quote";
 
 const { text, author, href } = currentQuote();
 ---
 
-<figure class="header-quote" title={`${text} — ${author}`}>
+<figure class="header-quote" aria-label="Featured quote" title={`Featured quote: ${text} — ${author}`}>
   <blockquote class="header-quote__text">{text}</blockquote>
   <figcaption class="header-quote__by">
     {
