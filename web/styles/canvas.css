@@ -174,32 +174,21 @@
 .pcanvas__field--lg { min-height: 120px; }
 .pcanvas__field:read-only { color: hsl(var(--muted-foreground)); }
 
-/* ── placeholders read as PROMPTS, never as content ──
-   An empty canvas is the normal state of one being worked on, so the hints have to be legible —
-   but rendered in the same mono face and size as real writing they look like text somebody
-   already typed, and the reader cannot tell a filled area from an empty one without reading it.
-   The face is what fixes that: content is monospace, hints are sans. That reads at a glance,
-   before a single word is parsed, and it survives the size and colour being tuned later.
-   Colour and size only reinforce it. `opacity` is set explicitly because Firefox applies its own
-   default to ::placeholder and would otherwise fade these twice. */
-.pcanvas__field::placeholder,
-.pcanvas__idea-name::placeholder,
+/* ── the only placeholders left: the complexity boxes ──
+   Everywhere else the ℹ️ says what belongs in an area, and a hint repeated inside the field reads
+   as content to clear rather than as guidance. T and S are the exception because their hint is a
+   FORMAT, not a restatement of the label: nothing else on the canvas tells the reader that Big-O
+   is the notation those two boxes want. Sans against the mono content, so even here it cannot be
+   mistaken for something already typed. `opacity` is explicit because Firefox applies its own
+   default to ::placeholder and would otherwise fade it twice. */
 .pcanvas__cost input::placeholder {
   font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 400;
+  font-size: 11px;
   letter-spacing: normal;
-  text-transform: none;
-  line-height: 1.5;
   color: hsl(var(--muted-foreground));
-  opacity: 0.62;
+  opacity: 0.55;
 }
-.pcanvas__cost input::placeholder { font-size: 11px; }
-/* A focused field is the one being written in — the prompt steps further back rather than
-   competing with the caret. */
-.pcanvas__field:focus::placeholder,
-.pcanvas__idea-name:focus::placeholder,
-.pcanvas__cost input:focus::placeholder { opacity: 0.38; }
+.pcanvas__cost input:focus::placeholder { opacity: 0.3; }
 
 /* ── chips: a prompt you finish typing, so they are dashed rather than solid ── */
 .pcanvas__chips { display: flex; flex-wrap: wrap; gap: 5px; }
