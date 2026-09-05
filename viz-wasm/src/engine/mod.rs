@@ -3,6 +3,8 @@
 //! the role-colour palette (`markers`), and the one playback state machine (`playback`).
 //! The adapt pipeline (`adapt`) and the geometry families (`geometry`) turn a raw trace into
 //! that render contract, and `d2` turns one step of it back out as a declarative figure.
+//! `memory` is the OTHER lens on the same trace — frames and objects rather than one projected
+//! structure — and answers to nothing here, because it needs no vocabulary and no root.
 
 pub mod adapt;
 pub mod d2;
@@ -10,6 +12,7 @@ pub mod decoder;
 pub mod geometry;
 pub mod graph;
 pub mod markers;
+pub mod memory;
 pub mod playback;
 pub mod render_family;
 pub mod shapes;

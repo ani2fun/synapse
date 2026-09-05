@@ -81,6 +81,6 @@ fn synthesize_string_arrays(trace: &HeapTrace, root_hint: Option<&str>) -> HeapT
         .collect();
     HeapTrace {
         steps,
-        truncated: trace.truncated,
+        ..trace.clone()
     }
 }

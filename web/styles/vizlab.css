@@ -122,3 +122,57 @@
 .viz-panel__strip[open] .viz-frames { max-height: 30vh; overflow: auto; margin-top: 8px; }
 .viz-panel__strip-out { flex: none; border-top: 1px solid hsl(var(--border) / 0.7);
                         padding-top: 7px; }
+
+/* ── the lens switch ──
+   Two questions, not two skins: Structure asks what shape the data has, Frames & objects asks
+   what the memory looks like. Sits above the canvas because it changes what the canvas IS. */
+.viz-lens { display: flex; gap: 4px; flex: none; }
+.viz-lens__tab { border: 1px solid var(--border-default); border-radius: 999px;
+                 background: hsl(var(--background) / 0.6); color: var(--text-secondary);
+                 font-size: 11.5px; padding: 3px 11px; cursor: pointer; white-space: nowrap;
+                 transition: color var(--dur-fast) var(--ease-out),
+                             background var(--dur-fast) var(--ease-out),
+                             border-color var(--dur-fast) var(--ease-out); }
+.viz-lens__tab:hover { color: var(--brand); }
+.viz-lens__tab--on { color: hsl(var(--primary)); border-color: hsl(var(--primary) / 0.5);
+                     background: hsl(var(--primary) / 0.1); font-weight: 600; }
+
+/* The structure lens's objection, which is no longer a dead end — the other lens draws the run
+   whatever shape it is, so this says so instead of ending the story. */
+.viz-panel__objection { flex: 1; min-height: 0; overflow: auto; }
+.viz-panel__objection-hint { margin: 10px auto 0; max-width: 46ch; text-align: center;
+                             font-size: 12.5px; color: var(--text-muted); }
+
+/* ── the input strip ──
+   A batch sandbox cannot be typed into, so the program is not waiting on the reader — the
+   PICTURE is. The log stays visible after the asking stops, because it is the record of how
+   this run came to be and what a re-run replays. */
+.viz-input { flex: none; display: flex; flex-direction: column; gap: 8px;
+             border-top: 1px solid hsl(var(--border) / 0.7); padding-top: 9px; }
+.viz-input__log-title { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+                        letter-spacing: 0.1em; text-transform: uppercase;
+                        color: var(--text-faint); }
+.viz-input__list { list-style: none; margin: 5px 0 0; padding: 0; display: flex;
+                   flex-wrap: wrap; gap: 5px 12px; }
+.viz-input__served { display: inline-flex; align-items: baseline; gap: 6px; font-size: 12px; }
+.viz-input__n { color: var(--text-faint); font-family: var(--font-mono); font-size: 11px; }
+.viz-input__served code { font-family: var(--font-mono); font-size: 12px;
+                          color: var(--text-primary); background: hsl(var(--secondary) / 0.5);
+                          border-radius: 5px; padding: 1px 6px; }
+
+.viz-input__ask { display: flex; flex-direction: column; gap: 6px;
+                  border: 1px solid hsl(var(--primary) / 0.4); border-radius: 10px;
+                  background: hsl(var(--primary) / 0.06); padding: 9px 11px 11px; }
+.viz-input__label { font-size: 12.5px; color: var(--text-primary); white-space: pre-wrap; }
+.viz-input__row { display: flex; gap: 7px; }
+.viz-input__box { flex: 1; min-width: 0; height: 30px; border: 1px solid var(--border-default);
+                  border-radius: 7px; background: hsl(var(--background) / 0.8);
+                  color: var(--text-primary); font-family: var(--font-mono); font-size: 12.5px;
+                  padding: 0 9px; }
+.viz-input__box:focus { outline: none; border-color: hsl(var(--primary));
+                        box-shadow: 0 0 0 3px hsl(var(--primary) / 0.15); }
+.viz-input__go { flex: none; height: 30px; padding: 0 13px; border: 1px solid hsl(var(--primary));
+                 border-radius: 7px; background: hsl(var(--primary));
+                 color: hsl(var(--primary-foreground)); font-size: 12.5px; font-weight: 500;
+                 cursor: pointer; }
+.viz-input__go:hover { filter: brightness(1.08); }

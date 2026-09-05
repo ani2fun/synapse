@@ -10,6 +10,7 @@ pub mod dual;
 pub mod graph_canvas;
 pub mod grid_table;
 pub mod list_chain;
+pub mod memory;
 pub mod strip;
 pub mod tree;
 

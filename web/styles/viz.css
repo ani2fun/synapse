@@ -416,3 +416,46 @@
 .editor-copy--done { color: hsl(var(--status-ok)); border-color: hsl(var(--status-ok) / 0.5);
                      opacity: 1; }
 .editor-copy__ic { width: 15px; height: 15px; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   THE MEMORY CANVAS — frames left, objects right, an arrow per reference.
+
+   Every position comes from `engine::memory`, so nothing here places anything:
+   these rules are paint only. The face is MONO and its size is pinned, because
+   the engine measures text by character count and sizes the boxes from it — a
+   proportional face here would have the arrows land beside their rows.
+   ───────────────────────────────────────────────────────────────────────────── */
+.viz-mem { font-family: var(--font-mono); font-size: 12px; }
+.viz-mem text { fill: hsl(var(--foreground)); }
+
+.viz-mem__box { fill: hsl(var(--card)); stroke: hsl(var(--border)); stroke-width: 1; }
+.viz-mem__head { fill: hsl(var(--secondary) / 0.55); stroke: none; }
+.viz-mem__title, .viz-mem__objtitle { font-weight: 600; font-size: 11.5px;
+                                      fill: hsl(var(--muted-foreground)); }
+/* The frame that is RUNNING. The other frames are its callers, still on the stack but not
+   where the line marker is. */
+.viz-mem__frame--active .viz-mem__box { stroke: hsl(var(--primary)); stroke-width: 1.6; }
+.viz-mem__frame--active .viz-mem__head { fill: hsl(var(--primary) / 0.14); }
+.viz-mem__frame--active .viz-mem__title { fill: hsl(var(--primary)); }
+
+.viz-mem__rowbg { fill: transparent; }
+.viz-mem__name { fill: hsl(var(--muted-foreground)); }
+.viz-mem__value { fill: hsl(var(--foreground)); }
+/* The dot a reference leaves from — an empty cell would read as an empty variable. */
+.viz-mem__ref { fill: hsl(var(--primary)); font-size: 10px; }
+.viz-mem__row--changed .viz-mem__rowbg { fill: hsl(var(--primary) / 0.12); }
+.viz-mem__row--changed .viz-mem__value { fill: hsl(var(--primary)); font-weight: 600; }
+
+.viz-mem__obj--new .viz-mem__box { stroke: hsl(var(--status-ok)); stroke-width: 1.6; }
+.viz-mem__cellbox { fill: hsl(var(--background)); stroke: hsl(var(--border)); stroke-width: 1; }
+.viz-mem__cellv { fill: hsl(var(--foreground)); }
+.viz-mem__cellidx { fill: hsl(var(--muted-foreground)); font-size: 10px; }
+.viz-mem__cell--changed .viz-mem__cellbox { fill: hsl(var(--primary) / 0.14);
+                                            stroke: hsl(var(--primary)); }
+.viz-mem__cell--changed .viz-mem__cellv { fill: hsl(var(--primary)); font-weight: 600; }
+
+/* Behind the boxes (the renderer draws them first), so a line that runs under one reads as
+   passing behind it rather than through it. */
+.viz-mem__arrow { stroke: hsl(var(--primary) / 0.75); stroke-width: 1.4; }
+.viz-mem__at { font-family: var(--font-mono); font-size: 11px;
+               color: hsl(var(--muted-foreground)); }

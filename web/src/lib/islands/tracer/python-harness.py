@@ -12,11 +12,23 @@
 # 512 KB payload (drop the LAST quarter of steps repeatedly if over — keep the
 # setup + early iterations). Names are `_syn_*` so they're filtered out of the
 # user's locals.
+#
+# INPUT is served from stdin and RECORDED. The sandbox runs a program once, with
+# stdin fixed up front, so a reader cannot type into a running program — but they
+# can be asked. `input()` is replaced with a wrapper that logs every value it
+# serves and, when stdin runs dry, sets `waiting` and stops the program THERE
+# rather than raising EOFError. The client shows a prompt at that step, and a
+# re-run with one more line continues the story. Which makes `inputs` the
+# contract that matters: it is what the client replays, so a run that served
+# three values must report exactly those three, in order.
 import sys, json, base64, math, types
 
 _syn_source = base64.b64decode("__SYNAPSE_USER_SOURCE_B64__").decode("utf-8")
 _syn_steps = []
 _syn_truncated = [False]
+_syn_inputs = []
+_syn_waiting = [False]
+_syn_prompt = [""]
 _syn_step_limit = 600
 _syn_max_objects = 400
 _syn_max_depth = 60
@@ -29,6 +41,10 @@ _syn_opaque_modules = frozenset((
     "typing", "_collections_abc", "collections.abc", "abc",
     "_typeshed", "_collections", "_weakrefset", "weakref",
 ))
+
+# Injected into the traced globals, so they surface as module-frame locals unless named
+# here — a reader who never wrote `input` should not see it among their variables.
+_syn_hidden = frozenset(("input",))
 
 def _syn_is_opaque(v):
     if isinstance(v, type): return True
@@ -66,7 +82,10 @@ def _syn_snapshot(frame_specs):
             _syn_truncated[0] = True
             return {"ref": oid}
         if _syn_is_opaque(v):
-            heap[oid] = {"type": "object", "cls": type(v).__name__, "fields": {}}
+            # A CLASS is named for itself, not for its metaclass: `type(Solution).__name__` is
+            # "type", which tells a reader nothing about the box their variable points at.
+            cls = (v.__name__ + " class") if isinstance(v, type) else type(v).__name__
+            heap[oid] = {"type": "object", "cls": cls, "fields": {}}
             return {"ref": oid}
         heap[oid] = None
         if isinstance(v, (list, tuple)):
@@ -95,7 +114,8 @@ def _syn_snapshot(frame_specs):
     for fn_name, items in frame_specs:
         locs = {}
         for k, v in items:
-            if isinstance(k, str) and not k.startswith("_syn_") and not k.startswith("__"):
+            if isinstance(k, str) and not k.startswith("_syn_") and not k.startswith("__") \
+                    and k not in _syn_hidden:
                 locs[k] = visit(v, 0)
         frames_out.append({"fn": fn_name, "locals": locs})
     return frames_out, heap
@@ -109,6 +129,24 @@ def _syn_collect_frames(frame):
             specs.append((cur.f_code.co_name, list(cur.f_locals.items())))
         cur = cur.f_back
     return specs
+
+class _SynAwaitInput(BaseException):
+    """Stdin ran dry. BaseException, not Exception, so a user's `except Exception` cannot
+    swallow the one signal that tells the client to ask for another line."""
+
+def _syn_input(prompt=""):
+    # The prompt is the program's OUTPUT, so it is written even on the turn that stops —
+    # otherwise the reader is asked for a value with no idea what it is for.
+    if prompt != "":
+        sys.stdout.write(str(prompt))
+    line = sys.stdin.readline()
+    if line == "":
+        _syn_waiting[0] = True
+        _syn_prompt[0] = str(prompt)
+        raise _SynAwaitInput()
+    value = line[:-1] if line.endswith("\n") else line
+    _syn_inputs.append(value)
+    return value
 
 def _syn_tracer(frame, event, arg):
     if event in ("line", "call", "return") and frame.f_code.co_filename == "<traced>":
@@ -131,15 +169,21 @@ def _syn_tracer(frame, event, arg):
 
 try:
     _syn_compiled = compile(_syn_source, "<traced>", "exec")
-    _syn_ns = {"__name__": "__main__"}
+    _syn_ns = {"__name__": "__main__", "input": _syn_input}
     sys.settrace(_syn_tracer)
     try:
         exec(_syn_compiled, _syn_ns)
+    except _SynAwaitInput:
+        # Not a failure: the program got as far as the input it is waiting for, and every
+        # step up to it is worth showing.
+        pass
     finally:
         sys.settrace(None)
 finally:
     while True:
-        _syn_payload = json.dumps({"steps": _syn_steps, "truncated": _syn_truncated[0]})
+        _syn_payload = json.dumps({"steps": _syn_steps, "truncated": _syn_truncated[0],
+                                   "inputs": _syn_inputs, "waiting": _syn_waiting[0],
+                                   "prompt": _syn_prompt[0]})
         if len(_syn_payload) <= _syn_max_payload or len(_syn_steps) <= 1:
             break
         _syn_steps = _syn_steps[:-(len(_syn_steps) // 4 + 1)]

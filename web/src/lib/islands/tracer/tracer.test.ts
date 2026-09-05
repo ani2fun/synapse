@@ -98,3 +98,44 @@ describe("the wrap keeps the harness intact", () => {
     expect(a).not.toBe(b);
   });
 });
+
+/**
+ * The input contract, asserted against the harness SOURCE.
+ *
+ * These are the lines the `/viz` panel's interactive stepping rests on: the harness must serve
+ * input from stdin, log what it served, and stop rather than raise when stdin runs dry. None of
+ * it can be checked by running the harness here (it needs the sandbox), and all of it fails
+ * quietly — a harness that raised EOFError instead would surface as "the trace ended early",
+ * which reads like the reader's program crashing.
+ */
+describe("the Python harness reports what it did with stdin", () => {
+  it("reports the values it served, whether it is waiting, and what it asked", () => {
+    // The three fields `HeapTrace` decodes. A rename here silently empties the input log and
+    // the panel simply stops asking.
+    expect(pythonHarness).toContain('"inputs": _syn_inputs');
+    expect(pythonHarness).toContain('"waiting": _syn_waiting[0]');
+    expect(pythonHarness).toContain('"prompt": _syn_prompt[0]');
+  });
+
+  it("replaces input() in the traced globals rather than leaving the builtin", () => {
+    expect(pythonHarness).toContain('"input": _syn_input');
+  });
+
+  it("stops on an exhausted stdin instead of raising EOFError", () => {
+    // BaseException, so a user's `except Exception` cannot swallow the one signal that tells
+    // the client to ask for another line.
+    expect(pythonHarness).toContain("class _SynAwaitInput(BaseException)");
+    expect(pythonHarness).toContain("except _SynAwaitInput");
+  });
+
+  it("hides the injected name from the reader's own locals", () => {
+    // Without this, every Global frame lists an `input` the reader never wrote.
+    expect(pythonHarness).toContain('_syn_hidden = frozenset(("input",))');
+  });
+
+  it("names a class for itself rather than for its metaclass", () => {
+    // `type(Solution).__name__` is "type", which tells a reader nothing about the box their
+    // variable points at.
+    expect(pythonHarness).toContain('v.__name__ + " class"');
+  });
+});

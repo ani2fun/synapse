@@ -67,9 +67,26 @@ pub struct HeapStep {
     pub heap: BTreeMap<String, HeapObject>,
 }
 
-/// The whole trace: the surviving steps + whether the harness had to drop some.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// The whole trace: the surviving steps, whether the harness had to drop some, and what the
+/// program did with stdin.
+///
+/// The input fields are what make stepping feel interactive over a batch sandbox. A run is given
+/// its whole stdin up front and cannot be typed into, so instead the harness REPORTS: `inputs` is
+/// every value it served, in order, and `waiting` says the program asked for one more and stdin
+/// was empty — it stopped at that step rather than raising. Replaying `inputs` plus one new line
+/// resumes the same story, which is why their order is a contract and not a convenience.
+///
+/// Every one of them defaults: the Java harness emits none of this, and the golden fixtures
+/// predate it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct HeapTrace {
     pub steps: Vec<HeapStep>,
     pub truncated: bool,
+    /// The values `input()` returned, in the order it returned them.
+    pub inputs: Vec<String>,
+    /// The program asked for input the run could not serve, and stopped at that step.
+    pub waiting: bool,
+    /// What it asked with, when it passed a prompt — the program's own words, not ours.
+    pub prompt: String,
 }

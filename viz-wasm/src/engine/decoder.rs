@@ -58,6 +58,27 @@ fn decode_trace(v: &serde_json::Value) -> HeapTrace {
             .get("truncated")
             .and_then(serde_json::Value::as_bool)
             .unwrap_or(false),
+        // Absent for a Java run, which has no `input()` to wrap — an empty log and a program
+        // that is not waiting, which is exactly what a run with no interactive input looks like.
+        inputs: v
+            .get("inputs")
+            .and_then(|i| i.as_array())
+            .map(|values| {
+                values
+                    .iter()
+                    .map(|value| value.as_str().unwrap_or_default().to_owned())
+                    .collect()
+            })
+            .unwrap_or_default(),
+        waiting: v
+            .get("waiting")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false),
+        prompt: v
+            .get("prompt")
+            .and_then(|p| p.as_str())
+            .unwrap_or_default()
+            .to_owned(),
     }
 }
 
@@ -169,3 +190,6 @@ fn decode_object(v: &serde_json::Value) -> HeapObject {
         },
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -74,29 +74,37 @@ pub fn case_strip(cases: &VizCases, case_idx: RwSignal<usize>) -> AnyView {
 // CONTROLS · DIFF STOPS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Zoom out / reset / in, and the diff toggle.
+/// Zoom out / reset / in. Its own piece because not every canvas has a diff mode to sit beside
+/// it — the memory lens draws every step, so there is nothing for it to skip.
+pub fn zoom_controls(zoom: RwSignal<f64>) -> impl IntoView {
+    view! {
+        <div class="viz-zoom">
+            <button
+                class="viz-zoom__btn"
+                aria-label="Zoom out"
+                on:click=move |_| zoom.update(|z| *z = (*z - 0.25).max(0.5))
+            >
+                "−"
+            </button>
+            <button class="viz-zoom__pct" title="Reset zoom (F)" on:click=move |_| zoom.set(1.0)>
+                {move || format!("{:.0}%", zoom.get() * 100.0)}
+            </button>
+            <button
+                class="viz-zoom__btn"
+                aria-label="Zoom in"
+                on:click=move |_| zoom.update(|z| *z = (*z + 0.25).min(4.0))
+            >
+                "+"
+            </button>
+        </div>
+    }
+}
+
+/// The zoom cluster and the diff toggle.
 pub fn controls(zoom: RwSignal<f64>, diff_mode: RwSignal<bool>) -> impl IntoView {
     view! {
         <div class="viz-controls">
-            <div class="viz-zoom">
-                <button
-                    class="viz-zoom__btn"
-                    aria-label="Zoom out"
-                    on:click=move |_| zoom.update(|z| *z = (*z - 0.25).max(0.5))
-                >
-                    "−"
-                </button>
-                <button class="viz-zoom__pct" title="Reset zoom (F)" on:click=move |_| zoom.set(1.0)>
-                    {move || format!("{:.0}%", zoom.get() * 100.0)}
-                </button>
-                <button
-                    class="viz-zoom__btn"
-                    aria-label="Zoom in"
-                    on:click=move |_| zoom.update(|z| *z = (*z + 0.25).min(4.0))
-                >
-                    "+"
-                </button>
-            </div>
+            {zoom_controls(zoom)}
             <button
                 class="viz-diff"
                 class:viz-diff--on=move || diff_mode.get()

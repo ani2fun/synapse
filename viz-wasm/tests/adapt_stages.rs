@@ -52,7 +52,7 @@ fn step(line: i32, locals: Vec<(&str, HeapValue)>, heap: Vec<(&str, HeapObject)>
 fn trace(steps: Vec<HeapStep>) -> HeapTrace {
     HeapTrace {
         steps,
-        truncated: false,
+        ..HeapTrace::default()
     }
 }
 

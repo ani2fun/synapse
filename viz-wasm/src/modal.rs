@@ -160,9 +160,17 @@ fn ModalBody(modal: ModalSession, store: VizModalStore, live: LiveInput) -> impl
                 {retry_bar(&modal, store, live)}
             }
             .into_any(),
-            TraceState::Ready(cases, program_out) => {
-                ready(&modal, &cases, &program_out, store, live).into_any()
-            }
+            // The modal is the STRUCTURE lens and only that, so a trace that adapted to
+            // nothing is still a failure here — the memory lens that can always draw it lives
+            // on `/viz`, which has room for a second view.
+            TraceState::Ready(run) => match &run.cases {
+                Ok(cases) => ready(&modal, cases, &run.program_out, store, live).into_any(),
+                Err(message) => view! {
+                    {player::failed_card(message)}
+                    {retry_bar(&modal, store, live)}
+                }
+                .into_any(),
+            },
         }}
     }
 }

@@ -9,6 +9,7 @@ use std::collections::HashMap;
 
 use crate::engine::adapt;
 use crate::engine::graph::VizCases;
+use crate::engine::memory::{self, MemoryStep};
 use crate::engine::vocabulary::VizStructure;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -18,10 +19,29 @@ use crate::api;
 use crate::engine::decoder::{self, Decoded};
 use crate::ffi::tracer;
 
+/// One finished run, in both lenses.
+///
+/// `cases` is a RESULT, not a precondition: the structure lens needs a root it can project and
+/// often has none — a program with two lists and a counter fits no `viz=` token. That used to
+/// fail the whole run. It no longer can, because the MEMORY lens needs no vocabulary at all, so a
+/// trace that decodes is always worth showing; only the structure half reports the objection.
+#[derive(Clone, PartialEq)]
+pub struct Run {
+    pub cases: Result<VizCases, String>,
+    pub memory: Vec<MemoryStep>,
+    pub program_out: String,
+    /// Every value `input()` was served, in order — what a re-run replays to get back here.
+    pub inputs: Vec<String>,
+    /// The program asked for a value the run could not serve and stopped there.
+    pub waiting: bool,
+    /// What it asked with, in the program's own words.
+    pub prompt: String,
+}
+
 #[derive(Clone, PartialEq)]
 pub enum TraceState {
     Tracing,
-    Ready(VizCases, String),
+    Ready(Run),
     Failed(String),
 }
 
@@ -113,8 +133,13 @@ fn run(session: &Session) {
             Ok(result) => {
                 let next = outcome(&key, &result.stdout, &result.stderr, &result.compile_output);
                 match &next {
-                    TraceState::Ready(cases, _) => {
-                        crate::log::debug(&format!("trace ready: {} case(s)", cases.cases.len()));
+                    TraceState::Ready(run) => {
+                        crate::log::debug(&format!(
+                            "trace ready: {} step(s), {} input(s){}",
+                            run.memory.len(),
+                            run.inputs.len(),
+                            if run.waiting { ", awaiting input" } else { "" },
+                        ));
                     }
                     TraceState::Failed(message) => {
                         crate::log::warn(&format!("trace produced no playable run: {message}"));
@@ -127,7 +152,26 @@ fn run(session: &Session) {
     });
 }
 
-/// Pure: run output → the modal's state.
+/// The stdin a re-run needs to reach the point a reader is standing at, plus their answer.
+///
+/// This is what makes stepping-with-input work over a batch sandbox: the program cannot be typed
+/// into, so it is RUN AGAIN from the top with everything it was served last time and one line
+/// more. One line each and a trailing newline on the last, because `input()` reads a LINE — an
+/// unterminated final line is read as EOF, which would stop the run at the very prompt the
+/// answer was meant to satisfy.
+#[must_use]
+pub fn replay_stdin(served: &[String], answer: &str) -> String {
+    let mut stdin = String::new();
+    for value in served {
+        stdin.push_str(value);
+        stdin.push('\n');
+    }
+    stdin.push_str(answer);
+    stdin.push('\n');
+    stdin
+}
+
+/// Pure: run output → the host's state.
 fn outcome(key: &Key, stdout: &str, stderr: &str, compile_output: &str) -> TraceState {
     match decoder::decode(stdout) {
         Err(error) => TraceState::Failed(error.to_string()),
@@ -138,19 +182,22 @@ fn outcome(key: &Key, stdout: &str, stderr: &str, compile_output: &str) -> Trace
         Ok(Decoded {
             program_out,
             trace: Some(trace),
-        }) => {
-            match adapt::adapt(
+        }) => TraceState::Ready(Run {
+            cases: adapt::adapt(
                 &trace,
                 &key.source,
                 key.structure.token(),
                 key.root.as_deref(),
                 None,
                 key.structure.token(),
-            ) {
-                Ok(cases) => TraceState::Ready(cases, program_out),
-                Err(error) => TraceState::Failed(error.message()),
-            }
-        }
+            )
+            .map_err(|error| error.message()),
+            memory: memory::project_all(&trace.steps),
+            program_out,
+            inputs: trace.inputs,
+            waiting: trace.waiting,
+            prompt: trace.prompt,
+        }),
     }
 }
 
@@ -164,3 +211,6 @@ fn no_trace_message(stderr: &str, compile_output: &str, program_out: &str) -> St
             |s| (*s).trim().to_owned(),
         )
 }
+
+#[cfg(test)]
+mod tests;
