@@ -126,6 +126,35 @@ test("every control in the row is the same height", async ({ page }) => {
   expect(tops.size, "controls are the same height but not on the same line").toBe(1);
 });
 
+test("a tablet still gets the quote, and gets it whole", async ({ page }) => {
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.goto("/");
+  await expect(page.locator(CHIP).first()).toBeVisible();
+  await expect(page.locator(".header-quote")).toBeVisible();
+
+  // The search is a square here, and that is precisely what pays for the quote: its label and
+  // ⌘K hint are 124px of a row the quote is competing for, and a tablet has no ⌘K to press.
+  const search = (await page.locator(".header__search").boundingBox())!;
+  expect(Math.round(search.width)).toBe(Math.round(search.height));
+
+  // Standing the label down is only worth it if the quote actually reads. At iPad-portrait
+  // width a short one must fit whole -- 768 was 232px of room before, a few words and an
+  // ellipsis, and the point of the change was to make that a sentence.
+  await page.locator(".header-quote__text").evaluate((el) => {
+    el.textContent = "To err is human; to forgive, divine.";
+  });
+  const clipped = await page
+    .locator(".header-quote__text")
+    .evaluate((el) => el.scrollWidth > Math.ceil(el.getBoundingClientRect().width));
+  expect(clipped, "a short quote should read in full at 768px").toBe(false);
+
+  // A square trigger is still the palette's trigger.
+  await page.locator(".header__search").click();
+  await expect(page.locator(".cmdk__input")).toBeVisible();
+
+  expect((await page.locator(".header").boundingBox())?.height ?? 0).toBeLessThan(64);
+});
+
 test("the quote stands down on a phone, and the row still fits", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/");
