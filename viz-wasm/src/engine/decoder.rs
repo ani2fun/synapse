@@ -4,7 +4,9 @@
 //! stdout cap. Loud, not silent — no markers is simply "no trace", never an error swallowed.
 //! The JSON walk preserves object order (locals + fields ride insertion order on the wire).
 
-use crate::engine::trace::{ArrKind, HeapFrame, HeapObject, HeapScalar, HeapStep, HeapTrace, HeapValue};
+use crate::engine::trace::{
+    ArrKind, HeapFrame, HeapObject, HeapScalar, HeapStep, HeapTrace, HeapValue, Served,
+};
 
 pub const HEAP_BEGIN: &str = "__SYNAPSE_HEAP_BEGIN__";
 pub const HEAP_END: &str = "__SYNAPSE_HEAP_END__";
@@ -63,12 +65,7 @@ fn decode_trace(v: &serde_json::Value) -> HeapTrace {
         inputs: v
             .get("inputs")
             .and_then(|i| i.as_array())
-            .map(|values| {
-                values
-                    .iter()
-                    .map(|value| value.as_str().unwrap_or_default().to_owned())
-                    .collect()
-            })
+            .map(|values| values.iter().map(decode_served).collect())
             .unwrap_or_default(),
         waiting: v
             .get("waiting")
@@ -79,6 +76,16 @@ fn decode_trace(v: &serde_json::Value) -> HeapTrace {
             .and_then(|p| p.as_str())
             .unwrap_or_default()
             .to_owned(),
+    }
+}
+
+/// One `{"v": …, "at": …}` entry. A missing step reads as 0 — the first step — because an input
+/// the client cannot place is one the program had from the start, and pretending it arrived late
+/// would hide it from every step the reader can actually stand on.
+fn decode_served(v: &serde_json::Value) -> Served {
+    Served {
+        value: v.get("v").and_then(|s| s.as_str()).unwrap_or_default().to_owned(),
+        at: usize::try_from(v.get("at").and_then(serde_json::Value::as_u64).unwrap_or(0)).unwrap_or(0),
     }
 }
 

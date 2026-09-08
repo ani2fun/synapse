@@ -3,8 +3,9 @@
 
    The room is `labshell.css` (the page, the header, the two framed panes and
    their rail, the pane header). What is HERE is what makes this page the LAB:
-   the picker row, the canvas the wasm mounts into, the stdin box, and the rules
-   that let the workbench fill a fixed-height pane.
+   the picker row, the canvas the wasm mounts into, and the column under the
+   editor — console, cursor legend, input prompt, stdin — that reads the run
+   while the canvas draws it.
 
    The player's own chrome — the canvas, the transport, the timeline, the frames
    and the failure cards — is `viz.css`, shared with the Visualise modal, because
@@ -65,11 +66,11 @@
 .vlab__canvas > .viz-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 /* ── the stdin box ──
-   One input, read by BOTH Run and Trace. It sits under the canvas rather than beside the editor
-   because it belongs to the run, not to the code — and because a reader fixing a failed trace
-   finds it next to the failure. */
+   One input, read by BOTH Run and Trace. It sits under the EDITOR, with the console, because it
+   is about the code: what the program is handed before it starts. The canvas has nothing to say
+   about it. */
 .vlab__stdin { flex: none; display: flex; flex-direction: column; gap: 5px;
-               padding: 9px 12px 11px; border-top: 1px solid hsl(var(--border) / 0.7); }
+               padding: 10px 0 2px; }
 .vlab__stdin-label { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
                      letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); }
 .vlab__stdin-input { border: 1px solid var(--border-default); border-radius: 8px;
@@ -78,24 +79,37 @@
                      resize: vertical; }
 .vlab__stdin-input:focus { outline: none; border-color: hsl(var(--primary));
                            box-shadow: 0 0 0 3px hsl(var(--primary) / 0.15); }
+.vlab__stdin-note { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--text-muted); }
 
-/* ── the workbench in a fixed-height pane ──
+/* ── the right pane: editor, console, stdin ──
+   A scrolling column of three. The EDITOR takes the free height and the two strips under it take
+   what they need — so a long call stack pushes the page rather than squeezing the code out of
+   view, and a reader stepping through a trace never loses sight of the line they are on.
+
    The same chain the problem page's right pane uses (practice.css), re-declared for this pane's
    own class. `contain: size` on the fill mode is load-bearing there and here: with height:auto
    the container sizes from Monaco's root while Monaco (automaticLayout) sizes its root from the
    container, and one transient frame with an unbounded flex chain latches the editor at
    thousands of px with nothing left to shrink it. Containment zeroes the intrinsic height, so
    the flex chain is the only input. */
-.vlab .lab-pane--r { overflow-y: auto; padding: 12px; }
-.vlab .lab-pane--r > div { display: flex; flex-direction: column; min-height: 100%; }
+.vlab .lab-pane--r { overflow-y: auto; padding: 12px; display: flex; flex-direction: column; }
+.vlab__bench { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 260px; }
+.vlab__bench > div { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 .vlab .lab-pane--r .runnable { display: flex; flex-direction: column; flex: 1 1 auto;
                                min-height: 0; }
 .vlab .lab-pane--r .runnable__bar,
 .vlab .lab-pane--r .runnable__out { flex: 0 0 auto; }
 
+/* ── the console ──
+   Leptos owns everything inside it, and it is EMPTY until something is traced — hence no border
+   and no padding of its own: an empty box under the editor would read as a broken pane. Its own
+   children bring the rules. */
+.vlab__console { flex: none; }
+
 /* ── the panel ──
    Scoped here rather than in viz.css because these are the DOCKED player's proportions: the
-   modal gives its canvas a viewport fraction, and a pane has to be told to share instead. */
+   modal gives its canvas a viewport fraction, and a pane has to be told to share instead. Since
+   the reading strips moved to the other pane, the stage gets nearly all of it. */
 .viz-panel { padding: 10px 12px 12px; overflow: hidden; }
 .viz-panel__ready { display: flex; flex-direction: column; gap: 8px; min-height: 0; flex: 1; }
 .viz-panel__stage { flex: 1; min-height: 0; display: flex; flex-direction: column;
@@ -115,13 +129,34 @@
 .viz-panel__empty-body { margin: 8px 0 0; font-size: 12.5px; line-height: 1.55;
                          color: var(--text-muted); }
 
-.viz-panel__strip { flex: none; border-top: 1px solid hsl(var(--border) / 0.7); padding-top: 7px; }
-.viz-panel__strip-summary { cursor: pointer; font-family: var(--font-mono); font-size: 11px;
-                            font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
-                            color: var(--text-faint); }
-.viz-panel__strip[open] .viz-frames { max-height: 30vh; overflow: auto; margin-top: 8px; }
-.viz-panel__strip-out { flex: none; border-top: 1px solid hsl(var(--border) / 0.7);
-                        padding-top: 7px; }
+.viz-console__body { display: flex; flex-direction: column; gap: 9px; padding-top: 10px; }
+.viz-console__strip { border-top: 1px solid hsl(var(--border) / 0.7); padding-top: 7px; }
+.viz-console__strip-summary { cursor: pointer; font-family: var(--font-mono); font-size: 11px;
+                              font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+                              color: var(--text-faint); }
+.viz-console__strip[open] .viz-frames { max-height: 30vh; overflow: auto; margin-top: 8px; }
+.viz-console__none { margin: 8px 0 0; font-size: 12px; color: var(--text-muted); }
+
+/* ── the cursor legend ──
+   The key to the two coloured lines in the editor directly above it. Its arrows are the SAME two
+   colours the monaco decorations use (`--viz-arrow-*`, viz.css), because a legend that invents
+   its own palette is a legend to a different picture. A meaning with no line on screen greys out
+   rather than vanishing: the row must not reflow as the reader steps. */
+.viz-cursor { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 11.5px;
+              color: var(--text-muted); }
+.viz-cursor__key { display: inline-flex; align-items: center; gap: 6px;
+                   transition: opacity var(--dur-fast) var(--ease-out); }
+.viz-cursor__key--off { opacity: 0.4; }
+.viz-cursor__arrow { flex: none; width: 15px; height: 2px; border-radius: 1px; position: relative; }
+.viz-cursor__arrow::after { content: ""; position: absolute; right: -1px; top: -3px;
+                            border: 4px solid transparent; border-left-width: 5px; }
+.viz-cursor__key--done .viz-cursor__arrow { background: hsl(var(--viz-arrow-done)); }
+.viz-cursor__key--done .viz-cursor__arrow::after { border-left-color: hsl(var(--viz-arrow-done)); }
+.viz-cursor__key--next .viz-cursor__arrow { background: hsl(var(--viz-arrow-next)); }
+.viz-cursor__key--next .viz-cursor__arrow::after { border-left-color: hsl(var(--viz-arrow-next)); }
+.viz-cursor__at { font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+                  color: var(--text-secondary); }
+.viz-cursor__at::before { content: "L"; opacity: 0.55; }
 
 /* ── the lens switch ──
    Two questions, not two skins: Structure asks what shape the data has, Frames & objects asks
@@ -149,6 +184,15 @@
    this run came to be and what a re-run replays. */
 .viz-input { flex: none; display: flex; flex-direction: column; gap: 8px;
              border-top: 1px solid hsl(var(--border) / 0.7); padding-top: 9px; }
+/* A value the reader has not yet stepped past is one the program has not been told: it reads as
+   pending until then, and is struck through once consumed — the same cue a debugger gives for a
+   line already behind you. */
+.viz-input__served--read code { text-decoration: line-through;
+                                text-decoration-color: hsl(var(--muted-foreground) / 0.8);
+                                color: var(--text-muted); }
+.viz-input__ahead { margin: 0; font-size: 12px; color: var(--text-muted);
+                    border: 1px dashed hsl(var(--border)); border-radius: 9px;
+                    padding: 8px 11px; }
 .viz-input__log-title { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
                         letter-spacing: 0.1em; text-transform: uppercase;
                         color: var(--text-faint); }

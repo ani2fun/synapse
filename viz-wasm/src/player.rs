@@ -229,24 +229,28 @@ pub fn FramesPanel(cases: VizCases, case_idx: RwSignal<usize>, step_state: RwSig
                 let Some(step) = step else {
                     return ().into_any();
                 };
-                let current = step.line;
-                let next_line = cases
-                    .cases
-                    .get(idx)
-                    .and_then(|g: &VizGraph| g.steps.get(state.index + 1))
-                    .map(|s| s.line);
+                // The step on screen names the line ABOUT TO run (a trace event fires before its
+                // line), so the one that just ran is its predecessor's — the same two lines the
+                // editor's arrows point at, and they must not disagree.
+                let next_line = step.line;
+                let executed = state
+                    .index
+                    .checked_sub(1)
+                    .and_then(|previous| cases.cases.get(idx)?.steps.get(previous))
+                    .map(|s| s.line)
+                    .filter(|line| *line > 0);
                 step.frames
                     .iter()
                     .map(|frame| {
                         let class = if frame.is_active { "viz-frame viz-frame--active" } else { "viz-frame" };
-                        let chips = (frame.is_active && current > 0).then(|| view! {
+                        let chips = (frame.is_active && next_line > 0).then(|| view! {
                             <span class="viz-frame__lines">
-                                <span class="viz-frame__line">{format!("L{current}")}</span>
-                                {next_line.map(|n| view! {
-                                    <span class="viz-frame__line viz-frame__line--next">
-                                        {format!("→ L{n}")}
-                                    </span>
+                                {executed.map(|line| view! {
+                                    <span class="viz-frame__line">{format!("L{line}")}</span>
                                 })}
+                                <span class="viz-frame__line viz-frame__line--next">
+                                    {format!("→ L{next_line}")}
+                                </span>
                             </span>
                         });
                         let locals: Vec<_> = frame

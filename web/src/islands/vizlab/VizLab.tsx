@@ -2,16 +2,23 @@
  * `/viz` — the visualisation lab. The code is the input and the diagram is the output, so the
  * sides are the mirror of `/d2`: the canvas on the left, the real workbench on the right.
  *
+ * THE LEFT PANE DRAWS; THE RIGHT PANE READS. Everything that describes the code rather than the
+ * data — the call stack, the program's output, the stdin, and the prompt a waiting program has
+ * stopped at — sits under the editor, because that is what a reader has their eyes on while
+ * stepping. The wasm therefore mounts TWICE, canvas and console, over one store: two surfaces,
+ * one run, no state crossing this page.
+ *
  * The page owns the LIVE PAIR — the buffer and the stdin — and nothing else. It reads the buffer
  * off the workbench's own `synapse:code-changed` (the same seam the coach pane uses) rather than
- * holding a second copy, and hands (source, stdin, structure) to the wasm panel on Trace. The
- * panel owns the canvas, the playback and the failure cards; the two never share state, only that
- * one call.
+ * holding a second copy, and hands (source, stdin, structure) to the wasm panel on Trace.
  *
- * The workbench is mounted IMPERATIVELY into the right pane, as `islands/problem` does: its `root`
- * is the event surface, and Preact renders an empty pane for it to fill so the two never fight
- * over one node. The canvas host is the same trick for the wasm — rendered once, never
- * re-rendered, handed to Leptos to own.
+ * The one thing it does mediate is the DEBUGGER CURSOR: the crate says which line just executed
+ * and which is about to, and the page paints them onto the workbench's Monaco. Neither side could
+ * do that alone — the crate does not own the editor, and the page does not know what a step is.
+ *
+ * The workbench is mounted IMPERATIVELY into its slot, as `islands/problem` does: its `root` is
+ * the event surface, and Preact renders an empty node for it to fill so the two never fight over
+ * one element. The canvas and console hosts are the same trick for the wasm.
  *
  * Everything stays in the tab. The buffer, the stdin and the structure choice autosave to
  * localStorage; nothing here is published anywhere.
@@ -28,6 +35,7 @@ import {
   serializeLeftPct,
 } from "../../lib/catalog/pane";
 import type { Variant } from "../../lib/execution/blocks";
+import type { EditorHandle } from "../../lib/islands/editor/monaco";
 import {
   D2_BLANK_DRAFT_KEY,
   VIZ_LAB_DRAFT_PREFIX,
@@ -87,8 +95,14 @@ export function VizLab() {
   const [structures, setStructures] = useState<string[]>([]);
 
   const canvasHost = useRef<HTMLDivElement>(null);
-  const rightPane = useRef<HTMLDivElement>(null);
+  const consoleHost = useRef<HTMLDivElement>(null);
+  const benchSlot = useRef<HTMLDivElement>(null);
   const panes = useRef<HTMLDivElement>(null);
+  /** The live Monaco, while there is one — the workbench evicts it off-viewport. */
+  const editor = useRef<EditorHandle | null>(null);
+  /** The last cursor the crate reported, so a Monaco that mounts LATE (or remounts after an
+   *  eviction) is painted with where the reader actually is rather than with nothing. */
+  const cursor = useRef<[number | null, number | null]>([null, null]);
   const dragging = useRef(false);
   /** The workbench's live buffer, off its own CODE_CHANGED — never a second copy of the code. */
   const live = useRef<CodeSnapshot>({
@@ -119,12 +133,16 @@ export function VizLab() {
 
   const readStdin = useCallback(() => stdinRef.current, []);
 
-  // ── the workbench, mounted once into the right pane ──
+  const paintCursor = useCallback(() => {
+    editor.current?.setLineHighlights(cursor.current[0], cursor.current[1]);
+  }, []);
+
+  // ── the workbench, mounted once into its slot ──
   useEffect(() => {
-    const pane = rightPane.current;
-    if (pane == null) return;
+    const slot = benchSlot.current;
+    if (slot == null) return;
     const wrap = document.createElement("div");
-    pane.replaceChildren(wrap);
+    slot.replaceChildren(wrap);
     const onCode = (event: Event) => {
       live.current = (event as CustomEvent<CodeSnapshot>).detail;
     };
@@ -139,6 +157,10 @@ export function VizLab() {
         fill: true,
         editable: true,
         stdin: readStdin,
+        onEditor: (handle) => {
+          editor.current = handle;
+          paintCursor();
+        },
       }),
       wrap,
     );
@@ -149,14 +171,20 @@ export function VizLab() {
     };
   }, []);
 
-  // ── the wasm panel, mounted once into its own host ──
+  // ── the wasm: the canvas in one pane, the console in the other, over one store ──
   useEffect(() => {
     let live = true;
     const mount = () => {
-      const host = canvasHost.current;
+      const canvas = canvasHost.current;
+      const console_ = consoleHost.current;
       const panel = window.__synapseVizPanel;
-      if (!live || host == null || panel == null) return;
-      panel.mount(host);
+      if (!live || canvas == null || console_ == null || panel == null) return;
+      panel.mount(canvas);
+      panel.mountConsole(console_);
+      panel.onCursor((executed, next) => {
+        cursor.current = [executed, next];
+        paintCursor();
+      });
       setStructures(panel.structures());
     };
     window.addEventListener(VIZ_READY, mount);
@@ -344,19 +372,6 @@ export function VizLab() {
           </div>
           {/* Leptos owns everything inside this node. Preact must never render into it again. */}
           <div class="vlab__canvas" ref={canvasHost} data-vizlab-canvas></div>
-          <div class="vlab__stdin">
-            <label class="vlab__stdin-label" for="vlab-stdin">
-              stdin
-            </label>
-            <textarea
-              id="vlab-stdin"
-              class="vlab__stdin-input"
-              rows={2}
-              placeholder="One line per input the program reads"
-              value={stdin}
-              onInput={(event) => setStdin((event.target as HTMLTextAreaElement).value)}
-            ></textarea>
-          </div>
         </section>
         <div
           class="lab-split"
@@ -375,7 +390,37 @@ export function VizLab() {
             <i></i>
           </span>
         </div>
-        <section class="lab-pane lab-pane--r" ref={rightPane}></section>
+        <section class="lab-pane lab-pane--r">
+          {/* Three empty nodes, three owners. Preact renders each once and never looks inside:
+              the workbench renders itself into the first, Leptos into the second, and only the
+              stdin box below is the page's own. */}
+          <div class="vlab__bench" ref={benchSlot}></div>
+          <div class="vlab__console" ref={consoleHost} data-vizlab-console></div>
+          <div class="vlab__stdin">
+            <label class="vlab__stdin-label" for="vlab-stdin">
+              stdin
+            </label>
+            {/* The run's OPENING input. Values typed into the console's prompt while stepping are
+                the crate's business and never land here — this is what the program is given
+                before it starts. The note is load-bearing: Run and Trace read the SAME box but
+                cannot do the same thing with an empty one, and a reader who has just watched
+                Trace ask them for a value will otherwise expect Run to ask too. It cannot: the
+                sandbox is one-shot, so `input()` on empty stdin raises EOFError and that is the
+                honest answer. */}
+            <textarea
+              id="vlab-stdin"
+              class="vlab__stdin-input"
+              rows={2}
+              placeholder="One line per input the program reads"
+              value={stdin}
+              onInput={(event) => setStdin((event.target as HTMLTextAreaElement).value)}
+            ></textarea>
+            <p class="vlab__stdin-note">
+              Run needs every value up front — an empty box is an end-of-file to it. Trace can
+              stop and ask you for one as you step.
+            </p>
+          </div>
+        </section>
       </div>
 
       {toast != null && <div class="lab-toast">{toast}</div>}

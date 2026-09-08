@@ -66,6 +66,10 @@ export interface WorkbenchProps {
    *  pair, so Run and Trace are fed the same thing. Ignored when `spec` is set: a suite's cases
    *  own the stdin, and two sources for it is how they disagree. */
   stdin?: () => string | null;
+  /** Handed the live Monaco whenever one exists, and NULL whenever one stops existing — the viz
+   *  lab paints the traced line on it. Both edges matter: Monaco here is lazy AND evictable, so a
+   *  caller holding the handle past an eviction would be decorating a disposed editor. */
+  onEditor?: (handle: EditorHandle | null) => void;
 }
 
 export function Workbench({
@@ -77,6 +81,7 @@ export function Workbench({
   fill = false,
   editable = false,
   stdin: stdinProp,
+  onEditor,
 }: WorkbenchProps) {
   // ── stores, minted once ──
   const stores = useMemo(() => variants.map((v) => new BlockStore(v.source, editable)), []);
@@ -233,6 +238,7 @@ export function Workbench({
       if (registryId.current != null) lazy.deregister(registryId.current);
       mounted.current?.dispose();
       mounted.current = null;
+      onEditorRef.current?.(null);
       submit.dispose();
     };
   }, []);
@@ -264,6 +270,7 @@ export function Workbench({
       });
       log.debug(`monaco mounted (${v.language})`);
       mounted.current = handle;
+      onEditorRef.current?.(handle);
       registryId.current = lazy.register(
         () => near.current,
         () => {
@@ -271,6 +278,7 @@ export function Workbench({
           log.debug("monaco evicted (over the page cap, far from viewport)");
           mounted.current?.dispose();
           mounted.current = null;
+          onEditorRef.current?.(null);
           wantsEditor.current = false;
           registryId.current = null;
           const i = stores.indexOf(activeStoreRef.current);
@@ -285,6 +293,8 @@ export function Workbench({
   }, [mountedTick, active]);
 
   // Latest-closure refs for the editor callbacks (mounted once, must see current state).
+  const onEditorRef = useRef(onEditor);
+  onEditorRef.current = onEditor;
   const activeStoreRef = useRef(activeStore);
   activeStoreRef.current = activeStore;
   const runRef = useRef(run);

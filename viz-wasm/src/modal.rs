@@ -330,14 +330,19 @@ fn SourcePane(
         let Some(step) = graph.steps.get(state.index) else {
             return;
         };
-        let current = u32::try_from(step.line.max(0)).unwrap_or(0);
-        let next = graph
-            .steps
-            .get(state.index + 1)
-            .and_then(|s| u32::try_from(s.line.max(0)).ok());
+        // A trace event fires BEFORE its line runs, so the step on screen names the line about to
+        // execute and its PREDECESSOR names the one that just did. Reading the following step as
+        // "next" would point both arrows one line late.
+        let next = u32::try_from(step.line.max(0)).ok().filter(|line| *line > 0);
+        let executed = state
+            .index
+            .checked_sub(1)
+            .and_then(|previous| graph.steps.get(previous))
+            .and_then(|s| u32::try_from(s.line.max(0)).ok())
+            .filter(|line| *line > 0);
         mounted.with_value(|editor| {
             if let Some(editor) = editor {
-                editor.set_line_highlights(current, next);
+                editor.set_line_highlights(executed, next);
             }
         });
     });

@@ -1,6 +1,7 @@
 //! The wasm-bindgen surface: what the Astro app's lazy `viz.ts` loader calls. Mount the inline
 //! widgets, open the Visualise modal, install the bearer provider — and, for the `/viz` page,
-//! mount the docked panel, trace into it, and read the structure vocabulary back out.
+//! mount its two surfaces (the canvas and the console), trace into them, follow the reader's
+//! step so the page can paint it into its editor, and read the structure vocabulary back out.
 //!
 //! Self-hosting: there is no App shell to hold the modal store, so the entry mints ONE store
 //! under a detached root owner (signals that outlive views must never be owned by a caller's
@@ -17,16 +18,21 @@ use std::cell::RefCell;
 use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 
+use crate::console::VizConsole;
 use crate::engine::d2;
 use crate::engine::vocabulary::VizStructure;
 use crate::modal::{VisualiseModal, VizModalStore};
-use crate::panel::{VizPanel, VizPanelStore};
+use crate::panel::{Cursor, VizPanel, VizPanelStore};
 use crate::{blocks, session};
 
 thread_local! {
     static WIDGET_HANDLES: RefCell<Vec<Box<dyn Any>>> = const { RefCell::new(Vec::new()) };
     static MODAL: RefCell<Option<VizModalStore>> = const { RefCell::new(None) };
     static PANEL: RefCell<Option<VizPanelStore>> = const { RefCell::new(None) };
+    // One flag per SURFACE: the store outlives both, and mounting the console must not read as
+    // "the canvas is already up".
+    static PANEL_MOUNTED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static CONSOLE_MOUNTED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     // The detached owner for everything that outlives a view (the modal store's signal).
     static ENTRY_OWNER: Owner = Owner::new_root(None);
 }
@@ -117,28 +123,79 @@ pub fn viz_install_token(provider: js_sys::Function) {
 // THE DOCKED PANEL — the `/viz` page
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Mount the panel into a host element the page owns. The store is minted under the SAME
-/// detached owner the modal uses, because the page drives it from JS callbacks whose reactive
-/// scopes end the moment they return.
+/// The one panel store, minted on first use under the SAME detached owner the modal uses,
+/// because the page drives it from JS callbacks whose reactive scopes end the moment they return.
+///
+/// Minted on DEMAND rather than by whichever mount happens to run first: the page has two
+/// surfaces over one run, and the store has to be the same one whatever order they arrive in.
+fn panel_store() -> VizPanelStore {
+    if let Some(store) = PANEL.with_borrow(|p| *p) {
+        return store;
+    }
+    let store = ENTRY_OWNER.with(|owner| owner.with(VizPanelStore::new));
+    PANEL.with_borrow_mut(|p| *p = Some(store));
+    store
+}
+
+/// Mount the CANVAS into a host element the page owns.
 ///
 /// Idempotent: a second call on an already-mounted panel is a no-op rather than a second mount
 /// competing for one element.
 #[wasm_bindgen]
 pub fn viz_mount_panel(host: web_sys::HtmlElement) -> bool {
     console_error_panic_hook::set_once();
-    if PANEL.with_borrow(Option::is_some) {
+    if PANEL_MOUNTED.with(std::cell::Cell::get) {
         crate::log::debug("viz: panel already mounted");
         return true;
     }
-    let store = ENTRY_OWNER.with(|owner| owner.with(VizPanelStore::new));
+    let store = panel_store();
     let handle = crate::mount::mount(host, move || {
         provide_context(store);
         view! { <VizPanel /> }
     });
     WIDGET_HANDLES.with_borrow_mut(|handles| handles.push(handle));
-    PANEL.with_borrow_mut(|p| *p = Some(store));
+    PANEL_MOUNTED.with(|m| m.set(true));
     crate::log::info("viz: panel mounted");
     true
+}
+
+/// Mount the CONSOLE — the call stack, the program's output and the input prompt — into a second
+/// host, the one the page puts under its editor. Same store, so the two surfaces show one run.
+///
+/// Idempotent for the same reason the canvas mount is.
+#[wasm_bindgen]
+pub fn viz_mount_console(host: web_sys::HtmlElement) -> bool {
+    console_error_panic_hook::set_once();
+    if CONSOLE_MOUNTED.with(std::cell::Cell::get) {
+        crate::log::debug("viz: console already mounted");
+        return true;
+    }
+    let store = panel_store();
+    let handle = crate::mount::mount(host, move || {
+        provide_context(store);
+        view! { <VizConsole /> }
+    });
+    WIDGET_HANDLES.with_borrow_mut(|handles| handles.push(handle));
+    CONSOLE_MOUNTED.with(|m| m.set(true));
+    crate::log::info("viz: console mounted");
+    true
+}
+
+/// Follow the reader's step: `listener(executedLine, nextLine)` on every move, with either
+/// argument `null` when there is no such line — the first step has executed nothing, and an
+/// untraced panel is pointing at nothing at all.
+///
+/// The crate reports LINES, not decorations: what a highlighted line looks like is the page's
+/// business, and the page is the one holding the editor.
+#[wasm_bindgen]
+pub fn viz_panel_on_cursor(listener: js_sys::Function) {
+    console_error_panic_hook::set_once();
+    crate::panel::set_cursor_listener(move |cursor: Cursor| {
+        let line =
+            |value: Option<i32>| value.map_or(JsValue::NULL, |line| JsValue::from_f64(f64::from(line)));
+        let _ = listener.call2(&JsValue::NULL, &line(cursor.executed), &line(cursor.next));
+    });
+    crate::log::debug("viz: cursor listener installed");
 }
 
 /// Trace `source` into the mounted panel. `viz_hint` is the same `<structure>[:<root>]` token an
@@ -150,10 +207,7 @@ pub fn viz_mount_panel(host: web_sys::HtmlElement) -> bool {
 #[wasm_bindgen]
 pub fn viz_panel_trace(language: &str, source: &str, viz_hint: &str, stdin: &str) -> bool {
     console_error_panic_hook::set_once();
-    let Some(store) = PANEL.with_borrow(|p| *p) else {
-        crate::log::warn("viz: trace requested before the panel mounted");
-        return false;
-    };
+    let store = panel_store();
     let Some((structure, root)) = VizStructure::parse(viz_hint) else {
         crate::log::warn(&format!("viz: unusable viz hint “{viz_hint}” — not tracing"));
         return false;

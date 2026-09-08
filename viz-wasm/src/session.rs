@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use crate::engine::adapt;
 use crate::engine::graph::VizCases;
 use crate::engine::memory::{self, MemoryStep};
+use crate::engine::trace::Served;
 use crate::engine::vocabulary::VizStructure;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -30,8 +31,10 @@ pub struct Run {
     pub cases: Result<VizCases, String>,
     pub memory: Vec<MemoryStep>,
     pub program_out: String,
-    /// Every value `input()` was served, in order — what a re-run replays to get back here.
-    pub inputs: Vec<String>,
+    /// Every value `input()` was served, in order, each with the step that read it — what a
+    /// re-run replays to get back here, and what tells a reader mid-trace which of them the
+    /// program has actually reached.
+    pub inputs: Vec<Served>,
     /// The program asked for a value the run could not serve and stopped there.
     pub waiting: bool,
     /// What it asked with, in the program's own words.
@@ -160,10 +163,10 @@ fn run(session: &Session) {
 /// unterminated final line is read as EOF, which would stop the run at the very prompt the
 /// answer was meant to satisfy.
 #[must_use]
-pub fn replay_stdin(served: &[String], answer: &str) -> String {
+pub fn replay_stdin(served: &[Served], answer: &str) -> String {
     let mut stdin = String::new();
-    for value in served {
-        stdin.push_str(value);
+    for input in served {
+        stdin.push_str(&input.value);
         stdin.push('\n');
     }
     stdin.push_str(answer);

@@ -81,12 +81,22 @@ declare global {
      *  not up yet, because the page renders before the wasm arrives. */
     __synapseVizPanel?: {
       mount: (host: HTMLElement) => boolean;
+      /** The page's SECOND wasm surface: the call stack, the program's output and the prompt a
+       *  waiting program is stopped at. It goes under the editor rather than under the canvas,
+       *  because every one of those reads the code. Same store as `mount`, so the two cannot
+       *  disagree about which step is on screen. */
+      mountConsole: (host: HTMLElement) => boolean;
       trace: (detail: {
         language: string;
         source: string;
         vizHint: string;
         stdin: string;
       }) => boolean;
+      /** Follow the reader's step: the line that just EXECUTED and the line about to, both
+       *  1-indexed, either null when there is no such line. The crate reports lines and nothing
+       *  else — what a painted line looks like is the page's business, and the page is the one
+       *  holding the editor. One listener; a second call replaces the first. */
+      onCursor: (listener: (executed: number | null, next: number | null) => void) => void;
       /** The step on screen, or the whole walkthrough, as d2 SOURCE (no fence — the page owns
        *  the markdown wrapper). Null when there is nothing traced to export. */
       exportD2: (mode: "step" | "walkthrough") => string | null;

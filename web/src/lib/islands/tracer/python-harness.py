@@ -20,7 +20,9 @@
 # rather than raising EOFError. The client shows a prompt at that step, and a
 # re-run with one more line continues the story. Which makes `inputs` the
 # contract that matters: it is what the client replays, so a run that served
-# three values must report exactly those three, in order.
+# three values must report exactly those three, in order — each as
+# {"v": value, "at": the step that read it}, because the client walks the steps
+# and has to know which values the program had reached by the one on screen.
 import sys, json, base64, math, types
 
 _syn_source = base64.b64decode("__SYNAPSE_USER_SOURCE_B64__").decode("utf-8")
@@ -145,10 +147,21 @@ def _syn_input(prompt=""):
         _syn_prompt[0] = str(prompt)
         raise _SynAwaitInput()
     value = line[:-1] if line.endswith("\n") else line
-    _syn_inputs.append(value)
+    # WHICH step read it, not merely that it was read. A reader scrubbing backwards is standing
+    # before some of these values were served, and a log that struck them all through would claim
+    # the program knew them all along. The step is the one already recorded for the line calling
+    # input(): this wrapper is not traced, so nothing is appended between that step and here.
+    _syn_inputs.append({"v": value, "at": max(len(_syn_steps) - 1, 0)})
     return value
 
 def _syn_tracer(frame, event, arg):
+    # Once the program has asked for input nobody could serve, everything that follows is
+    # _SynAwaitInput travelling back out of the stack — a `return` per frame, at the line that
+    # asked. Recording those would end the story on a return the reader never wrote, and would
+    # leave the last two steps sitting on the same line. The step that CALLED input() is the
+    # last true one, and it is the one to stop on.
+    if _syn_waiting[0]:
+        return _syn_tracer
     if event in ("line", "call", "return") and frame.f_code.co_filename == "<traced>":
         if frame.f_lineno <= 0:
             return _syn_tracer

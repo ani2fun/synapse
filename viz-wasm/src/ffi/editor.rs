@@ -35,7 +35,7 @@ extern "C" {
     #[wasm_bindgen(method, js_name = setTheme)]
     fn set_theme_js(this: &EditorHandle, dark: bool);
     #[wasm_bindgen(method, js_name = setLineHighlights)]
-    fn set_line_highlights_js(this: &EditorHandle, current: u32, next: Option<u32>);
+    fn set_line_highlights_js(this: &EditorHandle, executed: Option<u32>, next: Option<u32>);
     #[wasm_bindgen(method, js_name = setLanguage)]
     fn set_language_js(this: &EditorHandle, fence_lang: &str);
     #[wasm_bindgen(method, js_name = relayout)]
@@ -70,9 +70,11 @@ impl MountedEditor {
         self.handle.set_theme_js(dark);
     }
 
-    /// The Visualise modal's source pane: highlight the current (+ next) 1-indexed lines.
-    pub fn set_line_highlights(&self, current: u32, next: Option<u32>) {
-        self.handle.set_line_highlights_js(current, next);
+    /// The debugger's two arrows, as 1-indexed lines: the one that just EXECUTED and the one
+    /// about to. Either may be absent — nothing has run at the first step, and nothing is next
+    /// once the trace ends.
+    pub fn set_line_highlights(&self, executed: Option<u32>, next: Option<u32>) {
+        self.handle.set_line_highlights_js(executed, next);
     }
 
     /// Re-tokenize the buffer as another fence language (the workbench language tabs).

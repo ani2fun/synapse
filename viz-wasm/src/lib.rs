@@ -2,8 +2,9 @@
 //! through the pure `RenderFamily` decision, and drives every animation with the one
 //! `Playback` stepper), the trace session, and TWO hosts for it — the Visualise modal that
 //! opens over a lesson's workbench, and the docked panel the `/viz` page pairs with its own
-//! editor. Everything they share is `player`. Layout is computed ONCE over the union of
-//! steps; the step signal only toggles drawing.
+//! editor (plus its `console`, the strips that read the run rather than draw it). Everything the
+//! hosts share is `player`. Layout is computed ONCE over the union of steps; the step signal only
+//! toggles drawing.
 //!
 //! The Astro app loads the cdylib as a lazy wasm bundle through [`entry`]'s wasm-bindgen
 //! surface; the crate also builds as an rlib so the engine tests + goldens run natively under
@@ -13,6 +14,9 @@
 
 pub mod api;
 pub mod blocks;
+/// The `/viz` page's SECOND surface: the reading strips under its editor. Its own module because
+/// it is its own mount — the page places the canvas and the console in two different panes.
+pub mod console;
 /// The pure viz ENGINE — contract, vocabulary, geometry, adapt pipeline and goldens.
 /// Lives in this crate, not `synapse-shared`, because the server never references it and it
 /// needs no home in the wire-contract kernel. `shapes`/`decoder` live inside it too — they are

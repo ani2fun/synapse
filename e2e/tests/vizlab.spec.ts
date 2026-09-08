@@ -54,6 +54,21 @@ test("the canvas states what to do before anything is traced", async ({ page }) 
   await expect(page.locator(".vlab__stdin-input")).toBeVisible();
 });
 
+test("everything that reads the run sits under the editor, not under the canvas", async ({ page }) => {
+  await page.goto(LAB);
+  // The console is the wasm's SECOND mount. Its presence in the right pane is what proves the
+  // page asked for it — an untraced console renders nothing, so only the host is assertable.
+  const host = page.locator(".lab-pane--r [data-vizlab-console]");
+  await expect(host).toHaveCount(1);
+  // Order within the pane: editor, then console, then stdin. A reader stepping through a trace
+  // reads down from the line they are on.
+  const order = await page.locator(".lab-pane--r > *").evaluateAll((nodes) =>
+    nodes.map((node) => node.className),
+  );
+  expect(order).toEqual(["vlab__bench", "vlab__console", "vlab__stdin"]);
+  await expect(page.locator(".lab-pane--l [data-vizlab-console]")).toHaveCount(0);
+});
+
 test("the d2 export refuses to copy a figure that does not exist yet", async ({ page }) => {
   await page.goto(LAB);
   await expect(page.locator(".vlab__select option")).toHaveCount(17, { timeout: 30_000 });

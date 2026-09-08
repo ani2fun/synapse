@@ -16,7 +16,8 @@
  * Contracts installed after init:
  *   · `window.__synapseViz` (contracts.ts) → `viz_open_modal` — its arrival re-renders
  *     workbenches via VIZ_READY so the Visualise button appears;
- *   · `window.__synapseVizPanel` → the docked player's mount / trace / vocabulary verbs;
+ *   · `window.__synapseVizPanel` → the docked player's two mounts (canvas + console), its trace
+ *     and vocabulary verbs, and the cursor seam the page paints into its own editor;
  *   · the crate's bearer seam gets a WRAPPER reading `window.__synapseVizToken` at call time, so
  *     the identity island can install/refresh its provider in either order relative to this load.
  */
@@ -38,8 +39,10 @@ function load(): Promise<VizModule> {
     };
     window.__synapseVizPanel = {
       mount: (host) => mod.viz_mount_panel(host),
+      mountConsole: (host) => mod.viz_mount_console(host),
       trace: (detail) =>
         mod.viz_panel_trace(detail.language, detail.source, detail.vizHint, detail.stdin),
+      onCursor: (listener) => mod.viz_panel_on_cursor(listener),
       exportD2: (mode) => mod.viz_panel_export_d2(mode) ?? null,
       structures: () => JSON.parse(mod.viz_structures()) as string[],
     };

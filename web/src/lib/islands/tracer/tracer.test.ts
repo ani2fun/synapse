@@ -128,6 +128,19 @@ describe("the Python harness reports what it did with stdin", () => {
     expect(pythonHarness).toContain("except _SynAwaitInput");
   });
 
+  it("records WHICH step read each value, not merely that it was read", () => {
+    // The panel walks the steps, so it has to know which values the program had reached by the
+    // one on screen — without this every value reads as consumed from step 0.
+    expect(pythonHarness).toContain('_syn_inputs.append({"v": value, "at": max(len(_syn_steps) - 1, 0)})');
+  });
+
+  it("records nothing more once the program is waiting", () => {
+    // _SynAwaitInput unwinds the stack, and every frame it passes fires a `return` at the line
+    // that asked. Recorded, those become steps the reader never wrote, and the last two land on
+    // the same line — so the arrow for "just executed" and the one for "next" point at one row.
+    expect(pythonHarness).toContain("if _syn_waiting[0]:\n        return _syn_tracer");
+  });
+
   it("hides the injected name from the reader's own locals", () => {
     // Without this, every Global frame lists an `input` the reader never wrote.
     expect(pythonHarness).toContain('_syn_hidden = frozenset(("input",))');

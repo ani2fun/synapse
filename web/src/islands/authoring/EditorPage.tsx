@@ -223,7 +223,7 @@ function Editor(props: EditorProps) {
         </div>
       )}
       <div class="edit-page__editor" ref={hostRef} />
-      <LintStrip findings={findings} onGotoLine={(line) => handleRef.current?.setLineHighlights(line, null)} />
+      <LintStrip findings={findings} onGotoLine={(line) => handleRef.current?.goToLine(line)} />
 
       {reviewing && (
         <ReviewDialog
@@ -236,7 +236,7 @@ function Editor(props: EditorProps) {
           submitting={submitting}
           onSubmit={(summary) => void submit(summary)}
           onClose={() => (submitting ? undefined : setReviewing(false))}
-          onGotoLine={(line) => handleRef.current?.setLineHighlights(line, null)}
+          onGotoLine={(line) => handleRef.current?.goToLine(line)}
         />
       )}
     </div>

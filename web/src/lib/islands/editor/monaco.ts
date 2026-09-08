@@ -259,10 +259,15 @@ export interface EditorHandle {
   /** Read the live buffer (the one-click copy overlay). */
   getValue: () => string;
   /**
-   * Highlight the current step's line (and, when given, the upcoming one) and scroll it into view — the
-   * Visualise modal's SourcePane, Python-Tutor style. `current`/`next` are 1-indexed source lines.
+   * Paint the debugger's two arrows: the line that just EXECUTED and the line about to. Both are
+   * 1-indexed; either may be null (nothing has run yet at the first step, and nothing is next
+   * once the trace ends). Scrolls the line about to run into view, because that is where the
+   * story goes next.
+   *
+   * A trace event fires BEFORE its line runs, so `next` is the step's own line and `executed` is
+   * its predecessor's — get that backwards and both arrows sit one line late.
    */
-  setLineHighlights: (current: number, next: number | null) => void;
+  setLineHighlights: (executed: number | null, next: number | null) => void;
   /**
    * Put the caret on a 1-indexed line, scroll it into view, and take focus — the `/d2` editor's
    * "Go to line N" on a compile error. Distinct from `setLineHighlights`, which paints a line
@@ -411,25 +416,33 @@ export function createEditor(container: HTMLElement, opts: EditorOptions): Edito
       editor.revealLineInCenter(at);
       editor.focus();
     },
-    setLineHighlights: (current: number, next: number | null) => {
-      const decos: monaco.editor.IModelDeltaDecoration[] = [
-        {
-          range: new monaco.Range(current, 1, current, 1),
+    setLineHighlights: (executed: number | null, next: number | null) => {
+      const decos: monaco.editor.IModelDeltaDecoration[] = [];
+      if (executed != null) {
+        decos.push({
+          range: new monaco.Range(executed, 1, executed, 1),
           options: {
             isWholeLine: true,
-            className: "wb-source-current-line",
-            linesDecorationsClassName: "wb-source-current-gutter",
+            className: "wb-source-done-line",
+            linesDecorationsClassName: "wb-source-done-gutter",
           },
-        },
-      ];
+        });
+      }
       if (next != null) {
         decos.push({
           range: new monaco.Range(next, 1, next, 1),
-          options: { isWholeLine: true, className: "wb-source-next-line" },
+          options: {
+            isWholeLine: true,
+            className: "wb-source-next-line",
+            linesDecorationsClassName: "wb-source-next-gutter",
+          },
         });
       }
       highlights.set(decos);
-      editor.revealLineInCenterIfOutsideViewport(current);
+      // Follow the line about to run; fall back to the one that just did, so the last step of a
+      // trace still scrolls somewhere rather than nowhere.
+      const follow = next ?? executed;
+      if (follow != null) editor.revealLineInCenterIfOutsideViewport(follow);
     },
   };
 }

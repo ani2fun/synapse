@@ -26,11 +26,39 @@ fn the_program_output_stops_at_the_marker() {
 // ── the input report ──────────────────────────────────────────────────────────
 
 #[test]
-fn the_values_input_was_served_come_back_in_order() {
-    let json = r#"{"steps":[],"inputs":["[1,2]","7"],"waiting":false,"prompt":""}"#;
+fn the_values_input_was_served_come_back_in_order_with_the_step_that_read_each() {
+    let json = r#"{"steps":[],"inputs":[{"v":"[1,2]","at":3},{"v":"7","at":41}],"waiting":false}"#;
     let trace = decode(&wrap("", json)).unwrap().trace.unwrap();
-    assert_eq!(trace.inputs, ["[1,2]", "7"]);
+    assert_eq!(
+        trace.inputs,
+        [
+            Served {
+                value: "[1,2]".to_owned(),
+                at: 3
+            },
+            Served {
+                value: "7".to_owned(),
+                at: 41
+            },
+        ]
+    );
     assert!(!trace.waiting);
+}
+
+#[test]
+fn an_input_that_names_no_step_is_placed_at_the_first_one() {
+    // Placing it later would hide it from every step the reader can stand on.
+    let trace = decode(&wrap("", r#"{"steps":[],"inputs":[{"v":"7"}]}"#))
+        .unwrap()
+        .trace
+        .unwrap();
+    assert_eq!(
+        trace.inputs,
+        [Served {
+            value: "7".to_owned(),
+            at: 0
+        }]
+    );
 }
 
 #[test]
@@ -60,8 +88,14 @@ fn a_begin_with_no_end_is_output_the_sandbox_cut_off() {
 
 #[test]
 fn the_last_marker_wins_so_a_program_cannot_spoof_one() {
-    let printed = format!("{HEAP_BEGIN}{{\"inputs\":[\"spoofed\"]}}{HEAP_END}");
-    let real = r#"{"steps":[],"inputs":["real"]}"#;
+    let printed = format!("{HEAP_BEGIN}{{\"inputs\":[{{\"v\":\"spoofed\"}}]}}{HEAP_END}");
+    let real = r#"{"steps":[],"inputs":[{"v":"real","at":0}]}"#;
     let trace = decode(&wrap(&printed, real)).unwrap().trace.unwrap();
-    assert_eq!(trace.inputs, ["real"]);
+    assert_eq!(
+        trace.inputs,
+        [Served {
+            value: "real".to_owned(),
+            at: 0
+        }]
+    );
 }

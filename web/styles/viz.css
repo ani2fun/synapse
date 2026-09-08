@@ -163,12 +163,30 @@
                       border-radius: 50%; font-size: 9px; flex: none; }
 .viz-legend__line { display: inline-block; width: 22px; height: 2px; border-radius: 1px; flex: none; }
 
-/* ── source-pane line highlights (monaco decorations from the island) ── */
-.wb-source-current-line { background: hsl(var(--primary) / 0.22);
-                          box-shadow: inset 3px 0 0 hsl(var(--primary)); }
-.wb-source-current-gutter { border-left: 3px solid hsl(var(--primary)); }
-.wb-source-next-line { background: hsl(var(--primary) / 0.10);
-                       box-shadow: inset 3px 0 0 hsl(var(--muted-foreground) / 0.55); }
+/* ── the debugger's two arrows (monaco decorations, painted by the viz hosts) ──
+   Two lines, two meanings, and the reader has to be able to tell them apart at a glance:
+   GREEN for the line that just executed, the brand red for the line about to. The arrow lives in
+   the gutter rather than in the text, because the text is the reader's code and a glyph inserted
+   into it would be a character they did not type. `--viz-arrow-*` carry the colours so the
+   console's legend can name the same two things without re-deriving them.
+
+   Their own colours, not `--primary` and `--destructive`: the brand green would make the two
+   arrows the same colour in a green-branded app, and the error red would tell a reader their
+   next line is a mistake. Green behind you, red ahead of you is the convention every stepping
+   debugger uses, so it is the one a reader arrives already knowing. */
+:root { --viz-arrow-done: 142 64% 36%; --viz-arrow-next: 4 72% 52%; }
+.dark { --viz-arrow-done: 142 58% 52%; --viz-arrow-next: 5 78% 64%; }
+
+.wb-source-done-line { background: hsl(var(--viz-arrow-done) / 0.13);
+                       box-shadow: inset 3px 0 0 hsl(var(--viz-arrow-done) / 0.75); }
+.wb-source-next-line { background: hsl(var(--viz-arrow-next) / 0.22);
+                       box-shadow: inset 3px 0 0 hsl(var(--viz-arrow-next)); }
+.wb-source-done-gutter, .wb-source-next-gutter {
+  width: 14px !important; margin-left: 2px; display: flex; align-items: center;
+  justify-content: center; font-size: 12px; line-height: 1; }
+.wb-source-done-gutter::before { content: "\2192"; color: hsl(var(--viz-arrow-done)); }
+.wb-source-next-gutter::before { content: "\2192"; color: hsl(var(--viz-arrow-next));
+                                 font-weight: 700; }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    THE BESPOKE GALLERY (step 29; oracle step 33) — flow-layout HTML widgets:

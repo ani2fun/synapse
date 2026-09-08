@@ -1,7 +1,9 @@
-//! The docked panel — the `/viz` page's left pane.
+//! The docked panel — the `/viz` page's left pane, and nothing but the canvas.
 //!
 //! Same player as the Visualise modal, different host: no popup, no scrim, and no source pane,
-//! because the page's own workbench IS the source pane.
+//! because the page's own workbench IS the source pane. Everything that READS rather than draws
+//! — the call stack, the program's output, the input the program is waiting for — is `console.rs`,
+//! mounted under that workbench, because those things describe the code and belong beside it.
 //!
 //! It shows the run through TWO LENSES, and they answer different questions. STRUCTURE asks what
 //! shape the data has — it needs a `viz=` token and a root, and draws one projected structure.
@@ -15,19 +17,22 @@
 //!
 //! INPUT is the other thing this host has that the modal does not. The sandbox runs a program
 //! once with stdin fixed up front, so nobody can type into a running program — but the harness
-//! reports when one is waiting, and this asks. Answering re-runs from the top with the answer
-//! appended and lands the reader back on the step they were on, which is indistinguishable from
-//! having continued, and is the only honest way to do it over a batch runner.
+//! reports when one is waiting, and the console asks. Answering re-runs from the top with the
+//! answer appended and lands the reader one step PAST the prompt, so the value they typed has
+//! visibly been read. That is the only honest way to do it over a batch runner, and it is
+//! indistinguishable from having continued.
 
 use crate::engine::graph::VizCases;
 use crate::engine::playback::State;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 
+use std::cell::RefCell;
+
 use crate::host::WidgetHost;
-use crate::player::{self, FramesPanel};
+use crate::player;
 use crate::render::memory as memory_render;
-use crate::session::{self, Run, Session, TraceState};
+use crate::session::{Run, Session, TraceState};
 use crate::transport::TransportBar;
 
 /// Which question the canvas is answering.
@@ -35,6 +40,42 @@ use crate::transport::TransportBar;
 pub enum Lens {
     Structure,
     Memory,
+}
+
+/// Where the reader is standing, in the source's own terms — the two arrows a debugger draws.
+///
+/// A trace event fires BEFORE its line runs, so the step on screen names the line about to
+/// execute and its predecessor names the one that just did. Getting that backwards would put both
+/// arrows one line late, which is exactly the kind of wrong a reader trusts.
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub struct Cursor {
+    /// The line that just executed. `None` on the first step, where nothing has run yet.
+    pub executed: Option<i32>,
+    /// The line about to execute. `None` when there is nothing traced.
+    pub next: Option<i32>,
+}
+
+/// Whoever wants to know where the reader is standing. One listener, because there is one panel.
+type CursorListener = Box<dyn Fn(Cursor)>;
+
+thread_local! {
+    /// The page's painter, installed through `entry`. The panel does not know what an editor is;
+    /// it only says which lines it is pointing at, and whoever asked decides what that looks like.
+    static CURSOR_LISTENER: RefCell<Option<CursorListener>> = const { RefCell::new(None) };
+}
+
+/// Register the one listener that follows the reader's step. A second call replaces the first —
+/// there is one panel and one page.
+pub fn set_cursor_listener(listener: impl Fn(Cursor) + 'static) {
+    CURSOR_LISTENER.with_borrow_mut(|slot| *slot = Some(Box::new(listener)));
+}
+
+fn announce(cursor: Cursor) {
+    CURSOR_LISTENER.with_borrow(|slot| {
+        if let Some(listener) = slot {
+            listener(cursor);
+        }
+    });
 }
 
 /// The panel's whole state. Every signal is minted by `entry` under a DETACHED root owner: the
@@ -72,14 +113,63 @@ impl VizPanelStore {
 
     /// Show a trace. Playback resets — a new run is a new animation, and keeping the old step
     /// index would open the panel part-way through a story the reader has not been told. The
-    /// exception is a RESUME, which is the same story continuing and says where to land.
+    /// exception is a RESUME, which is the same story continuing and says where to land; it
+    /// leaves BOTH lenses alone, because either of them can be the one the reader answered from.
     pub fn show(self, session: Session) {
         self.case_idx.set(0);
-        self.step.set(State::initial(1));
         if self.resume_at.get_untracked().is_none() {
+            self.step.set(State::initial(1));
             self.mem_step.set(State::initial(1));
         }
         self.current.set(Some(session));
+    }
+
+    /// The playback state of whichever lens is on screen — the one the transport, the prompt and
+    /// the editor's arrows all answer to.
+    #[must_use]
+    pub fn active_step(self) -> RwSignal<State> {
+        match self.lens.get() {
+            Lens::Structure => self.step,
+            Lens::Memory => self.mem_step,
+        }
+    }
+
+    /// Whether the reader is standing on the LAST step of the lens they are looking at.
+    ///
+    /// This is where a waiting program's prompt belongs, and nowhere else: the run stopped at its
+    /// final step because it wanted a value, so asking earlier would ask for something the
+    /// program has not reached, and stepping forward is what brings the reader to the question.
+    #[must_use]
+    pub fn at_last_step(self) -> bool {
+        let state = self.active_step().get();
+        state.index + 1 >= state.count
+    }
+
+    /// The two lines a debugger points at, for the lens on screen. Reactive: it reads the run,
+    /// the lens and that lens's step.
+    #[must_use]
+    pub fn cursor(self) -> Cursor {
+        let Some(session) = self.current.get() else {
+            return Cursor::default();
+        };
+        let TraceState::Ready(run) = session.state.get() else {
+            return Cursor::default();
+        };
+        let index = self.active_step().get().index;
+        let line_at: Box<dyn Fn(usize) -> Option<i32>> = match self.lens.get() {
+            Lens::Memory => Box::new(move |i| run.memory.get(i).map(|s| s.line)),
+            Lens::Structure => {
+                let Ok(cases) = run.cases else {
+                    return Cursor::default();
+                };
+                let case = self.case_idx.get().min(cases.cases.len().saturating_sub(1));
+                Box::new(move |i| cases.cases.get(case)?.steps.get(i).map(|s| s.line))
+            }
+        };
+        Cursor {
+            executed: index.checked_sub(1).and_then(&line_at).filter(|l| *l > 0),
+            next: line_at(index).filter(|l| *l > 0),
+        }
     }
 
     /// The finished run on screen, if there is one.
@@ -108,6 +198,10 @@ impl Default for VizPanelStore {
 #[component]
 pub fn VizPanel() -> impl IntoView {
     let store = expect_context::<VizPanelStore>();
+    // The canvas owns playback, so it is the canvas that says where the reader is standing. The
+    // console displays it and the page paints it into the editor; neither of them has to know how
+    // a step maps onto a line.
+    Effect::new(move |_| announce(store.cursor()));
     view! {
         <div class="viz-panel">
             {move || match store.current.get() {
@@ -137,12 +231,11 @@ fn empty_state() -> AnyView {
 fn PanelBody(session: Session, store: VizPanelStore) -> impl IntoView {
     let state = session.state;
     let structure = session.key.structure;
-    let key = session.key.clone();
     view! {
         {move || match state.get() {
             TraceState::Tracing => player::tracing_card(),
             TraceState::Failed(message) => player::failed_card(&message),
-            TraceState::Ready(run) => ready(&run, structure, key.clone(), store).into_any(),
+            TraceState::Ready(run) => ready(&run, structure, store).into_any(),
         }}
     }
 }
@@ -150,25 +243,36 @@ fn PanelBody(session: Session, store: VizPanelStore) -> impl IntoView {
 fn ready(
     run: &Run,
     structure: crate::engine::vocabulary::VizStructure,
-    key: session::Key,
     store: VizPanelStore,
 ) -> impl IntoView + use<> {
     let VizPanelStore { zoom, diff, lens, .. } = store;
     let run = run.clone();
 
-    // Land where the reader was before they answered the prompt. Runs once per Ready run: the
-    // program is deterministic up to the input it stopped at, so the steps before it are the
-    // same steps.
+    // Land one step PAST the prompt the reader just answered. The program is deterministic up to
+    // that input, so every step before it is the same step — and the one after it is the first
+    // that could only happen because of what they typed, which is the whole point of typing it.
+    // Applied to whichever lens asked, since the two count different things.
     let resume_steps = run.memory.len();
+    let resume_case_steps = run
+        .cases
+        .as_ref()
+        .ok()
+        .and_then(|cases| cases.cases.first().map(|graph| graph.steps.len()))
+        .unwrap_or(0);
     Effect::new(move |_| {
-        if let Some(at) = store.resume_at.get_untracked() {
-            store.resume_at.set(None);
-            store.mem_step.update(|s| {
-                s.count = resume_steps.max(1);
-                s.index = at.min(s.count - 1);
-                s.playing = false;
-            });
-        }
+        let Some(at) = store.resume_at.get_untracked() else {
+            return;
+        };
+        store.resume_at.set(None);
+        let (target, count) = match store.lens.get_untracked() {
+            Lens::Structure => (store.step, resume_case_steps),
+            Lens::Memory => (store.mem_step, resume_steps),
+        };
+        target.update(|s| {
+            s.count = count.max(1);
+            s.index = at.min(s.count - 1);
+            s.playing = false;
+        });
     });
 
     // `r` re-traces in the modal; here the page owns Trace, so the key is left to the page and
@@ -189,11 +293,7 @@ fn ready(
 
     // `AnyView` is not Clone, so each lens is BUILT on demand rather than built twice and
     // stored — which is also what keeps the hidden lens off the DOM entirely.
-    let lens_run = run.clone();
-    let program_out = run.program_out.clone();
-    let frames_cases = run.cases.clone().ok();
-    let case_idx = store.case_idx;
-    let step = store.step;
+    let lens_run = run;
 
     view! {
         <div class="viz-panel__ready">
@@ -202,14 +302,6 @@ fn ready(
                 Lens::Structure => structure_lens(&lens_run, structure, store),
                 Lens::Memory => memory_lens(&lens_run, store),
             }}
-            {input_strip(&run, key, store)}
-            {frames_cases.map(|cases| view! {
-                <details class="viz-panel__strip">
-                    <summary class="viz-panel__strip-summary">"Call stack"</summary>
-                    <FramesPanel cases=cases case_idx=case_idx step_state=step />
-                </details>
-            })}
-            <div class="viz-panel__strip-out">{player::program_output(&program_out)}</div>
         </div>
     }
 }
@@ -350,89 +442,6 @@ fn memory_lens(run: &Run, store: VizPanelStore) -> AnyView {
                 </div>
             </Stage>
         </>
-    }
-    .into_any()
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// INPUT
-// ─────────────────────────────────────────────────────────────────────────────
-
-/// What the program has read, and what it is waiting for.
-///
-/// Shown whenever a run served ANY input, not only when one is pending: the list is the record of
-/// how this run came to be, and it is what a re-run replays. Hiding it once the program stops
-/// asking would erase the answer to "why is it doing that".
-fn input_strip(run: &Run, key: session::Key, store: VizPanelStore) -> AnyView {
-    if run.inputs.is_empty() && !run.waiting {
-        return ().into_any();
-    }
-    let served: Vec<_> = run
-        .inputs
-        .iter()
-        .enumerate()
-        .map(|(i, value)| {
-            view! {
-                <li class="viz-input__served">
-                    <span class="viz-input__n">{format!("{}.", i + 1)}</span>
-                    <code>{value.clone()}</code>
-                </li>
-            }
-        })
-        .collect();
-    let ask = run.waiting.then(|| {
-        let pending = RwSignal::new(String::new());
-        let prompt = run.prompt.clone();
-        let history = run.inputs.clone();
-        let submit = move || {
-            let mut next = key.clone();
-            next.stdin = session::replay_stdin(&history, &pending.get_untracked());
-            // Land back where the reader is standing — the steps before the prompt are the same
-            // steps, so this reads as the program carrying on.
-            store.resume_at.set(Some(store.mem_step.get_untracked().index));
-            store.show(session::obtain(next));
-        };
-        let on_submit = submit.clone();
-        view! {
-            <div class="viz-input__ask">
-                <label class="viz-input__label">
-                    {if prompt.trim().is_empty() {
-                        "The program is waiting for input".to_owned()
-                    } else {
-                        prompt.clone()
-                    }}
-                </label>
-                <div class="viz-input__row">
-                    <input
-                        class="viz-input__box"
-                        autofocus
-                        placeholder="Type a line, then Enter"
-                        prop:value=move || pending.get()
-                        on:input=move |event| pending.set(event_target_value(&event))
-                        on:keydown=move |event: web_sys::KeyboardEvent| {
-                            if event.key() == "Enter" {
-                                event.prevent_default();
-                                on_submit();
-                            }
-                        }
-                    />
-                    <button class="viz-input__go" on:click=move |_| submit()>
-                        "Enter"
-                    </button>
-                </div>
-            </div>
-        }
-    });
-    view! {
-        <div class="viz-input">
-            {(!served.is_empty()).then(|| view! {
-                <div class="viz-input__log">
-                    <span class="viz-input__log-title">"Inputs read so far"</span>
-                    <ol class="viz-input__list">{served}</ol>
-                </div>
-            })}
-            {ask}
-        </div>
     }
     .into_any()
 }

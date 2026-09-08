@@ -67,6 +67,18 @@ pub struct HeapStep {
     pub heap: BTreeMap<String, HeapObject>,
 }
 
+/// One value `input()` handed the program, and the step that read it.
+///
+/// The step matters because a reader can stand ANYWHERE in the trace: at step 3 the program has
+/// not yet asked for the value it read at step 40, and a log that presented both as consumed
+/// would credit it with knowing an answer it had not been given.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct Served {
+    pub value: String,
+    /// Index into `HeapTrace::steps` of the step whose line called `input()`.
+    pub at: usize,
+}
+
 /// The whole trace: the surviving steps, whether the harness had to drop some, and what the
 /// program did with stdin.
 ///
@@ -84,7 +96,7 @@ pub struct HeapTrace {
     pub steps: Vec<HeapStep>,
     pub truncated: bool,
     /// The values `input()` returned, in the order it returned them.
-    pub inputs: Vec<String>,
+    pub inputs: Vec<Served>,
     /// The program asked for input the run could not serve, and stopped at that step.
     pub waiting: bool,
     /// What it asked with, when it passed a prompt — the program's own words, not ours.
