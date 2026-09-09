@@ -74,7 +74,12 @@ fn adapt_segment(
 ) -> Result<VizGraph, VizError> {
     let rooted = rooting::resolve(seg.steps, root_hint, layout_hint);
     if rooted.root_id.is_none() {
-        return Err(VizError::NoRoot);
+        // Two different failures wearing one message would send the reader to the wrong fix: one
+        // is "you named nothing", the other is "you named something that is not there".
+        return Err(match root_hint.map(str::trim).filter(|h| !h.is_empty()) {
+            Some(name) => VizError::RootNotFound(name.to_owned()),
+            None => VizError::NoRoot,
+        });
     }
     let projected = projection::project(&rooted, root_hint, layout_hint);
     let flowed = flow::trim_and_fill(projected);

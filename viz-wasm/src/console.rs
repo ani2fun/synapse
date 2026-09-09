@@ -363,13 +363,25 @@ fn ask_box(
         {move || {
             if !store.at_last_step() {
                 // Not yet there. Naming the step keeps this from reading as a dead control —
-                // the reader is one transport press away from the question.
-                return view! {
-                    <p class="viz-input__ahead">
-                        "Keep stepping — the program asks for input at the last step."
-                    </p>
-                }
-                .into_any();
+                // the reader is one transport press away from the question. Unless the lens on
+                // screen drew nothing, in which case there is no step to press towards and
+                // "keep stepping" is an instruction that cannot be followed.
+                return if store.lens_draws() {
+                    view! {
+                        <p class="viz-input__ahead">
+                            "Keep stepping — the program asks for input at the last step."
+                        </p>
+                    }
+                    .into_any()
+                } else {
+                    view! {
+                        <p class="viz-input__ahead">
+                            "Switch to Frames & objects to reach the input — this lens has no \
+                             step to walk."
+                        </p>
+                    }
+                    .into_any()
+                };
             }
             let on_enter = on_enter.clone();
             let on_click = on_enter.clone();

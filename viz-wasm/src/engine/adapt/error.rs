@@ -10,6 +10,8 @@ pub enum VizError {
     OnlyBuilderFrames,
     #[error("Couldn't find a structure to visualise — name the variable with `viz=<structure>:<var>`.")]
     NoRoot,
+    #[error("No variable named `{0}` held a structure in this run — check the name, or clear it and we'll look for one.")]
+    RootNotFound(String),
     #[error("The chosen root never held a structure during the trace.")]
     RootNeverHeldStructure,
     #[error("The trace produced no call frames to visualise.")]

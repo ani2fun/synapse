@@ -139,10 +139,30 @@ impl VizPanelStore {
     /// This is where a waiting program's prompt belongs, and nowhere else: the run stopped at its
     /// final step because it wanted a value, so asking earlier would ask for something the
     /// program has not reached, and stepping forward is what brings the reader to the question.
+    ///
+    /// A lens that drew NOTHING has no position at all, and its idle 1-of-1 is a placeholder
+    /// rather than a place — treating it as "the last step" put the prompt on a lens the run
+    /// never walked, asking the reader to answer a question they were never shown reaching.
     #[must_use]
     pub fn at_last_step(self) -> bool {
+        if !self.lens_draws() {
+            return false;
+        }
         let state = self.active_step().get();
         state.index + 1 >= state.count
+    }
+
+    /// Whether the lens on screen has a run it can actually describe. The structure lens needs a
+    /// root it can project and often has none; the memory lens needs only steps.
+    #[must_use]
+    pub fn lens_draws(self) -> bool {
+        let Some(run) = self.ready_run() else {
+            return false;
+        };
+        match self.lens.get() {
+            Lens::Structure => run.cases.is_ok(),
+            Lens::Memory => !run.memory.is_empty(),
+        }
     }
 
     /// The two lines a debugger points at, for the lens on screen. Reactive: it reads the run,
@@ -247,6 +267,17 @@ fn ready(
 ) -> impl IntoView + use<> {
     let VizPanelStore { zoom, diff, lens, .. } = store;
     let run = run.clone();
+
+    // A RUN OPENS ON A LENS THAT CAN ANSWER IT. The structure lens needs a root it can project
+    // and often has none — and when it has none it draws an objection, reports no position, and
+    // therefore takes the editor's arrows, the call stack, the stepped output and the input
+    // prompt down with it, because every one of those follows the lens on screen. The reader is
+    // then looking at four broken surfaces when the memory lens, one click away, would have
+    // answered all four. Only ever a fallback: a lens the reader chose that still works is left
+    // exactly where it is.
+    if lens.get_untracked() == Lens::Structure && run.cases.is_err() {
+        lens.set(Lens::Memory);
+    }
 
     // Land one step PAST the prompt the reader just answered. The program is deterministic up to
     // that input, so every step before it is the same step — and the one after it is the first

@@ -192,6 +192,29 @@ fn rooting_prefers_the_hinted_local_then_attr_then_auto_detect() {
 }
 
 #[test]
+fn a_named_root_that_is_not_there_resolves_to_nothing_rather_than_something_else() {
+    // The reader asked for `arr`. This program has no `arr` — it has a linked list under `head`.
+    // Auto-detect would happily return `h`, and the canvas would draw that list under the name
+    // they typed, which is the one wrong answer they have no way to notice.
+    let s = step(
+        1,
+        vec![("head", sref("h"))],
+        vec![("h", node_obj(1, Some("i"))), ("i", node_obj(2, None))],
+    );
+    assert_eq!(rooting::resolve_root_id(std::slice::from_ref(&s), Some("arr"), "array"), None);
+    // A blank name is nobody naming anything, so it still auto-detects.
+    assert_eq!(
+        rooting::resolve_root_id(std::slice::from_ref(&s), Some("  "), "array"),
+        Some("h".to_owned())
+    );
+    // And the objection says WHICH name failed, so the fix is the field they typed it in.
+    assert_eq!(
+        adapt::adapt(&trace(vec![s]), "x", "array", Some("arr"), None, "t").unwrap_err(),
+        VizError::RootNotFound("arr".to_owned())
+    );
+}
+
+#[test]
 fn a_dotted_hint_follows_fields() {
     let s = step(
         1,

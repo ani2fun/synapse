@@ -30,17 +30,22 @@ pub fn resolve(steps: Vec<HeapStep>, root_hint: Option<&str>, layout_hint: &str)
     RootedSegment { steps, root_id }
 }
 
-// ── segment-level resolution: dotted → local → attr, else auto-detect ──
+// ── segment-level resolution: a NAMED root, dotted → local → attr; else auto-detect ──
+/// A root someone NAMED is a claim about the program, and the only two honest answers to it are
+/// the object it names and none at all. Falling through to auto-detect draws a DIFFERENT object
+/// under the name they typed — the reader asked "show me `arr`" and is shown something else,
+/// labelled convincingly, with nothing anywhere saying a substitution happened. That is the one
+/// failure they cannot see, and it is worth more than the runs the fallback rescued.
+///
+/// Auto-detect keeps the job it was written for: nobody named anything, so anything reachable is
+/// a fair guess and a wrong guess costs only a re-pick.
 #[must_use]
 pub fn resolve_root_id(steps: &[HeapStep], root_hint: Option<&str>, layout_hint: &str) -> Option<String> {
-    let by_hint = root_hint.and_then(|hint| {
-        if hint.contains('.') {
-            resolve_dotted(steps, hint)
-        } else {
-            resolve_local(steps, hint).or_else(|| resolve_attr(steps, hint))
-        }
-    });
-    by_hint.or_else(|| auto_detect_root(steps, layout_hint))
+    match root_hint.map(str::trim).filter(|hint| !hint.is_empty()) {
+        Some(hint) if hint.contains('.') => resolve_dotted(steps, hint),
+        Some(hint) => resolve_local(steps, hint).or_else(|| resolve_attr(steps, hint)),
+        None => auto_detect_root(steps, layout_hint),
+    }
 }
 
 fn resolve_local(steps: &[HeapStep], name: &str) -> Option<String> {
