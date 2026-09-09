@@ -5,7 +5,7 @@
 //! The JSON walk preserves object order (locals + fields ride insertion order on the wire).
 
 use crate::engine::trace::{
-    ArrKind, HeapFrame, HeapObject, HeapScalar, HeapStep, HeapTrace, HeapValue, Served,
+    ArrKind, HeapFrame, HeapObject, HeapScalar, HeapStep, HeapTrace, HeapValue, RunError, Served,
 };
 
 pub const HEAP_BEGIN: &str = "__SYNAPSE_HEAP_BEGIN__";
@@ -76,6 +76,25 @@ fn decode_trace(v: &serde_json::Value) -> HeapTrace {
             .and_then(|p| p.as_str())
             .unwrap_or_default()
             .to_owned(),
+        // Absent, or an explicit null, both mean the program finished — the harness writes the
+        // key either way, so its absence must not read as "unknown".
+        error: v.get("error").filter(|e| !e.is_null()).map(decode_error),
+    }
+}
+
+fn decode_error(v: &serde_json::Value) -> RunError {
+    RunError {
+        kind: v
+            .get("type")
+            .and_then(|k| k.as_str())
+            .unwrap_or("Error")
+            .to_owned(),
+        message: v
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or_default()
+            .to_owned(),
+        line: i32::try_from(v.get("line").and_then(serde_json::Value::as_i64).unwrap_or(0)).unwrap_or(0),
     }
 }
 
@@ -130,6 +149,7 @@ fn decode_step(v: &serde_json::Value) -> HeapStep {
             .to_owned(),
         frames,
         heap,
+        out: usize::try_from(v.get("out").and_then(serde_json::Value::as_u64).unwrap_or(0)).unwrap_or(0),
     }
 }
 

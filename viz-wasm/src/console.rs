@@ -9,6 +9,14 @@
 //! It shares the panel's store, so the two surfaces cannot disagree: one step index, one lens,
 //! one run. The page mounts them into two of its own nodes and never mediates between them.
 //!
+//! THE PROGRAM'S OUTPUT ARRIVES AS THE READER STEPS, because showing all of it at step 0 hands
+//! them the answer before the program has worked it out. Every trace step records how many bytes
+//! had been printed by the time it ran, and the strip shows that prefix.
+//!
+//! A RUN THAT ENDED BADLY says so, in a card that does not wait to be stepped to. An uncaught
+//! exception is a fact about the whole run, not about one step, and a reader who has to walk 200
+//! steps to discover the story broke has been told nothing useful by the walk.
+//!
 //! THE PROMPT ONLY APPEARS AT THE LAST STEP, and that is the feature. A waiting run stopped
 //! exactly where it wanted a value, so asking any earlier would ask for something the program has
 //! not reached — the reader steps forward, arrives at the question, and answers it. Which is what
@@ -19,7 +27,7 @@ use leptos::prelude::*;
 
 use crate::engine::memory::MemoryStep;
 use crate::panel::{Lens, VizPanelStore};
-use crate::player::{self, FramesPanel};
+use crate::player::FramesPanel;
 use crate::session::{self, Run, Session, TraceState};
 
 #[component]
@@ -50,13 +58,13 @@ fn ConsoleBody(session: Session, store: VizPanelStore) -> impl IntoView {
 }
 
 fn ready(run: &Run, key: session::Key, store: VizPanelStore) -> impl IntoView + use<> {
-    let program_out = run.program_out.clone();
     let frames_cases = run.cases.clone().ok();
     let memory = run.memory.clone();
     let case_idx = store.case_idx;
     let step = store.step;
     view! {
         <div class="viz-console__body">
+            {error_card(run, store)}
             {cursor_legend(store)}
             {input_strip(run, key, store)}
             <details class="viz-console__strip">
@@ -79,8 +87,106 @@ fn ready(run: &Run, key: session::Key, store: VizPanelStore) -> impl IntoView + 
                     ),
                 }}
             </details>
-            <div class="viz-console__strip">{player::program_output(&program_out)}</div>
+            <div class="viz-console__strip">{output_strip(run, store)}</div>
         </div>
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HOW IT ENDED
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The exception that ended the run, when one did.
+///
+/// Shown at EVERY step, not only the one it happened on: the reader has to know the story breaks
+/// before deciding how carefully to read it, and a card that waits to be stepped to is a card
+/// they find after it would have helped. The jump is what ties it back to a moment — the trace
+/// ends on the line that raised, so that is where it goes.
+fn error_card(run: &Run, store: VizPanelStore) -> AnyView {
+    let Some(error) = run.error.clone() else {
+        return ().into_any();
+    };
+    let steps = run.memory.len();
+    let line = error.line;
+    view! {
+        <div class="viz-error">
+            <span class="viz-error__kind">{error.kind}</span>
+            <span class="viz-error__msg">{error.message}</span>
+            {(line > 0).then(|| view! { <span class="viz-error__at">{format!("line {line}")}</span> })}
+            {(steps > 0).then(|| view! {
+                <button
+                    class="viz-error__go"
+                    title="Stop where it broke"
+                    on:click=move |_| {
+                        store.lens.set(Lens::Memory);
+                        store.mem_step.update(|s| {
+                            s.count = steps;
+                            s.index = steps - 1;
+                            s.playing = false;
+                        });
+                    }
+                >
+                    "Show me"
+                </button>
+            })}
+        </div>
+    }
+    .into_any()
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WHAT IT PRINTED
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// What the program has printed BY THE STEP ON SCREEN — the prefix, not the whole run.
+///
+/// Only the memory lens can do that honestly. Its steps are the raw trace, one per recorded
+/// event, each carrying the byte count; the structure lens counts adapted, coalesced, per-case
+/// steps with no trace step behind them, so an offset there would be invented, and inventing one
+/// prints output the program had not reached. That lens gets the whole run, which is what it
+/// showed before either way.
+fn output_strip(run: &Run, store: VizPanelStore) -> impl IntoView + use<> {
+    let full = run.program_out.clone();
+    let printed_anything = !full.trim().is_empty();
+    let offsets: Vec<usize> = run.memory.iter().map(|step| step.out).collect();
+    // The box is short and the interesting line is always the LAST one, so it follows the
+    // program down. Without this a run that prints more than a few lines shows its opening
+    // forever while the line the reader just executed sits below the fold.
+    let pre: NodeRef<leptos::html::Pre> = NodeRef::new();
+    Effect::new(move |_| {
+        let _ = store.mem_step.get();
+        let _ = store.lens.get();
+        if let Some(node) = pre.get() {
+            node.set_scroll_top(node.scroll_height());
+        }
+    });
+    view! {
+        <details class="viz-output" open=printed_anything>
+            <summary class="viz-output__summary">"Program output"</summary>
+            <pre class="viz-output__pre" node_ref=pre>
+                {move || {
+                    let shown = match store.lens.get() {
+                        Lens::Structure => full.as_str(),
+                        Lens::Memory => offsets
+                            .get(store.mem_step.get().index)
+                            // A byte count the harness recorded against this very string always
+                            // lands on a character boundary; `get` refuses rather than panics if
+                            // it somehow does not.
+                            .and_then(|at| full.get(..*at))
+                            .unwrap_or(full.as_str()),
+                    };
+                    if shown.is_empty() {
+                        if printed_anything {
+                            "(nothing printed yet)".to_owned()
+                        } else {
+                            "(no output)".to_owned()
+                        }
+                    } else {
+                        shown.to_owned()
+                    }
+                }}
+            </pre>
+        </details>
     }
 }
 

@@ -65,6 +65,35 @@ pub struct HeapStep {
     pub event: String,
     pub frames: Vec<HeapFrame>,
     pub heap: BTreeMap<String, HeapObject>,
+    /// How many BYTES the program had printed by the time this step ran — an index into the run's
+    /// program output. What lets a reader watch output arrive as they step instead of reading the
+    /// whole run's answer at step 0.
+    #[serde(default)]
+    pub out: usize,
+}
+
+/// Why a run ended badly: an uncaught exception, or a source that never compiled at all.
+///
+/// The only useful thing such a run has to say. A trace whose program crashed still has every
+/// step up to the crash, so the run is worth showing — but showing it WITHOUT this leaves the
+/// reader stepping to the end of a story that simply stops, with nothing saying it broke.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct RunError {
+    /// The exception's own class name — `ZeroDivisionError`, `SyntaxError`.
+    pub kind: String,
+    pub message: String,
+    /// Where it happened, 1-indexed. 0 when the harness could not place it.
+    pub line: i32,
+}
+
+impl std::fmt::Display for RunError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: {}", self.kind, self.message)?;
+        if self.line > 0 {
+            write!(f, " (line {})", self.line)?;
+        }
+        Ok(())
+    }
 }
 
 /// One value `input()` handed the program, and the step that read it.
@@ -101,4 +130,6 @@ pub struct HeapTrace {
     pub waiting: bool,
     /// What it asked with, when it passed a prompt — the program's own words, not ours.
     pub prompt: String,
+    /// The exception that ended the run, when one did. `None` is a program that finished.
+    pub error: Option<RunError>,
 }

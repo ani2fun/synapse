@@ -164,7 +164,7 @@ fn ModalBody(modal: ModalSession, store: VizModalStore, live: LiveInput) -> impl
             // nothing is still a failure here — the memory lens that can always draw it lives
             // on `/viz`, which has room for a second view.
             TraceState::Ready(run) => match &run.cases {
-                Ok(cases) => ready(&modal, cases, &run.program_out, store, live).into_any(),
+                Ok(cases) => ready(&modal, cases, &run, store, live).into_any(),
                 Err(message) => view! {
                     {player::failed_card(message)}
                     {retry_bar(&modal, store, live)}
@@ -204,10 +204,17 @@ fn retry_bar(modal: &ModalSession, modal_store: VizModalStore, live: LiveInput) 
 fn ready(
     modal: &ModalSession,
     cases: &VizCases,
-    program_out: &str,
+    run: &crate::session::Run,
     modal_store: VizModalStore,
     live: LiveInput,
 ) -> impl IntoView + use<> {
+    let program_out = run.program_out.clone();
+    // A program that crashed still traced every step up to the crash, so the modal shows the run
+    // — but without this it shows a story that simply stops, which reads as the visualiser giving
+    // up rather than the code failing.
+    let ended_badly = run.error.clone().map(|error| {
+        view! { <div class="viz-error viz-error--flat"><span class="viz-error__kind">{error.kind}</span><span class="viz-error__msg">{error.message}</span>{(error.line > 0).then(|| view! { <span class="viz-error__at">{format!("line {}", error.line)}</span> })}</div> }
+    });
     let case_idx = RwSignal::new(0usize);
     let zoom = RwSignal::new(1.0_f64);
     let diff_mode = RwSignal::new(false);
@@ -235,7 +242,6 @@ fn ready(
     let pane_cases = cases.clone();
     let timeline_cases = cases.clone();
     let stops = player::diff_stops(cases.clone(), case_idx, diff_mode);
-    let program_out = program_out.to_owned();
     view! {
         <div class="viz-modal__ready">
             {player::case_strip(&cases, case_idx)}
@@ -279,6 +285,7 @@ fn ready(
                     <FramesPanel cases=cases.clone() case_idx=case_idx step_state=step_state />
                 </div>
             </div>
+            {ended_badly}
             {output_panel(&program_out, modal.session.key.clone(), modal_store, live)}
         </div>
     }

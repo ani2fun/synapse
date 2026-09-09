@@ -121,6 +121,9 @@ pub struct Arrow {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct MemoryStep {
     pub line: i32,
+    /// Bytes of program output printed by the time this step ran — the slice of the run's output
+    /// a reader standing here has actually seen the program produce.
+    pub out: usize,
     pub frames: Vec<Frame>,
     pub objects: Vec<Object>,
     pub arrows: Vec<Arrow>,
@@ -140,7 +143,7 @@ pub fn project(step: &HeapStep, previous: Option<&HeapStep>) -> MemoryStep {
     let frames = frames_of(step, previous);
     let order = reachable_order(step);
     let objects = objects_of(step, previous, &order);
-    place(step.line, frames, objects)
+    place(step.line, step.out, frames, objects)
 }
 
 /// Every step, projected, with each one's predecessor supplied so the diff cues are honest.
@@ -396,7 +399,7 @@ fn text_w(text: &str) -> f64 {
     chars * CHAR_W
 }
 
-fn place(line: i32, mut frames: Vec<Frame>, mut objects: Vec<Object>) -> MemoryStep {
+fn place(line: i32, out: usize, mut frames: Vec<Frame>, mut objects: Vec<Object>) -> MemoryStep {
     // ── the frames column ──
     let frame_w = frames
         .iter()
@@ -471,6 +474,7 @@ fn place(line: i32, mut frames: Vec<Frame>, mut objects: Vec<Object>) -> MemoryS
     let height = frames_bottom.max(oy) + MARGIN;
     MemoryStep {
         line,
+        out,
         frames,
         objects,
         arrows,

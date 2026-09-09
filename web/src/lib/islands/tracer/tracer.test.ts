@@ -134,6 +134,40 @@ describe("the Python harness reports what it did with stdin", () => {
     expect(pythonHarness).toContain('_syn_inputs.append({"v": value, "at": max(len(_syn_steps) - 1, 0)})');
   });
 
+  it("reports the exception that ended the run, and where a syntax error was", () => {
+    // Without these a crash is silent: the trace holds every step up to it, so the reader steps
+    // to the end of a story that simply stops, with nothing saying it broke.
+    expect(pythonHarness).toContain("except BaseException as _syn_dead:");
+    expect(pythonHarness).toContain("except SyntaxError as _syn_bad:");
+    expect(pythonHarness).toContain('"error": _syn_error[0]');
+  });
+
+  it("trims the steps an uncaught exception leaves behind as it unwinds", () => {
+    // A `return` per frame at the line that raised. Kept, they end the story on a return the
+    // reader never wrote, with both debugger arrows on one line.
+    expect(pythonHarness).toContain("del _syn_steps[_syn_raised_at[0] + 1:]");
+  });
+
+  it("trims from the FIRST frame of a propagation, and forgets one that got caught", () => {
+    // The event fires again in every frame the exception passes through, so overwriting lands on
+    // the outermost — past the very returns the trim exists to remove. And a `line` or `call`
+    // after it means execution resumed, which is the only signal that it was handled.
+    expect(pythonHarness).toContain("if _syn_raised_at[0] is None:");
+    expect(pythonHarness).toMatch(/if event in \("line", "call"\):\n\s+#[^]*?\n\s+_syn_raised_at\[0\] = None/);
+  });
+
+  it("records how far the program's output had got at every step", () => {
+    // What lets the client fill an output box AS the reader steps, instead of handing them the
+    // whole run's answer at step 0.
+    expect(pythonHarness).toContain('"out": _syn_stdout.written');
+    expect(pythonHarness).toContain('self.written += len(text.encode("utf-8", "replace"))');
+  });
+
+  it("names what a frame returned, but never the module's implicit None", () => {
+    expect(pythonHarness).toContain('list(specs[0][1]) + [("Return value", arg)]');
+    expect(pythonHarness).toContain('frame.f_code.co_name != "<module>"');
+  });
+
   it("records nothing more once the program is waiting", () => {
     // _SynAwaitInput unwinds the stack, and every frame it passes fires a `return` at the line
     // that asked. Recorded, those become steps the reader never wrote, and the last two land on

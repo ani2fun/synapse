@@ -13,6 +13,13 @@
 # setup + early iterations). Names are `_syn_*` so they're filtered out of the
 # user's locals.
 #
+# A RUN THAT ENDS BADLY still reports why: an uncaught exception, or a source that
+# never compiled at all, is the only useful thing such a run has to say. The steps
+# recorded while the exception unwinds are a `return` per frame at the line that
+# raised, so they are trimmed and the story ends on the line that actually broke.
+# Every step also records how many bytes the program had PRINTED by then, so output
+# can arrive as the reader steps rather than all of it at step 0.
+#
 # INPUT is served from stdin and RECORDED. The sandbox runs a program once, with
 # stdin fixed up front, so a reader cannot type into a running program — but they
 # can be asked. `input()` is replaced with a wrapper that logs every value it
@@ -31,6 +38,11 @@ _syn_truncated = [False]
 _syn_inputs = []
 _syn_waiting = [False]
 _syn_prompt = [""]
+# The exception that ENDED the run, and the step it was raised at. Separate, because they are
+# learned at different moments: the tracer sees every raise (caught ones included) and only the
+# `except` around exec() knows which one the program failed to survive.
+_syn_error = [None]
+_syn_raised_at = [None]
 _syn_step_limit = 600
 _syn_max_objects = 400
 _syn_max_depth = 60
@@ -47,6 +59,31 @@ _syn_opaque_modules = frozenset((
 # Injected into the traced globals, so they surface as module-frame locals unless named
 # here — a reader who never wrote `input` should not see it among their variables.
 _syn_hidden = frozenset(("input",))
+
+class _SynStdout:
+    """A tee that COUNTS. Every step records how many bytes the program had printed by the time
+    it ran, so the client can fill an output box AS the reader steps instead of showing the whole
+    run's output at step 0 — which tells them the answer before the program has worked it out.
+
+    Bytes, not characters: the client slices the UTF-8 it decoded, and a `π` is one character of
+    two bytes."""
+
+    def __init__(self, inner):
+        self._inner = inner
+        self.written = 0
+
+    def write(self, text):
+        self.written += len(text.encode("utf-8", "replace"))
+        return self._inner.write(text)
+
+    def flush(self):
+        self._inner.flush()
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+_syn_stdout = _SynStdout(sys.stdout)
+sys.stdout = _syn_stdout
 
 def _syn_is_opaque(v):
     if isinstance(v, type): return True
@@ -162,16 +199,41 @@ def _syn_tracer(frame, event, arg):
     # last true one, and it is the one to stop on.
     if _syn_waiting[0]:
         return _syn_tracer
-    if event in ("line", "call", "return") and frame.f_code.co_filename == "<traced>":
+    if frame.f_code.co_filename != "<traced>":
+        return _syn_tracer
+    if event == "exception":
+        # The FIRST frame of a propagation, not the last. An exception fires this event again in
+        # every frame it passes through on its way out, so overwriting would land on the outermost
+        # one — past the phantom returns this exists to trim, which is how the innermost frame
+        # kept a `Return value: None` it never returned.
+        if _syn_raised_at[0] is None:
+            _syn_raised_at[0] = max(len(_syn_steps) - 1, 0)
+        return _syn_tracer
+    if event in ("line", "call"):
+        # Execution resumed, so whatever was propagating got caught: only an exception that never
+        # stops propagating ends the run. An unwind fires nothing but `exception` and `return`, so
+        # reaching either of these means the story carried on.
+        _syn_raised_at[0] = None
+    if event in ("line", "call", "return"):
         if frame.f_lineno <= 0:
             return _syn_tracer
         try:
-            frames_data, heap = _syn_snapshot(_syn_collect_frames(frame))
+            specs = _syn_collect_frames(frame)
+            if event == "return" and specs and frame.f_code.co_name != "<module>":
+                # What the frame is handing back, as a synthetic local on the frame doing the
+                # handing — so it travels through the same snapshot as every other value and an
+                # object returned draws its arrow like any other. The space in the name is what
+                # keeps it from ever colliding with something the reader wrote. The MODULE is
+                # exempt: its implicit None at the end of the file answers a question nobody
+                # asked, and it lands on the Global frame where every real name lives.
+                specs[0] = (specs[0][0], list(specs[0][1]) + [("Return value", arg)])
+            frames_data, heap = _syn_snapshot(specs)
             _syn_steps.append({
                 "line": frame.f_lineno,
                 "event": event,
                 "frames": frames_data,
                 "heap": heap,
+                "out": _syn_stdout.written,
             })
         except Exception:
             pass
@@ -181,22 +243,40 @@ def _syn_tracer(frame, event, arg):
     return _syn_tracer
 
 try:
-    _syn_compiled = compile(_syn_source, "<traced>", "exec")
-    _syn_ns = {"__name__": "__main__", "input": _syn_input}
-    sys.settrace(_syn_tracer)
+    _syn_compiled = None
     try:
-        exec(_syn_compiled, _syn_ns)
-    except _SynAwaitInput:
-        # Not a failure: the program got as far as the input it is waiting for, and every
-        # step up to it is worth showing.
-        pass
-    finally:
-        sys.settrace(None)
+        _syn_compiled = compile(_syn_source, "<traced>", "exec")
+    except SyntaxError as _syn_bad:
+        # Nothing runs, so there is nothing to trace — and the reason is then the ONLY useful
+        # thing this run can report. Dropped, it leaves the reader an empty canvas and no clue.
+        _syn_error[0] = {"type": type(_syn_bad).__name__,
+                         "message": str(_syn_bad)[:200],
+                         "line": _syn_bad.lineno or 0}
+    if _syn_compiled is not None:
+        _syn_ns = {"__name__": "__main__", "input": _syn_input}
+        sys.settrace(_syn_tracer)
+        try:
+            exec(_syn_compiled, _syn_ns)
+        except _SynAwaitInput:
+            # Not a failure: the program got as far as the input it is waiting for, and every
+            # step up to it is worth showing.
+            pass
+        except BaseException as _syn_dead:
+            # The program died. Everything the tracer recorded after the raise is that exception
+            # travelling back out — a `return` per frame, at the line that raised — so the last
+            # TRUE step is the one that raised, and the rest is an artifact of how we watch.
+            if _syn_raised_at[0] is not None:
+                del _syn_steps[_syn_raised_at[0] + 1:]
+            _syn_error[0] = {"type": type(_syn_dead).__name__,
+                             "message": str(_syn_dead)[:200],
+                             "line": _syn_steps[-1]["line"] if _syn_steps else 0}
+        finally:
+            sys.settrace(None)
 finally:
     while True:
         _syn_payload = json.dumps({"steps": _syn_steps, "truncated": _syn_truncated[0],
                                    "inputs": _syn_inputs, "waiting": _syn_waiting[0],
-                                   "prompt": _syn_prompt[0]})
+                                   "prompt": _syn_prompt[0], "error": _syn_error[0]})
         if len(_syn_payload) <= _syn_max_payload or len(_syn_steps) <= 1:
             break
         _syn_steps = _syn_steps[:-(len(_syn_steps) // 4 + 1)]

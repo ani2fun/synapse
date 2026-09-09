@@ -42,6 +42,7 @@ fn step(frames: Vec<HeapFrame>, objects: &[(&str, HeapObject)]) -> HeapStep {
         event: "line".to_owned(),
         frames,
         heap: heap(objects),
+        out: 0,
     }
 }
 

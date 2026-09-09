@@ -78,6 +78,59 @@ fn a_trace_that_reports_no_input_at_all_is_a_program_that_asked_for_none() {
     assert_eq!(trace.prompt, "");
 }
 
+// ── how the run ended ─────────────────────────────────────────────────────────
+
+#[test]
+fn a_run_that_died_reports_the_exception_that_killed_it() {
+    let json = r#"{"steps":[],"error":{"type":"ZeroDivisionError","message":"division by zero","line":6}}"#;
+    let trace = decode(&wrap("", json)).unwrap().trace.unwrap();
+    let error = trace.error.unwrap();
+    assert_eq!(error.kind, "ZeroDivisionError");
+    assert_eq!(error.line, 6);
+    assert_eq!(error.to_string(), "ZeroDivisionError: division by zero (line 6)");
+}
+
+#[test]
+fn a_null_error_is_a_program_that_finished_not_an_unknown_one() {
+    // The harness writes the key on every run, so `null` has to read as "it was fine" — absent
+    // and null must not part ways here.
+    let explicit = decode(&wrap("", r#"{"steps":[],"error":null}"#))
+        .unwrap()
+        .trace
+        .unwrap();
+    let absent = decode(&wrap("", BARE)).unwrap().trace.unwrap();
+    assert!(explicit.error.is_none());
+    assert!(absent.error.is_none());
+}
+
+#[test]
+fn an_error_with_no_line_names_itself_without_inventing_a_place() {
+    let json = r#"{"steps":[],"error":{"type":"RecursionError","message":"too deep"}}"#;
+    let error = decode(&wrap("", json)).unwrap().trace.unwrap().error.unwrap();
+    assert_eq!(error.line, 0);
+    assert_eq!(error.to_string(), "RecursionError: too deep");
+}
+
+// ── how much had been printed ─────────────────────────────────────────────────
+
+#[test]
+fn every_step_carries_how_far_the_output_had_got() {
+    let json = r#"{"steps":[{"line":1,"out":0},{"line":2,"out":7},{"line":3,"out":14}]}"#;
+    let trace = decode(&wrap("tick 0\ntick 1\n", json)).unwrap().trace.unwrap();
+    assert_eq!(trace.steps.iter().map(|s| s.out).collect::<Vec<_>>(), [0, 7, 14]);
+}
+
+#[test]
+fn a_step_that_names_no_offset_has_printed_nothing() {
+    // The Java harness records none of this; nothing printed is the only honest reading, and it
+    // is what an offset of 0 means anyway.
+    let trace = decode(&wrap("", r#"{"steps":[{"line":1}]}"#))
+        .unwrap()
+        .trace
+        .unwrap();
+    assert_eq!(trace.steps[0].out, 0);
+}
+
 // ── the failure modes ─────────────────────────────────────────────────────────
 
 #[test]

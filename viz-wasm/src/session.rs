@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use crate::engine::adapt;
 use crate::engine::graph::VizCases;
 use crate::engine::memory::{self, MemoryStep};
-use crate::engine::trace::Served;
+use crate::engine::trace::{RunError, Served};
 use crate::engine::vocabulary::VizStructure;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -39,6 +39,9 @@ pub struct Run {
     pub waiting: bool,
     /// What it asked with, in the program's own words.
     pub prompt: String,
+    /// The exception that ended the run, when one did — the reason a story that simply stops
+    /// stopped. `None` is a program that finished.
+    pub error: Option<RunError>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -182,6 +185,17 @@ fn outcome(key: &Key, stdout: &str, stderr: &str, compile_output: &str) -> Trace
             program_out,
             trace: None,
         }) => TraceState::Failed(no_trace_message(stderr, compile_output, &program_out)),
+        // A trace with no steps is a program that never ran a line — a source that did not
+        // compile, most often. There is nothing to show and everything to explain, so it fails
+        // with the harness's own reason where it has one: the harness knows the LINE, and a
+        // scraped stderr is a traceback through the harness's own frames.
+        Ok(Decoded {
+            program_out,
+            trace: Some(trace),
+        }) if trace.steps.is_empty() => TraceState::Failed(trace.error.map_or_else(
+            || no_trace_message(stderr, compile_output, &program_out),
+            |error| error.to_string(),
+        )),
         Ok(Decoded {
             program_out,
             trace: Some(trace),
@@ -200,6 +214,7 @@ fn outcome(key: &Key, stdout: &str, stderr: &str, compile_output: &str) -> Trace
             inputs: trace.inputs,
             waiting: trace.waiting,
             prompt: trace.prompt,
+            error: trace.error,
         }),
     }
 }

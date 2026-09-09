@@ -46,6 +46,7 @@ fn step(line: i32, locals: Vec<(&str, HeapValue)>, heap: Vec<(&str, HeapObject)>
             locals: locals.into_iter().map(|(n, v)| (n.to_owned(), v)).collect(),
         }],
         heap: heap.into_iter().map(|(id, o)| (id.to_owned(), o)).collect(),
+        out: 0,
     }
 }
 
