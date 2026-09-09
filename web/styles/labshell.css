@@ -32,8 +32,8 @@
 /* The eyebrow is a shared inline span; here it labels the title above it, so it takes its own
    line rather than running into the heading. */
 .lab-doc__id > .pane-hd__eyebrow { display: block; }
-/* Sized from its own value so the pencil sits beside the WORD rather than at the end of a
-
+/* What can be done to the document, right-aligned. The primary verb sits last, where the eye
+   lands after reading the row. */
 .lab-acts { margin-left: auto; display: flex; align-items: center; gap: 10px; flex: none; }
 .lab-seg { display: flex; align-items: stretch; border: 1px solid var(--border-default);
            border-radius: var(--radius-md); overflow: hidden; background: hsl(var(--card) / 0.55); }

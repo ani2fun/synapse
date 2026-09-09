@@ -19,10 +19,56 @@ import { describe, expect, it } from "vitest";
 
 const STYLES_DIR = fileURLToPath(new URL(".", import.meta.url));
 
-/** The two shapes stylesheet damage takes; both make the browser drop rules. */
-type Damage = { kind: "parse-error" | "file-scope-declaration"; where: string };
+/** The three shapes stylesheet damage takes; all of them make the browser drop rules. */
+type Damage = {
+  kind: "parse-error" | "file-scope-declaration" | "unterminated-comment";
+  where: string;
+};
+
+/**
+ * A comment that never closed, so the NEXT comment's `*` + `/` closes it — and every rule in
+ * between is commented out. The browser says nothing, because a comment is not an error, and
+ * postcss says nothing either: the comment it parses is perfectly well formed, it is simply far
+ * longer than its author meant.
+ *
+ * `labshell.css` shipped exactly this for two commits. An extraction left a comment's first line
+ * behind without its close; `.lab-acts`, `.lab-seg` and `.lab-primary` fell inside it and died on
+ * all three lab pages, so every primary button rendered as a bare UA `<button>`. Nothing in the
+ * console, nothing in a build, and the page still looked broadly right.
+ *
+ * The tell is a whole RULE inside comment text — a selector, a brace and a declaration. Prose
+ * about CSS quotes selectors and properties all the time; it does not write out rule bodies.
+ * Deliberately commented-out CSS trips this too, which is the right answer: dead rules kept "just
+ * in case" are what this file exists to keep out of the tree.
+ */
+const RULE_IN_PROSE = /^[ \t]*[.#][\w-][^{}\n]*\{[^}\n]*[\w-]+\s*:\s*[^}\n]+;/m;
+
+function swallowedRules(css: string): Damage[] {
+  const damage: Damage[] = [];
+  let at = 0;
+  for (;;) {
+    const open = css.indexOf("/*", at);
+    if (open < 0) return damage;
+    const close = css.indexOf("*/", open + 2);
+    const line = css.slice(0, open).split("\n").length;
+    if (close < 0) {
+      damage.push({ kind: "unterminated-comment", where: `line ${line}: runs to the end of the file` });
+      return damage;
+    }
+    const found = RULE_IN_PROSE.exec(css.slice(open + 2, close));
+    if (found) {
+      damage.push({
+        kind: "unterminated-comment",
+        where: `line ${line}: this comment swallows a rule — ${found[0].trim().slice(0, 60)}…`,
+      });
+    }
+    at = close + 2;
+  }
+}
 
 function inspect(css: string, name: string): Damage[] {
+  const swallowed = swallowedRules(css);
+  if (swallowed.length > 0) return swallowed;
   let root: postcss.Root;
   try {
     root = postcss.parse(css, { from: name });

@@ -6,7 +6,7 @@ import type { ComponentChildren } from "preact";
 import type { Submission } from "../../lib/api/client";
 import type { ExecutorState } from "../../lib/execution/executor";
 import { expectedFor, canReproduce } from "../../lib/execution/blocks";
-import { judge } from "../../lib/execution/judge";
+import { judge, ranOutOfInput } from "../../lib/execution/judge";
 import type { TestCase } from "../../lib/execution/judge";
 import type { RunResult } from "../../lib/api/client";
 import { useStore } from "../../lib/store";
@@ -52,6 +52,13 @@ function ResultPanel({ result, expected }: { result: RunResult; expected: string
         {memory && <span class="runnable__meta">{memory}</span>}
       </div>
       <StreamBlock label="compile output" content={result.compileOutput ?? ""} />
+      {/* Above the traceback, because the traceback is what sends a reader looking at their
+          code when the thing that is short is the input. */}
+      {ranOutOfInput(result) && (
+        <p class="runnable__hint">
+          The program ran out of input — it asked for another value and stdin had none left.
+        </p>
+      )}
       <StreamBlock label="stderr" content={result.stderr} />
       {result.stdout === "" ? (
         <p class="runnable__empty">(no output)</p>

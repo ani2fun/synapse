@@ -540,7 +540,10 @@ export function Workbench({
           )}
         </button>
       </div>
-      {spec != null && (
+      {/* Wherever the editor shares its height with something below it — a test panel, or the viz
+          lab's console. `fill` says the editor is stretching to whatever is left, which is exactly
+          the case where a reader may want to give some of it back. */}
+      {(spec != null || fill) && (
         <div
           class="wb-hsplit"
           title="Drag to resize the editor — double-click to reset"

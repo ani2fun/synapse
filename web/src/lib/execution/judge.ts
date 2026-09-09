@@ -54,6 +54,23 @@ export function stdinFor(args: ArgSpec[], values: Record<string, string>): strin
 
 /** Judge one run: a non-clean run is `Errored`; a clean run with no expected output is
  *  `Finished`; otherwise TRIMMED stdout comparison. */
+/**
+ * Did the run die because stdin ran out?
+ *
+ * The commonest way a program fails on a page where the input is a box someone types into, and
+ * the one whose own message explains least: the runtimes name the mechanism (`EOFError`, a bare
+ * `NoSuchElementException`) and never the cause, which is that the INPUT is short — not the code.
+ * A reader who reads the traceback goes looking at their program.
+ *
+ * Java's exception is not exclusive to reading, so it counts only with `Scanner` in the trace;
+ * an empty-collection `NoSuchElementException` is a different bug and must not be renamed.
+ */
+export function ranOutOfInput(result: RunResult): boolean {
+  const stderr = result.stderr;
+  if (stderr.includes("EOFError")) return true;
+  return stderr.includes("NoSuchElementException") && stderr.includes("java.util.Scanner");
+}
+
 export function judge(result: RunResult, expected: string | null | undefined): Verdict {
   if (result.status !== "Accepted") return "Errored";
   if (expected == null) return "Finished";

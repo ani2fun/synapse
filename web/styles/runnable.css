@@ -112,6 +112,11 @@
 .runnable__details { margin: 0.25rem 0; }
 .runnable__details-label { font-size: 0.75rem; color: hsl(var(--muted-foreground)); cursor: pointer; }
 .runnable__empty { font-style: italic; color: hsl(var(--muted-foreground) / 0.8); font-size: 0.8rem; margin: 0.25rem 0; }
+/* Names the CAUSE above a traceback that only names the mechanism. Quiet, not alarming: the run
+   already carries a red badge, and a second red thing would read as two failures. */
+.runnable__hint { margin: 0.35rem 0 0.15rem; font-size: 0.8rem; line-height: 1.45;
+                  color: var(--text-secondary); border-left: 2px solid hsl(var(--primary) / 0.5);
+                  padding-left: 0.55rem; }
 
 /* ── the tests panel (step 15) ── */
 .wb__tests { padding: 0.75rem 1rem; border-top: 1px solid hsl(var(--border)); background: hsl(var(--muted) / 0.5); }

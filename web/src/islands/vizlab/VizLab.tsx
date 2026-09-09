@@ -57,9 +57,14 @@ const DRAFT_DEBOUNCE_MS = 800;
 
 const draftKeyFor = (language: string): string => `${VIZ_LAB_DRAFT_PREFIX}:${language}`;
 
-const PLAY = (
-  <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true">
-    <path d="M8 5v14l11-7z"></path>
+/** The eye, not a play triangle. Trace sits beside Run and both execute the buffer, so a second
+ *  ▶ makes the pair read as one segmented control; the eye is what "Visualise" already wears in
+ *  this same bar on a lesson, and it says the difference — Run gives you the answer, Trace lets
+ *  you watch it being worked out. */
+const WATCH = (
+  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
+    <circle cx="12" cy="12" r="3"></circle>
   </svg>
 );
 
@@ -138,6 +143,8 @@ export function VizLab() {
   }, []);
 
   // ── the workbench, mounted once into its slot ──
+  // Outside Preact's tree on purpose: the workbench's `root` is its event surface, and the two
+  // must never diff the same element.
   useEffect(() => {
     const slot = benchSlot.current;
     if (slot == null) return;
@@ -170,6 +177,7 @@ export function VizLab() {
       render(null, wrap);
     };
   }, []);
+
 
   // ── the wasm: the canvas in one pane, the console in the other, over one store ──
   useEffect(() => {
@@ -291,6 +299,52 @@ export function VizLab() {
 
   const ready = structures.length > 0;
 
+  // ── the canvas's own verbs ──
+  // Trace fills the canvas and the export copies what it drew, so they sit in the canvas header
+  // beside the structure and root they read — and land on the same band as the editor's Run,
+  // which is the other way to say "do something with this code".
+  const canvasActions = (
+    <>
+      <div class="vlab__export">
+        <button
+          class="vlab__export-btn"
+          aria-haspopup="menu"
+          aria-expanded={exportOpen}
+          title="Copy the traced figure as a d2 diagram"
+          onClick={() => setExportOpen((open) => !open)}
+        >
+          Copy as d2
+          {CHEVRON}
+        </button>
+        {exportOpen && (
+          <div>
+            <div class="vlab__export-scrim" onClick={() => setExportOpen(false)}></div>
+            <div class="vlab__export-menu" role="menu">
+              <button role="menuitem" onClick={() => copyD2("step")}>
+                Copy this step
+              </button>
+              <button role="menuitem" onClick={() => copyD2("walkthrough")}>
+                Copy walkthrough
+              </button>
+              <button role="menuitem" onClick={openInD2}>
+                Open this step in /d2
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      <button
+        class="vlab__trace"
+        onClick={trace}
+        disabled={!ready}
+        title={ready ? "Run this code and capture it after every line" : "Loading the visualiser…"}
+      >
+        {WATCH}
+        Trace
+      </button>
+    </>
+  );
+
   return (
     <div class="vlab">
       <header class="lab-doc">
@@ -301,39 +355,6 @@ export function VizLab() {
             We run it for real and capture the structure after every line — an actual run, not a
             simulation.
           </p>
-        </div>
-        <div class="lab-acts">
-          <div class="vlab__export">
-            <button
-              class="vlab__export-btn"
-              aria-haspopup="menu"
-              aria-expanded={exportOpen}
-              onClick={() => setExportOpen((open) => !open)}
-            >
-              Copy as d2
-              {CHEVRON}
-            </button>
-            {exportOpen && (
-              <div>
-                <div class="vlab__export-scrim" onClick={() => setExportOpen(false)}></div>
-                <div class="vlab__export-menu" role="menu">
-                  <button role="menuitem" onClick={() => copyD2("step")}>
-                    Copy this step
-                  </button>
-                  <button role="menuitem" onClick={() => copyD2("walkthrough")}>
-                    Copy walkthrough
-                  </button>
-                  <button role="menuitem" onClick={openInD2}>
-                    Open this step in /d2
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-          <button class="lab-primary" onClick={trace} disabled={!ready}>
-            {PLAY}
-            Trace
-          </button>
         </div>
       </header>
 
@@ -369,6 +390,8 @@ export function VizLab() {
                 onInput={(event) => setRoot((event.target as HTMLInputElement).value)}
               />
             </label>
+            <span class="pane-hd__sp"></span>
+            {canvasActions}
           </div>
           {/* Leptos owns everything inside this node. Preact must never render into it again. */}
           <div class="vlab__canvas" ref={canvasHost} data-vizlab-canvas></div>
@@ -405,8 +428,9 @@ export function VizLab() {
                 before it starts. The note is load-bearing: Run and Trace read the SAME box but
                 cannot do the same thing with an empty one, and a reader who has just watched
                 Trace ask them for a value will otherwise expect Run to ask too. It cannot: the
-                sandbox is one-shot, so `input()` on empty stdin raises EOFError and that is the
-                honest answer. */}
+                sandbox is one-shot, so an `input()` past the end of this box raises EOFError and
+                that is the honest answer — including when the box has SOME lines but fewer than
+                the program reads, which is the case that reads as the box being broken. */}
             <textarea
               id="vlab-stdin"
               class="vlab__stdin-input"
@@ -416,8 +440,8 @@ export function VizLab() {
               onInput={(event) => setStdin((event.target as HTMLTextAreaElement).value)}
             ></textarea>
             <p class="vlab__stdin-note">
-              Run needs every value up front — an empty box is an end-of-file to it. Trace can
-              stop and ask you for one as you step.
+              Run needs every value up front, one line per <code>input()</code> — it reaches the
+              end of the box and stops. Trace can ask you for them one at a time as you step.
             </p>
           </div>
         </section>

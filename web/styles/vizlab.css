@@ -18,15 +18,37 @@
 .vlab__lede { margin: 7px 0 0; max-width: 62ch; font-size: 12.5px; line-height: 1.5;
               color: var(--text-muted); }
 
-/* ── the export menu ──
-   In the header beside Trace, not over the canvas: it acts on the whole traced figure rather
-   than on anything you can point at. */
-.vlab__export { position: relative; }
-.vlab__export-btn { display: inline-flex; align-items: center; gap: 6px; height: 38px;
-                    padding: 0 13px; border: 1px solid var(--border-default);
-                    border-radius: var(--radius-md); background: hsl(var(--card) / 0.55);
+/* ── Trace, and the export beside it ──
+   In the CANVAS header, because that is what they act on: Trace fills the canvas, the export
+   copies what it drew, and the structure and root they read sit in the same row. It also lands
+   Trace on the same band as the editor's Run — the two verbs that take this buffer and execute
+   it, one either side of the rail.
+
+   Sized for a 44px pane header, not the 38px document header `.lab-primary` is built for: beside
+   28px fields a full-height button reads as a different toolbar. */
+.vlab__trace { display: inline-flex; align-items: center; gap: 6px; flex: none; height: 30px;
+               padding: 0 13px 0 11px; border: 1px solid hsl(var(--primary));
+               border-radius: 8px; background: hsl(var(--primary));
+               color: hsl(var(--primary-foreground)); font-family: var(--font-sans);
+               font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em;
+               white-space: nowrap; cursor: pointer;
+               box-shadow: 0 1px 2px hsl(var(--primary) / 0.35);
+               transition: filter var(--dur-fast) var(--ease-out),
+                           box-shadow var(--dur-fast) var(--ease-out); }
+.vlab__trace:hover:not(:disabled) { filter: brightness(1.08);
+                                    box-shadow: 0 2px 8px hsl(var(--primary) / 0.4); }
+.vlab__trace:active:not(:disabled) { filter: brightness(0.95); box-shadow: none; }
+.vlab__trace:focus-visible { outline: none; box-shadow: 0 0 0 3px hsl(var(--primary) / 0.35); }
+/* Disabled means the wasm has not landed, which is a WAIT rather than a refusal — hence the
+   progress cursor, and a fill that still reads as the primary button it is about to become. */
+.vlab__trace:disabled { opacity: 0.5; cursor: progress; box-shadow: none; }
+
+.vlab__export { position: relative; flex: none; }
+.vlab__export-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px;
+                    padding: 0 10px; border: 1px solid var(--border-default);
+                    border-radius: 8px; background: hsl(var(--background) / 0.5);
                     color: var(--text-secondary); font-family: var(--font-sans);
-                    font-size: 13px; white-space: nowrap; cursor: pointer;
+                    font-size: 12.5px; white-space: nowrap; cursor: pointer;
                     transition: background var(--dur-fast) var(--ease-out),
                                 color var(--dur-fast) var(--ease-out); }
 .vlab__export-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
@@ -45,7 +67,16 @@
 /* ── the picker row ──
    Two fields in the pane header rather than a form above the canvas: they name what the canvas
    is drawing, so they belong to it the way the zoom cluster does. */
-.vlab__pick { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.vlab__pick { display: inline-flex; align-items: center; gap: 7px; flex: none; }
+/* Four controls in a pane the reader can drag down to a third of the window: at full width they
+   are one row, and when they stop fitting the verbs WRAP onto a second rather than everything
+   shrinking. A select squeezed to 0ch and a button squeezed to an ellipsis are both unusable,
+   and unlike a taller header they give no hint that dragging back would help. */
+.vlab .pane-hd { height: auto; min-height: 44px; flex-wrap: wrap; padding-top: 7px;
+                 padding-bottom: 7px; row-gap: 7px; }
+/* Nothing between the fields and the verbs to push against once the row has wrapped — the
+   spacer would otherwise claim the whole first line and strand them alone on the second. */
+.vlab .pane-hd > .pane-hd__sp { flex: 1 0 0; }
 .vlab__pick-label { font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
                     letter-spacing: 0.1em; text-transform: uppercase;
                     color: var(--text-faint); }
