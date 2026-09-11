@@ -96,7 +96,7 @@ export function GatedSolution({ variants, workbenchRoot }: { variants: Variant[]
       </div>
       <SolutionViewer variants={variants} workbenchRoot={workbenchRoot} />
       <p class="pwb-ereveal__note">
-        {INFO_ICON} Reference only — edit and run it in the panel on the right.
+        {INFO_ICON} Reference only — copy it into the panel on the right to run it.
       </p>
     </div>
   );

@@ -193,6 +193,7 @@ function clearReaderStorage(): void {
   if (state.kind === "authed") {
     storage.removeByPrefix(`${storage.CODEBENCH_DRAFT_PREFIX}${state.me.username}:`);
     storage.removeByPrefix(`${storage.CANVAS_DRAFT_PREFIX}${state.me.username}:`);
+    storage.removeByPrefix(`${storage.TESTS_DRAFT_PREFIX}${state.me.username}:`);
   }
 }
 

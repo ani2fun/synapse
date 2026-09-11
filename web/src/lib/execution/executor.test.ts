@@ -4,11 +4,9 @@ import { describe, expect, it } from "vitest";
 import type { components } from "../api/schema.gen";
 import {
   cancel,
-  cancelEdit,
   changedLineCount,
   clearOutcome,
   completed,
-  enterEdit,
   failed,
   initial,
   isDirty,
@@ -30,11 +28,10 @@ function result(stdout: string): RunResult {
 }
 
 describe("executor", () => {
-  it("initialStateIsIdleReadonlyAndEmpty", () => {
+  it("initialStateIsIdleAndEmpty", () => {
     const state = initial("print(1)");
     expect(state.code).toBe("print(1)");
     expect(state.runState).toBe("idle");
-    expect(state.editMode).toBe("readOnly");
     expect(state.result).toBeNull();
     expect(state.error).toBeNull();
   });
@@ -92,15 +89,13 @@ describe("executor", () => {
     expect(typed.runId).toBe(running.runId);
   });
 
-  it("editModeTogglesAndCancelEditRevertsCodeButKeepsTheResult", () => {
-    const state = initial("authored");
-    const editing = enterEdit(state);
-    expect(editing.editMode).toBe("editing");
-    const ran = started(setCode(editing, "hacked"));
+  it("resetToTheAuthoredSourceRevertsCodeButKeepsTheResult", () => {
+    // Reset is `setCode` with the authored source: reverting code is not un-running it.
+    const ran = started(setCode(initial("authored"), "hacked"));
     const done = completed(ran, ran.runId, result("42"));
-    const reverted = cancelEdit(done, "authored");
+    const reverted = setCode(done, "authored");
     expect(reverted.code).toBe("authored");
-    expect(reverted.editMode).toBe("readOnly");
+    expect(reverted.runState).toBe("done");
     expect(reverted.result?.stdout).toBe("42");
   });
 
@@ -113,7 +108,7 @@ describe("executor", () => {
   });
 
   it("clearOutcomeDropsThePanelButKeepsCodeAndStaleGuardsInflightRuns", () => {
-    const state = setCode(enterEdit(initial("authored")), "edited");
+    const state = setCode(initial("authored"), "edited");
     const ran = started(state);
     const done = completed(ran, ran.runId, result("42"));
     const cleared = clearOutcome(done);
@@ -121,7 +116,6 @@ describe("executor", () => {
     expect(cleared.result).toBeNull();
     expect(cleared.error).toBeNull();
     expect(cleared.code).toBe("edited");
-    expect(cleared.editMode).toBe("editing");
     // A reply still in flight for the old handle must not resurrect the panel.
     const resurrected = completed(cleared, ran.runId, result("stale"));
     expect(resurrected.result).toBeNull();

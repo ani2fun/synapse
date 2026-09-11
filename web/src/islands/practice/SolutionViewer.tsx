@@ -22,6 +22,7 @@ import type { Variant } from "../../lib/execution/blocks";
 import { canonicalLang, preferredIndex } from "../../lib/execution/language";
 import type { EditorHandle } from "../../lib/islands/editor/monaco";
 import { WB_LANGUAGE_KEY, get as storageGet, set as storageSet } from "../../lib/storage";
+import { CopyButton } from "../workbench/CopyButton";
 import { LOAD_CODE, RELAYOUT } from "../workbench/contracts";
 import type { LoadCode } from "../workbench/contracts";
 import * as log from "../../lib/log";
@@ -196,6 +197,11 @@ export function SolutionViewer({ variants, workbenchRoot }: SolutionViewerProps)
             </pre>
           </div>
         )}
+        {/* Inside the editor box, not up in the toolbar beside "Copy to editor": that is where the
+            hover-reveal rule applies, and where the workbench two panes over already puts it. The
+            viewer is read-only, so the variant on screen IS the buffer — including in the
+            monaco-unavailable fallback, which renders the same `variant.source`. */}
+        <CopyButton text={() => variants[activeRef.current]!.source} />
       </div>
     </div>
   );

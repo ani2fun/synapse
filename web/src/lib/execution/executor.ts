@@ -13,9 +13,9 @@ type RunResult = components["schemas"]["RunResult"];
 
 export type RunState = "idle" | "running" | "done";
 
-/** Orthogonal to `RunState`; the auth gate is enforced by the CALLER (the identity island), not
- *  by the FSM. */
-export type EditMode = "readOnly" | "editing";
+// Whether the buffer may be TYPED into is not FSM state: it is the caller's auth check, applied
+// to the editor directly (a signed-in reader edits, an anonymous one reads). The FSM only ever
+// holds the buffer and the run.
 
 // Opaque-ish, monotonic — a branded number rather than a bare one, so a raw number cannot be
 // assigned where a handle is expected by accident. True opacity would need a WeakMap/closure
@@ -33,7 +33,6 @@ function nextHandle(handle: RunHandle): RunHandle {
 export interface ExecutorState {
   code: string;
   runState: RunState;
-  editMode: EditMode;
   result: RunResult | null;
   error: string | null;
   runId: RunHandle;
@@ -43,7 +42,6 @@ export function initial(source: string): ExecutorState {
   return {
     code: source,
     runState: "idle",
-    editMode: "readOnly",
     result: null,
     error: null,
     runId: INITIAL_HANDLE,
@@ -66,7 +64,7 @@ export function started(state: ExecutorState): ExecutorState {
   };
 }
 
-/** Clear the run outcome (case switch): the buffer and edit unlock survive, the stale
+/** Clear the run outcome (case switch): the buffer survives, the stale
  *  result/error panel disappears, and the bumped handle stale-guards any run in flight — its
  *  reply must not resurrect the panel under the newly selected case. */
 export function clearOutcome(state: ExecutorState): ExecutorState {
@@ -109,19 +107,10 @@ export function failed(state: ExecutorState, handle: RunHandle, error: string): 
   };
 }
 
-/** Buffer edits touch NOTHING else — a keystroke during a run must not eat the result. */
+/** Buffer edits touch NOTHING else — a keystroke during a run must not eat the result, and
+ *  neither does Reset putting the authored source back (reverting code is not un-running it). */
 export function setCode(state: ExecutorState, code: string): ExecutorState {
   return { ...state, code };
-}
-
-export function enterEdit(state: ExecutorState): ExecutorState {
-  return { ...state, editMode: "editing" };
-}
-
-/** Leave edit mode reverting the buffer to the authored source — the last RESULT survives
- *  (reverting code is not un-running it). */
-export function cancelEdit(state: ExecutorState, source: string): ExecutorState {
-  return { ...state, code: source, editMode: "readOnly" };
 }
 
 export function isDirty(state: ExecutorState, source: string): boolean {

@@ -4,9 +4,12 @@
  * place. Viewport-lazy Monaco with the page-wide cap; shiki placeholder until then.
  *
  * Auth and viz are read through window-scoped checks rather than props: until the auth island
- * installs `window.__synapseAuth`, Edit and Submit render disabled with the sign-in copy, which
- * is exactly the anonymous experience; until the viz island installs `window.__synapseViz`,
- * Visualise doesn't render at all.
+ * installs `window.__synapseAuth`, the editor is read-only and Edit and Submit render disabled
+ * with the sign-in copy, which is exactly the anonymous experience; a signed-in reader gets an
+ * editable buffer outright (no unlock step — the Edit button is not shown to them). Reset is for
+ * everyone, live whenever the buffer differs from the authored source — LOAD_CODE dirties an
+ * anonymous buffer too. Until the viz island installs `window.__synapseViz`, Visualise doesn't
+ * render at all.
  */
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 
@@ -27,13 +30,21 @@ import {
   SUBMITTED,
   USE_CASE,
   VIZ_READY,
+  currentUser,
   isAuthed,
 } from "./contracts";
 import type { LoadCode, UseCase } from "./contracts";
 import * as log from "../../lib/log";
+import { CopyButton } from "./CopyButton";
 import * as lazy from "./lazy";
 import { Output, TestsPanel, VerdictPanel } from "./panels";
 import { BlockStore, SubmitStore, TestsState } from "./state";
+import * as testsDraft from "./testsDraft";
+
+/** How long typing settles before the test suite is written to this browser. Long enough that a
+ *  typed matrix is one write rather than one per character; short enough that a reader who edits
+ *  and immediately reloads keeps it — and the hide-flush covers the rest. */
+const DRAFT_SAVE_MS = 600;
 
 /** The editor height rule: clamp to a line count, with a floor and a ceiling. */
 function defaultHeightPx(source: string): number {
@@ -58,13 +69,39 @@ export interface WorkbenchProps {
   practice?: boolean;
   /** Problem page right pane: editor fills the free height until a drag pins one. */
   fill?: boolean;
+  /** Keep the live test suite in this browser (`testsDraft`) — the problem page opts in. Separate
+   *  from `fill` on purpose: where the editor sits and whether the reader's cases outlive the tab
+   *  are different claims, and coupling them would strand the next filled-but-transient caller. */
+  persistTests?: boolean;
 }
 
-export function Workbench({ variants, spec, lessonPath, root, practice = false, fill = false }: WorkbenchProps) {
+export function Workbench({
+  variants,
+  spec,
+  lessonPath,
+  root,
+  practice = false,
+  fill = false,
+  persistTests = false,
+}: WorkbenchProps) {
+  // ── the tests draft: the authored fingerprint is taken ONCE, from the suite the page was served
+  //    with, so the reader's own edits never retire their own draft ──
+  const authoredPrint = useMemo(() => (spec ? testsDraft.fingerprintOf(spec) : ""), []);
+  // A getter, not a value: `currentUser()` answers differently after a sign-in mid-session, and the
+  // draft must follow the account without needing a re-install (CanvasPane's `draftKey`).
+  const draftKey = () => testsDraft.keyFor(currentUser(), lessonPath);
+
   // ── stores, minted once ──
   const stores = useMemo(() => variants.map((v) => new BlockStore(v.source)), []);
   const submit = useMemo(() => new SubmitStore(), []);
-  const tests = useMemo(() => (spec ? new TestsState(spec) : null), []);
+  const tests = useMemo(() => {
+    if (!spec) return null;
+    if (!persistTests) return new TestsState(spec);
+    const restored = testsDraft.load(draftKey(), authoredPrint);
+    if (!restored) return new TestsState(spec);
+    log.debug(`tests: restored ${restored.cases.length} case(s) from this browser`);
+    return new TestsState({ ...spec, cases: restored.cases }, restored.activeCase);
+  }, []);
   const start = useMemo(() => preferredIndex(variants, storageGet(WB_LANGUAGE_KEY)), []);
   const [active, setActive] = useState(start);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -79,11 +116,9 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
   const near = useRef(false);
   const wantsEditor = useRef(false);
   const registryId = useRef<number | null>(null);
-  const copied = useState(false);
 
   const activeStore = stores[active]!;
   const state = useStore(activeStore.state);
-  const unlocked = useStore(activeStore.unlocked);
   const submitState = useStore(submit.state);
   const authed = isAuthed();
   const hasSubmit = spec != null && !practice;
@@ -152,7 +187,6 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
     if (mounted.current) {
       mounted.current.setValue(code);
       mounted.current.setLanguage(v.language);
-      mounted.current.setReadOnly(!store.unlocked.get());
     }
     emitCode(code, v.language);
   };
@@ -181,7 +215,12 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
       const index = tests.append({ args, expected });
       onCaseSwitch(index);
     };
-    const onAuth = () => setAuthTick((n) => n + 1);
+    // A sign-in mid-session opens the editor in place; a sign-out closes it WITHOUT reverting the
+    // buffer — what was typed is still on screen to read, it just cannot be typed into further.
+    const onAuth = () => {
+      mounted.current?.setReadOnly(!isAuthed());
+      setAuthTick((n) => n + 1);
+    };
     root.addEventListener(LOAD_CODE, onLoadCode);
     root.addEventListener(USE_CASE, onUseCase);
     window.addEventListener(AUTH_CHANGED, onAuth);
@@ -234,7 +273,10 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
       const handle = createEditor(node, {
         value: store.state.get().code,
         language: v.language,
-        readOnly: !store.unlocked.get(),
+        // Signed in = editable, from the first keystroke. The lock is not a security boundary
+        // (the run endpoint takes any source from anyone, metered) — it only keeps an anonymous
+        // reader from typing over an example they cannot submit anyway.
+        readOnly: !isAuthed(),
         dark,
         onChange: (code: string) => {
           const i = stores.indexOf(activeStoreRef.current);
@@ -242,7 +284,6 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
           emitCode(code, variants[i]!.language);
         },
         onRun: () => runRef.current(),
-        onToggleEdit: () => toggleEditRef.current(),
         onSubmit: hasSubmit ? () => submitRef.current() : undefined,
       });
       log.debug(`monaco mounted (${v.language})`);
@@ -274,19 +315,6 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
   runRef.current = run;
   const submitRef = useRef(doSubmit);
   submitRef.current = doSubmit;
-  const toggleEdit = () => {
-    if (!isAuthed()) return;
-    wantsEditor.current = true;
-    activeStore.toggleEdit(variant.source);
-    if (mounted.current) {
-      mounted.current.setReadOnly(!activeStore.unlocked.get());
-      const code = activeStore.state.get().code;
-      if (mounted.current.getValue() !== code) mounted.current.setValue(code);
-    }
-    setMountedTick((n) => n + 1);
-  };
-  const toggleEditRef = useRef(toggleEdit);
-  toggleEditRef.current = toggleEdit;
 
   // A pane that unhides a Monaco fires RELAYOUT (the problem page's tabs) so the editor
   // re-measures — fulfils the contract's editor half. `automaticLayout` catches most reveals via
@@ -316,6 +344,38 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
 
   // ── initial code snapshot for the coach seam ──
   useEffect(() => emitCode(variants[start]!.source, variants[start]!.language), []);
+
+  // ── the tests draft: debounced autosave, flushed before the tab can take it away ──
+  useEffect(() => {
+    if (!persistTests || !tests) return;
+    let timer: number | null = null;
+    const flush = () => {
+      if (timer != null) {
+        window.clearTimeout(timer);
+        timer = null;
+      }
+      testsDraft.save(draftKey(), tests.spec.get().cases, tests.activeCase.get(), authoredPrint);
+    };
+    const schedule = () => {
+      if (timer != null) window.clearTimeout(timer);
+      timer = window.setTimeout(flush, DRAFT_SAVE_MS);
+    };
+    // `pagehide` and a hidden `visibilitychange` are what a closed tab and a backgrounded one
+    // actually fire — `beforeunload` is unreliable on mobile — so the last keystrokes survive
+    // rather than dying inside the debounce window. (CanvasPane's reasoning verbatim.)
+    const onHide = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    const unsubs = [tests.spec.subscribe(schedule), tests.activeCase.subscribe(schedule)];
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      for (const unsub of unsubs) unsub();
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onHide);
+      if (timer != null) window.clearTimeout(timer);
+    };
+  }, []);
 
   // ── the resize strip ──
   const dragFrom = useRef<[number, number] | null>(null);
@@ -389,46 +449,42 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
         </span>
         <span class="wb__actions">
           {langChrome}
-          <span
-            class="wb__tip"
-            data-tip={
-              !authed
-                ? "Sign in to edit this code"
-                : unlocked
-                  ? "Editing — your changes stay on this page (⌘E toggles)"
-                  : "Edit this code — changes stay on this page (⌘E)"
-            }
-          >
-            <button class={`wb__ghost${unlocked ? " wb__ghost--live" : ""}`} disabled={!authed} onClick={toggleEdit}>
-              {unlocked ? (
-                <span>Editing</span>
-              ) : (
-                <>
-                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                    <rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                  </svg>
-                  <span>Edit</span>
-                </>
-              )}
-            </button>
-          </span>
-          {unlocked && authed && (
-            <button
-              class="wb__ghost wb__ghost--live wb__ghost--icon"
-              title="Restore the starter code"
-              aria-label="Reset"
-              onClick={() => {
-                activeStore.state.update((s) => executor.setCode(s, variant.source));
-                mounted.current?.setValue(variant.source);
-              }}
-            >
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
-                <path d="M3 3v5h5"></path>
-              </svg>
-            </button>
+          {/* The lock is shown only to the reader it applies to. A signed-in reader's editor is
+              editable from the first keystroke, so an Edit button would be a step that does
+              nothing; an anonymous reader sees it disabled, and the tooltip is where they learn
+              why the buffer will not take their typing. */}
+          {!authed && (
+            <span class="wb__tip" data-tip="Sign in to edit this code">
+              <button class="wb__ghost" disabled>
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <span>Edit</span>
+              </button>
+            </span>
           )}
+          {/* Reset is NOT gated on auth, because a dirty buffer is not: the read-only lock stops
+              typing, and only typing. LOAD_CODE — an editorial's "Copy to editor", a past
+              submission's — replaces the buffer programmatically for anyone, so an anonymous reader
+              can hold a solution they cannot type over and needs the way back too. Disabled, not
+              hidden, while the buffer already matches: a Reset that would do nothing is honest
+              about it, and a button that comes and goes shifts the toolbar. */}
+          <button
+            class="wb__ghost wb__ghost--live wb__ghost--icon"
+            title="Restore the starter code"
+            aria-label="Reset"
+            disabled={!executor.isDirty(state, variant.source)}
+            onClick={() => {
+              activeStore.state.update((s) => executor.setCode(s, variant.source));
+              mounted.current?.setValue(variant.source);
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+              <path d="M3 3v5h5"></path>
+            </svg>
+          </button>
           {hasSubmit && (
             <span
               class="wb__tip"
@@ -488,28 +544,9 @@ export function Workbench({ variants, spec, lessonPath, root, practice = false, 
             dangerouslySetInnerHTML={{ __html: preview ?? "" }}
           ></div>
         )}
-        <button
-          class={`editor-copy${copied[0] ? " editor-copy--done" : ""}`}
-          aria-label="Copy code"
-          title="Copy code"
-          onClick={() => {
-            const code = mounted.current?.getValue() ?? activeStore.state.get().code;
-            void navigator.clipboard?.writeText(code);
-            copied[1](true);
-            setTimeout(() => copied[1](false), 1400);
-          }}
-        >
-          {copied[0] ? (
-            <svg class="editor-copy__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="M20 6 9 17l-5-5"></path>
-            </svg>
-          ) : (
-            <svg class="editor-copy__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <rect x="8" y="8" width="14" height="14" rx="2" ry="2"></rect>
-              <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
-            </svg>
-          )}
-        </button>
+        {/* The LIVE buffer, not the authored source: a reader who edits and copies expects what
+            they can see. Falls back to the store for a block whose Monaco is not mounted. */}
+        <CopyButton text={() => mounted.current?.getValue() ?? activeStore.state.get().code} />
       </div>
       {spec != null && (
         <div

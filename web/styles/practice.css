@@ -40,8 +40,13 @@
 .pwb:not(.pwb--embedded) .pwb__rpane[data-rpane="code"] > div { display: flex; flex-direction: column;
                                                                 min-height: 100%; }
 .pwb:not(.pwb--embedded) .pwb__right .wb__edit-bar { flex: 0 0 auto; }
+/* The block's 1.5rem margin is the READING COLUMN's — it separates a runnable from the prose above
+   and below it. This pane is not a reading column: the margin lands against the Think|Code bar at
+   the top and the pane's own edge at the bottom, ~24px of dead strip at each end that the editor
+   could be using. The pane's 12px padding is the gutter here, and it is the one the Think pane and
+   the left pane already use. */
 .pwb:not(.pwb--embedded) .pwb__right .runnable { display: flex; flex-direction: column;
-                                                 flex: 1 1 auto; min-height: 0; }
+                                                 flex: 1 1 auto; min-height: 0; margin-block: 0; }
 .pwb:not(.pwb--embedded) .pwb__right .runnable__bar,
 .pwb:not(.pwb--embedded) .pwb__right .wb__tests,
 .pwb:not(.pwb--embedded) .pwb__right .runnable__out,
