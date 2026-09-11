@@ -79,7 +79,8 @@ SATELLITES='[
   {"id":"dsa-guide","root":"../synapse-content-github/dsa-guide","order":5},
   {"id":"python-guide","root":"../synapse-content-github/python-guide","grouping":"programming-languages","order":6},
   {"id":"java-guide","root":"../synapse-content-github/java-guide","grouping":"programming-languages","order":7},
-  {"id":"sql-guide","root":"../synapse-content-github/sql-guide","grouping":"programming-languages","order":8}
+  {"id":"sql-guide","root":"../synapse-content-github/sql-guide","grouping":"programming-languages","order":8},
+  {"id":"general","root":"../synapse-content-github/general","order":9}
 ]'
 export SYNAPSE_LOCAL_SOURCES="${SYNAPSE_LOCAL_SOURCES:-$SATELLITES}"
 # Nothing is registered locally, so a tick would only reach the network for repositories already
