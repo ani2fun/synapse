@@ -90,7 +90,22 @@ fn record(id: &str, grouping: &str, enabled: bool) -> ContentSourceRecord {
 /// and faking the walk would test the fake. Empty means no conflicts, which is the answer the
 /// warnings test wants anyway.
 fn app(issuer: &str, registry: Arc<FakeRegistry>, sync: Option<SyncTrigger>) -> Router {
+    app_over(issuer, registry, sync, &[])
+}
+
+/// The router over a primary checkout holding `files` — `(path, body)` pairs under the root.
+fn app_over(
+    issuer: &str,
+    registry: Arc<FakeRegistry>,
+    sync: Option<SyncTrigger>,
+    files: &[(&str, &str)],
+) -> Router {
     let root = tempfile::tempdir().expect("temp content root");
+    for (path, body) in files {
+        let file = root.path().join(path);
+        std::fs::create_dir_all(file.parent().expect("a file has a parent")).expect("content dir");
+        std::fs::write(file, body).expect("content file");
+    }
     let repo = FileSystemContentRepository::new(root.path(), true);
     // Deliberately leaked: the router outlives this call and must keep the directory alive for as
     // long as it might walk it. A test process is the one place that is simply free.
@@ -345,4 +360,43 @@ async fn a_clean_catalog_has_no_warnings() {
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body.as_array().map(Vec::len), Some(0), "{body}");
+}
+
+/// A chapter directory the walk refused for its name reaches the panel as a sentence naming the
+/// path to rename — the one place that says why a pushed lesson is not in the library.
+#[tokio::test]
+async fn a_directory_skipped_for_its_name_is_a_warning_on_the_panel() {
+    let issuer = stub_realm().await;
+    let app = app_over(
+        &issuer,
+        seeded(Vec::new()),
+        None,
+        &[
+            ("dsa/book.json", r#"{"slug":"dsa","title":"DSA"}"#),
+            ("dsa/05-arrays/15-spiral/spiral.md", "# Spiral"),
+            (
+                "dsa/05-arrays/16-pascal's-triangle-i/pascal's-triangle-i.md",
+                "# Pascal",
+            ),
+        ],
+    );
+    let (status, body) = call(
+        app,
+        "GET",
+        "/api/admin/content-warnings",
+        Some(&mint(&issuer, "tester")),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let warnings = body.as_array().expect("a list");
+    assert_eq!(warnings.len(), 1, "{body}");
+    assert_eq!(warnings[0]["kind"], "directorySkipped");
+    assert_eq!(warnings[0]["sources"], serde_json::json!(["main"]));
+    assert!(warnings[0]["slug"].is_null(), "{body}");
+    let detail = warnings[0]["detail"].as_str().expect("a sentence");
+    assert!(
+        detail.contains("dsa/05-arrays/16-pascal's-triangle-i"),
+        "the detail names the on-disk path: {detail}"
+    );
 }

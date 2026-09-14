@@ -258,7 +258,7 @@ impl<R: ContentRepository> CatalogService<R> {
         let walk = Arc::new(merge::assemble(&sources, &placements).map_err(ContentError::IndexInvalid)?);
         let walk_ms = t_walk.elapsed().as_millis();
         for warning in &walk.warnings {
-            tracing::warn!(?warning, "catalog: cross-source conflict resolved");
+            tracing::warn!(?warning, "catalog: content warning");
         }
         // The last use of `sources`: every body is still in memory from the walk, and is dropped
         // with it on the next line.

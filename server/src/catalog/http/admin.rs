@@ -101,6 +101,14 @@ fn warning_to_dto(warning: &CatalogWarning) -> CatalogWarningDto {
                 "{source_id} is a book repository with no slug in book.json, so its URL fell back to the repository name. Set the slug — it IS the URL."
             ),
         },
+        CatalogWarning::DirectorySkipped { source_id, path } => CatalogWarningDto {
+            kind: "directorySkipped".to_owned(),
+            slug: None,
+            sources: vec![source_id.clone()],
+            detail: format!(
+                "{source_id}: “{path}” is not a chapter, and nothing under it is in the library. A directory name may hold only letters, digits, - and _ once its order prefix is off; rename it and push."
+            ),
+        },
     }
 }
 

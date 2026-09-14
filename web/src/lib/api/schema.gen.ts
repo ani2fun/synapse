@@ -738,7 +738,7 @@ export interface components {
         CatalogWarningDto: {
             /** @description A complete sentence, safe to render as-is. */
             detail: string;
-            /** @description `duplicateBookSlug` · `categoryRedeclared` · `bookSourceWithoutSlug`. */
+            /** @description `duplicateBookSlug` · `categoryRedeclared` · `bookSourceWithoutSlug` · `directorySkipped`. */
             kind: string;
             /** @description The book or category slug at issue; absent when the warning is about a source itself. */
             slug?: string | null;

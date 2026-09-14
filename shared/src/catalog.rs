@@ -184,7 +184,7 @@ pub struct RegisterContentSourceDto {
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct CatalogWarningDto {
-    /// `duplicateBookSlug` · `categoryRedeclared` · `bookSourceWithoutSlug`.
+    /// `duplicateBookSlug` · `categoryRedeclared` · `bookSourceWithoutSlug` · `directorySkipped`.
     pub kind: String,
     /// The book or category slug at issue; absent when the warning is about a source itself.
     #[serde(default, skip_serializing_if = "Option::is_none")]
