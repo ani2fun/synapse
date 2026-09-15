@@ -18,13 +18,14 @@ use std::time::Duration;
 use flate2::Compression;
 use flate2::write::GzEncoder;
 use synapse_server::catalog::application::{
-    CatalogService, ContentFetcher, ContentSourceDraft, ContentSourceRecord, ContentSources, FetchError,
-    Fetched, Placements, RegistryError, SyncOutcome,
+    Audience, Audiences, CatalogService, ContentFetcher, ContentReader, ContentSourceDraft,
+    ContentSourceRecord, ContentSources, FetchError, Fetched, Placements, RegistryError, SyncOutcome, Viewer,
 };
 use synapse_server::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
 use synapse_server::catalog::infrastructure::{
     ContentCache, ContentSync, FileSystemContentRepository, MountOrder, MountedSources, SourceRoot,
 };
+use synapse_server::identity::domain::Username;
 
 // ── fakes ────────────────────────────────────────────────────────────────────
 
@@ -64,6 +65,20 @@ impl ContentSources for FakeRegistry {
             }
         }
         Ok(())
+    }
+    async fn list_readers(&self, _: &str) -> Result<Option<Vec<ContentReader>>, RegistryError> {
+        Ok(Some(Vec::new()))
+    }
+    async fn grant_reader(
+        &self,
+        _: &str,
+        _: &Username,
+        _: Option<&str>,
+    ) -> Result<Option<ContentReader>, RegistryError> {
+        Ok(None)
+    }
+    async fn revoke_reader(&self, _: &str, _: &Username) -> Result<bool, RegistryError> {
+        Ok(false)
     }
 }
 
@@ -151,6 +166,7 @@ fn record(grouping: &[&str]) -> ContentSourceRecord {
         grouping: grouping.iter().map(|s| (*s).to_owned()).collect(),
         order: Some(7),
         enabled: true,
+        audience: Audience::Public,
         last_sha: None,
         last_synced_at: None,
         last_error: None,
@@ -188,6 +204,7 @@ async fn the_satellite_takes_over_at_the_identical_url_once_the_monorepo_lets_go
         ContentCache::new(cache.path()),
         mounted.clone(),
         placements.clone(),
+        Audiences::default(),
         MountOrder::pinned(
             vec![SourceRoot::new(PRIMARY_SOURCE_ID, primary.path())],
             Vec::new(),
@@ -200,7 +217,7 @@ async fn the_satellite_takes_over_at_the_identical_url_once_the_monorepo_lets_go
 
     // ── 1. Register and sync while BOTH copies exist. Nothing may change for readers.
     sync.tick().await;
-    let lesson = catalog.lesson(&lesson_path()).await.unwrap();
+    let lesson = catalog.lesson(&lesson_path(), &Viewer::Anonymous).await.unwrap();
     assert_eq!(
         lesson.raw, "FROM THE MONOREPO",
         "first source wins: the satellite must not shadow the monorepo mid-migration"
@@ -214,7 +231,7 @@ async fn the_satellite_takes_over_at_the_identical_url_once_the_monorepo_lets_go
     std::fs::remove_dir_all(primary.path().join("programming-languages/03-java")).unwrap();
     sync.tick().await;
 
-    let lesson = catalog.lesson(&lesson_path()).await.unwrap();
+    let lesson = catalog.lesson(&lesson_path(), &Viewer::Anonymous).await.unwrap();
     assert_eq!(lesson.raw, "FROM THE SATELLITE");
     assert_eq!(lesson.book.title, "Java");
     assert_eq!(
@@ -224,7 +241,7 @@ async fn the_satellite_takes_over_at_the_identical_url_once_the_monorepo_lets_go
     );
 
     // The category the monorepo still declares keeps its own metadata.
-    let index = catalog.index().await.unwrap();
+    let index = catalog.index(&Viewer::Anonymous).await.unwrap();
     let category = index
         .entries
         .iter()
@@ -264,6 +281,7 @@ async fn a_source_that_cannot_be_fetched_leaves_the_rest_of_the_library_serving(
         ContentCache::new(cache.path()),
         mounted.clone(),
         placements.clone(),
+        Audiences::default(),
         MountOrder::pinned(
             vec![SourceRoot::new(PRIMARY_SOURCE_ID, primary.path())],
             Vec::new(),
@@ -276,7 +294,11 @@ async fn a_source_that_cannot_be_fetched_leaves_the_rest_of_the_library_serving(
 
     // The monorepo's book is untouched...
     assert_eq!(
-        catalog.lesson(&lesson_path()).await.unwrap().raw,
+        catalog
+            .lesson(&lesson_path(), &Viewer::Anonymous)
+            .await
+            .unwrap()
+            .raw,
         "FROM THE MONOREPO"
     );
     // ...and the failure is on the row, where an admin will see it.
@@ -335,6 +357,7 @@ async fn a_rate_limited_source_is_left_alone_until_its_window_has_passed() {
         ContentCache::new(cache.path()),
         mounted,
         Placements::default(),
+        Audiences::default(),
         MountOrder::pinned(
             vec![SourceRoot::new(PRIMARY_SOURCE_ID, primary.path())],
             Vec::new(),

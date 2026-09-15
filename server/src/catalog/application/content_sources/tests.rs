@@ -6,7 +6,7 @@
 use super::*;
 
 fn draft(repo: &str, grouping: &str) -> Result<ContentSourceDraft, RegistryError> {
-    ContentSourceDraft::register(repo, None, Some(grouping), None, None)
+    ContentSourceDraft::register(repo, None, Some(grouping), None, None, None)
 }
 
 #[test]
@@ -47,18 +47,20 @@ fn a_repo_that_is_not_owner_slash_name_is_refused() {
 #[test]
 fn a_blank_or_absent_branch_means_the_default() {
     for branch in [None, Some(""), Some("   ")] {
-        let d = ContentSourceDraft::register("ani2fun/java-guide", branch, None, None, None).unwrap();
+        let d = ContentSourceDraft::register("ani2fun/java-guide", branch, None, None, None, None).unwrap();
         assert_eq!(d.branch(), DEFAULT_BRANCH, "branch: {branch:?}");
     }
-    let named = ContentSourceDraft::register("ani2fun/java-guide", Some(" next "), None, None, None).unwrap();
+    let named =
+        ContentSourceDraft::register("ani2fun/java-guide", Some(" next "), None, None, None, None).unwrap();
     assert_eq!(named.branch(), "next", "a real branch is trimmed, not defaulted");
 }
 
 #[test]
 fn an_absent_enabled_registers_the_source_enabled() {
-    let d = ContentSourceDraft::register("ani2fun/java-guide", None, None, None, None).unwrap();
+    let d = ContentSourceDraft::register("ani2fun/java-guide", None, None, None, None, None).unwrap();
     assert!(d.enabled(), "registering a repository means wanting it served");
-    let off = ContentSourceDraft::register("ani2fun/java-guide", None, None, None, Some(false)).unwrap();
+    let off =
+        ContentSourceDraft::register("ani2fun/java-guide", None, None, None, Some(false), None).unwrap();
     assert!(!off.enabled());
 }
 
@@ -71,6 +73,7 @@ fn a_records_placement_is_what_the_merge_grafts_by() {
         grouping: vec!["programming-languages".to_owned()],
         order: Some(7),
         enabled: true,
+        audience: Audience::Public,
         last_sha: None,
         last_synced_at: None,
         last_error: None,
@@ -79,4 +82,96 @@ fn a_records_placement_is_what_the_merge_grafts_by() {
     assert_eq!(placement.source_id, "java-guide");
     assert_eq!(placement.grouping, vec!["programming-languages".to_owned()]);
     assert_eq!(placement.order, Some(7));
+}
+
+// ── audiences ─────────────────────────────────────────────────────────────────
+
+fn name(raw: &str) -> Username {
+    Username::parse(raw).unwrap()
+}
+
+#[test]
+fn visibility_is_public_or_private_and_nothing_else() {
+    assert_eq!(Audience::parse("", BTreeSet::new()).unwrap(), Audience::Public);
+    assert_eq!(
+        Audience::parse("public", BTreeSet::new()).unwrap(),
+        Audience::Public
+    );
+    assert!(
+        Audience::parse(" private ", BTreeSet::new())
+            .unwrap()
+            .is_private()
+    );
+    assert!(matches!(
+        Audience::parse("secret", BTreeSet::new()),
+        Err(RegistryError::Invalid(_))
+    ));
+    let draft =
+        ContentSourceDraft::register("ani2fun/insight-earned", None, None, None, None, Some("private"))
+            .unwrap();
+    assert_eq!(draft.visibility(), "private");
+    assert!(matches!(
+        ContentSourceDraft::register("ani2fun/insight-earned", None, None, None, None, Some("hidden")),
+        Err(RegistryError::Invalid(_))
+    ));
+}
+
+#[test]
+fn a_public_source_admits_everyone_and_a_private_one_only_its_readers() {
+    let private = Audience::Private {
+        readers: BTreeSet::from([name("Ada")]),
+    };
+    assert!(Audience::Public.admits(&Viewer::Anonymous));
+    assert!(Audience::Public.admits(&Viewer::User(name("nobody"))));
+    assert!(!private.admits(&Viewer::Anonymous));
+    assert!(!private.admits(&Viewer::User(name("bob"))));
+    // Granted as "Ada", arriving as "ada": one canonical spelling, or the grant silently misses.
+    assert!(private.admits(&Viewer::User(name("ada"))));
+    // A private source with no readers yet is private to nobody — the freshly registered state.
+    assert!(
+        !Audience::Private {
+            readers: BTreeSet::new()
+        }
+        .admits(&Viewer::User(name("ada")))
+    );
+}
+
+#[test]
+fn a_publish_never_displaces_a_pinned_audience() {
+    let pinned = BTreeMap::from([(
+        "local-private".to_owned(),
+        Audience::Private {
+            readers: BTreeSet::from([name("tester")]),
+        },
+    )]);
+    let audiences = Audiences::pinned(pinned);
+    assert!(
+        audiences.of("local-private").is_private(),
+        "pinned on construction"
+    );
+    assert_eq!(
+        audiences.of("unknown"),
+        Audience::Public,
+        "unregistered is public"
+    );
+
+    audiences.publish(BTreeMap::from([
+        ("local-private".to_owned(), Audience::Public),
+        (
+            "insight-earned".to_owned(),
+            Audience::Private {
+                readers: BTreeSet::new(),
+            },
+        ),
+    ]));
+    assert!(
+        audiences.of("local-private").is_private(),
+        "a registered row cannot overwrite a pinned one"
+    );
+    assert!(audiences.of("insight-earned").is_private());
+
+    // A later publish that drops a registered source drops its audience with it.
+    audiences.publish(BTreeMap::new());
+    assert_eq!(audiences.of("insight-earned"), Audience::Public);
+    assert!(audiences.of("local-private").is_private());
 }

@@ -46,7 +46,10 @@ import "../../../styles/coach.css";
 import "../../../styles/canvas.css";
 import "../../../styles/codebench.css";
 
-type Mode = "lesson" | "problem" | "notFound" | "error";
+// `private`: the API refused the anonymous SSR fetch with 401/403 — the lesson sits in a book
+// served to its reader list only. The page ships the reader shell and `islands/reader/privateLesson`
+// asks again from the browser, where the session is.
+type Mode = "lesson" | "problem" | "notFound" | "error" | "private";
 
 /** `count-all-digits` → `Count All Digits`. */
 function humanize(slug: string): string {
@@ -102,6 +105,11 @@ try {
   if (error instanceof ApiFailure && error.status === 404) {
     mode = "notFound";
     Astro.response.status = 404;
+  } else if (error instanceof ApiFailure && (error.status === 401 || error.status === 403)) {
+    // The status is passed through as the API answered it: a crawler or a script sees the same
+    // refusal the API gave, and only a browser with a session gets further.
+    mode = "private";
+    Astro.response.status = error.status;
   } else {
     mode = "error";
     Astro.response.status = 502;
@@ -114,12 +122,17 @@ const canonicalPath = `/synapse/${segments.join("/")}`;
 log.info(
   `SSR /synapse/${segments.join("/")} — ${mode}${isLesson ? "" : ` (${errorMessage ?? "not found"})`} in ${Date.now() - ssrStart}ms`,
 );
+// A private lesson's real title arrives with the payload, in the browser; until then the URL's
+// last segment stands in, humanised, so the tab and the shell name the right lesson.
+const privateTitle = humanize(segments[segments.length - 1] ?? "lesson");
 const title =
   payload && isLesson
     ? titleForLesson(payload.book.title, payload.frontmatter.title)
     : mode === "notFound"
       ? `Not found — ${SITE_NAME}`
-      : `Error — ${SITE_NAME}`;
+      : mode === "private"
+        ? `${privateTitle} — ${SITE_NAME}`
+        : `Error — ${SITE_NAME}`;
 // `?? undefined` (never null) so Base falls back to its default description — the same string the
 // axum side uses when a lesson has no summary, keeping the two heads in agreement.
 const description = payload?.frontmatter.summary ?? undefined;
@@ -151,6 +164,30 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
             </a>
           </p>
         </section>
+      </main>
+    )
+  }
+
+  {
+    mode === "private" && (
+      <main class="shell-main">
+        <div class="reader-layout" data-sidebar="expanded" data-private-lesson={segments.join("/")}>
+          <aside class="reader-sidebar" data-private-sidebar />
+          <article class="reader-layout__main">
+            <div class="lesson">
+              <header class="lesson-header">
+                <p class="reader-prose__eyebrow">🔒 Private book</p>
+                <h1 class="reader-prose__title" data-private-title>{privateTitle}</h1>
+                <p class="reader-prose__lede" data-private-lede hidden />
+                <p class="private-lesson__status" data-private-status aria-live="polite">
+                  Sign in to read this book.
+                </p>
+              </header>
+              <article class="lesson-body synapse-prose" data-private-body />
+              <nav class="reader-pager" data-private-pager />
+            </div>
+          </article>
+        </div>
       </main>
     )
   }
@@ -503,7 +540,7 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
        vite dependency pre-scan finds script blocks by regex, so a script tag written inside a
        JSX comment starts the hoisted module HERE and drags prose into it, and a lone quote in
        that prose then fails a cold scan with Unterminated string literal. */
-    isLesson && payload && (
+    (isLesson && payload) || mode === "private" ? (
       <script>
         import "../../islands/reader";
         // The quiz/diagram pass, guarded the same way workbench/practice are.
@@ -511,7 +548,12 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
         // The viz loader: no-ops unless the page planted `.viz-widget`s or a workbench
         // variant carries a viz hint — the 280 KiB wasm is fetched lazily, never eagerly.
         import "../../islands/viz";
-        if (document.querySelector(".pwb[data-problem]")) {
+        if (document.querySelector("[data-private-lesson]")) {
+          // The private shell: the session lives in the browser, so the lesson is fetched and
+          // rendered here. One more runtime branch of the SAME script — a second conditional
+          // block would not survive hoisting (the comment above this script says why).
+          import("../../islands/reader/privateLesson");
+        } else if (document.querySelector(".pwb[data-problem]")) {
           import("../../islands/problem");
         } else {
           import("../../islands/workbench");
@@ -527,7 +569,7 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
           import("../../islands/authoring/editLink");
         }
       </script>
-    )
+    ) : null
   }
 </Base>
 
@@ -538,6 +580,16 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
     max-width: 40rem;
     margin-inline: auto;
     padding-block: 4rem 6rem;
+  }
+  /* The private shell status line: what the island says while it asks, and what it says when
+     the answer is no. Global, not scoped, because the island rewrites the children of that node. */
+  :global(.private-lesson__status) {
+    margin: 0.75rem 0 0;
+    font-size: 0.95rem;
+    color: hsl(var(--foreground) / 0.8);
+  }
+  :global(.private-lesson__signin) {
+    margin-left: 0.5rem;
   }
   /* The Contents drawer's clone SOURCE must never paint — `hidden` handles semantics, this pins
      it against any stylesheet that gives `.reader-sidebar` layout outside `.reader-layout`. */

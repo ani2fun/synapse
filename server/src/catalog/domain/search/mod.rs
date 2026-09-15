@@ -206,6 +206,13 @@ impl SearchIndex {
     /// palette: `windo` should find `window` before the word is finished.
     #[must_use]
     pub fn search(&self, query: &str, limit: usize) -> Vec<SearchHit> {
+        self.search_where(query, limit, |_| true)
+    }
+
+    /// `search`, over the documents whose SOURCE passes `visible`. The filter runs before the
+    /// candidate cut rather than on the finished hits, so an invisible document never occupies a
+    /// slot a visible one would have had.
+    pub fn search_where(&self, query: &str, limit: usize, visible: impl Fn(&str) -> bool) -> Vec<SearchHit> {
         let mut terms = text::tokenize(query);
         terms.truncate(MAX_TERMS);
         if terms.is_empty() || limit == 0 || self.docs.is_empty() {
@@ -227,6 +234,7 @@ impl SearchIndex {
             .iter()
             .enumerate()
             .filter(|&(_, count)| *count == wanted)
+            .filter(|&(doc, _)| self.docs.get(doc).is_some_and(|d| visible(&d.source_id)))
             .filter_map(|(doc, _)| scores.get(doc).map(|score| (doc, *score)))
             .collect();
         ranked.sort_by(|a, b| b.1.total_cmp(&a.1));

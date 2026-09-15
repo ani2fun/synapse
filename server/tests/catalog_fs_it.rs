@@ -6,7 +6,9 @@ use std::fs;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
-use synapse_server::catalog::application::{CatalogService, ContentError, ContentRepository, Placements};
+use synapse_server::catalog::application::{
+    CatalogService, ContentError, ContentRepository, Placements, Viewer,
+};
 use synapse_server::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
 use synapse_server::catalog::domain::merge::Placement;
 use synapse_server::catalog::infrastructure::{FileSystemContentRepository, SourceRoot, read_commit_sha};
@@ -39,7 +41,7 @@ async fn load_tree_decodes_markers_and_round_trips_lesson_reads() {
     let repo = FileSystemContentRepository::new(tmp.path(), true);
     let service = CatalogService::new(repo);
 
-    let index = service.index().await.unwrap();
+    let index = service.index(&Viewer::Anonymous).await.unwrap();
     assert_eq!(index.entries.len(), 1, "hidden top-level dirs must be pruned");
     assert_eq!(index.entries[0].slug(), "learn");
 
@@ -47,7 +49,7 @@ async fn load_tree_decodes_markers_and_round_trips_lesson_reads() {
         .iter()
         .map(|s| (*s).to_owned())
         .collect();
-    let lesson = service.lesson(&path).await.unwrap();
+    let lesson = service.lesson(&path, &Viewer::Anonymous).await.unwrap();
     assert_eq!(lesson.raw, "singly body");
     assert_eq!(lesson.book.title, "DSA");
 }
@@ -281,12 +283,19 @@ async fn a_lesson_landed_by_a_satellite_is_readable_without_a_restart() {
     // The satellite is genuinely mounted and served before the flip — otherwise the assertion
     // below would pass for the wrong reason.
     assert_eq!(
-        service.lesson(&path("isomorphic-string")).await.unwrap().raw,
+        service
+            .lesson(&path("isomorphic-string"), &Viewer::Anonymous)
+            .await
+            .unwrap()
+            .raw,
         "isomorphic body"
     );
     let rotate = path("rotate-string");
     assert!(
-        matches!(service.lesson(&rotate).await, Err(ContentError::NotFound(_))),
+        matches!(
+            service.lesson(&rotate, &Viewer::Anonymous).await,
+            Err(ContentError::NotFound(_))
+        ),
         "the lesson does not exist yet"
     );
 
@@ -300,7 +309,7 @@ async fn a_lesson_landed_by_a_satellite_is_readable_without_a_restart() {
     );
 
     let lesson = service
-        .lesson(&rotate)
+        .lesson(&rotate, &Viewer::Anonymous)
         .await
         .expect("the landed lesson must be readable without a restart");
     assert_eq!(lesson.raw, "rotate body");
@@ -330,18 +339,18 @@ async fn a_root_book_json_makes_the_checkout_one_book() {
     assert_eq!(root_meta.slug.as_deref(), Some("java"));
 
     let service = CatalogService::new(repo);
-    let index = service.index().await.unwrap();
+    let index = service.index(&Viewer::Anonymous).await.unwrap();
     assert_eq!(index.entries.len(), 1);
     assert_eq!(index.entries[0].slug(), "java");
 
     let opening = service
-        .lesson(&["java".to_owned(), "index".to_owned()])
+        .lesson(&["java".to_owned(), "index".to_owned()], &Viewer::Anonymous)
         .await
         .expect("the root index.md is the book's first lesson");
     assert_eq!(opening.raw, "# Java");
     assert!(
         service
-            .lesson(&["java".to_owned(), "readme".to_owned()])
+            .lesson(&["java".to_owned(), "readme".to_owned()], &Viewer::Anonymous)
             .await
             .is_err(),
         "README.md must not render as a lesson"

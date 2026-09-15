@@ -225,6 +225,11 @@ pub fn walk_source(source: &SourceTree) -> Result<WalkResult, SynapseContentErro
     };
     Ok(WalkResult {
         catalog: SynapseContentCatalog { entries },
+        book_sources: state
+            .lesson_files
+            .keys()
+            .map(|slug| (slug.clone(), source.id.clone()))
+            .collect(),
         lesson_files: state.lesson_files,
         warnings: state.warnings,
     })

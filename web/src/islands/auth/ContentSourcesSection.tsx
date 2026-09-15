@@ -25,6 +25,7 @@ import {
   contentWarnings,
 } from "../../lib/api/client";
 import * as log from "../../lib/log";
+import { ContentReadersSection } from "./ContentReadersSection";
 
 type ActionStatus =
   | { kind: "idle" }
@@ -76,6 +77,9 @@ export function ContentSourcesSection() {
   const [repo, setRepo] = useState("");
   const [grouping, setGrouping] = useState("");
   const [order, setOrder] = useState("");
+  const [visibility, setVisibility] = useState<"public" | "private">("public");
+  /** The source whose reader list is open below the table, by id. */
+  const [readersOf, setReadersOf] = useState<string | null>(null);
 
   const reload = () => {
     void (async () => {
@@ -125,14 +129,20 @@ export function ContentSourcesSection() {
           repo: normalised,
           grouping: grouping.trim() === "" ? null : grouping.trim(),
           order: parsed,
+          visibility,
         });
         setStatus({
           kind: "ok",
-          message: `Registered ${stored.repo}. It appears once the next fetch lands it.`,
+          message:
+            visibility === "private"
+              ? `Registered ${stored.repo} as private — nobody can read it until you add a reader.`
+              : `Registered ${stored.repo}. It appears once the next fetch lands it.`,
         });
         setRepo("");
         setGrouping("");
         setOrder("");
+        setVisibility("public");
+        if (visibility === "private") setReadersOf(stored.id);
         reload();
       } catch (error) {
         setStatus({ kind: "error", message: failureMessage(error) });
@@ -140,9 +150,17 @@ export function ContentSourcesSection() {
     })();
   };
 
-  /** Enable/disable is a re-registration: the row is an upsert keyed on the derived id. */
-  const setEnabled = (row: ContentSource, enabled: boolean) => {
-    setStatus({ kind: "busy", message: `${enabled ? "Enabling" : "Disabling"} ${row.repo}…` });
+  /**
+   * Enable/disable and public/private are re-registrations: the row is an upsert keyed on the
+   * derived id, and EVERY field travels — a re-registration that forgot `visibility` would quietly
+   * publish a private book, which is the one mistake this screen must make impossible.
+   */
+  const reregister = (
+    row: ContentSource,
+    change: Partial<Pick<ContentSource, "enabled" | "visibility">>,
+    verb: string,
+  ) => {
+    setStatus({ kind: "busy", message: `${verb} ${row.repo}…` });
     void (async () => {
       try {
         await contentSourceRegister({
@@ -150,15 +168,20 @@ export function ContentSourcesSection() {
           branch: row.branch,
           grouping: row.grouping === "" ? null : row.grouping,
           order: row.order ?? null,
-          enabled,
+          enabled: change.enabled ?? row.enabled,
+          visibility: change.visibility ?? row.visibility,
         });
-        setStatus({ kind: "ok", message: `${row.repo} ${enabled ? "enabled" : "disabled"}.` });
+        setStatus({ kind: "ok", message: `${row.repo}: done.` });
         reload();
       } catch (error) {
         setStatus({ kind: "error", message: failureMessage(error) });
       }
     })();
   };
+  const setEnabled = (row: ContentSource, enabled: boolean) =>
+    reregister(row, { enabled }, enabled ? "Enabling" : "Disabling");
+  const setVisibilityOf = (row: ContentSource, next: "public" | "private") =>
+    reregister(row, { visibility: next }, next === "private" ? "Making private" : "Making public");
 
   const remove = (row: ContentSource) => {
     setStatus({ kind: "busy", message: `Removing ${row.repo}…` });
@@ -222,6 +245,17 @@ export function ContentSourcesSection() {
           value={order}
           onInput={(event) => setOrder((event.target as HTMLInputElement).value)}
         />
+        <select
+          class="admin__input admin__input--order"
+          aria-label="visibility"
+          value={visibility}
+          onChange={(event) =>
+            setVisibility((event.target as HTMLSelectElement).value === "private" ? "private" : "public")
+          }
+        >
+          <option value="public">public</option>
+          <option value="private">private</option>
+        </select>
         <button class="admin__grant-btn" type="submit">
           Register
         </button>
@@ -229,7 +263,20 @@ export function ContentSourcesSection() {
           Sync now
         </button>
       </form>
-      <SourcesTable rows={rows} setEnabled={setEnabled} remove={remove} />
+      <SourcesTable
+        rows={rows}
+        setEnabled={setEnabled}
+        setVisibility={setVisibilityOf}
+        remove={remove}
+        readersOf={readersOf}
+        toggleReaders={(id) => setReadersOf((open) => (open === id ? null : id))}
+      />
+      {readersOf !== null && rows.kind === "loaded" && (
+        <ContentReadersSection
+          source={rows.rows.find((row) => row.id === readersOf) ?? null}
+          close={() => setReadersOf(null)}
+        />
+      )}
       <WarningsList warnings={warnings} />
     </section>
   );
@@ -238,11 +285,17 @@ export function ContentSourcesSection() {
 function SourcesTable({
   rows,
   setEnabled,
+  setVisibility,
   remove,
+  readersOf,
+  toggleReaders,
 }: {
   rows: Rows;
   setEnabled: (row: ContentSource, enabled: boolean) => void;
+  setVisibility: (row: ContentSource, next: "public" | "private") => void;
   remove: (row: ContentSource) => void;
+  readersOf: string | null;
+  toggleReaders: (id: string) => void;
 }) {
   if (rows.kind === "loading") return <p class="account-page__loading">Loading repositories…</p>;
   if (rows.kind === "failed")
@@ -263,6 +316,7 @@ function SourcesTable({
         {rows.rows.map((row) => (
           <tr key={row.id}>
             <td class="admin__cell-user">
+              {row.visibility === "private" ? "🔒 " : ""}
               {row.repo}
               {row.branch === "main" ? "" : `#${row.branch}`}
               {row.enabled ? "" : " (disabled)"}
@@ -281,6 +335,15 @@ function SourcesTable({
             <td>
               <button class="admin__revoke" onClick={() => setEnabled(row, !row.enabled)}>
                 {row.enabled ? "Disable" : "Enable"}
+              </button>
+              <button
+                class="admin__revoke"
+                onClick={() => setVisibility(row, row.visibility === "private" ? "public" : "private")}
+              >
+                {row.visibility === "private" ? "Make public" : "Make private"}
+              </button>
+              <button class="admin__revoke" aria-expanded={readersOf === row.id} onClick={() => toggleReaders(row.id)}>
+                Readers
               </button>
               <button class="admin__revoke" onClick={() => remove(row)}>
                 Remove

@@ -13,13 +13,19 @@ use crate::catalog::domain::catalog::{BookEntry, CatalogEntry, Lesson, SynapseCo
 use crate::catalog::domain::lesson::LessonContent;
 use crate::catalog::domain::search::{DocKind, SearchHit};
 
-pub fn to_index(catalog: &SynapseContentCatalog) -> SynapseIndexDto {
+/// `private` names the books this viewer was ADMITTED to; the catalog handed in has already lost
+/// the ones they were not. The mark is for a lock in the rail, never a gate.
+pub fn to_index(catalog: &SynapseContentCatalog, private: &[String]) -> SynapseIndexDto {
     SynapseIndexDto {
-        entries: catalog.entries.iter().map(catalog_entry).collect(),
+        entries: catalog
+            .entries
+            .iter()
+            .map(|e| catalog_entry(e, private))
+            .collect(),
     }
 }
 
-fn catalog_entry(entry: &CatalogEntry) -> CatalogEntryDto {
+fn catalog_entry(entry: &CatalogEntry, private: &[String]) -> CatalogEntryDto {
     match entry {
         CatalogEntry::Category(c) => CatalogEntryDto::Category(CategoryDto {
             slug: c.slug.clone(),
@@ -27,7 +33,7 @@ fn catalog_entry(entry: &CatalogEntry) -> CatalogEntryDto {
             description: c.description.clone(),
             icon: c.icon.clone(),
             order: c.order,
-            entries: c.entries.iter().map(catalog_entry).collect(),
+            entries: c.entries.iter().map(|e| catalog_entry(e, private)).collect(),
         }),
         CatalogEntry::Book(b) => CatalogEntryDto::Book(BookDto {
             slug: b.slug.clone(),
@@ -37,6 +43,7 @@ fn catalog_entry(entry: &CatalogEntry) -> CatalogEntryDto {
             estimated_reading_minutes: b.estimated_reading_minutes,
             order: b.order,
             category_path: b.category_path.clone(),
+            private: private.contains(&b.slug),
             entries: b.entries.iter().map(book_entry).collect(),
         }),
     }
@@ -99,10 +106,34 @@ pub fn to_payload(content: &LessonContent) -> LessonPayloadDto {
     }
 }
 
-/// `NotFound`→404 · `Io`→500 · `IndexInvalid`→500, always the `ApiError` envelope.
+/// `NotFound`→404 · `Io`→500 · `IndexInvalid`→500 · `Forbidden`→401 anonymous / 403 named, always
+/// the `ApiError` envelope. The two refusals differ in what the reader can DO about them: sign in,
+/// or ask the admin — so the copy says which, and the page tier branches on the status.
 pub fn to_error(error: &ContentError) -> (axum::http::StatusCode, ApiError) {
     use axum::http::StatusCode;
     match error {
+        ContentError::Forbidden {
+            book,
+            anonymous: true,
+        } => (
+            StatusCode::UNAUTHORIZED,
+            ApiError {
+                error: "Sign in to read this book".to_owned(),
+                detail: Some(format!("'{book}' is private")),
+                hint: Some("This book is served to its reader list only".to_owned()),
+            },
+        ),
+        ContentError::Forbidden {
+            book,
+            anonymous: false,
+        } => (
+            StatusCode::FORBIDDEN,
+            ApiError {
+                error: "This book is private".to_owned(),
+                detail: Some(format!("you are not on the reader list for '{book}'")),
+                hint: Some("An admin grants readers from /admin → Content repositories".to_owned()),
+            },
+        ),
         ContentError::NotFound(detail) => (
             StatusCode::NOT_FOUND,
             ApiError {

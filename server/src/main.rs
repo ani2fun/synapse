@@ -15,7 +15,7 @@ use synapse_server::blog::application::BlogService;
 use synapse_server::blog::infrastructure::FileSystemBlogRepository;
 use synapse_server::canvas::PostgresCanvasStore;
 use synapse_server::catalog::application::CatalogService;
-use synapse_server::catalog::application::{Placements, grouping_from_str};
+use synapse_server::catalog::application::{Audience, Audiences, Placements, grouping_from_str};
 use synapse_server::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
 use synapse_server::catalog::domain::merge::Placement;
 use synapse_server::catalog::http::admin::ContentSourceRoutesState;
@@ -26,6 +26,7 @@ use synapse_server::catalog::infrastructure::{
 use synapse_server::execution::application::RunCodeService;
 use synapse_server::execution::infrastructure::GoJudgeRunner;
 use synapse_server::identity::application::IdentityService;
+use synapse_server::identity::domain::Username;
 use synapse_server::identity::http::IdentityRoutesState;
 use synapse_server::identity::infrastructure::{JwksTokenVerifier, KeycloakAdminClient};
 use synapse_server::platform::rate_limiter::{RateLimitBucket, RateLimiter};
@@ -70,7 +71,10 @@ async fn main() -> anyhow::Result<()> {
     // The wiring graph, in one place: config → adapters → services → the router.
     let content = ContentHandles::for_primary(&cfg.content_root, &cfg)?;
     let repo = content.repository(cfg.auto_reload);
-    let catalog = Arc::new(CatalogService::with_placements(repo, content.placements.clone()));
+    let catalog = Arc::new(
+        CatalogService::with_placements(repo, content.placements.clone())
+            .with_audiences(content.audiences.clone()),
+    );
     let runner = Arc::new(RunCodeService::new(GoJudgeRunner::new(&cfg.executor_url)));
     let allowlist = Arc::new(PostgresSubmissionAllowlist::new(pool.clone()));
     let views = Arc::new(synapse_server::insights::PostgresLessonViews::new(pool.clone()));
@@ -188,6 +192,9 @@ struct ContentHandles {
     pinned: MountOrder,
     mounted: MountedSources,
     placements: Placements,
+    /// Who may read each source. A local satellite declares its own readers in
+    /// `SYNAPSE_LOCAL_SOURCES`; the registered ones arrive with each sync tick.
+    audiences: Audiences,
 }
 
 impl ContentHandles {
@@ -198,20 +205,32 @@ impl ContentHandles {
         let local = cfg.local_sources()?;
         let mut roots = vec![SourceRoot::new(PRIMARY_SOURCE_ID, content_root)];
         let mut placements = Vec::new();
+        let mut audiences = std::collections::BTreeMap::new();
         mount_local_only(content_root, &mut roots, &mut placements);
         for source in &local {
-            tracing::info!(id = %source.id, root = %source.root, grouping = %source.grouping, "mounting a LOCAL content source");
+            tracing::info!(id = %source.id, root = %source.root, grouping = %source.grouping, private = source.private, "mounting a LOCAL content source");
             roots.push(SourceRoot::new(&source.id, &source.root));
             placements.push(Placement {
                 source_id: source.id.clone(),
                 grouping: grouping_from_str(&source.grouping),
                 order: source.order,
             });
+            if source.private {
+                // The same constructor the verifier uses, so a reader arrives under the spelling
+                // that was granted. A name that parses to nothing grants nobody.
+                let readers = source
+                    .readers
+                    .iter()
+                    .filter_map(|name| Username::parse(name))
+                    .collect();
+                audiences.insert(source.id.clone(), Audience::Private { readers });
+            }
         }
         let pinned = MountOrder::pinned(roots, placements);
         let handles = Self {
             mounted: MountedSources::new(pinned.roots().to_vec()),
             placements: Placements::default(),
+            audiences: Audiences::pinned(audiences),
             pinned,
         };
         handles.placements.publish(handles.pinned.placements().to_vec());
@@ -272,6 +291,7 @@ fn spawn_content_sync(
         ContentCache::new(&cfg.content_cache),
         content.mounted.clone(),
         content.placements.clone(),
+        content.audiences.clone(),
         // Pinned: the primary plus any LOCAL satellites. Neither is a registry row, so a reconcile
         // rebuilt from the registry alone would drop them — it has to be additive over these.
         content.pinned.clone(),

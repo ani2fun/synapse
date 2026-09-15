@@ -13,6 +13,13 @@ pub struct LocalSource {
     pub grouping: String,
     #[serde(default)]
     pub order: Option<i32>,
+    /// Served to `readers` only — the same gate a private registration gets, so the e2e suite can
+    /// prove it without a registry row or the network.
+    #[serde(default)]
+    pub private: bool,
+    /// Usernames, canonicalised on boot exactly as a granted reader's are.
+    #[serde(default)]
+    pub readers: Vec<String>,
 }
 
 use figment::Figment;

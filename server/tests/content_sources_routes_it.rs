@@ -17,16 +17,19 @@ use axum::http::{Request, StatusCode, header};
 use common::{mint, stub_realm};
 use serde_json::Value;
 use synapse_server::catalog::application::{
-    CatalogService, ContentSourceDraft, ContentSourceRecord, ContentSources, RegistryError, SyncOutcome,
-    grouping_from_str,
+    Audience, CatalogService, ContentReader, ContentSourceDraft, ContentSourceRecord, ContentSources,
+    RegistryError, SyncOutcome, grouping_from_str,
 };
 use synapse_server::catalog::http::admin::ContentSourceRoutesState;
 use synapse_server::catalog::infrastructure::{FileSystemContentRepository, SyncTrigger};
+use synapse_server::identity::domain::Username;
 use tower::ServiceExt;
 
 #[derive(Default)]
 struct FakeRegistry {
     rows: Mutex<Vec<ContentSourceRecord>>,
+    /// (source id, reader) — the real store's child table, flattened.
+    readers: Mutex<Vec<(String, ContentReader)>>,
 }
 
 impl ContentSources for FakeRegistry {
@@ -44,6 +47,7 @@ impl ContentSources for FakeRegistry {
             grouping: draft.grouping().to_vec(),
             order: draft.order(),
             enabled: draft.enabled(),
+            audience: Audience::parse(draft.visibility(), std::collections::BTreeSet::new()).unwrap(),
             last_sha: None,
             last_synced_at: None,
             last_error: None,
@@ -62,11 +66,50 @@ impl ContentSources for FakeRegistry {
     async fn record_sync(&self, _id: &str, _outcome: &SyncOutcome) -> Result<(), RegistryError> {
         Ok(())
     }
+    async fn list_readers(&self, id: &str) -> Result<Option<Vec<ContentReader>>, RegistryError> {
+        if !self.rows.lock().unwrap().iter().any(|r| r.id == id) {
+            return Ok(None);
+        }
+        let readers = self.readers.lock().unwrap();
+        Ok(Some(
+            readers
+                .iter()
+                .filter(|(s, _)| s == id)
+                .map(|(_, r)| r.clone())
+                .collect(),
+        ))
+    }
+    async fn grant_reader(
+        &self,
+        id: &str,
+        username: &Username,
+        note: Option<&str>,
+    ) -> Result<Option<ContentReader>, RegistryError> {
+        if !self.rows.lock().unwrap().iter().any(|r| r.id == id) {
+            return Ok(None);
+        }
+        let reader = ContentReader {
+            username: username.clone(),
+            note: note.map(str::to_owned),
+            granted_at: chrono::Utc::now(),
+        };
+        let mut readers = self.readers.lock().unwrap();
+        readers.retain(|(s, r)| !(s == id && r.username == *username));
+        readers.push((id.to_owned(), reader.clone()));
+        Ok(Some(reader))
+    }
+    async fn revoke_reader(&self, id: &str, username: &Username) -> Result<bool, RegistryError> {
+        let mut readers = self.readers.lock().unwrap();
+        let before = readers.len();
+        readers.retain(|(s, r)| !(s == id && r.username == *username));
+        Ok(readers.len() < before)
+    }
 }
 
 fn seeded(records: Vec<ContentSourceRecord>) -> Arc<FakeRegistry> {
     Arc::new(FakeRegistry {
         rows: Mutex::new(records),
+        readers: Mutex::new(Vec::new()),
     })
 }
 
@@ -78,6 +121,7 @@ fn record(id: &str, grouping: &str, enabled: bool) -> ContentSourceRecord {
         grouping: grouping_from_str(grouping),
         order: Some(7),
         enabled,
+        audience: Audience::Public,
         last_sha: Some("abc123".to_owned()),
         last_synced_at: None,
         last_error: None,
@@ -282,6 +326,174 @@ async fn listing_reports_the_sync_state_the_panel_shows() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body[0]["lastSha"], "abc123");
     assert_eq!(body[0]["repo"], "ani2fun/java-guide");
+}
+
+// ── visibility and readers ───────────────────────────────────────────────────
+
+#[tokio::test]
+async fn a_registration_carries_its_visibility_and_refuses_an_unknown_one() {
+    let issuer = stub_realm().await;
+    let token = mint(&issuer, "tester");
+    let (status, body) = call(
+        app(&issuer, seeded(Vec::new()), None),
+        "POST",
+        "/api/admin/content-sources",
+        Some(&token),
+        Some(r#"{"repo":"ani2fun/insight-earned","visibility":"private"}"#),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["visibility"], "private");
+
+    let (status, body) = call(
+        app(&issuer, seeded(Vec::new()), None),
+        "POST",
+        "/api/admin/content-sources",
+        Some(&token),
+        Some(r#"{"repo":"ani2fun/java-guide"}"#),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        body["visibility"], "public",
+        "the default, stated rather than absent"
+    );
+
+    let (status, body) = call(
+        app(&issuer, seeded(Vec::new()), None),
+        "POST",
+        "/api/admin/content-sources",
+        Some(&token),
+        Some(r#"{"repo":"ani2fun/java-guide","visibility":"hidden"}"#),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(body["detail"].as_str().unwrap().contains("visibility"), "{body}");
+}
+
+#[tokio::test]
+async fn readers_are_granted_listed_and_revoked_by_an_admin_and_wake_the_loop() {
+    let issuer = stub_realm().await;
+    let token = mint(&issuer, "tester");
+    let registry = seeded(vec![record("insight-earned", "", true)]);
+    let trigger = SyncTrigger::default();
+
+    // Granted as typed, stored canonical — the spelling the reader's token will carry.
+    let (status, body) = call(
+        app(&issuer, Arc::clone(&registry), Some(trigger.clone())),
+        "POST",
+        "/api/admin/content-sources/insight-earned/readers",
+        Some(&token),
+        Some(r#"{"username":"  Ada ","note":"the author"}"#),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["username"], "ada");
+    assert_eq!(body["note"], "the author");
+    assert!(body["grantedAt"].is_string());
+    assert!(
+        tokio::time::timeout(std::time::Duration::from_millis(200), trigger.notified())
+            .await
+            .is_ok(),
+        "a grant takes effect on the next tick, so the grant brings the tick forward"
+    );
+
+    let (status, body) = call(
+        app(&issuer, Arc::clone(&registry), None),
+        "GET",
+        "/api/admin/content-sources/insight-earned/readers",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body.as_array().unwrap().len(), 1);
+    assert_eq!(body[0]["username"], "ada");
+
+    let (status, _) = call(
+        app(&issuer, Arc::clone(&registry), None),
+        "DELETE",
+        "/api/admin/content-sources/insight-earned/readers/ADA",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(
+        status,
+        StatusCode::NO_CONTENT,
+        "revoked under the canonical spelling"
+    );
+
+    let (status, _) = call(
+        app(&issuer, Arc::clone(&registry), None),
+        "DELETE",
+        "/api/admin/content-sources/insight-earned/readers/ada",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "already gone");
+}
+
+#[tokio::test]
+async fn the_reader_list_is_admin_only_and_needs_a_real_source_and_a_real_name() {
+    let issuer = stub_realm().await;
+    let registry = seeded(vec![record("insight-earned", "", true)]);
+    let grant = r#"{"username":"ada"}"#;
+
+    for (method, uri) in [
+        ("GET", "/api/admin/content-sources/insight-earned/readers"),
+        ("POST", "/api/admin/content-sources/insight-earned/readers"),
+        ("DELETE", "/api/admin/content-sources/insight-earned/readers/ada"),
+    ] {
+        let (status, _) = call(
+            app(&issuer, Arc::clone(&registry), None),
+            method,
+            uri,
+            None,
+            Some(grant),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{method} {uri}");
+        let (status, _) = call(
+            app(&issuer, Arc::clone(&registry), None),
+            method,
+            uri,
+            Some(&mint(&issuer, "someone-else")),
+            Some(grant),
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{method} {uri}");
+    }
+
+    let token = mint(&issuer, "tester");
+    let (status, _) = call(
+        app(&issuer, Arc::clone(&registry), None),
+        "GET",
+        "/api/admin/content-sources/nowhere/readers",
+        Some(&token),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "no such source");
+    let (status, _) = call(
+        app(&issuer, Arc::clone(&registry), None),
+        "POST",
+        "/api/admin/content-sources/nowhere/readers",
+        Some(&token),
+        Some(grant),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "no such source");
+    let (status, _) = call(
+        app(&issuer, registry, None),
+        "POST",
+        "/api/admin/content-sources/insight-earned/readers",
+        Some(&token),
+        Some(r#"{"username":"   "}"#),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "a blank name grants nobody");
 }
 
 // ── sync now ─────────────────────────────────────────────────────────────────

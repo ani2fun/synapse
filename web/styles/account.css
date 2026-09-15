@@ -107,6 +107,14 @@
 .admin__section + .admin__section { margin-top: 2.5rem; padding-top: 1.75rem;
                                     border-top: 1px solid hsl(var(--border)); }
 .admin__section-title { font-size: 1.15rem; color: hsl(var(--foreground)); margin: 0 0 0.35rem; }
+/* One repository's reader list, opened under the sources table — indented and boxed so it reads as
+   belonging to the row above it rather than as a fourth top-level section. The title carries its
+   own Close button, aligned to the right of the heading line. */
+.admin__section--nested { margin: 1rem 0 0 1rem; padding: 1rem 1.25rem; border-top: none;
+                          border: 1px solid hsl(var(--border)); border-radius: 0.6rem;
+                          background: hsl(var(--muted) / 0.25); }
+.admin__section--nested .admin__section-title { display: flex; align-items: center; gap: 0.75rem;
+                                                 justify-content: space-between; font-size: 1rem; }
 
 /* "My change requests" on /account — the contributor's own proposed edits, same card grammar as
    the progress/danger sections. */

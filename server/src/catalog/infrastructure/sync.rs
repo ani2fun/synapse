@@ -23,7 +23,8 @@ use std::time::Duration;
 use tokio::time::Instant;
 
 use crate::catalog::application::{
-    ContentFetcher, ContentSourceRecord, ContentSources, FetchError, Fetched, Placements, SyncOutcome,
+    Audiences, ContentFetcher, ContentSourceRecord, ContentSources, FetchError, Fetched, Placements,
+    SyncOutcome,
 };
 use crate::catalog::infrastructure::content_cache::ContentCache;
 use crate::catalog::infrastructure::filesystem::{MountedSources, SourceRoot};
@@ -42,6 +43,9 @@ pub struct ContentSync<R, F> {
     cache: ContentCache,
     mounted: MountedSources,
     placements: Placements,
+    /// Who may read each registered source. Republished every tick with the placements — a grant
+    /// or a revoke lands on the tick after it is made, which "Sync now" brings forward.
+    audiences: Audiences,
     /// What the process booted with — the git-sync'd monorepo and any locally-mounted satellites.
     /// They are not registry rows, so a reconcile rebuilt from the registry alone would drop them:
     /// reconciling is additive over this set, and `MountOrder` is what keeps it in front.
@@ -58,6 +62,7 @@ impl<R: ContentSources, F: ContentFetcher> ContentSync<R, F> {
         cache: ContentCache,
         mounted: MountedSources,
         placements: Placements,
+        audiences: Audiences,
         pinned: MountOrder,
     ) -> Self {
         Self {
@@ -66,6 +71,7 @@ impl<R: ContentSources, F: ContentFetcher> ContentSync<R, F> {
             cache,
             mounted,
             placements,
+            audiences,
             pinned,
             throttle: Throttle::default(),
         }
@@ -87,9 +93,11 @@ impl<R: ContentSources, F: ContentFetcher> ContentSync<R, F> {
         // construction rather than by the order the pushes below happen to run in.
         let mut order = self.pinned.pinned_only();
         let mut known = BTreeSet::new();
+        let mut audiences = std::collections::BTreeMap::new();
 
         for source in registered.iter().filter(|s| s.enabled) {
             known.insert(source.id.clone());
+            audiences.insert(source.id.clone(), source.audience.clone());
             if self.sync_one(source).await {
                 landed += 1;
             }
@@ -110,6 +118,7 @@ impl<R: ContentSources, F: ContentFetcher> ContentSync<R, F> {
         let (roots, placements) = order.into_parts();
         self.mounted.publish(roots);
         self.placements.publish(placements);
+        self.audiences.publish(audiences);
         landed
     }
 

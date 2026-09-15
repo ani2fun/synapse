@@ -138,6 +138,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/content-sources/{id}/readers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A private source's reader list, newest grant first. Kept on a PUBLIC source too — the names
+         *     are inert there, and flipping the source private must not start from an empty list.
+         */
+        get: operations["listContentReaders"];
+        put?: never;
+        /**
+         * Grant a reader (upsert — re-granting refreshes the note). The name is canonicalised through
+         *     the verifier's own constructor, so the row is stored under exactly the spelling the reader
+         *     will arrive with. Takes effect on the sync loop's next tick, which "Sync now" brings forward.
+         */
+        post: operations["grantContentReader"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/content-sources/{id}/readers/{username}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke a reader — 204 on removal, 404 when the grant never existed. */
+        delete: operations["revokeContentReader"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/content-warnings": {
         parameters: {
             query?: never;
@@ -667,6 +709,12 @@ export interface components {
             estimatedReadingMinutes?: number | null;
             /** Format: int32 */
             order?: number | null;
+            /**
+             * @description The book is served to its reader list only. A viewer who receives it is on that list —
+             *     the index never carries a private book to anyone else — so the flag is for a lock in the
+             *     rail, never a gate. Omitted when false, so the public tree is byte-for-byte what it was.
+             */
+            private?: boolean;
             slug: string;
             tags: string[];
             title: string;
@@ -767,6 +815,16 @@ export interface components {
             role: string;
         };
         /**
+         * @description One name on a private source's reader list. The username is canonical — trimmed and
+         *     lowercased server-side — the same form the submit and content-editor allowlists store.
+         */
+        ContentReaderDto: {
+            /** @description ISO-8601 instant. */
+            grantedAt: string;
+            note?: string | null;
+            username: string;
+        };
+        /**
          * @description A registered content repository, as the admin panel sees it. The sync fields are read-only —
          *     they are the fetch loop's report, and they are what turns "I registered it" into "it landed".
          */
@@ -790,6 +848,11 @@ export interface components {
             order?: number | null;
             /** @description `owner/name`. */
             repo: string;
+            /**
+             * @description `public`, or `private` — served only to the usernames on its reader list
+             *     (`/api/admin/content-sources/{id}/readers`).
+             */
+            visibility: string;
         };
         /** @description Delete/erase result — 0/1 for a single delete, N for erase-all. */
         DeleteResultDto: {
@@ -1001,6 +1064,12 @@ export interface components {
             /** Format: int32 */
             order?: number | null;
             repo: string;
+            /**
+             * @description `public` (the default) or `private`. A private book is fetched like any other — the
+             *     server's GitHub token must be able to read the repository — and served only to its reader
+             *     list; it is absent from the index, search and the sitemap for everyone else.
+             */
+            visibility?: string | null;
         };
         /** @description The run request. `language` is a fence alias (`py`, `cpp`, …), resolved server-side. */
         RunRequest: {
@@ -1585,6 +1654,169 @@ export interface operations {
                 };
             };
             /** @description No such source */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    listContentReaders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The derived source id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The reader list, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentReaderDto"][];
+                };
+            };
+            /** @description Anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description No such source */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    grantContentReader: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The derived source id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantRequestDto"];
+            };
+        };
+        responses: {
+            /** @description The stored grant */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentReaderDto"];
+                };
+            };
+            /** @description Blank username */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description No such source */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    revokeContentReader: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The derived source id */
+                id: string;
+                /** @description The granted username */
+                username: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description No such grant */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2721,6 +2953,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LessonPayloadDto"];
+                };
+            };
+            /** @description The book is private and the caller is anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The book is private and the caller is not on its reader list */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
                 };
             };
             /** @description No such lesson */

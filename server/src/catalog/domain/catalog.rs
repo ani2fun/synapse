@@ -123,6 +123,10 @@ impl LessonFileRef {
 pub struct WalkResult {
     pub catalog: SynapseContentCatalog,
     pub lesson_files: BTreeMap<String, BTreeMap<String, LessonFileRef>>,
+    /// Book slug → the source that serves it. The merge decides this (first source wins a slug)
+    /// and it is what an audience is keyed on: a registration says who may read a SOURCE, and a
+    /// reader asks for a BOOK.
+    pub book_sources: BTreeMap<String, String>,
     /// Cross-source conflicts, as DATA rather than log lines. Two reasons: the domain stays free
     /// of `tracing`, and the walk runs uncached on every edit-source fetch and every submit — a
     /// warn inside it would fire per request instead of once per content version. The caller with

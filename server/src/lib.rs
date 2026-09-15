@@ -154,6 +154,7 @@ where
     let catalog_state = catalog::http::routes::CatalogRoutesState {
         service: deps.catalog,
         views: deps.views,
+        identity: Arc::clone(&deps.ident.identity),
     };
     let mut api = Router::new()
         .merge(platform::http::routes(deps.readiness))
@@ -276,7 +277,10 @@ where
         catalog::http::admin::register_content_source,
         catalog::http::admin::remove_content_source,
         catalog::http::admin::sync_now,
-        catalog::http::admin::content_warnings
+        catalog::http::admin::content_warnings,
+        catalog::http::admin::list_readers,
+        catalog::http::admin::grant_reader,
+        catalog::http::admin::revoke_reader
     ),
     components(schemas(
         HealthStatus,
@@ -329,7 +333,8 @@ where
         synapse_shared::authoring::EditRequestDto,
         synapse_shared::catalog::ContentSourceDto,
         synapse_shared::catalog::RegisterContentSourceDto,
-        synapse_shared::catalog::CatalogWarningDto
+        synapse_shared::catalog::CatalogWarningDto,
+        synapse_shared::catalog::ContentReaderDto
     ))
 )]
 pub struct ApiDoc;

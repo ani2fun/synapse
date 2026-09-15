@@ -7,8 +7,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use sqlx::PgPool;
-use synapse_server::catalog::application::{ContentSourceDraft, ContentSources, SyncOutcome};
+use synapse_server::catalog::application::{Audience, ContentSourceDraft, ContentSources, SyncOutcome};
 use synapse_server::catalog::infrastructure::PostgresContentSources;
+use synapse_server::identity::domain::Username;
 
 async fn gated_pool(namespace: &str) -> Option<PgPool> {
     if std::env::var("POSTGRES_IT").is_err() {
@@ -32,7 +33,7 @@ async fn gated_pool(namespace: &str) -> Option<PgPool> {
 }
 
 fn draft(repo: &str, grouping: &str, order: Option<i32>) -> ContentSourceDraft {
-    ContentSourceDraft::register(repo, None, Some(grouping), order, None).unwrap()
+    ContentSourceDraft::register(repo, None, Some(grouping), order, None, None).unwrap()
 }
 
 #[tokio::test]
@@ -182,6 +183,7 @@ async fn listing_is_enabled_first_then_configured_order() {
         None,
         Some(0),
         Some(false),
+        None,
     )
     .unwrap();
     registry.upsert(&off).await.unwrap();
@@ -207,4 +209,79 @@ async fn listing_is_enabled_first_then_configured_order() {
     for id in ["zeta-guide", "alpha-guide", "off-guide"] {
         registry.remove(id).await.unwrap();
     }
+}
+
+#[tokio::test]
+async fn a_private_registration_carries_its_readers_and_a_re_registration_keeps_them() {
+    let namespace = "it-src-private";
+    let Some(pool) = gated_pool(namespace).await else {
+        return;
+    };
+    let registry = PostgresContentSources::new(pool);
+    let repo = format!("{namespace}/insight-earned");
+    let private = ContentSourceDraft::register(&repo, None, None, Some(9), None, Some("private")).unwrap();
+    let stored = registry.upsert(&private).await.unwrap();
+    assert_eq!(
+        stored.audience,
+        Audience::Private {
+            readers: std::collections::BTreeSet::new()
+        },
+        "private to nobody, yet"
+    );
+
+    // Missing source → None, so the route can 404 rather than invent an empty list.
+    assert!(registry.list_readers("nowhere").await.unwrap().is_none());
+    assert!(
+        registry
+            .grant_reader("nowhere", &Username::parse("ada").unwrap(), None)
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    let ada = Username::parse("Ada").unwrap();
+    let grant = registry
+        .grant_reader("insight-earned", &ada, Some("the author"))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(grant.username.as_str(), "ada", "stored canonical");
+    assert_eq!(grant.note.as_deref(), Some("the author"));
+    // Re-granting refreshes the note rather than adding a row.
+    registry.grant_reader("insight-earned", &ada, None).await.unwrap();
+    let readers = registry.list_readers("insight-earned").await.unwrap().unwrap();
+    assert_eq!(readers.len(), 1);
+    assert_eq!(readers[0].note, None);
+
+    // The list the sync loop reads carries the audience with its readers…
+    let listed = registry.list().await.unwrap();
+    let row = listed.iter().find(|r| r.id == "insight-earned").unwrap();
+    assert_eq!(
+        row.audience,
+        Audience::Private {
+            readers: [ada.clone()].into_iter().collect()
+        }
+    );
+
+    // …and a re-registration (the panel's enable/disable) does not blank it.
+    let again =
+        ContentSourceDraft::register(&repo, None, None, Some(9), Some(false), Some("private")).unwrap();
+    let stored = registry.upsert(&again).await.unwrap();
+    assert_eq!(
+        stored.audience,
+        Audience::Private {
+            readers: [ada.clone()].into_iter().collect()
+        }
+    );
+
+    assert!(registry.revoke_reader("insight-earned", &ada).await.unwrap());
+    assert!(
+        !registry.revoke_reader("insight-earned", &ada).await.unwrap(),
+        "already gone"
+    );
+
+    // Removing the source removes its readers with it (the foreign key cascades).
+    registry.grant_reader("insight-earned", &ada, None).await.unwrap();
+    assert!(registry.remove("insight-earned").await.unwrap());
+    assert!(registry.list_readers("insight-earned").await.unwrap().is_none());
 }

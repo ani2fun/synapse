@@ -274,6 +274,29 @@ fn the_first_source_keeps_a_contested_book_slug_and_its_own_files() {
 }
 
 #[test]
+fn every_book_names_the_source_that_serves_it() {
+    // Audiences are registered per SOURCE and asked for per BOOK, so the merge's decision about
+    // which source won a slug must be readable — including for the contested slug, where the
+    // answer is the first source and not the one that arrived later.
+    let spine = collection(
+        "main",
+        vec![book_dir("03-java", meta("java", None), vec![file("01-a.md")])],
+    );
+    let satellite = book_source("java", meta("java", None), vec![file("09-different.md")]);
+    let private = book_source(
+        "insight-earned",
+        meta("dsa-guide-insight", None),
+        vec![file("01-a.md")],
+    );
+
+    let walk = assemble(&[spine, satellite, private], &[]).unwrap();
+
+    assert_eq!(walk.book_sources["java"], "main");
+    assert_eq!(walk.book_sources["dsa-guide-insight"], "insight-earned");
+    assert_eq!(walk.book_sources.len(), 2, "a skipped copy is not a book");
+}
+
+#[test]
 fn a_grouping_left_empty_by_a_skipped_book_does_not_survive_as_a_bare_heading() {
     let spine = collection(
         "main",
