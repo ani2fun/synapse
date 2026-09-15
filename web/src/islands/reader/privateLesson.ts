@@ -13,7 +13,7 @@
 // and editorial as prose — no workbench, no Submit — and says so.
 //
 // Loaded ONLY in the page's private mode, so the ordinary lesson's eager budget does not move.
-import { ApiFailure, fetchIndex, lesson as fetchLesson } from "../../lib/api/client";
+import { ApiFailure, bearerHeaders, fetchIndex, lesson as fetchLesson } from "../../lib/api/client";
 import type { LessonPayload } from "../../lib/api/client";
 import type { components } from "../../lib/api/schema.gen";
 import { bookOf, problemContentSplit } from "../../lib/catalog/tree";
@@ -112,6 +112,37 @@ function renderPager(payload: LessonPayload): void {
   nav.innerHTML = card(payload.prev, "Previous", false) + card(payload.next, "Next", true);
 }
 
+/**
+ * A private source's `/media/…` files are gated like its prose, and an `<img>` (or a `<video>`,
+ * `<audio>`, `<source>`) carries no bearer. So every media reference in the rendered body is
+ * fetched here WITH the bearer and swapped for a blob URL the browser can show. A file that is
+ * refused or missing keeps its original `src`, so the broken-image mark says what happened
+ * rather than a blank.
+ */
+async function attachPrivateMedia(body: HTMLElement): Promise<void> {
+  const nodes = body.querySelectorAll<HTMLImageElement | HTMLMediaElement | HTMLSourceElement>(
+    'img[src^="/media/"], video[src^="/media/"], audio[src^="/media/"], source[src^="/media/"]',
+  );
+  let swapped = 0;
+  await Promise.all(
+    Array.from(nodes).map(async (node) => {
+      const src = node.getAttribute("src");
+      if (!src) return;
+      try {
+        const response = await fetch(src, { headers: bearerHeaders() });
+        if (!response.ok) return;
+        node.src = URL.createObjectURL(await response.blob());
+        swapped += 1;
+      } catch (error) {
+        log.debug(`private media skipped: ${src} (${error instanceof Error ? error.message : String(error)})`);
+      }
+    }),
+  );
+  // A `<source>` swap only takes effect once its parent reloads.
+  for (const media of body.querySelectorAll<HTMLMediaElement>("video, audio")) media.load();
+  if (swapped > 0) log.debug(`private lesson: ${swapped} media file(s) fetched with the bearer`);
+}
+
 async function render(payload: LessonPayload, segments: string[]): Promise<void> {
   const title = root?.querySelector<HTMLElement>("[data-private-title]");
   if (title) title.textContent = payload.frontmatter.title;
@@ -139,6 +170,7 @@ async function render(payload: LessonPayload, segments: string[]): Promise<void>
   const body = root?.querySelector<HTMLElement>("[data-private-body]");
   if (!body) return;
   body.innerHTML = bodyHtml;
+  await attachPrivateMedia(body);
   await hydratePreview(body);
   status(note);
   renderPager(payload);

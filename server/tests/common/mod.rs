@@ -120,6 +120,7 @@ where
         astro_url: base.astro_url,
         site_url: base.site_url,
         mounted: base.mounted,
+        audiences: base.audiences,
         d2_render_url: None,
         readiness: base.readiness,
         authoring: base.authoring,
@@ -218,6 +219,7 @@ pub fn deps_with(
         site_url: "https://synapse.test".to_owned(),
         // The single-checkout shape the binary boots with before any satellite lands.
         mounted: MountedSources::new(vec![SourceRoot::new(PRIMARY_SOURCE_ID, content_root)]),
+        audiences: synapse_server::catalog::application::Audiences::default(),
         d2_render_url: None,
         readiness,
         authoring,

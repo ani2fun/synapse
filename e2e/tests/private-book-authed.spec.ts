@@ -38,6 +38,12 @@ test.describe("private book — a listed reader, and one who is not", () => {
     expect(response?.status()).toBe(401);
     await expect(page.locator("[data-private-title]")).toHaveText("Selection Sort, Rewritten", { timeout: 30_000 });
     await expect(page.locator("[data-private-body]")).toContainText("quokka invariant");
+    // The figure in the prose is a private file: an <img> carries no bearer, so the island
+    // fetched it itself and handed the browser a blob — and it painted.
+    const figure = page.locator('[data-private-body] img[alt="One pass of the scan"]');
+    await expect(figure).toBeVisible({ timeout: 10_000 });
+    await expect.poll(() => figure.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+    expect(await figure.getAttribute("src")).toMatch(/^blob:/);
     await expect(page.locator("[data-private-sidebar] .reader-sidebar__link--active")).toHaveText("Selection Sort, Rewritten");
     await expect(page.locator("[data-private-sidebar]")).toContainText("Private book");
 

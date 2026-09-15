@@ -507,3 +507,28 @@ async fn a_reader_granted_after_the_snapshot_was_built_is_admitted_without_a_reb
         "audiences are not version-gated"
     );
 }
+
+#[tokio::test]
+async fn a_placement_change_rebuilds_the_tree_without_a_content_change() {
+    let placements = Placements::default();
+    let service = CatalogService::with_placements(fixture(), placements.clone());
+    service.index(&Viewer::Anonymous).await.unwrap();
+    assert_eq!(service.repo.loads.load(Ordering::SeqCst), 1);
+
+    // The panel moves a source. Nothing in any repository moved.
+    placements.publish(vec![crate::catalog::domain::merge::Placement {
+        source_id: "somewhere".to_owned(),
+        grouping: vec!["study-notes".to_owned()],
+        order: Some(1),
+    }]);
+    service.index(&Viewer::Anonymous).await.unwrap();
+    assert_eq!(
+        service.repo.loads.load(Ordering::SeqCst),
+        2,
+        "a new placement is a new tree"
+    );
+
+    // The same placements again are the same key: no rebuild.
+    service.index(&Viewer::Anonymous).await.unwrap();
+    assert_eq!(service.repo.loads.load(Ordering::SeqCst), 2);
+}

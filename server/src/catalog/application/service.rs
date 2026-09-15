@@ -272,7 +272,7 @@ impl<R: ContentRepository> CatalogService<R> {
     /// by the `validate_book` CLI, neither of which searches anything — building there would tax
     /// the editor to serve the palette.
     async fn current(&self) -> Result<Arc<Snapshot>, ContentError> {
-        let version = self.repo.content_version().await;
+        let version = self.version().await;
         if let Some(fresh) = self.cached(&version).await {
             return Ok(fresh);
         }
@@ -293,7 +293,7 @@ impl<R: ContentRepository> CatalogService<R> {
             // have built a different one, and caching under a version nobody asked for would make
             // the very next request miss.
             let _queued = self.rebuilding.lock().await;
-            let version = self.repo.content_version().await;
+            let version = self.version().await;
             return match self.cached(&version).await {
                 Some(built) => Ok(built),
                 None => self.rebuild(version).await,
@@ -305,6 +305,23 @@ impl<R: ContentRepository> CatalogService<R> {
             return Ok(fresh);
         }
         self.rebuild(version).await
+    }
+
+    /// What the snapshot is keyed on: the content version AND where each source is placed.
+    ///
+    /// The placements are part of the key because they are part of the tree. A grouping or an
+    /// order edited from `/admin` is republished by the next sync tick, but no content moved —
+    /// keyed on content alone, the catalog kept grafting the book where it used to be until the
+    /// repository happened to receive a push, and the panel's edit looked like it did nothing.
+    async fn version(&self) -> String {
+        let content = self.repo.content_version().await;
+        let placed: Vec<String> = self
+            .placements
+            .snapshot()
+            .iter()
+            .map(|p| format!("{}@{}#{:?}", p.source_id, p.grouping.join("/"), p.order))
+            .collect();
+        format!("{content}|{}", placed.join(","))
     }
 
     /// The snapshot for exactly this version, or nothing.

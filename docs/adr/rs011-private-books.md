@@ -70,13 +70,26 @@ the API gave (401 or 403, passed through), and one island — loaded only in tha
 runtime branch of the page's single hoisted script — asks again with the session's bearer and
 renders the payload through `renderPreview` + `hydratePreview`, the exact pipeline and hydrators
 the authoring preview already runs client-side. The sidebar tree is rebuilt from the index the
-reader was admitted to.
+reader was admitted to, and the library landing adds the reader's private books as their own
+group once the session settles — it, too, is rendered from the anonymous index.
+
+**Media is gated with the prose, and fetched by the island.** `/media/{*rest}` finds the file in
+mount order as before, and when the source that owns it is private it verifies the bearer and
+applies the same 401 / 403 — the check runs only for a private file, so public media stays free
+of it. An `<img>` carries no bearer, so the private lesson island fetches every `/media/…`
+reference itself and hands the browser a blob URL. A private file is `Cache-Control: private,
+no-store`: a shared cache must never hold what the origin showed to one reader.
+
+**The catalog snapshot is keyed on placements as well as content.** A grouping or order edited
+from `/admin` is republished on the next tick with no content change; keyed on content alone, the
+tree kept grafting the book where it used to be until the repository happened to receive a push.
 
 ## Consequences
 
-- **Not gated, on purpose:** `/media/{*rest}` (an `<img>` carries no bearer) and the d2 boards
-  proxy (content-addressed; unguessable without the lesson). A private book must not carry secret
-  images; the prose is what is protected.
+- **The d2 boards proxy is not gated, and does not need to be:** a private lesson is never
+  server-rendered, so its walkthroughs are never compiled into the sidecar's cache — the proxy
+  holds nothing of a private book. The figures a reader sees are drawn by the client renderer,
+  in their own browser.
 - **A private `kind: problem` lesson has no workbench and no Submit** in this version. The judge,
   the tests and the submission history are wired from server-rendered state the shell never had.
   It reads as prose — description and editorial — and the page says so. The study system's boss

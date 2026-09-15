@@ -63,3 +63,11 @@ test("a bearer that does not verify is refused, never treated as anonymous", asy
   });
   expect(open.status()).toBe(200);
 });
+
+test("a private book's media is refused with its prose, and public media stays public", async ({ request }) => {
+  const refused = await request.get("/media/insight-earned/pass.svg");
+  expect(refused.status()).toBe(401);
+  // The public satellite's simulator assets and the spine's media keep their hour of cache.
+  const open = await request.get("/media/insight-earned/pass.svg", { headers: { Authorization: "Bearer not-a-token" } });
+  expect(open.status()).toBe(401);
+});

@@ -58,6 +58,14 @@ fn app(issuer: &str) -> Router {
         &satellite.path().join("01-sorting/01-selection-sort.md"),
         "---\ntitle: Selection sort, rewritten\n---\nthe reader's own explanation of xylophone ordering",
     );
+    write(
+        &satellite.path().join("_media/dsa-guide-insight/trace.svg"),
+        "<svg xmlns='http://www.w3.org/2000/svg'><text>private trace</text></svg>",
+    );
+    write(
+        &primary.path().join("_media/dsa/public.svg"),
+        "<svg xmlns='http://www.w3.org/2000/svg'><text>public figure</text></svg>",
+    );
 
     let mounted = MountedSources::new(vec![
         SourceRoot::new(PRIMARY_SOURCE_ID, primary.path()),
@@ -84,11 +92,13 @@ fn app(issuer: &str) -> Router {
         FileSystemContentRepository::mounted(mounted.clone(), true),
         placements,
     )
-    .with_audiences(audiences);
+    .with_audiences(audiences.clone());
 
     let mut deps = common::deps_with(Path::new("__no_content__"), "http://127.0.0.1:9", None, issuer);
     deps.catalog = Arc::new(catalog);
     deps.mounted = mounted;
+    // The same handle the catalog gates on — `/media` answers for the same sources.
+    deps.audiences = audiences;
     synapse_server::app(deps)
 }
 
@@ -246,4 +256,70 @@ async fn search_and_the_sitemap_keep_a_private_book_to_its_readers() {
         !sitemap.contains("dsa-guide-insight"),
         "a crawler is nobody's reader: {sitemap}"
     );
+}
+
+/// The files under a private source's `_media/` are the prose's companions and get the prose's
+/// gate. Cached `no-store` for a reader, because a shared cache must never hold what the origin
+/// showed to one person. Public media is untouched: same hour of public cache, no token check.
+#[tokio::test]
+async fn a_private_sources_media_is_served_to_its_readers_only_and_never_cached_in_public() {
+    let issuer = stub_realm().await;
+    let private = "/media/dsa-guide-insight/trace.svg";
+
+    let res = app(&issuer)
+        .oneshot(Request::builder().uri(private).body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::UNAUTHORIZED);
+
+    let res = app(&issuer)
+        .oneshot(
+            Request::builder()
+                .uri(private)
+                .header(
+                    header::AUTHORIZATION,
+                    format!("Bearer {}", mint(&issuer, "someone-else")),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::FORBIDDEN);
+
+    let res = app(&issuer)
+        .oneshot(
+            Request::builder()
+                .uri(private)
+                .header(
+                    header::AUTHORIZATION,
+                    format!("Bearer {}", mint(&issuer, "tester")),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers()[header::CONTENT_TYPE], "image/svg+xml");
+    assert_eq!(res.headers()[header::CACHE_CONTROL], "private, no-store");
+    let bytes = axum::body::to_bytes(res.into_body(), 1024 * 1024).await.unwrap();
+    assert!(String::from_utf8_lossy(&bytes).contains("private trace"));
+
+    let res = app(&issuer)
+        .oneshot(
+            Request::builder()
+                .uri("/media/dsa/public.svg")
+                .header(header::AUTHORIZATION, "Bearer not-a-token")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        res.status(),
+        StatusCode::OK,
+        "public media never looks at the header"
+    );
+    assert_eq!(res.headers()[header::CACHE_CONTROL], "public, max-age=3600");
 }
