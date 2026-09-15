@@ -4,11 +4,15 @@ import * as log from "../lib/log";
 // there is nothing here for a component framework to hydrate INTO; this script just mutates the
 // DOM Astro already rendered.
 //
-// Three jobs:
+// Four jobs:
 //   (a) inject a progress bar + pct into each book card's footer (`.lib-card__progress` / `--all`),
-//   (b) render the `.lib-continue` "pick up where you left off" card above the grid, and
+//   (b) render the `.lib-continue` "pick up where you left off" card above the grid,
 //   (c) the "Start reading" CTA's smooth-scroll-with-header-offset (the grid's bounding-rect top
-//       + `scrollY` − 80, the sticky header's height).
+//       + `scrollY` − 80, the sticky header's height), and
+//   (d) once the session settles, the books served to THIS reader alone. The page is rendered
+//       from an anonymous index and a private book is absent from it for everyone; the index
+//       fetched with the bearer carries the ones the reader is listed for, marked `private`, and
+//       they are added as their own group at the top of the grid.
 //
 // ISLAND-PROPS PATTERN CHOSEN HERE: index.astro embeds the SAME `SynapseIndexDto` it already
 // fetched for SSR as a `<script type="application/json" id="library-index-data">` blob
@@ -23,8 +27,11 @@ import * as storage from "../lib/storage";
 import * as api from "../lib/api/client";
 import { AUTH_CHANGED, isAuthed } from "./workbench/contracts";
 import { completedCount, parse as parseDone } from "../lib/catalog/progress";
-import { bookOf, findBook, readingOrder } from "../lib/catalog/tree";
+import { allBooksOf, bookOf, chapterCount, findBook, firstLessonPath, lessonCount, readingOrder } from "../lib/catalog/tree";
 import type { SynapseIndex } from "../lib/api/client";
+import type { components } from "../lib/api/schema.gen";
+
+type Book = components["schemas"]["BookDto"];
 
 function readIndex(): SynapseIndex | null {
   const el = document.getElementById("library-index-data");
@@ -138,6 +145,91 @@ function syncChipsFromServer(index: SynapseIndex, done: Set<string>): void {
     .catch((error) => log.debug(`library progress sync skipped: ${error instanceof Error ? error.message : String(error)}`));
 }
 
+/** (d) The reader's private books, as one group ahead of the public grid. Idempotent: the
+ *  group is keyed, and a book already on the page (public, or added by an earlier pass) is
+ *  skipped. Anonymous is a no-op — the anonymous index never carries a private book. */
+function renderPrivateBooks(): void {
+  if (!isAuthed()) return;
+  const grid = document.querySelector<HTMLElement>("#library-grid > .lib-grid");
+  if (!grid) return;
+  void api
+    .fetchIndex()
+    .then((index) => {
+      const mine = allBooksOf(index).filter(
+        (book) => book.private === true && !document.querySelector(`[data-book-slug="${book.slug}"]`),
+      );
+      if (mine.length === 0) return;
+      let group = document.getElementById("lib-private-group");
+      if (!group) {
+        group = document.createElement("div");
+        group.id = "lib-private-group";
+        group.className = "lib-group";
+        const title = document.createElement("div");
+        title.className = "lib-group__title";
+        title.textContent = "🔒 Your private books";
+        const inner = document.createElement("div");
+        inner.className = "lib-grid lib-grid--nested";
+        group.append(title, inner);
+        grid.prepend(group);
+      }
+      const inner = group.querySelector<HTMLElement>(".lib-grid--nested");
+      for (const book of mine) inner?.append(privateCard(book));
+      log.info(`library: ${mine.length} private book(s) added for the signed-in reader`);
+    })
+    .catch((error) => log.debug(`library private books skipped: ${error instanceof Error ? error.message : String(error)}`));
+}
+
+/** The same card `BookCard.astro` renders, built in the DOM: tile, lock badge, title, blurb,
+ *  the chapter/lesson line, and the Read footer. */
+function privateCard(book: Book): HTMLElement {
+  const path = firstLessonPath(book);
+  const card = document.createElement(path ? "a" : "div");
+  card.className = "lib-card";
+  card.dataset.bookSlug = book.slug;
+  if (path && card instanceof HTMLAnchorElement) card.href = `/synapse/${path}`;
+
+  const top = document.createElement("div");
+  top.className = "lib-card__top";
+  const tile = document.createElement("span");
+  tile.className = "lib-card__tile";
+  tile.setAttribute("aria-hidden", "true");
+  tile.textContent = "🔒";
+  const badge = document.createElement("span");
+  badge.className = "lib-card__badge";
+  badge.textContent = "private";
+  top.append(tile, badge);
+
+  const title = document.createElement("div");
+  title.className = "lib-card__title";
+  title.textContent = book.title;
+
+  const chapters = chapterCount(book);
+  const lessons = lessonCount(book);
+  const meta = document.createElement("div");
+  meta.className = "lib-card__meta";
+  const parts = [] as string[];
+  if (chapters > 0) parts.push(`${chapters} ${chapters === 1 ? "chapter" : "chapters"}`);
+  parts.push(`${lessons} ${lessons === 1 ? "lesson" : "lessons"}`);
+  meta.textContent = parts.join(" · ");
+
+  const footer = document.createElement("div");
+  footer.className = "lib-card__footer";
+  const cta = document.createElement("span");
+  cta.className = "lib-card__cta";
+  cta.textContent = "Read →";
+  footer.append(cta);
+
+  card.append(top, title);
+  if (book.description) {
+    const desc = document.createElement("p");
+    desc.className = "lib-card__desc";
+    desc.textContent = book.description;
+    card.append(desc);
+  }
+  card.append(meta, footer);
+  return card;
+}
+
 function init(): void {
   wireStartReading();
   const index = readIndex();
@@ -146,7 +238,11 @@ function init(): void {
   injectProgressChips(index, done);
   renderContinueCard(index);
   syncChipsFromServer(index, done);
-  window.addEventListener(AUTH_CHANGED, () => syncChipsFromServer(index, done));
+  renderPrivateBooks();
+  window.addEventListener(AUTH_CHANGED, () => {
+    syncChipsFromServer(index, done);
+    renderPrivateBooks();
+  });
 }
 
 if (document.readyState === "loading") {

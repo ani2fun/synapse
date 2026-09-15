@@ -41,6 +41,14 @@ test.describe("private book — a listed reader, and one who is not", () => {
     await expect(page.locator("[data-private-sidebar] .reader-sidebar__link--active")).toHaveText("Selection Sort, Rewritten");
     await expect(page.locator("[data-private-sidebar]")).toContainText("Private book");
 
+    // The library landing is rendered from the anonymous index, so the book reaches it only
+    // after the session settles — as its own group, ahead of the public grid.
+    await page.goto("/");
+    const mine = page.locator("#lib-private-group");
+    await expect(mine).toBeVisible({ timeout: 30_000 });
+    await expect(mine.locator('[data-book-slug="insight-earned"]')).toContainText("Insight Earned");
+    await expect(page.locator('[data-book-slug="insight-earned"]')).toHaveCount(1, { timeout: 5_000 });
+
     // The index the reader was admitted to marks the book, and only that book.
     const index = await page.evaluate(async () => {
       const token = (window as unknown as { __synapseVizToken?: () => string | null }).__synapseVizToken?.();
@@ -53,10 +61,13 @@ test.describe("private book — a listed reader, and one who is not", () => {
     expect(languages.entries.find((e: { slug: string }) => e.slug === "java").private).toBeUndefined();
   });
 
-  test("a signed-in user who is not on the list is told so", async ({ page }) => {
+  test("a signed-in user who is not on the list is told so, and never sees the book listed", async ({ page }) => {
     await signIn(page, OUTSIDER, OUTSIDER_PASS);
     await page.goto(LESSON);
     await expect(page.locator("[data-private-status]")).toContainText("not on its reader list", { timeout: 30_000 });
     await expect(page.locator("body")).not.toContainText("quokka");
+    await page.goto("/");
+    await expect(page.locator(".account-chip__user")).toHaveText(`@${OUTSIDER}`, { timeout: 30_000 });
+    await expect(page.locator("#lib-private-group")).toHaveCount(0);
   });
 });
