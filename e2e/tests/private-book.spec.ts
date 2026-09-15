@@ -71,3 +71,9 @@ test("a private book's media is refused with its prose, and public media stays p
   const open = await request.get("/media/insight-earned/pass.svg", { headers: { Authorization: "Bearer not-a-token" } });
   expect(open.status()).toBe(401);
 });
+
+test("a private problem lesson refuses its sample suite with the rest", async ({ request }) => {
+  const response = await request.get("/api/synapse/programming-languages/insight-earned/problems/threshold/threshold");
+  expect(response.status()).toBe(401);
+  expect(await response.text()).not.toContain("zebra");
+});

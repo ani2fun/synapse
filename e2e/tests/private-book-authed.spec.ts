@@ -67,6 +67,22 @@ test.describe("private book — a listed reader, and one who is not", () => {
     expect(languages.entries.find((e: { slug: string }) => e.slug === "java").private).toBeUndefined();
   });
 
+  test("a private problem lesson is the problem page, workbench and all", async ({ page }) => {
+    await signIn(page, READER, READER_PASS);
+    const response = await page.goto("/synapse/programming-languages/insight-earned/problems/threshold/threshold");
+    expect(response?.status()).toBe(401);
+    // The shell gives way to the frame the public problem page has, hydrated by the same island.
+    await expect(page.locator(".pwb[data-problem] .pwb__title")).toHaveText("Threshold, Rewritten", { timeout: 30_000 });
+    await expect(page.locator(".pwb-description")).toContainText("zebra invariant");
+    await expect(page.locator(".pcanvas")).toBeVisible({ timeout: 30_000 });
+    await page.locator(".pwb__rtab--code").click();
+    await expect(page.locator(".pwb__right .runnable")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator(".pwb__right .view-lines")).toContainText("Over", { timeout: 30_000 });
+    // The editorial tab carries the private editorial the payload brought along.
+    await page.locator(".problem-tab--editorial").click();
+    await expect(page.locator('[data-pane="editorial"]')).toContainText("private editorial says so", { timeout: 15_000 });
+  });
+
   test("a signed-in user who is not on the list is told so, and never sees the book listed", async ({ page }) => {
     await signIn(page, OUTSIDER, OUTSIDER_PASS);
     await page.goto(LESSON);

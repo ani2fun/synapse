@@ -90,10 +90,13 @@ tree kept grafting the book where it used to be until the repository happened to
   server-rendered, so its walkthroughs are never compiled into the sidecar's cache — the proxy
   holds nothing of a private book. The figures a reader sees are drawn by the client renderer,
   in their own browser.
-- **A private `kind: problem` lesson has no workbench and no Submit** in this version. The judge,
-  the tests and the submission history are wired from server-rendered state the shell never had.
-  It reads as prose — description and editorial — and the page says so. The study system's boss
-  fights already go to the SOURCE lesson's judge, so nothing that exists today depends on it.
+- **A private `kind: problem` lesson is the problem page.** The frame the server renders for a
+  public problem is one template (`lib/catalog/problemFrame.ts`) that the private lesson island
+  builds in the browser from the payload — description through the reader's pipeline, the raw
+  editorial for the stepper, the sample suite, the chapter counter from the admitted index — and
+  `islands/problem` then hydrates it exactly as after a server render: workbench, canvas,
+  submissions, Contents drawer. The judge reads the suite from the same mounted source, so Submit
+  works. One template, two renderers, so the two pages cannot drift.
 - **Figures in a private lesson use the client renderers.** The d2 sidecar draws at SSR, and SSR
   never sees the lesson; the fallback is the same one every lesson gets when the sidecar is absent.
 - **The prod `GITHUB_TOKEN` must be able to read the repository.** A fine-grained PAT is granted

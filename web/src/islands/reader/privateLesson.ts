@@ -9,14 +9,17 @@
 // the client renderer, as they do whenever the sidecar is absent.
 //
 // Three outcomes, each said plainly in the shell's status line: sign in (anonymous), you are not
-// on this book's reader list (403), or the lesson. A `kind: problem` lesson renders its description
-// and editorial as prose — no workbench, no Submit — and says so.
+// on this book's reader list (403), or the lesson. A `kind: problem` lesson gets the problem PAGE:
+// the same frame the server renders for a public one (`lib/catalog/problemFrame`), built here from
+// the payload, and then `islands/problem` hydrates it — workbench, tabs, canvas, submissions.
 //
 // Loaded ONLY in the page's private mode, so the ordinary lesson's eager budget does not move.
 import { ApiFailure, bearerHeaders, fetchIndex, lesson as fetchLesson } from "../../lib/api/client";
 import type { LessonPayload } from "../../lib/api/client";
 import type { components } from "../../lib/api/schema.gen";
-import { bookOf, problemContentSplit } from "../../lib/catalog/tree";
+import { DEFAULT_LEFT_PCT } from "../../lib/catalog/pane";
+import { humanize, problemFrame } from "../../lib/catalog/problemFrame";
+import { bookOf, chapterProblems, problemContentSplit } from "../../lib/catalog/tree";
 import * as log from "../../lib/log";
 import { boot, getState, signIn, subscribe } from "../auth/store";
 
@@ -75,9 +78,7 @@ function tree(entries: BookEntry[], prefix: string[], current: string): string {
     .join("");
 }
 
-function renderSidebar(book: Book, current: string): void {
-  const aside = root?.querySelector<HTMLElement>("[data-private-sidebar]");
-  if (!aside) return;
+function renderSidebar(aside: HTMLElement, book: Book, current: string): void {
   aside.innerHTML =
     `<div class="reader-sidebar__inner" data-view="book"><div class="reader-sidebar__book-view">` +
     `<div class="reader-sidebar__toprow"><a class="reader-sidebar__home" href="/">← Library</a></div>` +
@@ -91,11 +92,7 @@ function renderSidebar(book: Book, current: string): void {
 
 /** `two-sum` → `Two Sum`, the pager's own rule. */
 function humanise(path: string): string {
-  const last = path.split("/").pop() ?? path;
-  return last
-    .split("-")
-    .map((w) => (w === "" ? "" : w[0].toUpperCase() + w.slice(1)))
-    .join(" ");
+  return humanize(path.split("/").pop() ?? path);
 }
 
 function renderPager(payload: LessonPayload): void {
@@ -143,7 +140,71 @@ async function attachPrivateMedia(body: HTMLElement): Promise<void> {
   if (swapped > 0) log.debug(`private lesson: ${swapped} media file(s) fetched with the bearer`);
 }
 
+/** The book this lesson sits in, from the index the reader was admitted to — or null when the
+ *  index cannot be read; the page still renders, without a rail or a counter. */
+async function admittedBook(segments: string[]): Promise<Book | null> {
+  try {
+    return bookOf(await fetchIndex(), segments);
+  } catch (error) {
+    log.debug(`private lesson: no index (${error instanceof Error ? error.message : String(error)})`);
+    return null;
+  }
+}
+
+/**
+ * A problem lesson becomes the problem PAGE: the shell is replaced by the frame the server
+ * renders for a public problem, built from the payload — description rendered through the
+ * reader's pipeline, the raw editorial for the stepper, the sample suite for the workbench, the
+ * chapter counter from the admitted index — and `islands/problem` then hydrates it exactly as it
+ * would after a server render. The judge reads the suite from the same mounted source, so Submit
+ * works; the Contents drawer clones the hidden sidebar source the public page also carries.
+ */
+async function renderProblem(payload: LessonPayload, segments: string[]): Promise<void> {
+  const main = root?.closest<HTMLElement>("main.shell-main");
+  if (!main) return;
+  const [descriptionMd, inlineEditorial] = problemContentSplit(payload.raw);
+  const editorialMd = inlineEditorial.trim() !== "" ? inlineEditorial : (payload.editorial ?? "");
+  const { renderLesson } = await import("../../lib/markdown/render");
+  const descriptionHtml = await renderLesson(descriptionMd);
+  const book = await admittedBook(segments);
+  const current = segments.join("/");
+
+  main.innerHTML = problemFrame({
+    title: payload.frontmatter.title,
+    lede: payload.frontmatter.summary ?? null,
+    bookName: humanize(payload.book.slug),
+    difficulty: payload.frontmatter.difficulty ?? null,
+    descriptionHtml,
+    editorialMd,
+    tests: payload.tests ?? null,
+    counter: book ? chapterProblems(book, current) : null,
+    prev: payload.prev ?? null,
+    next: payload.next ?? null,
+    leftPct: DEFAULT_LEFT_PCT,
+  });
+  if (book) {
+    const src = document.createElement("div");
+    src.className = "pwb-sidebar-src";
+    src.hidden = true;
+    const aside = document.createElement("aside");
+    aside.className = "reader-sidebar";
+    src.append(aside);
+    main.append(src);
+    renderSidebar(aside, book, current);
+  }
+  const description = main.querySelector<HTMLElement>(".pwb-description");
+  if (description) await attachPrivateMedia(description);
+  document.title = `${payload.book.title} · ${payload.frontmatter.title} — Synapse`;
+  // The problem island hydrates `.pwb[data-problem]` on import: the DOM is ready by now, so it
+  // runs at once. Loaded here, not by the page script, because the page could not know the shape
+  // of a lesson it was refused.
+  await import("../problem");
+  log.info(`private problem rendered client-side: /synapse/${current}`);
+}
+
 async function render(payload: LessonPayload, segments: string[]): Promise<void> {
+  if (payload.frontmatter.kind === "problem") return renderProblem(payload, segments);
+
   const title = root?.querySelector<HTMLElement>("[data-private-title]");
   if (title) title.textContent = payload.frontmatter.title;
   const lede = root?.querySelector<HTMLElement>("[data-private-lede]");
@@ -153,35 +214,19 @@ async function render(payload: LessonPayload, segments: string[]): Promise<void>
   }
   document.title = `${payload.book.title} · ${payload.frontmatter.title} — Synapse`;
 
-  // The problem shape carries no workbench here: the judge, the tests and the submission
-  // history are wired from server-rendered state this page never had. Description and editorial
-  // read as prose, and the page says what it left out.
-  let markdown = payload.raw;
-  let note = "";
-  if (payload.frontmatter.kind === "problem") {
-    const [description, inlineEditorial] = problemContentSplit(payload.raw);
-    const editorial = inlineEditorial.trim() !== "" ? inlineEditorial : (payload.editorial ?? "");
-    markdown = editorial.trim() === "" ? description : `${description}\n\n---\n\n## Editorial\n\n${editorial}`;
-    note = "This is a problem lesson in a private book: it reads as prose here, without the workbench or Submit.";
-  }
-
   const { renderPreview, hydratePreview } = await import("../authoring/preview");
-  const { bodyHtml } = await renderPreview(markdown);
+  const { bodyHtml } = await renderPreview(payload.raw);
   const body = root?.querySelector<HTMLElement>("[data-private-body]");
   if (!body) return;
   body.innerHTML = bodyHtml;
   await attachPrivateMedia(body);
   await hydratePreview(body);
-  status(note);
+  status("");
   renderPager(payload);
 
-  try {
-    const index = await fetchIndex();
-    const book = bookOf(index, segments);
-    if (book) renderSidebar(book, segments.join("/"));
-  } catch (error) {
-    log.debug(`private lesson: no sidebar (${error instanceof Error ? error.message : String(error)})`);
-  }
+  const book = await admittedBook(segments);
+  const aside = root?.querySelector<HTMLElement>("[data-private-sidebar]");
+  if (book && aside) renderSidebar(aside, book, segments.join("/"));
   log.info(`private lesson rendered client-side: /synapse/${segments.join("/")}`);
 }
 
