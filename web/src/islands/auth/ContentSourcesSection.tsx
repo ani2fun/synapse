@@ -333,21 +333,30 @@ function SourcesTable({
               )}
             </td>
             <td>
-              <button class="admin__revoke" onClick={() => setEnabled(row, !row.enabled)}>
-                {row.enabled ? "Disable" : "Enable"}
-              </button>
-              <button
-                class="admin__revoke"
-                onClick={() => setVisibility(row, row.visibility === "private" ? "public" : "private")}
-              >
-                {row.visibility === "private" ? "Make public" : "Make private"}
-              </button>
-              <button class="admin__revoke" aria-expanded={readersOf === row.id} onClick={() => toggleReaders(row.id)}>
-                Readers
-              </button>
-              <button class="admin__revoke" onClick={() => remove(row)}>
-                Remove
-              </button>
+              {/* A 2×2 grid, one verb per cell: enable · visibility / readers · remove. A public
+                  row has no reader list to manage, so its cell stays empty rather than the
+                  buttons reflowing. */}
+              <div class="admin__actions">
+                <button class="admin__revoke" onClick={() => setEnabled(row, !row.enabled)}>
+                  {row.enabled ? "Disable" : "Enable"}
+                </button>
+                <button
+                  class="admin__revoke"
+                  onClick={() => setVisibility(row, row.visibility === "private" ? "public" : "private")}
+                >
+                  {row.visibility === "private" ? "Make public" : "Make private"}
+                </button>
+                {row.visibility === "private" ? (
+                  <button class="admin__revoke" aria-expanded={readersOf === row.id} onClick={() => toggleReaders(row.id)}>
+                    Readers
+                  </button>
+                ) : (
+                  <span aria-hidden="true" />
+                )}
+                <button class="admin__revoke" onClick={() => remove(row)}>
+                  Remove
+                </button>
+              </div>
             </td>
           </tr>
         ))}
