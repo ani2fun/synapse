@@ -73,6 +73,10 @@ rm -rf web/node_modules/.vite/deps
 # sql-guide is a REWRITE in its own repository, not the `local-only/01-sql` ADR-RS002 withholds:
 # no adaptation notice, its own history, and the walker still refuses `local-only-content/` either
 # way. It sits with the other languages.
+#
+# insight-earned is PRIVATE here as in production (RS011): the reader's own study documents, served
+# under `study-notes` to the two dev-realm users, tester and test1. Anonymous gets the 401 shell;
+# the 403 path is proven by the e2e private fixture. Its media is gated with it.
 SATELLITES='[
   {"id":"system-design-guide","root":"../synapse-content-github/system-design-guide","order":2},
   {"id":"low-level-design-guide","root":"../synapse-content-github/low-level-design-guide","order":4},
@@ -80,7 +84,8 @@ SATELLITES='[
   {"id":"python-guide","root":"../synapse-content-github/python-guide","grouping":"programming-languages","order":6},
   {"id":"java-guide","root":"../synapse-content-github/java-guide","grouping":"programming-languages","order":7},
   {"id":"sql-guide","root":"../synapse-content-github/sql-guide","grouping":"programming-languages","order":8},
-  {"id":"general","root":"../synapse-content-github/general","order":9}
+  {"id":"general","root":"../synapse-content-github/general","order":9},
+  {"id":"insight-earned","root":"../synapse-content-github/insight-earned","grouping":"study-notes","order":1,"private":true,"readers":["tester","test1"]}
 ]'
 export SYNAPSE_LOCAL_SOURCES="${SYNAPSE_LOCAL_SOURCES:-$SATELLITES}"
 # Nothing is registered locally, so a tick would only reach the network for repositories already
