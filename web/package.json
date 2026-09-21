@@ -9,8 +9,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@astrojs/node": "^11.1.4",
-    "@astrojs/preact": "^6.0.4",
+    "@astrojs/node": "^11.1.6",
+    "@astrojs/preact": "^6.0.5",
     "@terrastruct/d2": "^0.1.33",
     "astro": "^7.2.7",
     "keycloak-js": "^26.2.4",
@@ -30,7 +30,7 @@
   "devDependencies": {
     "@types/node": "^26.2.0",
     "@vitest/coverage-v8": "^4.1.11",
-    "postcss": "8.5.26",
+    "postcss": "8.5.28",
     "typescript": "^7.0.2",
     "vitest": "^4.1.7"
   }
