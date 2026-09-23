@@ -4,8 +4,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::catalog::domain::catalog::{Book, BookEntry, CatalogEntry};
-use crate::catalog::domain::content_tree::{BookMeta, ContentEntry};
+use crate::catalog::domain::catalog::{Book, BookEntry, CatalogEntry, CatalogWarning};
+use crate::catalog::domain::content_tree::{BookMeta, ContentEntry, PRIMARY_SOURCE_ID};
 use crate::catalog::domain::walker::*;
 
 fn file(name: &str, content: &str) -> ContentEntry {
@@ -70,6 +70,15 @@ fn hidden_nonslug_dirs_and_root_files_are_skipped() {
     .unwrap();
     let slugs: Vec<&str> = result.catalog.entries.iter().map(CatalogEntry::slug).collect();
     assert_eq!(slugs, vec!["b"]);
+    // Only the directory that failed on its NAME is reported: `.git` and `_media` are conventions,
+    // and a root README is furniture.
+    assert_eq!(
+        result.warnings,
+        vec![CatalogWarning::DirectorySkipped {
+            source_id: PRIMARY_SOURCE_ID.to_owned(),
+            path: "not a slug!".to_owned(),
+        }]
+    );
 }
 
 #[test]
@@ -92,6 +101,55 @@ fn reserved_aux_dirs_and_hidden_files_are_skipped_inside_books() {
     let book = the_book(&result);
     assert_eq!(book.entries.len(), 1);
     assert_eq!(lesson_slugs(&book.entries), vec!["real"]);
+    assert!(
+        result.warnings.is_empty(),
+        "every exclusion here is deliberate: {:?}",
+        result.warnings
+    );
+}
+
+#[test]
+fn a_chapter_skipped_for_its_name_is_a_warning_naming_the_directory() {
+    // The shape that shipped: three problem kits whose directory names carried an apostrophe. The
+    // sync landed, the sibling revision in the same commit went live, and the kits were simply not
+    // there — no error, no log line, a clean source row. The warning is the only thing that says
+    // why, so it names the path an author has to rename.
+    let result = walk(&[book_dir(
+        "dsa",
+        BookMeta::default(),
+        vec![dir(
+            "05-arrays",
+            vec![
+                dir("15-spiral", vec![file("spiral.md", "x")]),
+                dir(
+                    "16-pascal's-triangle-i",
+                    vec![file("pascal's-triangle-i.md", "x")],
+                ),
+                dir(
+                    "17-pascal's-triangle-ii",
+                    vec![file("pascal's-triangle-ii.md", "x")],
+                ),
+            ],
+        )],
+    )])
+    .unwrap();
+
+    let files = &result.lesson_files["dsa"];
+    assert_eq!(files.keys().collect::<Vec<_>>(), vec!["arrays/spiral/spiral"]);
+    assert_eq!(
+        result.warnings,
+        vec![
+            CatalogWarning::DirectorySkipped {
+                source_id: PRIMARY_SOURCE_ID.to_owned(),
+                path: "dsa/05-arrays/16-pascal's-triangle-i".to_owned(),
+            },
+            CatalogWarning::DirectorySkipped {
+                source_id: PRIMARY_SOURCE_ID.to_owned(),
+                path: "dsa/05-arrays/17-pascal's-triangle-ii".to_owned(),
+            },
+        ],
+        "the path is the on-disk one, order prefix and all, because that is what gets renamed"
+    );
 }
 
 // ── errors & edge rules ───────────────────────────────────────────────────────

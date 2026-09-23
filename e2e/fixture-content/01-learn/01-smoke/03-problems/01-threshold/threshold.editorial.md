@@ -11,6 +11,7 @@ One comparison against the threshold decides everything.
 ## Solution
 
 ```python solution time=O(1) space=O(1)
+# The threshold is inclusive: 10 itself is Over.
 n = int(input())
 print("Over" if n >= 10 else "Under")
 ```

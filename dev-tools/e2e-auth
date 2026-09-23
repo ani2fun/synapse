@@ -25,7 +25,9 @@ export SYNAPSE_ROOT="${SYNAPSE_ROOT:-e2e/fixture-content}"
 # A SATELLITE in the library, mounted straight off disk. The registry cannot express a local path
 # and the fetcher would reach GitHub, so this is the only way to exercise the multi-source path in
 # CI — and it is the same code an author uses to see a guide repo they are editing.
-SATELLITE='[{"id":"java-guide","root":"e2e/fixture-java-guide","grouping":"programming-languages","order":7}]'
+# Two satellites: one public, one PRIVATE — served to `tester` alone, the gate a registered private
+# repository gets, proven here without a registry row or the network (e2e/tests/private-book*.spec.ts).
+SATELLITE='[{"id":"java-guide","root":"e2e/fixture-java-guide","grouping":"programming-languages","order":7},{"id":"private-guide","root":"e2e/fixture-private-guide","grouping":"programming-languages","order":8,"private":true,"readers":["tester"]}]'
 export SYNAPSE_LOCAL_SOURCES="${SYNAPSE_LOCAL_SOURCES:-$SATELLITE}"
 # The reconcile loop is OFF: nothing here is registered, and a tick would only reach the network.
 export SYNAPSE_CONTENT_SYNC_SECONDS="${SYNAPSE_CONTENT_SYNC_SECONDS:-0}"
@@ -72,4 +74,4 @@ curl -sf "http://localhost:$WEB_PORT/" >/dev/null || {
 cd e2e
 [[ -d node_modules ]] || npm ci
 echo "→ signed-in click-path against http://localhost:$WEB_PORT"
-E2E_AUTH=1 E2E_BASE_URL="http://localhost:$WEB_PORT" npx playwright test authoring-authed "$@"
+E2E_AUTH=1 E2E_BASE_URL="http://localhost:$WEB_PORT" npx playwright test authoring-authed private-book-authed "$@"

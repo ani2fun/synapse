@@ -707,7 +707,7 @@
       "name": "POST /api/admin/content-sources",
       "method": "POST",
       "url": "{{ _.base_url }}/api/admin/content-sources",
-      "description": "Register a satellite guide repo. Keyed on the id derived from `repo`, so posting the same repository again edits its row. The book appears once the next fetch lands it, not on this call.",
+      "description": "Register a satellite guide repo. Keyed on the id derived from `repo`, so posting the same repository again edits its row. The book appears once the next fetch lands it, not on this call. `visibility` is `public` (default) or `private` — a private repository is served to its reader list only.",
       "headers": [
         {
           "name": "Authorization",
@@ -720,7 +720,7 @@
       ],
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"repo\": \"ani2fun/java-guide\",\n  \"branch\": \"main\",\n  \"grouping\": \"programming-languages\",\n  \"order\": 7,\n  \"enabled\": true\n}"
+        "text": "{\n  \"repo\": \"ani2fun/java-guide\",\n  \"branch\": \"main\",\n  \"grouping\": \"programming-languages\",\n  \"order\": 7,\n  \"enabled\": true,\n  \"visibility\": \"public\"\n}"
       },
       "_type": "request",
       "parentId": "fld_admin"
@@ -739,6 +739,59 @@
       ],
       "_type": "request",
       "parentId": "fld_admin"
+    },
+    {
+      "_id": "req_content_readers_list",
+      "name": "GET /api/admin/content-sources/{id}/readers",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/admin/content-sources/insight-earned/readers",
+      "description": "A private source's reader list, newest grant first. Kept on a public source too.",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ]
+    },
+    {
+      "_id": "req_content_readers_grant",
+      "name": "POST /api/admin/content-sources/{id}/readers",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/admin/content-sources/insight-earned/readers",
+      "description": "Grant a reader (upsert). The username is canonicalised — trimmed, lowercased — and the sync loop is woken so the grant lands within seconds.",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        },
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"aniket\",\n  \"note\": \"the author\"\n}"
+      }
+    },
+    {
+      "_id": "req_content_readers_revoke",
+      "name": "DELETE /api/admin/content-sources/{id}/readers/{username}",
+      "method": "DELETE",
+      "url": "{{ _.base_url }}/api/admin/content-sources/insight-earned/readers/aniket",
+      "description": "Revoke a reader — 204 on removal, 404 when the grant never existed.",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ]
     },
     {
       "_id": "req_content_sources_sync",

@@ -164,11 +164,22 @@ function RightPane({
         <div class="wb__edit-bar" key="editbar">
           <span class="wb__edit-status">
             <span class="wb__edit-dot"></span>
-            Sign in to edit and submit — you can still Run the starter
+            Sign in to edit and submit — you can still Run
           </span>
         </div>
       )}
-      <Workbench key="wb" variants={variants} spec={spec} lessonPath={lessonPath} root={root} fill={true} />
+      {/* `persistTests`: the cases a reader appends and the values they type outlive the tab here.
+          Only this page opts in — one workbench per problem, so its draft key needs nothing beyond
+          the problem path to be unambiguous. */}
+      <Workbench
+        key="wb"
+        variants={variants}
+        spec={spec}
+        lessonPath={lessonPath}
+        root={root}
+        fill={true}
+        persistTests={true}
+      />
     </>
   );
 }

@@ -140,14 +140,23 @@ fn order_prefix(s: &str) -> Option<i32> {
 /// The check is on the STEM, not the raw name, and that distinction is load-bearing.
 /// `strip_order_prefix` accepts `.` as an order separator — `1.recursion` is a documented,
 /// supported chapter name — but `slug_like` rejects a dot, so testing the raw name threw those
-/// directories out. Nothing said so: an excluded directory is simply skipped, so a book whose
-/// every chapter used that form walked to zero lessons with no error naming the cause.
+/// directories out — and a book whose every chapter used that form walked to zero lessons. A
+/// directory that fails here for its name is reported (`skipped_for_name`), never errored: the
+/// rest of the book is fine, and one misnamed chapter must not take it down.
 ///
 /// Only the numeric-prefix form is admitted. `foo.bar` strips to itself, still fails `slug_like`,
 /// and is still not content.
 pub fn includes_as_content(name: &str) -> bool {
     let stem = strip_order_prefix(name);
     slug_like(stem) && !name.starts_with('_') && !name.starts_with('.') && !RESERVED_AUX_DIRS.contains(&stem)
+}
+
+/// A directory that was MEANT as content and failed only on its name. The other exclusions — a
+/// `_`/`.` prefix, a reserved aux dir — are conventions an author reaches for on purpose; a name
+/// like `16-pascal's-triangle-i` is one they reached for by accident, and the walk owes them a
+/// warning rather than a silently shorter chapter.
+pub fn skipped_for_name(name: &str) -> bool {
+    !name.starts_with('_') && !name.starts_with('.') && !slug_like(strip_order_prefix(name))
 }
 
 /// Markdown that is repo furniture, never a lesson — matched case-insensitively on the stem.
@@ -216,6 +225,11 @@ pub fn walk_source(source: &SourceTree) -> Result<WalkResult, SynapseContentErro
     };
     Ok(WalkResult {
         catalog: SynapseContentCatalog { entries },
+        book_sources: state
+            .lesson_files
+            .keys()
+            .map(|slug| (slug.clone(), source.id.clone()))
+            .collect(),
         lesson_files: state.lesson_files,
         warnings: state.warnings,
     })
@@ -248,6 +262,16 @@ impl<'a> WalkState<'a> {
             warnings: Vec::new(),
         }
     }
+
+    /// Record a directory the walk passed over for its name, by its path within the source.
+    fn warn_skipped(&mut self, dir_path: &[String], name: &str) {
+        let mut path = dir_path.to_vec();
+        path.push(name.to_owned());
+        self.warnings.push(CatalogWarning::DirectorySkipped {
+            source_id: self.source_id.to_owned(),
+            path: path.join("/"),
+        });
+    }
 }
 
 /// One library level (the root or a category's children): books and sub-categories, sorted by
@@ -271,6 +295,9 @@ fn build_level(
             continue;
         };
         if !includes_as_content(name) {
+            if skipped_for_name(name) {
+                state.warn_skipped(dir_path, name);
+            }
             continue;
         }
         if let Some(meta) = book_meta {
@@ -370,14 +397,7 @@ fn build_book(
     book_dirs.extend(dir_name.map(ToOwned::to_owned));
     let mut files: BTreeMap<String, LessonFileRef> = BTreeMap::new();
     let mut duplicates: BTreeSet<String> = BTreeSet::new();
-    let entries = build_book_entries(
-        state.source_id,
-        children,
-        &[],
-        &book_dirs,
-        &mut files,
-        &mut duplicates,
-    )?;
+    let entries = build_book_entries(state, children, &[], &book_dirs, &mut files, &mut duplicates)?;
     if !duplicates.is_empty() {
         return Err(SynapseContentError::DuplicateLessonSlug {
             book_slug: slug,
@@ -404,7 +424,7 @@ fn build_book(
 /// One book-interior level: chapters (eligible dirs) and lessons (eligible `.md` files),
 /// sorted by `(index-first/numeric-prefix, name lowercased)`.
 fn build_book_entries(
-    source_id: &str,
+    state: &mut WalkState<'_>,
     children: &[ContentEntry],
     chapter_slugs: &[String],
     dir_path: &[String],
@@ -423,7 +443,7 @@ fn build_book_entries(
                 }
                 let mut dirs = dir_path.to_vec();
                 dirs.push(name.to_owned());
-                let entries = build_book_entries(source_id, children, &slugs, &dirs, files, duplicates)?;
+                let entries = build_book_entries(state, children, &slugs, &dirs, files, duplicates)?;
                 level.push((
                     interior_order(name),
                     name.to_lowercase(),
@@ -449,7 +469,7 @@ fn build_book_entries(
                 }
                 let mut file_path = dir_path.to_vec();
                 file_path.push(name.to_owned());
-                let file = LessonFileRef::new(source_id, file_path.join("/"));
+                let file = LessonFileRef::new(state.source_id, file_path.join("/"));
                 if files.insert(slug_path.clone(), file).is_some() {
                     duplicates.insert(slug_path);
                     continue;
@@ -467,6 +487,7 @@ fn build_book_entries(
                     }),
                 ));
             }
+            ContentEntry::Dir { name, .. } if skipped_for_name(name) => state.warn_skipped(dir_path, name),
             _ => {}
         }
     }

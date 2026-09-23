@@ -5,10 +5,74 @@
 //! is wired in code and never appears here — it arrives by git-sync, is always mounted, and is
 //! always first, which is what makes the first-wins merge rule safe during a migration.
 
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::{Arc, RwLock};
+
 use chrono::{DateTime, Utc};
 
 use crate::catalog::domain::merge::Placement;
 use crate::catalog::domain::walker::{slug_like, slugify};
+use crate::identity::domain::Username;
+
+/// Who a source is for. Decided by the REGISTRATION, never by the repository: a `book.json` is
+/// authored inside the repository and cannot be trusted to declare itself public.
+///
+/// Fetching does not change with this — a private repository lands through the same token and
+/// the same tarball as a public one. What changes is every read path: the index, search, the
+/// lesson itself and the sitemap each ask `admits` before answering.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum Audience {
+    #[default]
+    Public,
+    /// Served to these names only. Empty is legal and means nobody, which is what a freshly
+    /// registered private repository IS until an admin adds the first reader.
+    Private { readers: BTreeSet<Username> },
+}
+
+impl Audience {
+    /// `"public"` / `"private"` on the wire and in the row. Anything else is a caller's error.
+    pub fn parse(raw: &str, readers: BTreeSet<Username>) -> Result<Self, RegistryError> {
+        match raw.trim() {
+            "" | "public" => Ok(Self::Public),
+            "private" => Ok(Self::Private { readers }),
+            other => Err(RegistryError::Invalid(format!(
+                "visibility must be public or private, not '{other}'"
+            ))),
+        }
+    }
+
+    #[must_use]
+    pub fn visibility(&self) -> &'static str {
+        match self {
+            Self::Public => "public",
+            Self::Private { .. } => "private",
+        }
+    }
+
+    #[must_use]
+    pub fn is_private(&self) -> bool {
+        matches!(self, Self::Private { .. })
+    }
+
+    /// Whether this viewer may read. Anonymous never reads a private source — there is no name
+    /// to find on the list.
+    #[must_use]
+    pub fn admits(&self, viewer: &Viewer) -> bool {
+        match (self, viewer) {
+            (Self::Public, _) => true,
+            (Self::Private { .. }, Viewer::Anonymous) => false,
+            (Self::Private { readers }, Viewer::User(name)) => readers.contains(name),
+        }
+    }
+}
+
+/// Who is asking. Resolved by the HTTP layer only when it matters — a public read never verifies a
+/// token, because a JWKS check on every page view is a real cost for a bit that is usually unread.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Viewer {
+    Anonymous,
+    User(Username),
+}
 
 /// A registered repository, as stored.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,9 +88,18 @@ pub struct ContentSourceRecord {
     /// Overrides `book.json`'s own `order` when set.
     pub order: Option<i32>,
     pub enabled: bool,
+    pub audience: Audience,
     pub last_sha: Option<String>,
     pub last_synced_at: Option<DateTime<Utc>>,
     pub last_error: Option<String>,
+}
+
+/// One reader on a private source's list.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentReader {
+    pub username: Username,
+    pub note: Option<String>,
+    pub granted_at: DateTime<Utc>,
 }
 
 impl ContentSourceRecord {
@@ -60,6 +133,9 @@ pub struct ContentSourceDraft {
     grouping: Vec<String>,
     order: Option<i32>,
     enabled: bool,
+    /// `public` or `private`. The reader list is not part of a registration — it is granted and
+    /// revoked name by name afterwards, and re-registering a repository must not blank it.
+    visibility: &'static str,
 }
 
 impl ContentSourceDraft {
@@ -83,8 +159,10 @@ impl ContentSourceDraft {
         grouping: Option<&str>,
         order: Option<i32>,
         enabled: Option<bool>,
+        visibility: Option<&str>,
     ) -> Result<Self, RegistryError> {
         let repo = repo.trim();
+        let visibility = Audience::parse(visibility.unwrap_or_default(), BTreeSet::new())?.visibility();
         let (owner, name) = repo
             .split_once('/')
             .ok_or_else(|| RegistryError::Invalid("repo must be owner/name".to_owned()))?;
@@ -115,6 +193,7 @@ impl ContentSourceDraft {
             grouping,
             order,
             enabled: enabled.unwrap_or(true),
+            visibility,
         })
     }
 
@@ -142,6 +221,10 @@ impl ContentSourceDraft {
     #[must_use]
     pub fn enabled(&self) -> bool {
         self.enabled
+    }
+    #[must_use]
+    pub fn visibility(&self) -> &'static str {
+        self.visibility
     }
 }
 
@@ -174,6 +257,27 @@ pub trait ContentSources: Send + Sync {
         id: &str,
         outcome: &SyncOutcome,
     ) -> impl Future<Output = Result<(), RegistryError>> + Send;
+
+    /// A source's reader list, newest grant first. `None` when there is no such source.
+    fn list_readers(
+        &self,
+        id: &str,
+    ) -> impl Future<Output = Result<Option<Vec<ContentReader>>, RegistryError>> + Send;
+
+    /// Upsert a reader — re-granting refreshes the note. `None` when there is no such source.
+    fn grant_reader(
+        &self,
+        id: &str,
+        username: &Username,
+        note: Option<&str>,
+    ) -> impl Future<Output = Result<Option<ContentReader>, RegistryError>> + Send;
+
+    /// `false` when there was nothing to revoke.
+    fn revoke_reader(
+        &self,
+        id: &str,
+        username: &Username,
+    ) -> impl Future<Output = Result<bool, RegistryError>> + Send;
 }
 
 /// The registry's error. `Invalid` is the caller's fault (400); `StoreFailed` is ours (500).
@@ -183,6 +287,54 @@ pub enum RegistryError {
     Invalid(String),
     #[error("content source store error: {0}")]
     StoreFailed(String),
+}
+
+/// Who may read each mounted source, as the catalog currently believes it.
+///
+/// A runtime cache like [`Placements`], republished whole by the sync loop — and deliberately NOT
+/// part of the version-gated catalog snapshot, which is keyed by CONTENT version: a reader granted
+/// at ten must be admitted at ten, not at the next content push. The pinned half is what the
+/// process booted with (the primary checkout and any local satellites, which are not registry
+/// rows); a publish carries only the registered sources and never displaces a pinned entry, the
+/// same rule the mount order keeps.
+#[derive(Clone, Default)]
+pub struct Audiences {
+    pinned: Arc<BTreeMap<String, Audience>>,
+    live: Arc<RwLock<BTreeMap<String, Audience>>>,
+}
+
+impl Audiences {
+    #[must_use]
+    pub fn pinned(pinned: BTreeMap<String, Audience>) -> Self {
+        Self {
+            live: Arc::new(RwLock::new(pinned.clone())),
+            pinned: Arc::new(pinned),
+        }
+    }
+
+    /// Replace the registered half. Pinned sources keep their own answer.
+    pub fn publish(&self, registered: BTreeMap<String, Audience>) {
+        let mut next = registered;
+        for (id, audience) in self.pinned.iter() {
+            next.insert(id.clone(), audience.clone());
+        }
+        if let Ok(mut held) = self.live.write() {
+            *held = next;
+        }
+    }
+
+    /// A source nobody registered an audience for — the primary checkout, `local-only`, anything
+    /// unknown — is public, which is what every source was before audiences existed. A poisoned
+    /// lock also answers public: the writer is a background loop, and one failed publish must not
+    /// lock every reader out.
+    #[must_use]
+    pub fn of(&self, source_id: &str) -> Audience {
+        self.live
+            .read()
+            .ok()
+            .and_then(|held| held.get(source_id).cloned())
+            .unwrap_or_default()
+    }
 }
 
 /// Where each registered source's book grafts, as the catalog currently believes it.

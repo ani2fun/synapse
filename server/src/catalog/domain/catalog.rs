@@ -123,6 +123,10 @@ impl LessonFileRef {
 pub struct WalkResult {
     pub catalog: SynapseContentCatalog,
     pub lesson_files: BTreeMap<String, BTreeMap<String, LessonFileRef>>,
+    /// Book slug → the source that serves it. The merge decides this (first source wins a slug)
+    /// and it is what an audience is keyed on: a registration says who may read a SOURCE, and a
+    /// reader asks for a BOOK.
+    pub book_sources: BTreeMap<String, String>,
     /// Cross-source conflicts, as DATA rather than log lines. Two reasons: the domain stays free
     /// of `tracing`, and the walk runs uncached on every edit-source fetch and every submit — a
     /// warn inside it would fire per request instead of once per content version. The caller with
@@ -130,9 +134,11 @@ pub struct WalkResult {
     pub warnings: Vec<CatalogWarning>,
 }
 
-/// A conflict the merge resolved rather than failed on. Within one source these would be errors;
-/// across sources they are survivable, because refusing to serve the whole library over one
-/// clashing satellite is worse than serving the winner and saying so.
+/// Something the walk or the merge resolved rather than failed on, and that an admin should
+/// hear about. Cross-source clashes are survivable because refusing to serve the whole library
+/// over one clashing satellite is worse than serving the winner and saying so; a skipped
+/// directory is survivable because the rest of its book is fine — but a reader cannot see either
+/// from the page, which is why they are data rather than log lines.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CatalogWarning {
     /// Two sources claim one book slug. The earlier source wins — and since the primary checkout
@@ -152,6 +158,13 @@ pub enum CatalogWarning {
     /// A source whose root is a book carries no `slug` in `book.json`, so its URL fell back to the
     /// source id. Loud because the fallback silently moves every lesson in that book.
     BookSourceWithoutSlug { source_id: String },
+    /// A directory the walk refused as content because its name — with the order prefix off — is
+    /// not slug-like: an apostrophe, a space, a dot. Everything under it is absent from the
+    /// library. Loud because nothing else says so: the source row records a clean sync, the
+    /// commit that added the directory is otherwise live, and a chapter is simply not there.
+    /// `_`- and `.`-prefixed directories and the reserved aux dirs are excluded on purpose and
+    /// do not warn.
+    DirectorySkipped { source_id: String, path: String },
 }
 
 #[cfg(test)]

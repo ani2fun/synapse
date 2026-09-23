@@ -163,6 +163,9 @@ impl Merge {
         book.category_path = path.to_vec();
 
         self.owner.insert(book.slug.clone(), source_id.to_owned());
+        self.out
+            .book_sources
+            .insert(book.slug.clone(), source_id.to_owned());
         self.out.lesson_files.insert(book.slug.clone(), book_files);
         if !is_first {
             self.touched.insert(path.to_vec());

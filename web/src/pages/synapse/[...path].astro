@@ -30,6 +30,7 @@ import { EDIT_ACCESS_TEXT } from "../../lib/contact";
 import * as log from "../../lib/log";
 import { titleForLesson, SITE_NAME } from "../../lib/seo";
 import { allBooksOf, bookOf, chapterProblems, chapterTitleOf, problemContentSplit } from "../../lib/catalog/tree";
+import { problemFrame } from "../../lib/catalog/problemFrame";
 import { DEFAULT_LEFT_PCT } from "../../lib/catalog/pane";
 import type { components } from "../../lib/api/schema.gen";
 
@@ -46,7 +47,10 @@ import "../../../styles/coach.css";
 import "../../../styles/canvas.css";
 import "../../../styles/codebench.css";
 
-type Mode = "lesson" | "problem" | "notFound" | "error";
+// `private`: the API refused the anonymous SSR fetch with 401/403 — the lesson sits in a book
+// served to its reader list only. The page ships the reader shell and `islands/reader/privateLesson`
+// asks again from the browser, where the session is.
+type Mode = "lesson" | "problem" | "notFound" | "error" | "private";
 
 /** `count-all-digits` → `Count All Digits`. */
 function humanize(slug: string): string {
@@ -102,6 +106,11 @@ try {
   if (error instanceof ApiFailure && error.status === 404) {
     mode = "notFound";
     Astro.response.status = 404;
+  } else if (error instanceof ApiFailure && (error.status === 401 || error.status === 403)) {
+    // The status is passed through as the API answered it: a crawler or a script sees the same
+    // refusal the API gave, and only a browser with a session gets further.
+    mode = "private";
+    Astro.response.status = error.status;
   } else {
     mode = "error";
     Astro.response.status = 502;
@@ -114,12 +123,17 @@ const canonicalPath = `/synapse/${segments.join("/")}`;
 log.info(
   `SSR /synapse/${segments.join("/")} — ${mode}${isLesson ? "" : ` (${errorMessage ?? "not found"})`} in ${Date.now() - ssrStart}ms`,
 );
+// A private lesson's real title arrives with the payload, in the browser; until then the URL's
+// last segment stands in, humanised, so the tab and the shell name the right lesson.
+const privateTitle = humanize(segments[segments.length - 1] ?? "lesson");
 const title =
   payload && isLesson
     ? titleForLesson(payload.book.title, payload.frontmatter.title)
     : mode === "notFound"
       ? `Not found — ${SITE_NAME}`
-      : `Error — ${SITE_NAME}`;
+      : mode === "private"
+        ? `${privateTitle} — ${SITE_NAME}`
+        : `Error — ${SITE_NAME}`;
 // `?? undefined` (never null) so Base falls back to its default description — the same string the
 // axum side uses when a lesson has no summary, keeping the two heads in agreement.
 const description = payload?.frontmatter.summary ?? undefined;
@@ -151,6 +165,30 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
             </a>
           </p>
         </section>
+      </main>
+    )
+  }
+
+  {
+    mode === "private" && (
+      <main class="shell-main">
+        <div class="reader-layout" data-sidebar="expanded" data-private-lesson={segments.join("/")}>
+          <aside class="reader-sidebar" data-private-sidebar />
+          <article class="reader-layout__main">
+            <div class="lesson">
+              <header class="lesson-header">
+                <p class="reader-prose__eyebrow">🔒 Private book</p>
+                <h1 class="reader-prose__title" data-private-title>{privateTitle}</h1>
+                <p class="reader-prose__lede" data-private-lede hidden />
+                <p class="private-lesson__status" data-private-status aria-live="polite">
+                  Sign in to read this book.
+                </p>
+              </header>
+              <article class="lesson-body synapse-prose" data-private-body />
+              <nav class="reader-pager" data-private-pager />
+            </div>
+          </article>
+        </div>
       </main>
     )
   }
@@ -287,190 +325,23 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
             testcases fence, so islands/problem reads the workbench suite from here. Empty when
             a lesson has none. (Keep this comment apostrophe-free: an apostrophe inside a JSX
             expression comment breaks the dev-mode script extraction.) */}
-        <div class="pwb not-prose" data-problem data-sample-tests={payload.tests ? encodeURIComponent(JSON.stringify(payload.tests)) : ""}>
-          <nav class="pwb__crumbs" aria-label="Breadcrumb">
-            <a class="pwb__crumb" href="/">
-              Home
-            </a>
-            <span class="pwb__crumb-sep">›</span>
-            <span class="pwb__crumb">{bookName}</span>
-            <span class="pwb__crumb-sep">›</span>
-            <span class="pwb__crumb pwb__crumb--current">{payload.frontmatter.title}</span>
-          </nav>
-
-          <div class="pwb__panes">
-            <div class="pwb__left" style={`width: ${DEFAULT_LEFT_PCT}%`}>
-              <div class="pwb__head">
-                <div class="pwb__head-row">
-                  <h1 class="pwb__title">{payload.frontmatter.title}</h1>
-                  <span class="pwb__plan-pill">
-                    <svg class="pwb__plan-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <path d="M9 18h6 M10 22h4 M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" />
-                    </svg>
-                    <strong>Think</strong> before you code.
-                  </span>
-                </div>
-                {payload.frontmatter.summary && <p class="pwb__lede">{payload.frontmatter.summary}</p>}
-              </div>
-
-              <div class="problem-tabs">
-                <button class="problem-tab problem-tab--description problem-tab--active" data-tab="description" type="button">
-                  <svg class="problem-tab__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z" />
-                    <path d="M14 2v5h5 M16 13H8 M16 17H8 M10 9H8" />
-                  </svg>
-                  Description
-                </button>
-                <button class="problem-tab problem-tab--editorial" data-tab="editorial" type="button">
-                  <svg class="problem-tab__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M12 7v14 M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4" />
-                    <path d="M21 18a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4" />
-                  </svg>
-                  Editorial
-                </button>
-                <button class="problem-tab problem-tab--coach" data-tab="coach" type="button">
-                  <svg class="problem-tab__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M22 10v6 M2 10l10-5 10 5-10 5z" />
-                    <path d="M6 12v5c3 3 9 3 12 0v-5" />
-                  </svg>
-                  Coach
-                </button>
-                <button class="problem-tab problem-tab--submissions" data-tab="submissions" type="button">
-                  <svg class="problem-tab__ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M3 3v5h5" />
-                    <path d="M3.05 13A9 9 0 1 0 6 5.3L3 8 M12 7v5l4 2" />
-                  </svg>
-                  Submissions
-                </button>
-                {difficulty && <span class={`problem-diff problem-diff--${difficulty}`}>{difficulty}</span>}
-              </div>
-
-              <div class="pwb__pane-host">
-                <div class="pwb__pane" data-pane="description">
-                  <div class="pwb__pane-scroll synapse-prose">
-                    <div class="pwb-description" set:html={descriptionHtml} />
-                  </div>
-                </div>
-                <div class="pwb__pane hidden" data-pane="editorial">
-                  {/* No `.pwb__pane-scroll` wrapper here (unlike the other panes): the stepper
-                      island renders its OWN `.pwb-epane > .pwb__pane-scroll` into this host on first
-                      open, carrying the raw editorial markdown it parses. */}
-                  <div class="pwb-editorial-host" data-editorial={editorialMd ? encodeURIComponent(editorialMd) : ""} />
-                </div>
-                <div class="pwb__pane hidden" data-pane="coach">
-                  <div class="pwb__pane-scroll synapse-prose">
-                    <div class="pwb-coach-host" />
-                  </div>
-                </div>
-                <div class="pwb__pane hidden" data-pane="submissions">
-                  <div class="pwb__pane-scroll synapse-prose">
-                    <div class="psub-host" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="wb-split" aria-label="Resize the panes">
-              <div class="wb-split__grip">
-                <span />
-                <span />
-                <span />
-              </div>
-            </div>
-
-            <div class="pwb__right">
-              {/* Think before Code, in that order, and Think is the tab that OPENS — the whole
-                  point of the page is that the plan comes before the typing. A reader who would
-                  rather start in the editor pins that instead; the pin is the only thing that
-                  writes the preference, so peeking at Code never silently rewrites it. */}
-              <div class="pwb__rtabs" role="tablist" aria-label="Workbench mode">
-                <button class="pwb__rtab pwb__rtab--think pwb__rtab--active" data-rtab="think" type="button">
-                  <svg class="pwb__rtab-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M12 5a3 3 0 0 0-3-3 2.5 2.5 0 0 0-2.5 2.5A2.5 2.5 0 0 0 4 7c0 1 .4 1.7 1 2.2A2.7 2.7 0 0 0 4 11.5c0 1 .5 1.9 1.3 2.4A2.6 2.6 0 0 0 5 15.5C5 17 6.2 18 7.7 18H9a3 3 0 0 0 3-3z" />
-                    <path d="M12 5a3 3 0 0 1 3-3 2.5 2.5 0 0 1 2.5 2.5A2.5 2.5 0 0 1 20 7c0 1-.4 1.7-1 2.2a2.7 2.7 0 0 1 1 2.3c0 1-.5 1.9-1.3 2.4.2.4.3.9.3 1.6 0 1.5-1.2 2.5-2.7 2.5H15a3 3 0 0 1-3-3z" />
-                    <path d="M12 18v4" />
-                  </svg>
-                  Think
-                </button>
-                <button class="pwb__rtab pwb__rtab--code" data-rtab="code" type="button">
-                  <svg class="pwb__rtab-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M16 18l6-6-6-6 M8 6l-6 6 6 6" />
-                  </svg>
-                  Code
-                </button>
-                <span class="pwb__rtabs-spacer" />
-                {/* The preference, made explicit. A tab click is a visit; this button is a
-                    statement about how every problem should open. */}
-                <button class="pwb__rpin" data-rpin type="button" aria-pressed="false">
-                  <svg class="pwb__rpin-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M12 17v5" />
-                    <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
-                  </svg>
-                  <span class="pwb__rpin-text" data-rpin-text>Default</span>
-                </button>
-              </div>
-              <div class="pwb__rpane-host">
-                <div class="pwb__rpane" data-rpane="think">
-                  <div class="pcanvas-host" />
-                </div>
-                <div class="pwb__rpane hidden" data-rpane="code">
-                  <div class="pwb__nowb">Loading the workbench…</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <nav class="pwb__nav" aria-label="Problem navigation">
-            <div class="pwb__nav-left">
-              <button class="pwb__contents" aria-label="Contents — the book's lessons and problems" type="button">
-                <svg class="pwb__contents-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <rect width="18" height="18" x="3" y="3" rx="2" />
-                  <path d="M9 3v18 M14 9l3 3-3 3" />
-                </svg>
-                <span>Contents</span>
-              </button>
-            </div>
-            <div class="pwb__nav-mid">
-              {counter && (
-                <>
-                  <span class="pwb__nav-count">
-                    Problem {counter.at + 1} / {counter.problems.length}
-                  </span>
-                  <div class="pwb__nav-dots">
-                    {counter.problems.map((p, i) => (
-                      <a
-                        class:list={["pwb__dot", { "pwb__dot--current": i === counter!.at }]}
-                        href={`/synapse/${p}`}
-                        title={humanize(p.split("/").pop() ?? p)}
-                        aria-label={`Problem ${i + 1}`}
-                      />
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-            <div class="pwb__nav-right">
-              {payload.prev && (
-                <a class="pwb__step pwb__step--prev" href={`/synapse/${payload.prev}`}>
-                  <span class="pwb__step-chev">‹</span>
-                  <span class="pwb__step-text">
-                    <span class="pwb__step-label">Previous</span>
-                    <span class="pwb__step-title">{humanize(payload.prev.split("/").pop() ?? payload.prev)}</span>
-                  </span>
-                </a>
-              )}
-              {payload.next && (
-                <a class="pwb__step pwb__step--next" href={`/synapse/${payload.next}`}>
-                  <span class="pwb__step-text">
-                    <span class="pwb__step-label">Next</span>
-                    <span class="pwb__step-title">{humanize(payload.next.split("/").pop() ?? payload.next)}</span>
-                  </span>
-                  <span class="pwb__step-chev">›</span>
-                </a>
-              )}
-            </div>
-          </nav>
-        </div>
+        {/* The frame is ONE template shared with the private lesson island, which builds the
+            same page in the browser once the session settles — see lib/catalog/problemFrame. */}
+        <Fragment
+          set:html={problemFrame({
+            title: payload.frontmatter.title,
+            lede: payload.frontmatter.summary ?? null,
+            bookName,
+            difficulty,
+            descriptionHtml,
+            editorialMd,
+            tests: payload.tests ?? null,
+            counter,
+            prev: payload.prev ?? null,
+            next: payload.next ?? null,
+            leftPct: DEFAULT_LEFT_PCT,
+          })}
+        />
 
         {/* Hidden source for the Contents drawer: the reader island clones
             `.reader-sidebar .reader-sidebar__inner` on open. The problem page has no visible
@@ -503,7 +374,7 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
        vite dependency pre-scan finds script blocks by regex, so a script tag written inside a
        JSX comment starts the hoisted module HERE and drags prose into it, and a lone quote in
        that prose then fails a cold scan with Unterminated string literal. */
-    isLesson && payload && (
+    (isLesson && payload) || mode === "private" ? (
       <script>
         import "../../islands/reader";
         // The quiz/diagram pass, guarded the same way workbench/practice are.
@@ -511,7 +382,12 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
         // The viz loader: no-ops unless the page planted `.viz-widget`s or a workbench
         // variant carries a viz hint — the 280 KiB wasm is fetched lazily, never eagerly.
         import "../../islands/viz";
-        if (document.querySelector(".pwb[data-problem]")) {
+        if (document.querySelector("[data-private-lesson]")) {
+          // The private shell: the session lives in the browser, so the lesson is fetched and
+          // rendered here. One more runtime branch of the SAME script — a second conditional
+          // block would not survive hoisting (the comment above this script says why).
+          import("../../islands/reader/privateLesson");
+        } else if (document.querySelector(".pwb[data-problem]")) {
           import("../../islands/problem");
         } else {
           import("../../islands/workbench");
@@ -527,7 +403,7 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
           import("../../islands/authoring/editLink");
         }
       </script>
-    )
+    ) : null
   }
 </Base>
 
@@ -538,6 +414,16 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
     max-width: 40rem;
     margin-inline: auto;
     padding-block: 4rem 6rem;
+  }
+  /* The private shell status line: what the island says while it asks, and what it says when
+     the answer is no. Global, not scoped, because the island rewrites the children of that node. */
+  :global(.private-lesson__status) {
+    margin: 0.75rem 0 0;
+    font-size: 0.95rem;
+    color: hsl(var(--foreground) / 0.8);
+  }
+  :global(.private-lesson__signin) {
+    margin-left: 0.5rem;
   }
   /* The Contents drawer's clone SOURCE must never paint — `hidden` handles semantics, this pins
      it against any stylesheet that gives `.reader-sidebar` layout outside `.reader-layout`. */

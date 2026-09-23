@@ -37,6 +37,7 @@ export type AllowlistEntry = components["schemas"]["AllowlistEntryDto"];
 export type GrantRequest = components["schemas"]["GrantRequestDto"];
 export type ContentSource = components["schemas"]["ContentSourceDto"];
 export type RegisterContentSource = components["schemas"]["RegisterContentSourceDto"];
+export type ContentReader = components["schemas"]["ContentReaderDto"];
 export type CatalogWarning = components["schemas"]["CatalogWarningDto"];
 export type EditConfig = components["schemas"]["EditConfigDto"];
 export type EditSource = components["schemas"]["EditSourceDto"];
@@ -352,6 +353,25 @@ export function contentSourcesSync(): Promise<void> {
 /** What the merge resolved across sources — which copy of a duplicated book is actually serving. */
 export function contentWarnings(): Promise<CatalogWarning[]> {
   return get<CatalogWarning[]>("/api/admin/content-warnings");
+}
+
+// A private source's reader list. Names are canonicalised server-side (trimmed, lowercased) so a
+// grant is stored under the spelling the reader's token will carry; a grant or revoke wakes the
+// reconcile loop, so it takes effect within seconds rather than on the next tick.
+
+/** The reader list, newest grant first. 404 when the source is not registered. */
+export function contentReaders(id: string): Promise<ContentReader[]> {
+  return get<ContentReader[]>(`/api/admin/content-sources/${id}/readers`);
+}
+
+/** Grant (upsert) — the stored row comes back. */
+export function contentReaderGrant(id: string, request: GrantRequest): Promise<ContentReader> {
+  return post<ContentReader>(`/api/admin/content-sources/${id}/readers`, request);
+}
+
+/** `undefined` on 204; a 404 surfaces as an `ApiFailure`. */
+export function contentReaderRevoke(id: string, username: string): Promise<void> {
+  return del<void>(`/api/admin/content-sources/${id}/readers/${encodeURIComponent(username)}`);
 }
 
 // ── content editing ─────────────────────────────────────────────────────────────────────────

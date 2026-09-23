@@ -1,4 +1,5 @@
-//! `/api/admin/content-sources`: list · register · remove, gated per call by the shared admin gate.
+//! `/api/admin/content-sources`: list · register · remove, and a private source's reader list,
+//! gated per call by the shared admin gate.
 //!
 //! This is the surface that makes a satellite guide repo a row instead of a redeploy. The primary
 //! checkout is deliberately absent: it arrives by git-sync, is always mounted, and is always first
@@ -12,10 +13,13 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use synapse_shared::api::ApiError;
-use synapse_shared::catalog::{CatalogWarningDto, ContentSourceDto, RegisterContentSourceDto};
+use synapse_shared::catalog::{
+    CatalogWarningDto, ContentReaderDto, ContentSourceDto, RegisterContentSourceDto,
+};
+use synapse_shared::submission::GrantRequestDto;
 
 use crate::catalog::application::{
-    ContentSourceDraft, ContentSourceRecord, ContentSources, RegistryError, grouping_to_string,
+    ContentReader, ContentSourceDraft, ContentSourceRecord, ContentSources, RegistryError, grouping_to_string,
 };
 use crate::catalog::domain::catalog::CatalogWarning;
 use crate::catalog::http::routes::LiveCatalogService;
@@ -62,6 +66,14 @@ pub fn routes<S: ContentSources + 'static>(state: ContentSourceRoutesState<S>) -
             "/api/admin/content-sources/{id}",
             delete(remove_content_source::<S>),
         )
+        .route(
+            "/api/admin/content-sources/{id}/readers",
+            get(list_readers::<S>).post(grant_reader::<S>),
+        )
+        .route(
+            "/api/admin/content-sources/{id}/readers/{username}",
+            delete(revoke_reader::<S>),
+        )
         .route("/api/admin/content-warnings", get(content_warnings::<S>))
         .with_state(state)
 }
@@ -99,6 +111,14 @@ fn warning_to_dto(warning: &CatalogWarning) -> CatalogWarningDto {
             sources: vec![source_id.clone()],
             detail: format!(
                 "{source_id} is a book repository with no slug in book.json, so its URL fell back to the repository name. Set the slug — it IS the URL."
+            ),
+        },
+        CatalogWarning::DirectorySkipped { source_id, path } => CatalogWarningDto {
+            kind: "directorySkipped".to_owned(),
+            slug: None,
+            sources: vec![source_id.clone()],
+            detail: format!(
+                "{source_id}: “{path}” is not a chapter, and nothing under it is in the library. A directory name may hold only letters, digits, - and _ once its order prefix is off; rename it and push."
             ),
         },
     }
@@ -177,6 +197,7 @@ fn to_dto(record: &ContentSourceRecord) -> ContentSourceDto {
         grouping: grouping_to_string(&record.grouping),
         order: record.order,
         enabled: record.enabled,
+        visibility: record.audience.visibility().to_owned(),
         last_sha: record.last_sha.clone(),
         last_synced_at: record.last_synced_at.map(|t| t.to_rfc3339()),
         last_error: record.last_error.clone(),
@@ -264,12 +285,154 @@ pub(crate) async fn register_content_source<S: ContentSources>(
         request.grouping.as_deref(),
         request.order,
         request.enabled,
+        request.visibility.as_deref(),
     )
     .map_err(|error| to_error(&error))?;
     match state.sources.upsert(&draft).await {
         Ok(record) => Ok(Json(to_dto(&record))),
         Err(error) => Err(to_error(&error)),
     }
+}
+
+fn reader_dto(reader: &ContentReader) -> ContentReaderDto {
+    ContentReaderDto {
+        username: reader.username.clone().into_string(),
+        note: reader.note.clone(),
+        granted_at: reader.granted_at.to_rfc3339(),
+    }
+}
+
+fn no_such_source(id: String) -> Reject {
+    (
+        StatusCode::NOT_FOUND,
+        Json(ApiError {
+            error: "No such content source".to_owned(),
+            detail: Some(id),
+            hint: None,
+        }),
+    )
+}
+
+/// A private source's reader list, newest grant first. Kept on a PUBLIC source too — the names
+/// are inert there, and flipping the source private must not start from an empty list.
+#[utoipa::path(
+    get,
+    path = "/api/admin/content-sources/{id}/readers",
+    operation_id = "listContentReaders",
+    params(("id" = String, Path, description = "The derived source id")),
+    responses(
+        (status = 200, description = "The reader list, newest first", body = [ContentReaderDto]),
+        (status = 401, description = "Anonymous", body = ApiError),
+        (status = 403, description = "Not an admin", body = ApiError),
+        (status = 404, description = "No such source", body = ApiError)
+    )
+)]
+pub(crate) async fn list_readers<S: ContentSources>(
+    State(state): State<ContentSourceRoutesState<S>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<Vec<ContentReaderDto>>, Reject> {
+    gate(&state, &headers).await?;
+    match state.sources.list_readers(id.trim()).await {
+        Ok(Some(readers)) => Ok(Json(readers.iter().map(reader_dto).collect())),
+        Ok(None) => Err(no_such_source(id)),
+        Err(error) => Err(to_error(&error)),
+    }
+}
+
+/// Grant a reader (upsert — re-granting refreshes the note). The name is canonicalised through
+/// the verifier's own constructor, so the row is stored under exactly the spelling the reader
+/// will arrive with. Takes effect on the sync loop's next tick, which "Sync now" brings forward.
+#[utoipa::path(
+    post,
+    path = "/api/admin/content-sources/{id}/readers",
+    operation_id = "grantContentReader",
+    params(("id" = String, Path, description = "The derived source id")),
+    request_body = GrantRequestDto,
+    responses(
+        (status = 200, description = "The stored grant", body = ContentReaderDto),
+        (status = 400, description = "Blank username", body = ApiError),
+        (status = 401, description = "Anonymous", body = ApiError),
+        (status = 403, description = "Not an admin", body = ApiError),
+        (status = 404, description = "No such source", body = ApiError)
+    )
+)]
+pub(crate) async fn grant_reader<S: ContentSources>(
+    State(state): State<ContentSourceRoutesState<S>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(request): Json<GrantRequestDto>,
+) -> Result<Json<ContentReaderDto>, Reject> {
+    gate(&state, &headers).await?;
+    let Some(username) = Username::parse(&request.username) else {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ApiError {
+                error: "Blank username".to_owned(),
+                detail: None,
+                hint: Some("username is the reader's sign-in name".to_owned()),
+            }),
+        ));
+    };
+    let note = request.note.as_deref().map(str::trim).filter(|n| !n.is_empty());
+    match state.sources.grant_reader(id.trim(), &username, note).await {
+        Ok(Some(reader)) => {
+            if let Some(sync) = &state.sync {
+                sync.notify_one();
+            }
+            Ok(Json(reader_dto(&reader)))
+        }
+        Ok(None) => Err(no_such_source(id)),
+        Err(error) => Err(to_error(&error)),
+    }
+}
+
+/// Revoke a reader — 204 on removal, 404 when the grant never existed.
+#[utoipa::path(
+    delete,
+    path = "/api/admin/content-sources/{id}/readers/{username}",
+    operation_id = "revokeContentReader",
+    params(
+        ("id" = String, Path, description = "The derived source id"),
+        ("username" = String, Path, description = "The granted username")
+    ),
+    responses(
+        (status = 204, description = "Revoked"),
+        (status = 401, description = "Anonymous", body = ApiError),
+        (status = 403, description = "Not an admin", body = ApiError),
+        (status = 404, description = "No such grant", body = ApiError)
+    )
+)]
+pub(crate) async fn revoke_reader<S: ContentSources>(
+    State(state): State<ContentSourceRoutesState<S>>,
+    headers: HeaderMap,
+    Path((id, username)): Path<(String, String)>,
+) -> Result<StatusCode, Reject> {
+    gate(&state, &headers).await?;
+    let Some(username) = Username::parse(&username) else {
+        return Err(no_such_grant(&id, &username));
+    };
+    match state.sources.revoke_reader(id.trim(), &username).await {
+        Ok(true) => {
+            if let Some(sync) = &state.sync {
+                sync.notify_one();
+            }
+            Ok(StatusCode::NO_CONTENT)
+        }
+        Ok(false) => Err(no_such_grant(&id, username.as_str())),
+        Err(error) => Err(to_error(&error)),
+    }
+}
+
+fn no_such_grant(id: &str, username: &str) -> Reject {
+    (
+        StatusCode::NOT_FOUND,
+        Json(ApiError {
+            error: "No such reader".to_owned(),
+            detail: Some(format!("{username} is not on the reader list of {id}")),
+            hint: None,
+        }),
+    )
 }
 
 /// Forget a repository — 204 on removal, 404 when it was never registered. The cached checkout is

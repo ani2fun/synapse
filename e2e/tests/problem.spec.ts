@@ -327,3 +327,95 @@ test("an anonymous reader can plan, but saving asks for a sign-in", async ({ pag
   // Export stays open to everyone: the draft is theirs, account or not.
   await expect(page.locator(".pcanvas__btn", { hasText: "Export draft" })).toBeEnabled();
 });
+
+test("a test case the reader types survives a chip switch and a reload", async ({ page }) => {
+  await openThink(page);
+  await page.locator(".pwb__rtab--code").click();
+  const right = page.locator(".pwb__right");
+  await expect(right.locator(".wb__chip").first()).toBeVisible();
+
+  // Append a case of the reader's own and give it a value the authored suite does not hold.
+  await right.locator(".wb__chip--add").click();
+  const input = right.locator(".wb__input").first();
+  await input.fill("777");
+
+  // THE regression this guards: `values` is a scratch buffer that `switchTo` re-seeds from the
+  // suite, so before `TestsState.setValue` wrote through, visiting another chip and coming back
+  // discarded the value with no reload involved at all.
+  await right.locator(".wb__chip", { hasText: "Case 1" }).click();
+  await expect(input).toHaveValue("12");
+  await right.locator(".wb__chip", { hasText: "Case 3" }).click();
+  await expect(input).toHaveValue("777");
+
+  // And it outlives the tab: the suite is persisted per problem (islands/workbench/testsDraft).
+  await page.reload();
+  await expect(page.locator(".pcanvas")).toBeVisible();
+  await page.locator(".pwb__rtab--code").click();
+  await expect(right.locator(".wb__chip", { hasText: "Case 3" })).toBeVisible();
+  await expect(right.locator(".wb__input").first()).toHaveValue("777");
+
+  // Inputs only. The code buffer is re-minted from the authored starter on every load, so a
+  // restored verdict or output would describe a run whose source is gone.
+  await expect(right.locator(".runnable__out")).toHaveCount(0);
+});
+
+test("a revealed solution can be copied to the clipboard, not just into the editor", async ({ page }) => {
+  await page.goto(PROBLEM);
+  await expect(page.locator(".pcanvas")).toBeVisible();
+  await page.locator(".problem-tab--editorial").click();
+  await page.locator(".pwb-ereveal").click();
+
+  // The clipboard button lives INSIDE the editor box (where the hover-reveal rule applies and
+  // where the workbench puts its own), and is a different verb from "Copy to editor" beside the
+  // language pill — that one loads the solution into the workbench tab.
+  const solution = page.locator(".pwb-ereveal-open .runnable.solution");
+  await expect(solution.locator(".runnable__editor .editor-copy")).toBeVisible();
+  await expect(solution.locator(".wb__ghost", { hasText: "Copy to editor" })).toBeVisible();
+});
+
+test("an anonymous reader sees a disabled Edit and a buffer that takes no typing", async ({ page }) => {
+  await openThink(page);
+  await page.locator(".pwb__rtab--code").click();
+  const bench = page.locator(".pwb__right .runnable");
+  await expect(bench).toBeVisible();
+
+  // The lock is shown to the reader it applies to, with the tooltip saying why. Reset is there
+  // for everyone and idle while the buffer still matches the starter.
+  const edit = bench.locator(".wb__actions .wb__ghost", { hasText: "Edit" });
+  await expect(edit).toBeVisible();
+  await expect(edit).toBeDisabled();
+  const reset = bench.locator('button[aria-label="Reset"]');
+  await expect(reset).toBeVisible();
+  await expect(reset).toBeDisabled();
+
+  // And the editor itself is read-only — typing is swallowed, not applied.
+  const lines = bench.locator(".view-lines");
+  await expect(lines).toBeVisible({ timeout: 30_000 });
+  await lines.click();
+  await page.keyboard.type("zzz-anon");
+  await expect(lines).not.toContainText("zzz-anon");
+});
+
+test("an anonymous reader can still load a solution into the editor, and Reset takes it back", async ({ page }) => {
+  await page.goto(PROBLEM);
+  await expect(page.locator(".pcanvas")).toBeVisible();
+  await page.locator(".pwb__rtab--code").click();
+  const bench = page.locator(".pwb__right .runnable");
+  const lines = bench.locator(".view-lines");
+  await expect(lines).toBeVisible({ timeout: 30_000 });
+  const reset = bench.locator('button[aria-label="Reset"]');
+  await expect(reset).toBeDisabled();
+
+  // The lock stops TYPING, and only typing: "Copy to editor" replaces the buffer through
+  // LOAD_CODE, for anyone. Which is exactly why Reset cannot be gated on sign-in.
+  await page.locator(".problem-tab--editorial").click();
+  await page.locator(".pwb-ereveal").click();
+  const solution = page.locator(".pwb-ereveal-open .runnable.solution");
+  await solution.locator(".wb__ghost", { hasText: "Copy to editor" }).click();
+  // The fixture solution carries a comment the starter does not, so the buffer is now dirty.
+  await expect(lines).toContainText("threshold is inclusive", { timeout: 30_000 });
+  await expect(reset).toBeEnabled();
+
+  await reset.click();
+  await expect(reset).toBeDisabled();
+});

@@ -10,7 +10,7 @@ mod service;
 pub use content_fetcher::{ContentFetcher, FetchError, Fetched};
 pub use content_repository::{ContentError, ContentRepository};
 pub use content_sources::{
-    ContentSourceDraft, ContentSourceRecord, ContentSources, Placements, RegistryError, SyncOutcome,
-    grouping_from_str, grouping_to_string,
+    Audience, Audiences, ContentReader, ContentSourceDraft, ContentSourceRecord, ContentSources, Placements,
+    RegistryError, SyncOutcome, Viewer, grouping_from_str, grouping_to_string,
 };
 pub use service::CatalogService;

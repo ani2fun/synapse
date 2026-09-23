@@ -85,6 +85,9 @@ pub struct AppDeps<
     /// checkout's `_media/` / `_simulators/` tree through it, so a satellite registered at
     /// runtime serves both without a redeploy.
     pub mounted: catalog::infrastructure::MountedSources,
+    /// Who may read each mounted source — the same handle the catalog gates on, so `/media`
+    /// refuses a private source's files to everyone the catalog refuses its prose to.
+    pub audiences: catalog::application::Audiences,
     /// The `d2-render` sidecar. `None` leaves `/api/synapse/d2` unmounted entirely.
     pub d2_render_url: Option<String>,
     /// Answers `/api/ready`: Postgres in the binary, the same lazy pool in ITs (which then
@@ -130,7 +133,11 @@ where
         catalog: Arc::clone(&deps.catalog),
         site_url: deps.site_url.clone(),
     };
-    let media = platform::media_routes::MediaRoutes::mounted(deps.mounted.clone());
+    let media = platform::media_routes::MediaRoutes::mounted(
+        deps.mounted.clone(),
+        deps.audiences.clone(),
+        Arc::clone(&deps.ident.identity),
+    );
     let simulators = platform::simulator_routes::SimulatorRoutes::mounted(deps.mounted);
     let security = platform::security_headers::SecurityHeaders::new(&deps.ident.issuer);
     let admin = submission::http::admin::AdminRoutesState {
@@ -154,6 +161,7 @@ where
     let catalog_state = catalog::http::routes::CatalogRoutesState {
         service: deps.catalog,
         views: deps.views,
+        identity: Arc::clone(&deps.ident.identity),
     };
     let mut api = Router::new()
         .merge(platform::http::routes(deps.readiness))
@@ -276,7 +284,10 @@ where
         catalog::http::admin::register_content_source,
         catalog::http::admin::remove_content_source,
         catalog::http::admin::sync_now,
-        catalog::http::admin::content_warnings
+        catalog::http::admin::content_warnings,
+        catalog::http::admin::list_readers,
+        catalog::http::admin::grant_reader,
+        catalog::http::admin::revoke_reader
     ),
     components(schemas(
         HealthStatus,
@@ -329,7 +340,8 @@ where
         synapse_shared::authoring::EditRequestDto,
         synapse_shared::catalog::ContentSourceDto,
         synapse_shared::catalog::RegisterContentSourceDto,
-        synapse_shared::catalog::CatalogWarningDto
+        synapse_shared::catalog::CatalogWarningDto,
+        synapse_shared::catalog::ContentReaderDto
     ))
 )]
 pub struct ApiDoc;

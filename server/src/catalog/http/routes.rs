@@ -14,9 +14,10 @@ use synapse_shared::api::ApiError;
 use synapse_shared::catalog::{LessonPayloadDto, SynapseIndexDto};
 use synapse_shared::search::SearchResultsDto;
 
-use crate::catalog::application::CatalogService;
+use crate::catalog::application::{CatalogService, Viewer};
 use crate::catalog::http::dto;
 use crate::catalog::infrastructure::FileSystemContentRepository;
+use crate::identity::http::{LiveIdentityService, bearer, optional_user};
 use crate::insights::LessonViewStore;
 
 /// The production service: the catalog over the filesystem adapter (wired in `main`).
@@ -28,6 +29,8 @@ pub type LiveCatalogService = CatalogService<FileSystemContentRepository>;
 pub struct CatalogRoutesState<V> {
     pub service: Arc<LiveCatalogService>,
     pub views: Arc<V>,
+    /// For the viewer — consulted only when a private book is in play, or a bearer was sent.
+    pub identity: Arc<LiveIdentityService>,
 }
 
 /// Hand-written: `#[derive(Clone)]` would demand `V: Clone`, which the port does not promise.
@@ -36,8 +39,25 @@ impl<V> Clone for CatalogRoutesState<V> {
         Self {
             service: Arc::clone(&self.service),
             views: Arc::clone(&self.views),
+            identity: Arc::clone(&self.identity),
         }
     }
+}
+
+/// Who is asking, verified ONLY when a bearer was sent. No bearer is the anonymous public tree,
+/// unchanged and free; a bearer that does not verify is 401, never silently anonymous (the rule
+/// `optional_user` states once for every context). The index and search resolve the viewer this
+/// way; a lesson asks `restricts` first and skips even this when the book is public.
+async fn viewer_of<V>(
+    state: &CatalogRoutesState<V>,
+    headers: &axum::http::HeaderMap,
+) -> Result<Viewer, (StatusCode, Json<ApiError>)> {
+    if bearer(headers).is_none() {
+        return Ok(Viewer::Anonymous);
+    }
+    Ok(optional_user(&state.identity, headers)
+        .await?
+        .map_or(Viewer::Anonymous, |user| Viewer::User(user.username)))
 }
 
 type CatalogState<V> = State<CatalogRoutesState<V>>;
@@ -82,10 +102,12 @@ pub(crate) struct SearchQuery {
 )]
 pub(crate) async fn search_catalog<V: LessonViewStore>(
     State(state): CatalogState<V>,
+    headers: axum::http::HeaderMap,
     Query(query): Query<SearchQuery>,
 ) -> ApiResult<SearchResultsDto> {
     let limit = query.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT);
-    match state.service.search(&query.q, limit).await {
+    let viewer = viewer_of(&state, &headers).await?;
+    match state.service.search(&query.q, limit, &viewer).await {
         Ok(hits) => Ok(Json(SearchResultsDto {
             query: query.q,
             results: hits.iter().map(dto::to_search_hit).collect(),
@@ -111,10 +133,20 @@ fn fail<T>(error: &crate::catalog::application::ContentError) -> ApiResult<T> {
 )]
 pub async fn get_synapse_index<V: LessonViewStore>(
     State(state): CatalogState<V>,
+    headers: axum::http::HeaderMap,
 ) -> ApiResult<SynapseIndexDto> {
     tracing::info!("GET /api/synapse/index");
-    match state.service.index().await {
-        Ok(catalog) => Ok(Json(dto::to_index(&catalog))),
+    let viewer = viewer_of(&state, &headers).await?;
+    let private = match &viewer {
+        // Anonymous never receives a private book, so there is nothing to mark.
+        Viewer::Anonymous => Vec::new(),
+        Viewer::User(_) => match state.service.private_books().await {
+            Ok(slugs) => slugs,
+            Err(error) => return fail(&error),
+        },
+    };
+    match state.service.index(&viewer).await {
+        Ok(catalog) => Ok(Json(dto::to_index(&catalog, &private))),
         Err(error) => fail(&error),
     }
 }
@@ -127,6 +159,8 @@ pub async fn get_synapse_index<V: LessonViewStore>(
     params(("paths" = String, Path, description = "category…/book/chapter…/lesson")),
     responses(
         (status = 200, description = "The lesson payload", body = LessonPayloadDto),
+        (status = 401, description = "The book is private and the caller is anonymous", body = ApiError),
+        (status = 403, description = "The book is private and the caller is not on its reader list", body = ApiError),
         (status = 404, description = "No such lesson", body = ApiError)
     )
 )]
@@ -141,7 +175,17 @@ pub async fn get_synapse_lesson<V: LessonViewStore>(
         .filter(|s| !s.is_empty())
         .map(str::to_owned)
         .collect();
-    match state.service.lesson(&segments).await {
+    // A public lesson never verifies a token — `record_view` below says why that matters on the
+    // read path. Only a private book pays for the check, and only it can refuse.
+    let viewer = match state.service.restricts(&segments).await {
+        Ok(true) => match optional_user(&state.identity, &headers).await? {
+            Some(user) => Viewer::User(user.username),
+            None => Viewer::Anonymous,
+        },
+        Ok(false) => Viewer::Anonymous,
+        Err(error) => return fail(&error),
+    };
+    match state.service.lesson(&segments, &viewer).await {
         Ok(content) => {
             record_view(&state, &segments.join("/"), &headers).await;
             Ok(Json(dto::to_payload(&content)))

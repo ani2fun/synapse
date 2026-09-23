@@ -157,7 +157,7 @@ export function TestsPanel({
               value={values[arg.id] ?? ""}
               onInput={(event) => {
                 const value = (event.target as HTMLInputElement).value;
-                tests.values.update((v) => ({ ...v, [arg.id]: value }));
+                tests.setValue(arg.id, value);
               }}
             />
           </label>

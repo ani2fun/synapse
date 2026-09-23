@@ -39,6 +39,11 @@ pub struct BookDto {
     pub estimated_reading_minutes: Option<i32>,
     pub order: Option<i32>,
     pub category_path: Vec<String>,
+    /// The book is served to its reader list only. A viewer who receives it is on that list —
+    /// the index never carries a private book to anyone else — so the flag is for a lock in the
+    /// rail, never a gate. Omitted when false, so the public tree is byte-for-byte what it was.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub private: bool,
     #[cfg_attr(feature = "openapi", schema(no_recursion))]
     pub entries: Vec<BookEntryDto>,
 }
@@ -142,6 +147,9 @@ pub struct ContentSourceDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub order: Option<i32>,
     pub enabled: bool,
+    /// `public`, or `private` — served only to the usernames on its reader list
+    /// (`/api/admin/content-sources/{id}/readers`).
+    pub visibility: String,
     /// The commit currently on disk. Absent until the first fetch lands.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_sha: Option<String>,
@@ -173,6 +181,24 @@ pub struct RegisterContentSourceDto {
     /// it joins the library.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enabled: Option<bool>,
+    /// `public` (the default) or `private`. A private book is fetched like any other — the
+    /// server's GitHub token must be able to read the repository — and served only to its reader
+    /// list; it is absent from the index, search and the sitemap for everyone else.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub visibility: Option<String>,
+}
+
+/// One name on a private source's reader list. The username is canonical — trimmed and
+/// lowercased server-side — the same form the submit and content-editor allowlists store.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct ContentReaderDto {
+    pub username: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    /// ISO-8601 instant.
+    pub granted_at: String,
 }
 
 /// A conflict the merge resolved across sources, flattened for display.
@@ -184,7 +210,7 @@ pub struct RegisterContentSourceDto {
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct CatalogWarningDto {
-    /// `duplicateBookSlug` · `categoryRedeclared` · `bookSourceWithoutSlug`.
+    /// `duplicateBookSlug` · `categoryRedeclared` · `bookSourceWithoutSlug` · `directorySkipped`.
     pub kind: String,
     /// The book or category slug at issue; absent when the warning is about a source itself.
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -8,7 +8,7 @@
 .synapse-prose {
   font-family: var(--font-read);
   line-height: 1.72;
-  color: hsl(var(--foreground) / 0.86);
+  color: hsl(var(--foreground));
   /* Prose had NO wrapping assistance of any kind before step 46 — `overflow-wrap`,
      `word-break` and `hyphens` appeared zero times in the whole styles directory. At a 313px
      column on a phone, one bare URL or one long inline `code` identifier was enough to widen

@@ -10,6 +10,7 @@ use tokio::sync::Semaphore;
 
 use super::*;
 use crate::catalog::domain::content_tree::{BookMeta, ContentEntry, PRIMARY_SOURCE_ID, SourceTree};
+use crate::identity::domain::Username;
 
 // ── the instrumented stub ─────────────────────────────────────────────────────
 
@@ -92,7 +93,9 @@ fn fixture() -> StubRepo {
         vec![book_dir(
             "02-dsa",
             vec![
-                file("01-intro.md", ""),
+                // The tree carries the intro's body too: the search index reads bodies from the
+                // walked tree, while `read_lesson` reads the file map below.
+                file("01-intro.md", "# Intro\nwelcome"),
                 dir(
                     "02-lists",
                     vec![file("01-singly.md", ""), file("02-doubly.md", "")],
@@ -153,7 +156,7 @@ fn path(segments: &[&str]) -> Vec<String> {
 #[tokio::test]
 async fn index_walks_the_tree() {
     let service = CatalogService::new(fixture());
-    let index = service.index().await.unwrap();
+    let index = service.index(&Viewer::Anonymous).await.unwrap();
     assert_eq!(index.entries.len(), 1);
     assert_eq!(index.entries[0].slug(), "learn");
 }
@@ -161,11 +164,11 @@ async fn index_walks_the_tree() {
 #[tokio::test]
 async fn index_rebuilds_only_when_the_version_moves() {
     let service = CatalogService::new(fixture());
-    service.index().await.unwrap();
-    service.index().await.unwrap();
+    service.index(&Viewer::Anonymous).await.unwrap();
+    service.index(&Viewer::Anonymous).await.unwrap();
     assert_eq!(service.repo.loads.load(Ordering::SeqCst), 1);
     service.repo.bump_version("v2");
-    service.index().await.unwrap();
+    service.index(&Viewer::Anonymous).await.unwrap();
     assert_eq!(service.repo.loads.load(Ordering::SeqCst), 2);
 }
 
@@ -182,14 +185,14 @@ async fn readers_during_a_rebuild_get_the_previous_snapshot_and_do_not_rebuild()
     repo.gate = Some(Arc::clone(&gate));
     let service = Arc::new(CatalogService::new(repo));
 
-    service.index().await.unwrap();
+    service.index(&Viewer::Anonymous).await.unwrap();
     assert_eq!(service.repo.loads.load(Ordering::SeqCst), 1, "warm-up");
 
     // Invalidate. The gate is empty now, so whoever rebuilds next parks inside `load_sources`.
     service.repo.bump_version("v2");
     let building = tokio::spawn({
         let service = Arc::clone(&service);
-        async move { service.index().await }
+        async move { service.index(&Viewer::Anonymous).await }
     });
     while service.repo.loads.load(Ordering::SeqCst) < 2 {
         tokio::task::yield_now().await;
@@ -199,7 +202,7 @@ async fn readers_during_a_rebuild_get_the_previous_snapshot_and_do_not_rebuild()
     // behind the rebuild or start one — so `loads` must not move.
     for _ in 0..4 {
         service
-            .index()
+            .index(&Viewer::Anonymous)
             .await
             .expect("a reader mid-rebuild is served, not blocked");
     }
@@ -229,14 +232,14 @@ async fn a_cold_start_waits_for_the_first_build_rather_than_serving_nothing() {
 
     let first = tokio::spawn({
         let service = Arc::clone(&service);
-        async move { service.index().await }
+        async move { service.index(&Viewer::Anonymous).await }
     });
     while service.repo.loads.load(Ordering::SeqCst) < 1 {
         tokio::task::yield_now().await;
     }
     let second = tokio::spawn({
         let service = Arc::clone(&service);
-        async move { service.index().await }
+        async move { service.index(&Viewer::Anonymous).await }
     });
 
     gate.add_permits(1);
@@ -257,7 +260,10 @@ async fn a_cold_start_waits_for_the_first_build_rather_than_serving_nothing() {
 #[tokio::test]
 async fn lesson_resolves_the_mirror_path_and_reads_the_file_path() {
     let service = CatalogService::new(fixture());
-    let lesson = service.lesson(&path(&["learn", "dsa", "intro"])).await.unwrap();
+    let lesson = service
+        .lesson(&path(&["learn", "dsa", "intro"]), &Viewer::Anonymous)
+        .await
+        .unwrap();
     assert_eq!(lesson.lesson.slug, "intro");
     assert_eq!(lesson.frontmatter.title, "Intro");
     assert_eq!(lesson.raw, "# Intro\nwelcome");
@@ -270,7 +276,7 @@ async fn lesson_resolves_the_mirror_path_and_reads_the_file_path() {
 async fn prev_next_cross_chapter_boundaries_and_end_empty() {
     let service = CatalogService::new(fixture());
     let last = service
-        .lesson(&path(&["learn", "dsa", "lists", "doubly"]))
+        .lesson(&path(&["learn", "dsa", "lists", "doubly"]), &Viewer::Anonymous)
         .await
         .unwrap();
     assert_eq!(last.prev_path.as_deref(), Some("lists/singly"));
@@ -281,7 +287,7 @@ async fn prev_next_cross_chapter_boundaries_and_end_empty() {
 async fn problem_lessons_join_their_editorial_sidecar() {
     let service = CatalogService::new(fixture());
     let lesson = service
-        .lesson(&path(&["learn", "dsa", "lists", "singly"]))
+        .lesson(&path(&["learn", "dsa", "lists", "singly"]), &Viewer::Anonymous)
         .await
         .unwrap();
     assert_eq!(lesson.frontmatter.kind.as_deref(), Some("problem"));
@@ -292,7 +298,7 @@ async fn problem_lessons_join_their_editorial_sidecar() {
 async fn problem_lessons_serve_only_their_sample_tests() {
     let service = CatalogService::new(fixture());
     let lesson = service
-        .lesson(&path(&["learn", "dsa", "lists", "singly"]))
+        .lesson(&path(&["learn", "dsa", "lists", "singly"]), &Viewer::Anonymous)
         .await
         .unwrap();
     let tests = lesson.sample_tests.expect("a problem with a .tests.json sidecar");
@@ -311,15 +317,24 @@ async fn problem_lessons_serve_only_their_sample_tests() {
 #[tokio::test]
 async fn non_problem_lessons_have_no_sample_tests() {
     let service = CatalogService::new(fixture());
-    let lesson = service.lesson(&path(&["learn", "dsa", "intro"])).await.unwrap();
+    let lesson = service
+        .lesson(&path(&["learn", "dsa", "intro"]), &Viewer::Anonymous)
+        .await
+        .unwrap();
     assert_eq!(lesson.sample_tests, None);
 }
 
 #[tokio::test]
 async fn lesson_bodies_are_reread_every_call() {
     let service = CatalogService::new(fixture());
-    service.lesson(&path(&["learn", "dsa", "intro"])).await.unwrap();
-    service.lesson(&path(&["learn", "dsa", "intro"])).await.unwrap();
+    service
+        .lesson(&path(&["learn", "dsa", "intro"]), &Viewer::Anonymous)
+        .await
+        .unwrap();
+    service
+        .lesson(&path(&["learn", "dsa", "intro"]), &Viewer::Anonymous)
+        .await
+        .unwrap();
     assert_eq!(service.repo.reads.load(Ordering::SeqCst), 2);
     assert_eq!(service.repo.loads.load(Ordering::SeqCst), 1);
 }
@@ -334,7 +349,10 @@ async fn bad_paths_are_not_found() {
         path(&["learn", "dsa", "missing"]),
     ] {
         assert!(
-            matches!(service.lesson(&bad).await, Err(ContentError::NotFound(_))),
+            matches!(
+                service.lesson(&bad, &Viewer::Anonymous).await,
+                Err(ContentError::NotFound(_))
+            ),
             "expected NotFound for {bad:?}"
         );
     }
@@ -352,7 +370,165 @@ async fn convention_violations_surface_as_index_invalid() {
     };
     let service = CatalogService::new(repo);
     assert!(matches!(
-        service.index().await,
+        service.index(&Viewer::Anonymous).await,
         Err(ContentError::IndexInvalid(_))
     ));
+}
+
+// ── who may read ──────────────────────────────────────────────────────────────
+
+fn reader(raw: &str) -> Viewer {
+    Viewer::User(Username::parse(raw).unwrap())
+}
+
+/// The fixture's one source, served to `ada` alone.
+fn private_to_ada() -> CatalogService<StubRepo> {
+    let audiences = Audiences::pinned(BTreeMap::from([(
+        PRIMARY_SOURCE_ID.to_owned(),
+        Audience::Private {
+            readers: std::collections::BTreeSet::from([Username::parse("ada").unwrap()]),
+        },
+    )]));
+    CatalogService::new(fixture()).with_audiences(audiences)
+}
+
+#[tokio::test]
+async fn a_public_book_never_asks_who_is_reading() {
+    let service = CatalogService::new(fixture());
+    assert!(
+        !service
+            .restricts(&path(&["learn", "dsa", "intro"]))
+            .await
+            .unwrap()
+    );
+    // A path that resolves to nothing is not restricted either: it 404s in `lesson`, as it did.
+    assert!(
+        !service
+            .restricts(&path(&["learn", "dsa", "missing"]))
+            .await
+            .unwrap()
+    );
+    let anonymous = service.index(&Viewer::Anonymous).await.unwrap();
+    let named = service.index(&reader("ada")).await.unwrap();
+    assert_eq!(anonymous, named, "a public catalog reads the same to everyone");
+    assert!(service.private_books().await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn a_private_book_is_refused_typed_and_the_refusal_says_whether_signing_in_would_help() {
+    let service = private_to_ada();
+    let lesson = path(&["learn", "dsa", "intro"]);
+    assert!(service.restricts(&lesson).await.unwrap());
+
+    assert_eq!(
+        service.lesson(&lesson, &Viewer::Anonymous).await.unwrap_err(),
+        ContentError::Forbidden {
+            book: "dsa".to_owned(),
+            anonymous: true,
+        }
+    );
+    assert_eq!(
+        service.lesson(&lesson, &reader("bob")).await.unwrap_err(),
+        ContentError::Forbidden {
+            book: "dsa".to_owned(),
+            anonymous: false,
+        }
+    );
+    assert_eq!(
+        service.lesson(&lesson, &reader("ada")).await.unwrap().raw,
+        "# Intro\nwelcome"
+    );
+    // Refusing costs no body read — the check sits before the repository is touched.
+    assert_eq!(service.repo.reads.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn a_private_book_is_absent_from_the_index_the_sitemap_and_search_for_everyone_else() {
+    let service = private_to_ada();
+
+    let anonymous = service.index(&Viewer::Anonymous).await.unwrap();
+    assert!(
+        anonymous.entries.is_empty(),
+        "the category emptied by the pruned book goes with it"
+    );
+    let bob = service.index(&reader("bob")).await.unwrap();
+    assert!(bob.entries.is_empty());
+    let ada = service.index(&reader("ada")).await.unwrap();
+    assert_eq!(ada.entries.len(), 1);
+    assert_eq!(service.private_books().await.unwrap(), vec!["dsa".to_owned()]);
+
+    assert!(
+        service.all_lesson_paths().await.unwrap().is_empty(),
+        "a crawler is nobody's reader"
+    );
+
+    assert!(
+        service
+            .search("welcome", 10, &Viewer::Anonymous)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        service
+            .search("welcome", 10, &reader("bob"))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        service.search("welcome", 10, &reader("ada")).await.unwrap().len(),
+        1
+    );
+}
+
+#[tokio::test]
+async fn a_reader_granted_after_the_snapshot_was_built_is_admitted_without_a_rebuild() {
+    let audiences = Audiences::pinned(BTreeMap::new());
+    let service = CatalogService::new(fixture()).with_audiences(audiences.clone());
+    let lesson = path(&["learn", "dsa", "intro"]);
+    service.lesson(&lesson, &Viewer::Anonymous).await.unwrap();
+
+    // The registry changes its mind — no content moved, so the snapshot is the same one.
+    audiences.publish(BTreeMap::from([(
+        PRIMARY_SOURCE_ID.to_owned(),
+        Audience::Private {
+            readers: std::collections::BTreeSet::from([Username::parse("ada").unwrap()]),
+        },
+    )]));
+    assert!(matches!(
+        service.lesson(&lesson, &Viewer::Anonymous).await,
+        Err(ContentError::Forbidden { anonymous: true, .. })
+    ));
+    assert!(service.lesson(&lesson, &reader("ada")).await.is_ok());
+    assert_eq!(
+        service.repo.loads.load(Ordering::SeqCst),
+        1,
+        "audiences are not version-gated"
+    );
+}
+
+#[tokio::test]
+async fn a_placement_change_rebuilds_the_tree_without_a_content_change() {
+    let placements = Placements::default();
+    let service = CatalogService::with_placements(fixture(), placements.clone());
+    service.index(&Viewer::Anonymous).await.unwrap();
+    assert_eq!(service.repo.loads.load(Ordering::SeqCst), 1);
+
+    // The panel moves a source. Nothing in any repository moved.
+    placements.publish(vec![crate::catalog::domain::merge::Placement {
+        source_id: "somewhere".to_owned(),
+        grouping: vec!["study-notes".to_owned()],
+        order: Some(1),
+    }]);
+    service.index(&Viewer::Anonymous).await.unwrap();
+    assert_eq!(
+        service.repo.loads.load(Ordering::SeqCst),
+        2,
+        "a new placement is a new tree"
+    );
+
+    // The same placements again are the same key: no rebuild.
+    service.index(&Viewer::Anonymous).await.unwrap();
+    assert_eq!(service.repo.loads.load(Ordering::SeqCst), 2);
 }

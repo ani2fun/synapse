@@ -26,7 +26,7 @@ pub trait ContentRepository: Send + Sync {
 }
 
 /// The context's error. The HTTP layer maps these to status codes: `NotFound`→404, `Io`→500,
-/// `IndexInvalid`→500.
+/// `IndexInvalid`→500, `Forbidden`→401 for an anonymous caller and 403 for a named one.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ContentError {
     #[error("not found: {0}")]
@@ -35,4 +35,10 @@ pub enum ContentError {
     Io(String),
     #[error("catalog index invalid: {0}")]
     IndexInvalid(SynapseContentError),
+    /// The lesson exists, in a book served to its reader list only, and this viewer is not on
+    /// it. TYPED rather than a message because the edge branches on it (ADR-RS001): anonymous is
+    /// "sign in" (401) and a named caller is "not for you" (403), and both name the book — the
+    /// URL already does, so a 404 would hide nothing and mislead everyone.
+    #[error("'{book}' is private")]
+    Forbidden { book: String, anonymous: bool },
 }

@@ -122,6 +122,13 @@ export const CONTENT_DRAFT_PREFIX = "content-draft:";
  *  other's draft, a draft never surfaces under another account, and an edit to the lesson retires
  *  the draft that no longer applies. See islands/widgets/codebenchDraft. */
 export const CODEBENCH_DRAFT_PREFIX = "codebench-draft:";
+/** The problem page's live test suite — a key PREFIX. The username and the problem path are
+ *  appended (`tests-draft:<username>:<problem-path>`), so one account's scratch inputs never
+ *  surface under another and two problems never overwrite each other.
+ *
+ *  Inputs only: the cases the reader appended and the values they typed. Verdict ticks and run
+ *  output are deliberately NOT here — see islands/workbench/testsDraft. */
+export const TESTS_DRAFT_PREFIX = "tests-draft:";
 /** The design canvas's in-progress draft — a key PREFIX. The username and the problem path
  *  are appended (`canvas-draft:<username>:<problem-path>`), so a draft never surfaces under
  *  another account and two problems never overwrite each other. SAVED entries are not here:

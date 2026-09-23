@@ -8,8 +8,10 @@ use std::sync::Arc;
 
 use super::*;
 use crate::catalog::application::{
-    ContentSourceDraft, ContentSourceRecord, RegistryError, SyncOutcome, grouping_from_str,
+    Audience, ContentReader, ContentSourceDraft, ContentSourceRecord, RegistryError, SyncOutcome,
+    grouping_from_str,
 };
+use crate::identity::domain::Username;
 
 struct FakeRegistry {
     rows: Vec<ContentSourceRecord>,
@@ -44,6 +46,20 @@ impl ContentSources for FakeRegistry {
     async fn record_sync(&self, _: &str, _: &SyncOutcome) -> Result<(), RegistryError> {
         Ok(())
     }
+    async fn list_readers(&self, _: &str) -> Result<Option<Vec<ContentReader>>, RegistryError> {
+        Ok(Some(Vec::new()))
+    }
+    async fn grant_reader(
+        &self,
+        _: &str,
+        _: &Username,
+        _: Option<&str>,
+    ) -> Result<Option<ContentReader>, RegistryError> {
+        Ok(None)
+    }
+    async fn revoke_reader(&self, _: &str, _: &Username) -> Result<bool, RegistryError> {
+        Ok(false)
+    }
 }
 
 fn satellite() -> ContentSourceRecord {
@@ -54,6 +70,7 @@ fn satellite() -> ContentSourceRecord {
         grouping: grouping_from_str("programming-languages"),
         order: None,
         enabled: true,
+        audience: Audience::Public,
         last_sha: None,
         last_synced_at: None,
         last_error: None,

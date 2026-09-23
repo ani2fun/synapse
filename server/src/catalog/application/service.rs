@@ -7,8 +7,10 @@ use synapse_shared::execution::TestSpec;
 use tokio::sync::{Mutex, RwLock};
 
 use crate::catalog::application::content_repository::{ContentError, ContentRepository};
-use crate::catalog::application::content_sources::Placements;
-use crate::catalog::domain::catalog::{CatalogWarning, LessonFileRef, SynapseContentCatalog, WalkResult};
+use crate::catalog::application::content_sources::{Audience, Audiences, Placements, Viewer};
+use crate::catalog::domain::catalog::{
+    CatalogEntry, CatalogWarning, LessonFileRef, SynapseContentCatalog, WalkResult,
+};
 use crate::catalog::domain::lesson::LessonContent;
 use crate::catalog::domain::search::{SearchHit, SearchIndex};
 use crate::catalog::domain::{frontmatter, merge, resolver, search, walker};
@@ -29,6 +31,10 @@ pub struct CatalogService<R> {
     /// registrations change — a satellite's URL includes its grouping, so resolving without this
     /// would look the book up at the wrong path.
     placements: Placements,
+    /// Who may read each source. Shared with the sync loop like the placements, and read PER
+    /// REQUEST rather than folded into the snapshot: the snapshot is keyed by content version, and
+    /// a reader granted a minute ago must be admitted now, not at the next content push.
+    audiences: Audiences,
     /// `(content version, snapshot)` — rebuilt only when the version moves.
     cache: RwLock<Option<(String, Arc<Snapshot>)>>,
     /// Held for the length of a rebuild, so only one runs at a time.
@@ -50,22 +56,74 @@ impl<R: ContentRepository> CatalogService<R> {
         Self {
             repo,
             placements,
+            audiences: Audiences::default(),
             cache: RwLock::new(None),
             rebuilding: Mutex::new(()),
         }
     }
 
-    /// The browsable index (cached per content version).
-    pub async fn index(&self) -> Result<SynapseContentCatalog, ContentError> {
-        Ok(self.current().await?.walk.catalog.clone())
+    /// Wire the audiences the sync loop publishes into. Without this every source is public,
+    /// which is the single-checkout deployment and every test that never registers a source.
+    #[must_use]
+    pub fn with_audiences(mut self, audiences: Audiences) -> Self {
+        self.audiences = audiences;
+        self
     }
 
-    /// Every lesson URL in the catalog, for the sitemap. Paths only — the sitemap needs no
-    /// titles, and building them here would mean cloning strings the caller throws away.
+    /// Who may read a book: the audience of the source the merge gave it to. A book the walk
+    /// does not know is public — there is nothing to protect.
+    fn audience_of(&self, walk: &WalkResult, book_slug: &str) -> Audience {
+        walk.book_sources
+            .get(book_slug)
+            .map(|source| self.audiences.of(source))
+            .unwrap_or_default()
+    }
+
+    /// Whether the lesson at this path sits in a private book. The HTTP layer asks this FIRST,
+    /// before it verifies anything: a public read must stay free of the token check, because a
+    /// JWKS round trip on every page view is a real cost for a bit that is almost never set.
+    /// An unknown path answers `false` — the request then fails as a 404 in `lesson`, where it
+    /// always did.
+    pub async fn restricts(&self, path: &[String]) -> Result<bool, ContentError> {
+        let walk = Arc::clone(&self.current().await?.walk);
+        Ok(resolver::resolve_lesson(&walk.catalog, path)
+            .is_some_and(|(book, _, _)| self.audience_of(&walk, &book.slug).is_private()))
+    }
+
+    /// The browsable index (cached per content version), minus every book this viewer may not
+    /// read. Pruning happens per request rather than per snapshot — the snapshot is one per
+    /// content version, and there is one viewer per request.
+    pub async fn index(&self, viewer: &Viewer) -> Result<SynapseContentCatalog, ContentError> {
+        let walk = Arc::clone(&self.current().await?.walk);
+        let mut catalog = walk.catalog.clone();
+        retain_books(&mut catalog.entries, &|slug| {
+            self.audience_of(&walk, slug).admits(viewer)
+        });
+        Ok(catalog)
+    }
+
+    /// Which of the books in an index a reader was ADMITTED to rather than merely shown: the
+    /// private ones. The DTO marks them so the rail can show a lock; nothing gates on it.
+    pub async fn private_books(&self) -> Result<Vec<String>, ContentError> {
+        let walk = Arc::clone(&self.current().await?.walk);
+        Ok(walk
+            .book_sources
+            .keys()
+            .filter(|slug| self.audience_of(&walk, slug).is_private())
+            .cloned()
+            .collect())
+    }
+
+    /// Every PUBLIC lesson URL in the catalog, for the sitemap. Paths only — the sitemap needs no
+    /// titles, and building them here would mean cloning strings the caller throws away. A private
+    /// book is absent: a sitemap is an announcement, and a crawler is nobody's reader.
     pub async fn all_lesson_paths(&self) -> Result<Vec<String>, ContentError> {
         let walk = Arc::clone(&self.current().await?.walk);
         let mut paths = Vec::new();
         for book in resolver::all_books(&walk.catalog) {
+            if self.audience_of(&walk, &book.slug).is_private() {
+                continue;
+            }
             let prefix = resolver::book_prefix(book);
             for (in_book, _) in resolver::lessons_in_reading_order(book) {
                 paths.push(format!("{prefix}/{in_book}"));
@@ -75,9 +133,10 @@ impl<R: ContentRepository> CatalogService<R> {
     }
 
     /// A lesson by its full slug path — the body is RE-READ every request (live edits show;
-    /// only the index build is cached).
+    /// only the index build is cached). Refused, typed, when the book is served to a reader list
+    /// this viewer is not on.
     #[tracing::instrument(name = "catalog.lesson", skip(self), fields(path = %path.join("/")))]
-    pub async fn lesson(&self, path: &[String]) -> Result<LessonContent, ContentError> {
+    pub async fn lesson(&self, path: &[String], viewer: &Viewer) -> Result<LessonContent, ContentError> {
         if path.is_empty() || !path.iter().all(|s| walker::slug_like(s)) {
             return Err(ContentError::NotFound(format!(
                 "no lesson at '{}'",
@@ -87,6 +146,12 @@ impl<R: ContentRepository> CatalogService<R> {
         let walk = Arc::clone(&self.current().await?.walk);
         let (book, in_book_path, lesson) = resolver::resolve_lesson(&walk.catalog, path)
             .ok_or_else(|| ContentError::NotFound(format!("no lesson at '{}'", path.join("/"))))?;
+        if !self.audience_of(&walk, &book.slug).admits(viewer) {
+            return Err(ContentError::Forbidden {
+                book: book.slug.clone(),
+                anonymous: matches!(viewer, Viewer::Anonymous),
+            });
+        }
         let file_path = walk
             .lesson_files
             .get(&book.slug)
@@ -178,13 +243,24 @@ impl<R: ContentRepository> CatalogService<R> {
         Ok(self.current().await?.walk.warnings.clone())
     }
 
-    /// Ranked full-text hits across every mounted source.
+    /// Ranked full-text hits across every mounted source this viewer may read.
     ///
     /// Reads the same version-gated snapshot everything else does, so search can never answer
-    /// from a different content version than the page the reader lands on.
-    #[tracing::instrument(name = "catalog.search", skip(self), fields(hits))]
-    pub async fn search(&self, query: &str, limit: usize) -> Result<Vec<SearchHit>, ContentError> {
-        let hits = self.current().await?.search.search(query, limit);
+    /// from a different content version than the page the reader lands on. The index holds every
+    /// source's text; the filter runs inside ranking, so a private hit never costs a public one
+    /// its place in the limit — and never leaves the process.
+    #[tracing::instrument(name = "catalog.search", skip(self, viewer), fields(hits))]
+    pub async fn search(
+        &self,
+        query: &str,
+        limit: usize,
+        viewer: &Viewer,
+    ) -> Result<Vec<SearchHit>, ContentError> {
+        let hits = self
+            .current()
+            .await?
+            .search
+            .search_where(query, limit, |source| self.audiences.of(source).admits(viewer));
         tracing::Span::current().record("hits", hits.len());
         Ok(hits)
     }
@@ -196,7 +272,7 @@ impl<R: ContentRepository> CatalogService<R> {
     /// by the `validate_book` CLI, neither of which searches anything — building there would tax
     /// the editor to serve the palette.
     async fn current(&self) -> Result<Arc<Snapshot>, ContentError> {
-        let version = self.repo.content_version().await;
+        let version = self.version().await;
         if let Some(fresh) = self.cached(&version).await {
             return Ok(fresh);
         }
@@ -217,7 +293,7 @@ impl<R: ContentRepository> CatalogService<R> {
             // have built a different one, and caching under a version nobody asked for would make
             // the very next request miss.
             let _queued = self.rebuilding.lock().await;
-            let version = self.repo.content_version().await;
+            let version = self.version().await;
             return match self.cached(&version).await {
                 Some(built) => Ok(built),
                 None => self.rebuild(version).await,
@@ -229,6 +305,23 @@ impl<R: ContentRepository> CatalogService<R> {
             return Ok(fresh);
         }
         self.rebuild(version).await
+    }
+
+    /// What the snapshot is keyed on: the content version AND where each source is placed.
+    ///
+    /// The placements are part of the key because they are part of the tree. A grouping or an
+    /// order edited from `/admin` is republished by the next sync tick, but no content moved —
+    /// keyed on content alone, the catalog kept grafting the book where it used to be until the
+    /// repository happened to receive a push, and the panel's edit looked like it did nothing.
+    async fn version(&self) -> String {
+        let content = self.repo.content_version().await;
+        let placed: Vec<String> = self
+            .placements
+            .snapshot()
+            .iter()
+            .map(|p| format!("{}@{}#{:?}", p.source_id, p.grouping.join("/"), p.order))
+            .collect();
+        format!("{content}|{}", placed.join(","))
     }
 
     /// The snapshot for exactly this version, or nothing.
@@ -258,7 +351,7 @@ impl<R: ContentRepository> CatalogService<R> {
         let walk = Arc::new(merge::assemble(&sources, &placements).map_err(ContentError::IndexInvalid)?);
         let walk_ms = t_walk.elapsed().as_millis();
         for warning in &walk.warnings {
-            tracing::warn!(?warning, "catalog: cross-source conflict resolved");
+            tracing::warn!(?warning, "catalog: content warning");
         }
         // The last use of `sources`: every body is still in memory from the walk, and is dropped
         // with it on the next line.
@@ -270,6 +363,18 @@ impl<R: ContentRepository> CatalogService<R> {
         *self.cache.write().await = Some((version, Arc::clone(&snapshot)));
         Ok(snapshot)
     }
+}
+
+/// Keep the books a viewer may read; a category left with nothing vanishes with them, the same
+/// rule the merge applies to a grouping whose only book lost a slug collision.
+fn retain_books(entries: &mut Vec<CatalogEntry>, admits: &dyn Fn(&str) -> bool) {
+    entries.retain_mut(|entry| match entry {
+        CatalogEntry::Book(book) => admits(&book.slug),
+        CatalogEntry::Category(category) => {
+            retain_books(&mut category.entries, admits);
+            !category.entries.is_empty()
+        }
+    });
 }
 
 #[cfg(test)]

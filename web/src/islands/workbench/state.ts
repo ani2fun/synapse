@@ -12,18 +12,13 @@ import type { Verdict } from "../../lib/execution/judge";
 import * as log from "../../lib/log";
 import { Store } from "../../lib/store";
 
-/** One runnable block's state: the FSM in a store, plus the page-local Edit unlock. */
+/** One runnable block's state: the FSM in a store. Whether the buffer may be typed into is the
+ *  workbench's auth check applied to the editor, not state held here. */
 export class BlockStore {
   readonly state: Store<ExecutorState>;
-  readonly unlocked: Store<boolean>;
 
-  /** `unlocked` starts a block EDITABLE. A lesson's block never does — its source is authored
-   *  content, and Edit is the gate on changing it — but a playground has no authored source to
-   *  protect, and a read-only scratchpad is not a scratchpad. */
-  constructor(source: string, unlocked = false) {
-    const state = executor.initial(source);
-    this.state = new Store(unlocked ? executor.enterEdit(state) : state);
-    this.unlocked = new Store(unlocked);
+  constructor(source: string) {
+    this.state = new Store(executor.initial(source));
   }
 
   /**
@@ -50,18 +45,6 @@ export class BlockStore {
         this.state.update((s) => executor.failed(s, handle, message));
       }
     })();
-  }
-
-  /** ⌘E / Edit-button toggle. Locking back up reverts the buffer to the authored source
-   *  (the last result survives — reverting code is not un-running it). */
-  toggleEdit(authored: string): void {
-    if (this.unlocked.get()) {
-      this.unlocked.set(false);
-      this.state.update((s) => executor.cancelEdit(s, authored));
-    } else {
-      this.unlocked.set(true);
-      this.state.update((s) => executor.enterEdit(s));
-    }
   }
 }
 
@@ -144,13 +127,35 @@ export class TestsState {
   /** The LIVE suite: authored cases plus any the learner appends. */
   readonly spec: Store<TestSpec>;
 
-  constructor(spec: TestSpec) {
+  /** `activeCase` is a parameter so a RESTORED suite can open on the chip the reader left on;
+   *  it is the caller's job to have clamped it into range (`testsDraft.parse` does). */
+  constructor(spec: TestSpec, activeCase = 0) {
     this.spec = new Store(spec);
-    this.values = new Store(seedValues(spec, 0));
+    this.activeCase.set(activeCase);
+    this.values = new Store(seedValues(spec, activeCase));
   }
 
   recordVerdict(caseIndex: number, verdict: Verdict): void {
     this.verdicts.update((map) => new Map(map).set(caseIndex, verdict));
+  }
+
+  /**
+   * Write one input THROUGH to the live suite, not just to the scratch buffer.
+   *
+   * `values` is scratch: `switchTo` re-seeds it from `spec.cases[i].args`, so a value that only
+   * ever reached `values` is discarded the moment the reader visits another chip and comes back —
+   * no reload required. The suite is the durable thing, and this is the only writer that keeps the
+   * two agreeing.
+   */
+  setValue(argId: string, value: string): void {
+    this.values.update((v) => ({ ...v, [argId]: value }));
+    const caseIndex = this.activeCase.get();
+    this.spec.update((s) => ({
+      ...s,
+      cases: s.cases.map((testCase, i) =>
+        i === caseIndex ? { ...testCase, args: { ...testCase.args, [argId]: value } } : testCase,
+      ),
+    }));
   }
 
   switchTo(caseIndex: number): void {
