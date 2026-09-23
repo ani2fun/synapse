@@ -117,6 +117,15 @@ export function VizLab() {
   /** Read at Trace time, so the button's one handler always sees the current box. */
   const stdinRef = useRef(stdin);
   stdinRef.current = stdin;
+  /** What a Run that stopped for input was asking — `""` when it asked without words — or null
+   *  when no run is waiting. While set, the STDIN area IS the prompt. */
+  const [asking, setAsking] = useState<string | null>(null);
+  const [answer, setAnswer] = useState("");
+  const answerBox = useRef<HTMLInputElement>(null);
+  /** Starts a Run as the workbench's own button does; handed over once it mounts. */
+  const runner = useRef<(() => void) | null>(null);
+  /** The code the canvas is showing a run of, so an edit can take a now-wrong trace away. */
+  const traced = useRef<CodeSnapshot | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const say = useCallback((message: string) => {
@@ -151,7 +160,17 @@ export function VizLab() {
     const wrap = document.createElement("div");
     slot.replaceChildren(wrap);
     const onCode = (event: Event) => {
-      live.current = (event as CustomEvent<CodeSnapshot>).detail;
+      const snapshot = (event as CustomEvent<CodeSnapshot>).detail;
+      live.current = snapshot;
+      // An edit ends the last run: its question and its trace both describe code that is gone.
+      // PythonTutor does the same the moment you choose to edit — a trace left standing paints
+      // its arrows onto the wrong lines (the last line, once the program got shorter).
+      setAsking(null);
+      const was = traced.current;
+      if (was != null && (was.source !== snapshot.source || was.language !== snapshot.language)) {
+        traced.current = null;
+        window.__synapseVizPanel?.clear();
+      }
     };
     wrap.addEventListener(CODE_CHANGED, onCode);
     render(
@@ -167,6 +186,10 @@ export function VizLab() {
         onEditor: (handle) => {
           editor.current = handle;
           paintCursor();
+        },
+        onNeedsInput: setAsking,
+        onRunner: (run) => {
+          runner.current = run;
         },
       }),
       wrap,
@@ -257,12 +280,38 @@ export function VizLab() {
     }
     const hint = composeHint(structure, root);
     log.info(`viz lab: trace ${live.current.language} as ${hint}`);
+    traced.current = { ...live.current };
     panel.trace({
       language: live.current.language,
       source: live.current.source,
       vizHint: hint,
       stdin: stdinRef.current,
     });
+  };
+
+  // ── a Run that stopped to ask ──
+  // The STDIN area becomes the prompt and TAKES focus: the program is stopped on a question, so
+  // typing is the reader's next move, and making them find the box is how the page read as broken.
+  useEffect(() => {
+    if (asking == null) return;
+    answerBox.current?.focus();
+    answerBox.current?.scrollIntoView({ block: "nearest" });
+  }, [asking]);
+
+  /** The answer becomes the box's next line — so the box stays the one record of what the program
+   *  is given — and the program runs on with it. */
+  const answerRun = () => {
+    const current = stdinRef.current;
+    const next =
+      current === "" ? answer : current.endsWith("\n") ? current + answer : `${current}\n${answer}`;
+    // Run reads the box through this ref, and the state lands a render later — it must hold the
+    // answer NOW, or the re-run is fed the box without it and asks the same question again.
+    stdinRef.current = next;
+    setStdin(next);
+    setAnswer("");
+    setAsking(null);
+    log.info("viz lab: answered the program's question — running on");
+    runner.current?.();
   };
 
   /** The traced figure as d2. Null when nothing is traced — the menu says so rather than
@@ -423,14 +472,38 @@ export function VizLab() {
             <label class="vlab__stdin-label" for="vlab-stdin">
               stdin
             </label>
-            {/* The run's OPENING input. Values typed into the console's prompt while stepping are
-                the crate's business and never land here — this is what the program is given
-                before it starts. The note is load-bearing: Run and Trace read the SAME box but
-                cannot do the same thing with an empty one, and a reader who has just watched
-                Trace ask them for a value will otherwise expect Run to ask too. It cannot: the
-                sandbox is one-shot, so an `input()` past the end of this box raises EOFError and
-                that is the honest answer — including when the box has SOME lines but fewer than
-                the program reads, which is the case that reads as the box being broken. */}
+            {/* The program's input, one line per `input()`. The sandbox is one-shot, so neither
+                button can type into a RUNNING program; both ask instead. A Run that reaches the
+                end of this box stops on the question, this area becomes the prompt, and the
+                answer is added here as the next line before the program runs again from the top.
+                Trace asks in the console as the reader steps, and those answers stay in its own
+                session. */}
+            {asking != null && (
+              <div class="viz-input__ask vlab__ask">
+                <label class="viz-input__label" for="vlab-answer">
+                  {asking === "" ? "The program is waiting for input" : asking}
+                </label>
+                <div class="viz-input__row">
+                  <input
+                    id="vlab-answer"
+                    ref={answerBox}
+                    class="viz-input__box"
+                    placeholder="Type a value, then press Enter"
+                    value={answer}
+                    onInput={(event) => setAnswer((event.target as HTMLInputElement).value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        answerRun();
+                      }
+                    }}
+                  />
+                  <button type="button" class="viz-input__go" onClick={answerRun}>
+                    Run on
+                  </button>
+                </div>
+              </div>
+            )}
             <textarea
               id="vlab-stdin"
               class="vlab__stdin-input"
@@ -440,8 +513,9 @@ export function VizLab() {
               onInput={(event) => setStdin((event.target as HTMLTextAreaElement).value)}
             ></textarea>
             <p class="vlab__stdin-note">
-              Run needs every value up front, one line per <code>input()</code> — it reaches the
-              end of the box and stops. Trace can ask you for them one at a time as you step.
+              One line per <code>input()</code>, read in order. When the program wants more than
+              the box holds, Run stops and asks — your answer is added here as the next line.
+              Trace asks as you step.
             </p>
           </div>
         </section>

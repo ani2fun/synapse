@@ -354,6 +354,16 @@ fn ask_box(
 ) -> impl IntoView + use<> {
     let pending = RwSignal::new(String::new());
     let prompt = run.prompt.clone();
+    // FOCUSED, not merely present: the program is stopped on this question, so typing is the
+    // next thing the reader does. The `autofocus` attribute cannot do it — a browser honours it
+    // only when nothing else on the page already holds focus, and the editor or a transport
+    // button always does by the time a trace lands.
+    let field: NodeRef<leptos::html::Input> = NodeRef::new();
+    Effect::new(move |_| {
+        if let Some(input) = field.get() {
+            let _ = input.focus();
+        }
+    });
     let submit = move || {
         let mut next = key.clone();
         next.stdin = session::replay_stdin(&history, &pending.get_untracked());
@@ -401,7 +411,7 @@ fn ask_box(
                         <input
                             id="viz-ask"
                             class="viz-input__box"
-                            autofocus
+                            node_ref=field
                             placeholder="Type a value, then press Enter"
                             prop:value=move || pending.get()
                             on:input=move |event| pending.set(event_target_value(&event))

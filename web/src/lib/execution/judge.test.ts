@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 import vectors from "../../../../shared/test-vectors/judge-vectors.json";
-import { judge, ranOutOfInput, stdinFor } from "./judge";
+import { judge, pendingPrompt, ranOutOfInput, stdinFor } from "./judge";
 import type { ArgSpec, Verdict } from "./judge";
 import type { components } from "../api/schema.gen";
 
@@ -84,5 +84,20 @@ describe("ranOutOfInput", () => {
   it("says nothing about a run that simply failed", () => {
     expect(ranOutOfInput(died("ZeroDivisionError: division by zero"))).toBe(false);
     expect(ranOutOfInput(died(""))).toBe(false);
+  });
+});
+
+describe("pendingPrompt", () => {
+  it("quotes the question a program left on its last, unfinished line", () => {
+    // `input("How many? ")` writes the question and no newline, then reads — and finds nothing.
+    expect(pendingPrompt("How many? ")).toBe("How many?");
+    expect(pendingPrompt("Welcome!\nName: ")).toBe("Name:");
+  });
+
+  it("has no question to quote when the output ends at a line break", () => {
+    // A bare `input()` after a finished line asks with no words — the host says so itself.
+    expect(pendingPrompt("done\n")).toBeNull();
+    expect(pendingPrompt("")).toBeNull();
+    expect(pendingPrompt("   ")).toBeNull();
   });
 });

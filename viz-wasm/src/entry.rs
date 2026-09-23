@@ -225,6 +225,21 @@ pub fn viz_panel_trace(language: &str, source: &str, viz_hint: &str, stdin: &str
     true
 }
 
+/// Take the trace off both surfaces. The page calls this when the code it traced is EDITED: a trace
+/// of different code paints its arrows onto the wrong lines — clamped to the last one when the
+/// program got shorter — and its input prompt would answer for a program that no longer exists.
+#[wasm_bindgen]
+pub fn viz_panel_clear() {
+    console_error_panic_hook::set_once();
+    let Some(store) = PANEL.with_borrow(|p| *p) else {
+        return;
+    };
+    if store.current.get_untracked().is_some() {
+        store.clear();
+        crate::log::debug("viz: panel cleared — the traced code changed");
+    }
+}
+
 /// The authored structure vocabulary, as a JSON array of tokens — what the page's picker offers.
 /// Served from the crate rather than spelled again in TypeScript: two copies of a closed set is
 /// how one of them silently grows a token the other cannot render.

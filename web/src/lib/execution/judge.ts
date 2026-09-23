@@ -71,6 +71,17 @@ export function ranOutOfInput(result: RunResult): boolean {
   return stderr.includes("NoSuchElementException") && stderr.includes("java.util.Scanner");
 }
 
+/**
+ * What a program that ran out of input was ASKING when it stopped: the unfinished last line of its
+ * stdout, which is where `input("How many? ")` and `System.out.print("How many? ")` leave a
+ * question that has no newline yet. Null when the output ends at a line break — nothing is
+ * pending on the line, so there is no question to quote.
+ */
+export function pendingPrompt(stdout: string): string | null {
+  const tail = stdout.slice(stdout.lastIndexOf("\n") + 1).trim();
+  return tail === "" ? null : tail;
+}
+
 export function judge(result: RunResult, expected: string | null | undefined): Verdict {
   if (result.status !== "Accepted") return "Errored";
   if (expected == null) return "Finished";

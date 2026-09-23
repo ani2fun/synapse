@@ -6,7 +6,7 @@ import type { ComponentChildren } from "preact";
 import type { Submission } from "../../lib/api/client";
 import type { ExecutorState } from "../../lib/execution/executor";
 import { expectedFor, canReproduce } from "../../lib/execution/blocks";
-import { judge, ranOutOfInput } from "../../lib/execution/judge";
+import { judge, pendingPrompt, ranOutOfInput } from "../../lib/execution/judge";
 import type { TestCase } from "../../lib/execution/judge";
 import type { RunResult } from "../../lib/api/client";
 import { useStore } from "../../lib/store";
@@ -14,22 +14,41 @@ import type { SubmitStore, TestsState } from "./state";
 
 // ── Output ────────────────────────────────────────────────────────────────────
 
-function StreamBlock({ label, content }: { label: string; content: string }) {
+function StreamBlock({ label, content, open = true }: { label: string; content: string; open?: boolean }) {
   if (content === "") return null;
   return (
-    <details class="runnable__details" open>
+    <details class="runnable__details" open={open}>
       <summary class="runnable__details-label">{label}</summary>
       <pre class="runnable__stream">{content}</pre>
     </details>
   );
 }
 
-function ResultPanel({ result, expected }: { result: RunResult; expected: string | null }) {
+function ResultPanel({
+  result,
+  expected,
+  answerable,
+}: {
+  result: RunResult;
+  expected: string | null;
+  answerable: boolean;
+}) {
   const verdict = expected != null ? judge(result, expected) : null;
+  // On a page that can ANSWER the program, running out of input is the program asking, not the
+  // program failing — the traceback is the mechanism, and leading with it reads as a bug in the
+  // code. Where nothing can answer, it stays an error, with the hint that says why.
+  const waiting = answerable && ranOutOfInput(result);
+  const asked = waiting ? pendingPrompt(result.stdout) : null;
   const badgeOk =
     verdict === "Accepted" || (verdict === null && result.status === "Accepted");
-  const badgeLabel =
-    verdict === "Accepted"
+  const badgeClass = waiting
+    ? "runnable__badge runnable__badge--wait"
+    : badgeOk
+      ? "runnable__badge runnable__badge--ok"
+      : "runnable__badge runnable__badge--fail";
+  const badgeLabel = waiting
+    ? "Waiting for input"
+    : verdict === "Accepted"
       ? "Accepted ✓"
       : verdict === "WrongAnswer"
         ? "Wrong answer ✗"
@@ -45,21 +64,26 @@ function ResultPanel({ result, expected }: { result: RunResult; expected: string
   return (
     <div class="runnable__out">
       <div class="runnable__status">
-        <span class={badgeOk ? "runnable__badge runnable__badge--ok" : "runnable__badge runnable__badge--fail"}>
-          {badgeLabel}
-        </span>
+        <span class={badgeClass}>{badgeLabel}</span>
         {time && <span class="runnable__meta">{time}</span>}
         {memory && <span class="runnable__meta">{memory}</span>}
       </div>
       <StreamBlock label="compile output" content={result.compileOutput ?? ""} />
       {/* Above the traceback, because the traceback is what sends a reader looking at their
           code when the thing that is short is the input. */}
-      {ranOutOfInput(result) && (
+      {waiting ? (
         <p class="runnable__hint">
-          The program ran out of input — it asked for another value and stdin had none left.
+          It is asking {asked != null ? <code>{asked}</code> : "for a value"} — type the answer
+          in <strong>STDIN</strong> below and press Enter to run on.
         </p>
+      ) : (
+        ranOutOfInput(result) && (
+          <p class="runnable__hint">
+            The program ran out of input — it asked for another value and stdin had none left.
+          </p>
+        )
       )}
-      <StreamBlock label="stderr" content={result.stderr} />
+      <StreamBlock label="stderr" content={result.stderr} open={!waiting} />
       {result.stdout === "" ? (
         <p class="runnable__empty">(no output)</p>
       ) : (
@@ -69,7 +93,16 @@ function ResultPanel({ result, expected }: { result: RunResult; expected: string
   );
 }
 
-export function Output({ state, tests }: { state: ExecutorState; tests: TestsState | null }) {
+export function Output({
+  state,
+  tests,
+  answerable = false,
+}: {
+  state: ExecutorState;
+  tests: TestsState | null;
+  /** Something on the page can type the value a program asks for — see `ResultPanel`. */
+  answerable?: boolean;
+}) {
   const ranCase = tests ? useStore(tests.ranCase) : null;
   const spec = tests ? useStore(tests.spec) : null;
   if (state.error != null) {
@@ -86,7 +119,7 @@ export function Output({ state, tests }: { state: ExecutorState; tests: TestsSta
     // Judged against the case the run was LAUNCHED for — switching chips must never re-label
     // an old run's output under a different case's expected.
     const expected = spec != null && ranCase != null ? expectedFor(spec, ranCase) : null;
-    return <ResultPanel result={state.result} expected={expected} />;
+    return <ResultPanel result={state.result} expected={expected} answerable={answerable} />;
   }
   if (state.runState === "running") {
     return <div class="runnable__out runnable__out--running">Running…</div>;

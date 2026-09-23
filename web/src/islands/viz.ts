@@ -45,6 +45,7 @@ function load(): Promise<VizModule> {
       onCursor: (listener) => mod.viz_panel_on_cursor(listener),
       exportD2: (mode) => mod.viz_panel_export_d2(mode) ?? null,
       structures: () => JSON.parse(mod.viz_structures()) as string[],
+      clear: () => mod.viz_panel_clear(),
     };
     window.dispatchEvent(new Event(VIZ_READY));
     const mounted = mod.viz_mount_widgets();

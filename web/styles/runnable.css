@@ -99,6 +99,9 @@
 }
 .runnable__badge--ok { color: hsl(var(--status-ok)); background: hsl(var(--status-ok-bg) / 0.14); }
 .runnable__badge--fail { color: hsl(var(--status-err)); background: hsl(var(--status-err-bg) / 0.18); }
+/* A program stopped on a question: neither passed nor failed, and in the brand colour because
+   the next move is the reader's. */
+.runnable__badge--wait { color: hsl(var(--primary)); background: hsl(var(--primary) / 0.12); }
 .runnable__meta { font-family: ui-monospace, monospace; font-size: 0.75rem; color: hsl(var(--muted-foreground)); }
 .runnable__stdout,
 .runnable__stream {

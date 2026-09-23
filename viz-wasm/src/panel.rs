@@ -124,6 +124,13 @@ impl VizPanelStore {
         self.current.set(Some(session));
     }
 
+    /// Take the run off both surfaces — the canvas back to its empty state, the console to
+    /// nothing, the editor's arrows to none (the cursor reports no lines once nothing is shown).
+    pub fn clear(self) {
+        self.resume_at.set(None);
+        self.current.set(None);
+    }
+
     /// The playback state of whichever lens is on screen — the one the transport, the prompt and
     /// the editor's arrows all answer to.
     #[must_use]
@@ -300,11 +307,19 @@ fn ready(
         .ok()
         .and_then(|cases| cases.cases.first().map(|graph| graph.steps.len()))
         .unwrap_or(0);
+    // A FRESH run that stopped to ask opens where it asked. The question is why the reader is
+    // here, and opening at step 1 hands them a puzzle — find the one step that matters — before
+    // they can answer it. They can still step back through everything that led there.
+    let waiting = run.waiting;
     Effect::new(move |_| {
-        let Some(at) = store.resume_at.get_untracked() else {
-            return;
+        let at = match store.resume_at.get_untracked() {
+            Some(at) => {
+                store.resume_at.set(None);
+                at
+            }
+            None if waiting => usize::MAX,
+            None => return,
         };
-        store.resume_at.set(None);
         let (target, count) = match store.lens.get_untracked() {
             Lens::Structure => (store.step, resume_case_steps),
             Lens::Memory => (store.mem_step, resume_steps),

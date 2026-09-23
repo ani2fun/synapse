@@ -16,7 +16,7 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { displayLang, canVisualise, expectedFor, seedValues } from "../../lib/execution/blocks";
 import type { Variant } from "../../lib/execution/blocks";
 import * as executor from "../../lib/execution/executor";
-import { judge, stdinFor } from "../../lib/execution/judge";
+import { judge, pendingPrompt, ranOutOfInput, stdinFor } from "../../lib/execution/judge";
 import type { TestSpec } from "../../lib/execution/judge";
 import { canonicalLang, preferredIndex } from "../../lib/execution/language";
 import type { EditorHandle } from "../../lib/islands/editor/monaco";
@@ -82,6 +82,14 @@ export interface WorkbenchProps {
    *  lab paints the traced line on it. Both edges matter: Monaco here is lazy AND evictable, so a
    *  caller holding the handle past an eviction would be decorating a disposed editor. */
   onEditor?: (handle: EditorHandle | null) => void;
+  /** Told after every Run whether the program stopped to ASK for a value: the question it left
+   *  (`""` when it asked without one), or null when it did not. A host with somewhere to type the
+   *  answer — the viz lab's STDIN — takes it from there, and the output then reads "waiting for
+   *  input" rather than as a failure. */
+  onNeedsInput?: (prompt: string | null) => void;
+  /** Handed a function that starts a Run exactly as the button does — how an answer typed
+   *  outside the workbench runs the program on. */
+  onRunner?: (run: () => void) => void;
   /** Keep the live test suite in this browser (`testsDraft`) — the problem page opts in. Separate
    *  from `fill` on purpose: where the editor sits and whether the reader's cases outlive the tab
    *  are different claims, and coupling them would strand the next filled-but-transient caller. */
@@ -98,6 +106,8 @@ export function Workbench({
   editable = false,
   stdin: stdinProp,
   onEditor,
+  onNeedsInput,
+  onRunner,
   persistTests = false,
 }: WorkbenchProps) {
   // ── the tests draft: the authored fingerprint is taken ONCE, from the suite the page was served
@@ -335,6 +345,28 @@ export function Workbench({
   activeStoreRef.current = activeStore;
   const runRef = useRef(run);
   runRef.current = run;
+  useEffect(() => onRunner?.(() => runRef.current()), []);
+
+  // ── a run that stopped to ask ──
+  // Once per finished run, like the verdict recorder: a program that ran out of input is reported
+  // with the question it left, anything else as not asking — which is what takes a host's answer
+  // box away again once the program has what it wanted.
+  useEffect(() => {
+    if (onNeedsInput == null) return;
+    const seen = { id: null as number | null };
+    const unsubs = stores.map((store, storeIndex) =>
+      store.state.subscribe(() => {
+        if (storeIndex !== active) return;
+        const s = store.state.get();
+        if (s.runState !== "done" || seen.id === s.runId) return;
+        seen.id = s.runId;
+        const prompt = s.result != null && ranOutOfInput(s.result) ? (pendingPrompt(s.result.stdout) ?? "") : null;
+        log.debug(prompt == null ? "run: finished without asking" : `run: waiting for input (${prompt || "no prompt"})`);
+        onNeedsInput(prompt);
+      }),
+    );
+    return () => unsubs.forEach((u) => u());
+  }, [active]);
   const submitRef = useRef(doSubmit);
   submitRef.current = doSubmit;
 
@@ -595,7 +627,7 @@ export function Workbench({
         </div>
       )}
       {tests && <TestsPanel tests={tests} onSwitch={onCaseSwitch} />}
-      <Output state={state} tests={tests} />
+      <Output state={state} tests={tests} answerable={onNeedsInput != null} />
       <VerdictPanel submit={submit} tests={tests} onSwitch={onCaseSwitch} />
     </div>
   );

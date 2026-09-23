@@ -102,6 +102,10 @@ declare global {
       exportD2: (mode: "step" | "walkthrough") => string | null;
       /** The structure tokens the crate can draw — the picker's only source. */
       structures: () => string[];
+      /** Take the trace off both surfaces. For when the traced code is EDITED: a trace of other
+       *  code paints its arrows onto the wrong lines, and its prompt would answer for a program
+       *  that no longer exists. */
+      clear: () => void;
     };
   }
 }
