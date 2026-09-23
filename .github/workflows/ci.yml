@@ -190,14 +190,14 @@ jobs:
           curl -sf http://localhost:5150/version || {
             echo "::error::go-judge never became ready"; docker logs go-judge; exit 1; }
       - name: sandbox ITs (the REAL go-judge, not a stub)
-        run: cargo test --test go_judge_it --test java_tracer_it -- --test-threads=1
+        run: cargo test --test go_judge_it --test java_tracer_it --test python_tracer_it -- --test-threads=1
       - name: prove they RAN (a skip reports green)
         # Same trap as the Postgres suite: the gate prints "skipped" and passes. Assert on
         # the absence of that line, or a broken EXECUTOR_URL silently reverts to no coverage.
         # Both suites, and a positive test count for each — absence of the skip line alone
         # would also be satisfied by a suite that compiled to nothing.
         run: |
-          for suite in go_judge_it java_tracer_it; do
+          for suite in go_judge_it java_tracer_it python_tracer_it; do
             cargo test --test "$suite" -- --nocapture 2>&1 | tee "/tmp/$suite.log"
             if grep -q "skipped (set GOJUDGE_IT" "/tmp/$suite.log"; then
               echo "::error::$suite SKIPPED — the sandbox or EXECUTOR_URL is wrong"

@@ -14,12 +14,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod tracer;
+
 use synapse_server::execution::application::CodeRunner;
 use synapse_server::execution::domain::Language;
-use synapse_server::execution::infrastructure::GoJudgeRunner;
 
 const HARNESS: &str = include_str!("../../web/src/lib/islands/tracer/java-harness.java");
-const PLACEHOLDER: &str = "__SYNAPSE_USER_SOURCE_B64__";
 
 /// A caller and a callee that mutate ONE array — the shape that exposed the bug: `arr` is a local
 /// in `main` and a parameter in `flip`, and `Solution` adds a `this` that shifts the walk order.
@@ -47,34 +47,6 @@ public class Main {
 }
 ";
 
-fn gated() -> Option<GoJudgeRunner> {
-    if std::env::var("GOJUDGE_IT").is_err() {
-        eprintln!("skipped (set GOJUDGE_IT=1 with a live go-judge to run)");
-        return None;
-    }
-    let url = std::env::var("EXECUTOR_URL").unwrap_or_else(|_| "http://localhost:5150".to_owned());
-    Some(GoJudgeRunner::new(&url))
-}
-
-/// Standard base64, hand-rolled: the encoder is needed ONLY here, and a dependency earns its
-/// place by being needed in the product (RS001).
-fn base64(input: &[u8]) -> String {
-    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::new();
-    for chunk in input.chunks(3) {
-        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
-        let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
-        for i in 0..4 {
-            if i <= chunk.len() {
-                out.push(ALPHABET[((n >> (18 - 6 * i)) & 0x3F) as usize] as char);
-            } else {
-                out.push('=');
-            }
-        }
-    }
-    out
-}
-
 /// The `arr` ref id in the innermost frame of the first step whose innermost frame is `fn_name`.
 fn root_id_in(steps: &[serde_json::Value], fn_name: &str) -> Option<String> {
     steps.iter().find_map(|step| {
@@ -89,18 +61,11 @@ fn root_id_in(steps: &[serde_json::Value], fn_name: &str) -> Option<String> {
 
 #[tokio::test]
 async fn heap_ids_identify_objects_across_frames_not_walk_order() {
-    let Some(runner) = gated() else { return };
-    let source = HARNESS.replace(PLACEHOLDER, &base64(USER_SOURCE.as_bytes()));
+    let Some(runner) = tracer::gated() else { return };
+    let source = tracer::wrap(HARNESS, USER_SOURCE);
 
     let result = runner.run(Language::Java, &source, None).await.unwrap();
-    let stdout = result.stdout;
-
-    let body = stdout
-        .split("__SYNAPSE_HEAP_BEGIN__")
-        .nth(1)
-        .and_then(|s| s.split("__SYNAPSE_HEAP_END__").next())
-        .unwrap_or_else(|| panic!("no heap trace in stdout: {stdout}"));
-    let trace: serde_json::Value = serde_json::from_str(body.trim()).unwrap();
+    let (_, trace) = tracer::split(&result.stdout);
     let steps = trace["steps"].as_array().unwrap();
     assert!(
         steps.len() > 5,

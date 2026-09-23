@@ -152,3 +152,45 @@ fn the_last_marker_wins_so_a_program_cannot_spoof_one() {
         }]
     );
 }
+
+// ── functions, classes and comprehensions ─────────────────────────────────────
+
+#[test]
+fn a_function_and_a_class_decode_typed_rather_than_as_instances() {
+    let json = r#"{"steps":[{"line":1,"event":"line","frames":[],"heap":{
+        "1":{"type":"class","name":"Solution","members":{"spiralOrder":{"ref":"2"}}},
+        "2":{"type":"function","sig":"spiralOrder(self, matrix)"}}}]}"#;
+    let trace = decode(&wrap("", json)).unwrap().trace.unwrap();
+    let heap = &trace.steps[0].heap;
+    assert_eq!(
+        heap["1"],
+        HeapObject::Class {
+            name: "Solution".to_owned(),
+            members: vec![("spiralOrder".to_owned(), HeapValue::Ref("2".to_owned()))],
+        }
+    );
+    assert_eq!(
+        heap["2"],
+        HeapObject::Function {
+            signature: "spiralOrder(self, matrix)".to_owned(),
+        }
+    );
+}
+
+#[test]
+fn a_comprehension_arrives_apart_from_its_owners_locals_and_absent_reads_as_none() {
+    let json = r#"{"steps":[
+        {"line":56,"event":"line","heap":{},"frames":[{"fn":"<module>","locals":{"rows":3},"comp":{"r":1}}]},
+        {"line":57,"event":"line","heap":{},"frames":[{"fn":"<module>","locals":{"rows":3}}]}]}"#;
+    let trace = decode(&wrap("", json)).unwrap().trace.unwrap();
+    let during = &trace.steps[0].frames[0];
+    assert_eq!(
+        during.locals,
+        [("rows".to_owned(), HeapValue::Scalar(HeapScalar::I(3)))]
+    );
+    assert_eq!(
+        during.comprehension,
+        [("r".to_owned(), HeapValue::Scalar(HeapScalar::I(1)))]
+    );
+    assert!(trace.steps[1].frames[0].comprehension.is_empty());
+}

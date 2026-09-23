@@ -44,6 +44,7 @@ fn step(line: i32, locals: Vec<(&str, HeapValue)>, heap: Vec<(&str, HeapObject)>
         frames: vec![HeapFrame {
             fn_name: "solve".to_owned(),
             locals: locals.into_iter().map(|(n, v)| (n.to_owned(), v)).collect(),
+            comprehension: Vec::new(),
         }],
         heap: heap.into_iter().map(|(id, o)| (id.to_owned(), o)).collect(),
         out: 0,
@@ -192,6 +193,39 @@ fn rooting_prefers_the_hinted_local_then_attr_then_auto_detect() {
 }
 
 #[test]
+fn auto_detect_never_roots_a_structure_at_a_class() {
+    // The reader's class reaches every method it has, which on a small heap makes it the biggest
+    // unreferenced thing there — and the structure drawn would be a class.
+    let s = step(
+        1,
+        vec![("head", sref("a"))],
+        vec![
+            ("a", node_obj(1, None)),
+            (
+                "cls",
+                HeapObject::Class {
+                    name: "Solution".to_owned(),
+                    members: vec![("m1".to_owned(), sref("f1")), ("m2".to_owned(), sref("f2"))],
+                },
+            ),
+            (
+                "f1",
+                HeapObject::Function {
+                    signature: "m1(self)".to_owned(),
+                },
+            ),
+            (
+                "f2",
+                HeapObject::Function {
+                    signature: "m2(self)".to_owned(),
+                },
+            ),
+        ],
+    );
+    assert_eq!(rooting::resolve_root_id(&[s], None, "list"), Some("a".to_owned()));
+}
+
+#[test]
 fn a_named_root_that_is_not_there_resolves_to_nothing_rather_than_something_else() {
     // The reader asked for `arr`. This program has no `arr` — it has a linked list under `head`.
     // Auto-detect would happily return `h`, and the canvas would draw that list under the name
@@ -201,7 +235,10 @@ fn a_named_root_that_is_not_there_resolves_to_nothing_rather_than_something_else
         vec![("head", sref("h"))],
         vec![("h", node_obj(1, Some("i"))), ("i", node_obj(2, None))],
     );
-    assert_eq!(rooting::resolve_root_id(std::slice::from_ref(&s), Some("arr"), "array"), None);
+    assert_eq!(
+        rooting::resolve_root_id(std::slice::from_ref(&s), Some("arr"), "array"),
+        None
+    );
     // A blank name is nobody naming anything, so it still auto-detects.
     assert_eq!(
         rooting::resolve_root_id(std::slice::from_ref(&s), Some("  "), "array"),
@@ -349,10 +386,12 @@ fn the_callstack_route_projects_frames_as_a_growing_stack() {
         HeapFrame {
             fn_name: "fib".to_owned(),
             locals: vec![("n".to_owned(), int(2))],
+            comprehension: Vec::new(),
         },
         HeapFrame {
             fn_name: "fib".to_owned(),
             locals: vec![("n".to_owned(), int(3))],
+            comprehension: Vec::new(),
         },
     ];
     let cases = adapt::adapt(&trace(vec![s1, s2]), "", "callstack", None, None, "t").unwrap();

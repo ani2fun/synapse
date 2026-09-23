@@ -20,6 +20,14 @@
 # Every step also records how many bytes the program had PRINTED by then, so output
 # can arrive as the reader steps rather than all of it at step 0.
 #
+# What a reader never wrote is not stepped: a CLASS BODY runs once, at the `class`
+# line, and its methods are traced when they are called. What identifies a thing is
+# kept: a function is its signature, and a class the reader defined keeps its own
+# members, so the canvas can say which box is which. And on 3.12+ a comprehension
+# at module scope is INLINED (PEP 709): mid-loop, the module frame's f_locals holds
+# only the comprehension's own variables, so the globals are read from f_globals and
+# the comprehension's variables travel separately, as the frame's "comp".
+#
 # INPUT is served from stdin and RECORDED. The sandbox runs a program once, with
 # stdin fixed up front, so a reader cannot type into a running program — but they
 # can be asked. `input()` is replaced with a wrapper that logs every value it
@@ -47,6 +55,12 @@ _syn_step_limit = 600
 _syn_max_objects = 400
 _syn_max_depth = 60
 _syn_max_payload = 512 * 1024
+
+# CPython code-object flags, stable across versions. A class body and the module are the only
+# code objects that are not OPTIMIZED; functions, methods, lambdas and generators all are.
+_SYN_CO_OPTIMIZED = 0x0001
+_SYN_CO_VARARGS = 0x0004
+_SYN_CO_VARKEYWORDS = 0x0008
 
 # Modules whose objects are stdlib/library internals, not user data — render their
 # instances opaque (no field recursion) so importing `deque`/`Optional` doesn't drag
@@ -97,6 +111,27 @@ def _syn_is_opaque(v):
     mod = getattr(type(v), "__module__", "")
     return mod in _syn_opaque_modules
 
+def _syn_signature(fn):
+    """`name(a, b, *rest, k, **kw)` — the parameter NAMES in declaration order, which is what a
+    reader needs to tell one function box from the next. Annotations and defaults are left out:
+    the source beside the canvas already says them."""
+    code = fn.__code__
+    names = code.co_varnames
+    positional = code.co_argcount
+    keyword_only = code.co_kwonlyargcount
+    params = list(names[:positional])
+    # co_varnames holds the positional names, then the keyword-only ones, then *args, then **kw.
+    at = positional + keyword_only
+    if code.co_flags & _SYN_CO_VARARGS:
+        params.append("*" + names[at])
+        at += 1
+    elif keyword_only:
+        params.append("*")
+    params.extend(names[positional:positional + keyword_only])
+    if code.co_flags & _SYN_CO_VARKEYWORDS:
+        params.append("**" + names[at])
+    return "%s(%s)" % (fn.__name__, ", ".join(params))
+
 def _syn_scalar(v):
     if v is None or isinstance(v, bool) or isinstance(v, int):
         return (True, v)
@@ -106,7 +141,7 @@ def _syn_scalar(v):
         return (True, v if len(v) <= 80 else v[:80] + "…")
     return (False, None)
 
-# Snapshot the call stack (a list of (fn_name, locals_items), innermost first) into the
+# Snapshot the call stack (a list of (fn_name, locals_items, comp_items), innermost first) into the
 # frames/heap shape. One shared heap so an object referenced from two frames is one node.
 def _syn_snapshot(frame_specs):
     heap = {}
@@ -119,6 +154,27 @@ def _syn_snapshot(frame_specs):
             return {"ref": oid}
         if len(heap) >= _syn_max_objects or depth >= _syn_max_depth:
             _syn_truncated[0] = True
+            return {"ref": oid}
+        if isinstance(v, types.FunctionType):
+            heap[oid] = {"type": "function", "sig": _syn_signature(v)}
+            return {"ref": oid}
+        if isinstance(v, type) and getattr(v, "__module__", None) == "__main__":
+            # A class the READER defined keeps its own members — the methods they wrote, and any
+            # class attributes. A library class stays opaque: its members are the library's.
+            heap[oid] = None
+            members = {}
+            for mk, mv in list(vars(v).items()):
+                if not isinstance(mk, str):
+                    continue
+                if isinstance(mv, (staticmethod, classmethod)):
+                    mv = mv.__func__
+                # Every method the reader wrote, `__init__` included. The other dunders are the
+                # ones Python adds itself — `__module__`, `__qualname__`, `__dict__`, `__doc__` —
+                # bookkeeping about the class rather than members of it.
+                if mk.startswith("__") and not isinstance(mv, types.FunctionType):
+                    continue
+                members[mk] = visit(mv, depth + 1)
+            heap[oid] = {"type": "class", "name": v.__name__, "members": members}
             return {"ref": oid}
         if _syn_is_opaque(v):
             # A CLASS is named for itself, not for its metaclass: `type(Solution).__name__` is
@@ -149,14 +205,19 @@ def _syn_snapshot(frame_specs):
                     fields[fk] = visit(fv, depth + 1)
             heap[oid] = {"type": "object", "cls": type(v).__name__, "fields": fields}
         return {"ref": oid}
-    frames_out = []
-    for fn_name, items in frame_specs:
-        locs = {}
+    def names(items):
+        out = {}
         for k, v in items:
             if isinstance(k, str) and not k.startswith("_syn_") and not k.startswith("__") \
                     and k not in _syn_hidden:
-                locs[k] = visit(v, 0)
-        frames_out.append({"fn": fn_name, "locals": locs})
+                out[k] = visit(v, 0)
+        return out
+    frames_out = []
+    for fn_name, items, comp in frame_specs:
+        entry = {"fn": fn_name, "locals": names(items)}
+        if comp:
+            entry["comp"] = names(comp)
+        frames_out.append(entry)
     return frames_out, heap
 
 # Walk frame.f_back to collect every traced-file frame, innermost first.
@@ -165,7 +226,19 @@ def _syn_collect_frames(frame):
     cur = frame
     while cur is not None:
         if cur.f_code.co_filename == "<traced>":
-            specs.append((cur.f_code.co_name, list(cur.f_locals.items())))
+            local = cur.f_locals
+            if cur.f_code.co_name == "<module>" and local is not cur.f_globals:
+                # Mid-comprehension at module scope (3.12+ inlines it). f_locals is then a proxy
+                # over ONLY the comprehension's variables, and reading it as the module's would
+                # empty the Global frame of every name the reader defined until the loop ends.
+                # Outside a comprehension a module's f_locals IS its globals, so this is exact.
+                specs.append((cur.f_code.co_name, list(cur.f_globals.items()), list(local.items())))
+            else:
+                # Inside a FUNCTION, 3.12+ keeps a comprehension's variable as one of the
+                # function's own fast locals, so it already shows beside the others — and a name
+                # can be both a comprehension's target and an ordinary local of the same
+                # function, which no split by name could tell apart.
+                specs.append((cur.f_code.co_name, list(local.items()), []))
         cur = cur.f_back
     return specs
 
@@ -201,6 +274,12 @@ def _syn_tracer(frame, event, arg):
         return _syn_tracer
     if frame.f_code.co_filename != "<traced>":
         return _syn_tracer
+    if event == "call" and not (frame.f_code.co_flags & _SYN_CO_OPTIMIZED) \
+            and frame.f_code.co_name != "<module>":
+        # A class BODY. It runs once, at the `class` line, and walking it shows the reader a frame
+        # named after their class stepping through `def` lines that define rather than run.
+        # Returning None leaves this frame untraced; its methods are traced when called.
+        return None
     if event == "exception":
         # The FIRST frame of a propagation, not the last. An exception fires this event again in
         # every frame it passes through on its way out, so overwriting would land on the outermost
@@ -226,7 +305,8 @@ def _syn_tracer(frame, event, arg):
                 # keeps it from ever colliding with something the reader wrote. The MODULE is
                 # exempt: its implicit None at the end of the file answers a question nobody
                 # asked, and it lands on the Global frame where every real name lives.
-                specs[0] = (specs[0][0], list(specs[0][1]) + [("Return value", arg)])
+                name, items, comp = specs[0]
+                specs[0] = (name, items + [("Return value", arg)], comp)
             frames_data, heap = _syn_snapshot(specs)
             _syn_steps.append({
                 "line": frame.f_lineno,

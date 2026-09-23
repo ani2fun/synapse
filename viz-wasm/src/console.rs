@@ -327,10 +327,13 @@ fn input_strip(run: &Run, key: session::Key, store: VizPanelStore) -> AnyView {
     let ask = run.waiting.then(|| ask_box(run, inputs.clone(), key, store));
     view! {
         <div class="viz-input">
+            // "User inputs", not "what you typed": the first values often came from the STDIN box
+            // rather than the prompt, and the log is the record of everything the run was served.
             {(!served.is_empty()).then(|| view! {
                 <div class="viz-input__log">
-                    <span class="viz-input__log-title">"Inputs you have typed"</span>
+                    <span class="viz-input__log-title">"User inputs"</span>
                     <ol class="viz-input__list">{served}</ol>
+                    <p class="viz-input__again">"Press Trace to start again from the STDIN box."</p>
                 </div>
             })}
             {ask}

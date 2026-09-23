@@ -123,15 +123,20 @@ fn auto_detect_root(steps: &[HeapStep], layout_hint: &str) -> Option<String> {
         let snap = HeapSnapshot::new(heap);
         let referenced: std::collections::HashSet<&str> =
             heap.values().flat_map(HeapSnapshot::out_refs).collect();
-        let roots: Vec<&String> = heap
-            .keys()
+        // Functions and classes are memory, not data: the reader's `Solution` is unreferenced and
+        // reaches every method it has, which on a small structure would make it the biggest thing
+        // on the heap — and the structure drawn would be a class.
+        let data: Vec<&String> = heap
+            .iter()
+            .filter(|(_, object)| !object.is_code())
+            .map(|(id, _)| id)
+            .collect();
+        let roots: Vec<&String> = data
+            .iter()
+            .copied()
             .filter(|id| !referenced.contains(id.as_str()))
             .collect();
-        let pool: Vec<&String> = if roots.is_empty() {
-            heap.keys().collect()
-        } else {
-            roots
-        };
+        let pool: Vec<&String> = if roots.is_empty() { data } else { roots };
         // Sorted first so ties break deterministically, then max by reachable size — this
         // keeps the FIRST maximum, i.e. the smallest id among ties.
         let mut sorted = pool;

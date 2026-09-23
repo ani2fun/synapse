@@ -121,11 +121,8 @@ fn decode_step(v: &serde_json::Value) -> HeapStep {
                         .and_then(|s| s.as_str())
                         .unwrap_or_default()
                         .to_owned(),
-                    locals: f
-                        .get("locals")
-                        .and_then(|l| l.as_object())
-                        .map(|o| o.iter().map(|(n, v)| (n.clone(), decode_value(v))).collect())
-                        .unwrap_or_default(),
+                    locals: named_values(f.get("locals")),
+                    comprehension: named_values(f.get("comp")),
                 })
                 .collect()
         })
@@ -151,6 +148,14 @@ fn decode_step(v: &serde_json::Value) -> HeapStep {
         heap,
         out: usize::try_from(v.get("out").and_then(serde_json::Value::as_u64).unwrap_or(0)).unwrap_or(0),
     }
+}
+
+/// A JSON object of `name → value`, as a list — how a frame's locals, a comprehension's variables
+/// and a class's members all travel. Absent reads as empty.
+fn named_values(v: Option<&serde_json::Value>) -> Vec<(String, HeapValue)> {
+    v.and_then(|o| o.as_object())
+        .map(|o| o.iter().map(|(n, val)| (n.clone(), decode_value(val))).collect())
+        .unwrap_or_default()
 }
 
 fn decode_value(v: &serde_json::Value) -> HeapValue {
@@ -202,6 +207,21 @@ fn decode_object(v: &serde_json::Value) -> HeapObject {
                         .collect()
                 })
                 .unwrap_or_default(),
+        },
+        "function" => HeapObject::Function {
+            signature: v
+                .get("sig")
+                .and_then(|s| s.as_str())
+                .unwrap_or_default()
+                .to_owned(),
+        },
+        "class" => HeapObject::Class {
+            name: v
+                .get("name")
+                .and_then(|s| s.as_str())
+                .unwrap_or_default()
+                .to_owned(),
+            members: named_values(v.get("members")),
         },
         _ => HeapObject::Instance {
             cls: v

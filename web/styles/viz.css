@@ -9,7 +9,12 @@
                    margin: 1.25rem 0; display: flex; flex-direction: column; gap: 0.5rem; }
 .viz-widget-host__title { font-weight: 600; font-size: 0.9rem; color: hsl(var(--foreground)); }
 .viz-widget-host__canvas { display: flex; overflow: auto; }
-.viz-widget-host__scale { width: max-content; min-width: 100%; margin: auto;
+/* `flex: none` is what makes `max-content` hold. As a flex item the box would otherwise SHRINK to
+   the canvas's width (its min-width permits it), and a drawing wider than that, centred inside
+   it, spills out on BOTH sides — the right half scrolls, the left half is simply cut off. Kept
+   at its content's width, it overflows to the right only, and `margin: auto` still centres a
+   drawing narrower than the canvas. */
+.viz-widget-host__scale { width: max-content; min-width: 100%; margin: auto; flex: none;
                           display: flex; flex-direction: column; align-items: center; }
 .viz-widget-host__caption { color: hsl(var(--muted-foreground)); text-align: center;
                             font-size: 0.85rem; min-height: 1.2em; }
@@ -207,6 +212,14 @@
 .wb-source-done-gutter::before { content: "\2192"; color: hsl(var(--viz-arrow-done)); }
 .wb-source-next-gutter::before { content: "\2192"; color: hsl(var(--viz-arrow-next));
                                  font-weight: 700; }
+/* Both on one line — a loop's own line, or a return. Stacked, green over red, the way a reader
+   reads them: the line that ran, then the line about to. */
+.wb-source-both-gutter { width: 14px !important; margin-left: 2px; display: flex;
+                         flex-direction: column; align-items: center; justify-content: center;
+                         font-size: 10px; line-height: 0.85; }
+.wb-source-both-gutter::before { content: "\2192"; color: hsl(var(--viz-arrow-done)); }
+.wb-source-both-gutter::after { content: "\2192"; color: hsl(var(--viz-arrow-next));
+                                font-weight: 700; }
 
 /* ─────────────────────────────────────────────────────────────────────────────
    THE BESPOKE GALLERY (step 29; oracle step 33) — flow-layout HTML widgets:
@@ -493,7 +506,20 @@
 .viz-mem__cell--changed .viz-mem__cellv { fill: hsl(var(--primary)); font-weight: 600; }
 
 /* Behind the boxes (the renderer draws them first), so a line that runs under one reads as
-   passing behind it rather than through it. */
+   passing behind it rather than through it. A caller's references are still true but are not
+   where the running line is, so they recede — the running frame's arrows are the ones to follow. */
 .viz-mem__arrow { stroke: hsl(var(--primary) / 0.75); stroke-width: 1.4; }
+.viz-mem__arrow--dim { stroke: hsl(var(--muted-foreground) / 0.4); stroke-width: 1.1; }
+
+.viz-mem__colhead { font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em;
+                    text-transform: uppercase; fill: hsl(var(--muted-foreground)); }
+/* What a returning frame hands back — the frame's result, not one more variable. Its own colour
+   is the next-line arrow's, the same red a debugger gives the value it is about to deliver. */
+.viz-mem__row--return .viz-mem__name { fill: hsl(var(--viz-arrow-next)); font-weight: 600; }
+/* Functions and classes are the program rather than its data: tinted, so the eye passes over
+   them to the lists and nodes the algorithm is changing. */
+.viz-mem__obj--function .viz-mem__box,
+.viz-mem__obj--class .viz-mem__box { fill: hsl(var(--secondary) / 0.45); }
+.viz-mem__obj--function .viz-mem__objtitle { font-weight: 500; fill: hsl(var(--foreground)); }
 .viz-mem__at { font-family: var(--font-mono); font-size: 11px;
                color: hsl(var(--muted-foreground)); }

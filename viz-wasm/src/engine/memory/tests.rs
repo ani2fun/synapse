@@ -19,6 +19,7 @@ fn frame(fn_name: &str, locals: &[(&str, HeapValue)]) -> HeapFrame {
     HeapFrame {
         fn_name: fn_name.to_owned(),
         locals: locals.iter().map(|(n, v)| ((*n).to_owned(), v.clone())).collect(),
+        comprehension: Vec::new(),
     }
 }
 
@@ -321,4 +322,259 @@ fn project_all_hands_each_step_its_own_predecessor() {
         "the first step has no predecessor"
     );
     assert!(all[1].frames[0].slots[0].changed, "the second does");
+}
+
+// ── the program's own shape ──────────────────────────────────────────────────
+
+fn node(val: i64, next: Option<&str>) -> HeapObject {
+    let mut fields = vec![("val".to_owned(), int(val))];
+    if let Some(n) = next {
+        fields.push(("next".to_owned(), refv(n)));
+    }
+    HeapObject::Instance {
+        cls: "Node".to_owned(),
+        fields,
+    }
+}
+
+fn names(frame: &Frame) -> Vec<&str> {
+    frame.slots.iter().map(|s| s.name.as_str()).collect()
+}
+
+#[test]
+fn an_inlined_comprehension_gets_a_frame_of_its_own_below_its_owner() {
+    // 3.12+ at module scope: the globals stay in the Global frame, and the comprehension's
+    // variables — which are no global's — sit in their own frame, the running one.
+    let mut module = frame("<module>", &[("rows", int(3))]);
+    module.comprehension = vec![("r".to_owned(), int(1)), ("t".to_owned(), int(2))];
+    let m = project(&step(vec![module], &[]), None);
+    let titles: Vec<&str> = m.frames.iter().map(|f| f.title.as_str()).collect();
+    assert_eq!(titles, ["Global frame", "comprehension"]);
+    assert_eq!(names(&m.frames[0]), ["rows"]);
+    assert_eq!(names(&m.frames[1]), ["r", "t"]);
+    assert!(
+        !m.frames[0].is_active,
+        "the owner is waiting on the comprehension"
+    );
+    assert!(m.frames[1].is_active, "the comprehension is where execution is");
+}
+
+#[test]
+fn a_comprehension_waiting_on_a_call_is_not_the_running_frame() {
+    // `[f(x) for x in xs]` at module scope, standing inside f: f runs, the comprehension waits.
+    let mut module = frame("<module>", &[]);
+    module.comprehension = vec![("x".to_owned(), int(1))];
+    let m = project(&step(vec![frame("f", &[]), module], &[]), None);
+    let titles: Vec<&str> = m.frames.iter().map(|f| f.title.as_str()).collect();
+    assert_eq!(titles, ["Global frame", "comprehension", "f()"]);
+    let active: Vec<bool> = m.frames.iter().map(|f| f.is_active).collect();
+    assert_eq!(active, [false, false, true]);
+}
+
+#[test]
+fn a_nested_object_sits_in_the_column_after_whatever_points_at_it() {
+    // matrix → three rows: the rows go in the next column, below the strip whose cells point at
+    // them, and no two of them overlap.
+    let s = step(
+        vec![frame("<module>", &[("matrix", refv("m"))])],
+        &[
+            ("m", list(&[refv("r0"), refv("r1"), refv("r2")])),
+            ("r0", list(&[int(1), int(2), int(3)])),
+            ("r1", list(&[int(4), int(5), int(6)])),
+            ("r2", list(&[int(7), int(8), int(9)])),
+        ],
+    );
+    let m = project(&s, None);
+    let outer = m.objects.iter().find(|o| o.id == "m").unwrap();
+    let rows: Vec<&Object> = m.objects.iter().filter(|o| o.id.starts_with('r')).collect();
+    assert_eq!(outer.column, 0);
+    assert_eq!(rows.len(), 3);
+    for row in &rows {
+        assert_eq!(row.column, 1, "{} is not in the next column", row.id);
+        assert!(
+            row.rect.x >= outer.rect.x + outer.rect.w,
+            "{} is not right of the matrix",
+            row.id
+        );
+        assert!(
+            row.rect.y >= outer.rect.y + outer.rect.h,
+            "a strip's children start below it"
+        );
+    }
+    for pair in rows.windows(2) {
+        assert!(
+            pair[1].rect.y >= pair[0].rect.y + pair[0].rect.h,
+            "siblings overlap"
+        );
+    }
+    // Each cell's arrow leaves from under ITS cell, heading down — and an object's references
+    // are never a caller's, so none of them recede.
+    let from_cells: Vec<&Arrow> = m.arrows.iter().filter(|a| a.from_below).collect();
+    assert_eq!(from_cells.len(), 3);
+    assert!(from_cells.iter().all(|a| !a.dim));
+    let xs: Vec<f64> = from_cells.iter().map(|a| a.x1).collect();
+    assert!(
+        xs.windows(2).all(|w| w[0] < w[1]),
+        "every arrow leaves its own cell"
+    );
+}
+
+#[test]
+fn a_linked_list_reads_left_to_right_level_with_the_field_that_points_on() {
+    let s = step(
+        vec![frame("<module>", &[("head", refv("a"))])],
+        &[
+            ("a", node(1, Some("b"))),
+            ("b", node(2, Some("c"))),
+            ("c", node(3, None)),
+        ],
+    );
+    let m = project(&s, None);
+    let [first, second, third] = ["a", "b", "c"].map(|id| m.objects.iter().find(|o| o.id == id).unwrap());
+    assert_eq!((first.column, second.column, third.column), (0, 1, 2));
+    assert!(first.rect.x < second.rect.x && second.rect.x < third.rect.x);
+    // `next` is the first node's second row; the second node sits level with it, so the arrow
+    // runs across.
+    assert_eq!(second.rect.y, first.rect.row_y(1));
+}
+
+#[test]
+fn a_reference_back_to_an_earlier_column_still_draws() {
+    // A doubly linked pair: b points back at a, which sits to its LEFT.
+    let back = HeapObject::Instance {
+        cls: "Node".to_owned(),
+        fields: vec![("prev".to_owned(), refv("a"))],
+    };
+    let s = step(
+        vec![frame("<module>", &[("head", refv("a"))])],
+        &[("a", node(1, Some("b"))), ("b", back)],
+    );
+    let m = project(&s, None);
+    let a = m.objects.iter().find(|o| o.id == "a").unwrap();
+    let b = m.objects.iter().find(|o| o.id == "b").unwrap();
+    assert!(
+        m.arrows
+            .iter()
+            .any(|arrow| arrow.x1 == b.rect.x + b.rect.w && arrow.x2 == a.rect.x),
+        "no arrow from b back to a"
+    );
+}
+
+#[test]
+fn a_callers_references_recede_and_the_running_frames_do_not() {
+    let s = step(
+        vec![
+            frame("solve", &[("xs", refv("l"))]),
+            frame("<module>", &[("data", refv("l"))]),
+        ],
+        &[("l", list(&[int(1)]))],
+    );
+    let m = project(&s, None);
+    let leaving = |f: &Frame| {
+        m.arrows
+            .iter()
+            .find(|a| a.y1 == f.rect.row_mid_y(0) && a.x1 == f.rect.x + f.rect.w)
+            .unwrap()
+    };
+    assert!(leaving(&m.frames[0]).dim, "the Global frame is a caller here");
+    assert!(!leaving(&m.frames[1]).dim, "solve() is running");
+}
+
+#[test]
+fn an_empty_list_says_so_rather_than_drawing_an_empty_strip() {
+    let s = step(
+        vec![frame("<module>", &[("ans", refv("l"))])],
+        &[("l", list(&[]))],
+    );
+    let m = project(&s, None);
+    let empty = &m.objects[0];
+    assert_eq!(empty.title, "empty list");
+    assert!(empty.cell_w.is_none());
+    assert!(
+        empty.rect.w < ROWS_MIN_W,
+        "a box with nothing in it is as wide as its title"
+    );
+}
+
+#[test]
+fn a_function_is_its_signature_and_a_class_lists_its_members() {
+    let s = step(
+        vec![frame("<module>", &[("Solution", refv("cls"))])],
+        &[
+            (
+                "cls",
+                HeapObject::Class {
+                    name: "Solution".to_owned(),
+                    members: vec![("spiralOrder".to_owned(), refv("fn"))],
+                },
+            ),
+            (
+                "fn",
+                HeapObject::Function {
+                    signature: "spiralOrder(self, matrix)".to_owned(),
+                },
+            ),
+        ],
+    );
+    let m = project(&s, None);
+    let class = m.objects.iter().find(|o| o.id == "cls").unwrap();
+    let function = m.objects.iter().find(|o| o.id == "fn").unwrap();
+    assert_eq!(
+        (class.title.as_str(), class.kind),
+        ("Solution class", ObjKind::Class)
+    );
+    assert_eq!(class.rows[0].name, "spiralOrder");
+    assert_eq!(class.rows[0].target.as_deref(), Some("fn"));
+    assert_eq!(
+        (function.title.as_str(), function.kind),
+        ("function spiralOrder(self, matrix)", ObjKind::Function)
+    );
+    assert_eq!(function.column, class.column + 1);
+}
+
+#[test]
+fn a_returned_value_is_marked_as_the_frames_result() {
+    let s = step(
+        vec![frame("solve", &[("n", int(1)), (RETURN_VALUE, int(7))])],
+        &[],
+    );
+    let m = project(&s, None);
+    let flags: Vec<bool> = m.frames[0].slots.iter().map(|s| s.is_return).collect();
+    assert_eq!(flags, [false, true]);
+}
+
+#[test]
+fn the_columns_are_named_above_both_of_them() {
+    let s = step(
+        vec![frame("<module>", &[("xs", refv("l"))])],
+        &[("l", list(&[int(1)]))],
+    );
+    let m = project(&s, None);
+    assert_eq!(
+        m.frames[0].rect.y,
+        MARGIN + HEADER_H,
+        "the first frame sits under the header band"
+    );
+    assert_eq!(
+        m.objects_x, m.objects[0].rect.x,
+        "the Objects header sits over the first column"
+    );
+}
+
+#[test]
+fn only_the_outermost_frame_returning_ends_the_run() {
+    let at = |event: &str, frames: Vec<HeapFrame>| HeapStep {
+        event: event.to_owned(),
+        ..step(frames, &[])
+    };
+    assert!(project(&at("return", vec![frame("<module>", &[])]), None).ends_run);
+    assert!(
+        !project(
+            &at("return", vec![frame("solve", &[]), frame("<module>", &[])]),
+            None
+        )
+        .ends_run,
+        "a call returning is not the end of the program"
+    );
+    assert!(!project(&at("line", vec![frame("<module>", &[])]), None).ends_run);
 }

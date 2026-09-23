@@ -141,6 +141,7 @@ fn nodes_of(id: &str, obj: &HeapObject, heap: &BTreeMap<String, HeapObject>) -> 
                 owner: id.to_owned(),
             }]
         }
+        HeapObject::Function { .. } | HeapObject::Class { .. } => Vec::new(),
         HeapObject::Arr { items, .. } => items
             .iter()
             .enumerate()
@@ -182,7 +183,7 @@ fn node_ids_of(id: &str, heap: &BTreeMap<String, HeapObject>) -> Vec<String> {
             .iter()
             .map(|(k, _)| format!("{id}#{}", key_id(k)))
             .collect(),
-        None => Vec::new(),
+        Some(HeapObject::Function { .. } | HeapObject::Class { .. }) | None => Vec::new(),
     }
 }
 
@@ -291,6 +292,7 @@ fn edges_of(
             .collect()
     };
     match obj {
+        HeapObject::Function { .. } | HeapObject::Class { .. } => Vec::new(),
         HeapObject::Instance { fields, .. } => fields
             .iter()
             .flat_map(|(field, v)| match v {
@@ -371,7 +373,7 @@ fn infer_one_card(card_id: &str, heap: &BTreeMap<String, HeapObject>) -> String 
             }
             .to_owned()
         }
-        None => "graph-generic".to_owned(),
+        Some(HeapObject::Function { .. } | HeapObject::Class { .. }) | None => "graph-generic".to_owned(),
     }
 }
 
@@ -410,6 +412,8 @@ fn type_label(v: &HeapValue, heap: &BTreeMap<String, HeapObject>) -> String {
         HeapValue::Scalar(HeapScalar::Null) => "None".to_owned(),
         HeapValue::Ref(id) => match heap.get(id) {
             Some(HeapObject::Instance { cls, .. }) => cls.clone(),
+            Some(HeapObject::Function { .. }) => "function".to_owned(),
+            Some(HeapObject::Class { name, .. }) => format!("{name} class"),
             Some(HeapObject::Arr { .. }) => "list".to_owned(),
             Some(HeapObject::Dict { .. }) => "dict".to_owned(),
             None => "?".to_owned(),
@@ -427,6 +431,9 @@ fn value_display(v: &HeapValue, heap: &BTreeMap<String, HeapObject>) -> String {
         HeapValue::Scalar(s) => scalar_label(s),
         HeapValue::Ref(id) => match heap.get(id) {
             Some(HeapObject::Instance { cls, fields }) => node_view(cls, fields).0,
+            Some(code @ (HeapObject::Function { .. } | HeapObject::Class { .. })) => {
+                code.code_title().unwrap_or_default()
+            }
             Some(HeapObject::Arr { items, .. }) => {
                 let preview: Vec<String> = items.iter().take(ARR_PREVIEW_ITEMS).map(value_label).collect();
                 let ellipsis = if items.len() > ARR_PREVIEW_ITEMS {

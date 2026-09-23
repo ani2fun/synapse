@@ -418,7 +418,19 @@ export function createEditor(container: HTMLElement, opts: EditorOptions): Edito
     },
     setLineHighlights: (executed: number | null, next: number | null) => {
       const decos: monaco.editor.IModelDeltaDecoration[] = [];
-      if (executed != null) {
+      if (executed != null && executed === next) {
+        // A loop on one line, or a return: the line that just ran is the one about to run again.
+        // Two decorations here would paint both arrows at the same gutter spot, the red one over
+        // the green, so it reads as one arrow — one decoration draws them stacked instead.
+        decos.push({
+          range: new monaco.Range(executed, 1, executed, 1),
+          options: {
+            isWholeLine: true,
+            className: "wb-source-next-line",
+            linesDecorationsClassName: "wb-source-both-gutter",
+          },
+        });
+      } else if (executed != null) {
         decos.push({
           range: new monaco.Range(executed, 1, executed, 1),
           options: {
@@ -428,7 +440,7 @@ export function createEditor(container: HTMLElement, opts: EditorOptions): Edito
           },
         });
       }
-      if (next != null) {
+      if (next != null && next !== executed) {
         decos.push({
           range: new monaco.Range(next, 1, next, 1),
           options: {

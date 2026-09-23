@@ -10,11 +10,19 @@
 //! structure — two lists and a counter, a class instance pointing at a dict — has no `viz=` token
 //! that describes it, and would draw an empty canvas. This draws it.
 //!
+//! **Objects sit in COLUMNS BY DEPTH.** What a frame points at is column 1, what those point at is
+//! column 2, and so on, each object level with the row that first referred to it — so a reference
+//! reads ACROSS the canvas, a matrix's rows sit beside the matrix, and a linked list reads left to
+//! right. One column would stack a child below unrelated boxes and send its arrow looping past
+//! them.
+//!
 //! **Geometry is computed HERE, in pure Rust, not measured in the DOM.** The renderer emits one
 //! SVG from these boxes, so the arrows land exactly where the rows are, the layout is identical
 //! across browsers, and every rule below is testable natively. The cost is that text is MEASURED
 //! BY CHARACTER COUNT — sound only because the figure is drawn in the mono face, which the
 //! stylesheet pins.
+
+use std::collections::{HashMap, HashSet};
 
 use crate::engine::trace::{ArrKind, HeapObject, HeapScalar, HeapStep, HeapValue};
 
@@ -25,17 +33,34 @@ const CHAR_W: f64 = 7.3;
 pub const ROW_H: f64 = 22.0;
 pub const HEAD_H: f64 = 26.0;
 pub const PAD_X: f64 = 10.0;
+/// The band above both columns that names them — "Frames", "Objects".
+pub const HEADER_H: f64 = 22.0;
+/// Where those names' baseline sits, and where the frames column's left edge is.
+pub const HEADER_BASELINE: f64 = MARGIN + HEADER_H - 8.0;
+pub const FRAMES_X: f64 = MARGIN;
 const GAP_Y: f64 = 18.0;
 /// Between the frames column and the objects column — the arrows' whole run.
 const COL_GAP: f64 = 96.0;
+/// Between one objects column and the next: a reference's run from a parent to its child.
+const OBJ_COL_GAP: f64 = 56.0;
 const MARGIN: f64 = 12.0;
 /// One array cell, and the floor a short value still occupies.
 const CELL_MIN_W: f64 = 30.0;
 const NAME_COL_MIN: f64 = 52.0;
+/// The narrowest a box of rows is drawn — below it a short name and value crowd the edges.
+const ROWS_MIN_W: f64 = 120.0;
 /// Past this a value is elided: a 400-character repr is not a diagram.
 const VALUE_MAX_CHARS: usize = 36;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// The name the harness gives what a returning frame hands back: a synthetic local, spaced so it
+/// can never collide with one the reader wrote. The canvas marks it so it does not read as one
+/// more variable.
+pub const RETURN_VALUE: &str = "Return value";
+
+/// Titles the frame of a comprehension the runtime inlined into its owner.
+const COMPREHENSION: &str = "comprehension";
+
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Rect {
     pub x: f64,
     pub y: f64,
@@ -76,6 +101,8 @@ pub enum ObjKind {
     Tuple,
     Dict,
     Instance,
+    Function,
+    Class,
 }
 
 /// One `name → value` line, in a frame or in an object. `target` set means the value is a
@@ -87,6 +114,8 @@ pub struct Slot {
     pub value: String,
     pub target: Option<String>,
     pub changed: bool,
+    /// The frame's result rather than a variable — see [`RETURN_VALUE`].
+    pub is_return: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -104,9 +133,12 @@ pub struct Object {
     pub kind: ObjKind,
     pub rows: Vec<Slot>,
     pub rect: Rect,
-    /// Set for a list/tuple, whose rows draw as a horizontal indexed strip rather than a column.
+    /// Set for a non-empty list/tuple, whose rows draw as a horizontal indexed strip rather than
+    /// a column.
     pub cell_w: Option<f64>,
     pub is_new: bool,
+    /// Which objects column it sits in: 0 = a frame points at it, 1 = something in column 0 does.
+    pub column: usize,
 }
 
 /// A reference, resolved to the two points it joins.
@@ -116,6 +148,11 @@ pub struct Arrow {
     pub y1: f64,
     pub x2: f64,
     pub y2: f64,
+    /// It leaves a frame that is not the running one — a caller's reference, still true, but not
+    /// where the reader's attention belongs.
+    pub dim: bool,
+    /// It leaves from UNDER an array cell, heading down, rather than out of a row's right edge.
+    pub from_below: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -129,6 +166,11 @@ pub struct MemoryStep {
     pub arrows: Vec<Arrow>,
     pub width: f64,
     pub height: f64,
+    /// Where the objects columns begin — the "Objects" header sits here.
+    pub objects_x: f64,
+    /// The OUTERMOST frame returning: the program has finished, so the line on this step has run
+    /// and there is no next one.
+    pub ends_run: bool,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -141,9 +183,20 @@ pub struct MemoryStep {
 #[must_use]
 pub fn project(step: &HeapStep, previous: Option<&HeapStep>) -> MemoryStep {
     let frames = frames_of(step, previous);
-    let order = reachable_order(step);
-    let objects = objects_of(step, previous, &order);
-    place(step.line, step.out, frames, objects)
+    let reached = reachable(&frames, step);
+    let mut objects = Vec::with_capacity(reached.len());
+    let mut referrers = Vec::with_capacity(reached.len());
+    for found in reached {
+        let Some(object) = step.heap.get(&found.id) else {
+            continue;
+        };
+        let before = previous.and_then(|p| p.heap.get(&found.id));
+        objects.push(build_object(&found.id, object, before, previous, found.depth - 1));
+        referrers.push(found.from);
+    }
+    let mut laid = place(step.line, step.out, frames, objects, &referrers);
+    laid.ends_run = step.event == "return" && step.frames.len() == 1;
+    laid
 }
 
 /// Every step, projected, with each one's predecessor supplied so the diff cues are honest.
@@ -159,39 +212,41 @@ pub fn project_all(steps: &[HeapStep]) -> Vec<MemoryStep> {
 /// Frames OUTERMOST-first: the trace hands them innermost-first (the call that is running), but a
 /// reader builds the picture the way the program did — global scope at the top, the current call
 /// at the bottom, each one below its caller.
+///
+/// A comprehension the runtime INLINED into a frame gets a frame of its own, directly below its
+/// owner. Its variables belong to neither the owner nor a call, and where it is running it is the
+/// running frame — the owner is waiting on it, the way a caller waits on a call.
 fn frames_of(step: &HeapStep, previous: Option<&HeapStep>) -> Vec<Frame> {
     let depth = step.frames.len();
-    step.frames
+    let mut frames: Vec<Frame> = step
+        .frames
         .iter()
         .enumerate()
-        .map(|(i, frame)| {
+        .flat_map(|(i, frame)| {
             let was = previous
                 .and_then(|p| p.frames.get(p.frames.len().wrapping_sub(depth - i)))
                 .filter(|earlier| earlier.fn_name == frame.fn_name);
-            Frame {
+            // The innermost frame is the one executing — index 0 before the reversal below.
+            let innermost = i == 0;
+            let inlined = !frame.comprehension.is_empty();
+            let comprehension = inlined.then(|| Frame {
+                title: COMPREHENSION.to_owned(),
+                is_active: innermost,
+                slots: slots_of(&frame.comprehension, was.map(|w| w.comprehension.as_slice())),
+                rect: Rect::default(),
+            });
+            let owner = Frame {
                 title: frame_title(&frame.fn_name),
-                // The innermost frame is the one executing — index 0 before the reversal below.
-                is_active: i == 0,
-                slots: frame
-                    .locals
-                    .iter()
-                    .map(|(name, value)| {
-                        let before = was.and_then(|earlier| {
-                            earlier.locals.iter().find(|(n, _)| n == name).map(|(_, v)| v)
-                        });
-                        slot(name.clone(), value, before)
-                    })
-                    .collect(),
-                rect: Rect {
-                    x: 0.0,
-                    y: 0.0,
-                    w: 0.0,
-                    h: 0.0,
-                },
-            }
+                is_active: innermost && !inlined,
+                slots: slots_of(&frame.locals, was.map(|w| w.locals.as_slice())),
+                rect: Rect::default(),
+            };
+            // Innermost-first, like the trace: the comprehension runs INSIDE its owner.
+            comprehension.into_iter().chain(std::iter::once(owner))
         })
-        .rev()
-        .collect()
+        .collect();
+    frames.reverse();
+    frames
 }
 
 /// `<module>` is Python's name for the file itself, and `main` is Java's entry — neither reads as
@@ -203,78 +258,128 @@ fn frame_title(fn_name: &str) -> String {
     }
 }
 
+/// Named values as rows, each marked changed against the same name a step ago.
+fn slots_of(values: &[(String, HeapValue)], earlier: Option<&[(String, HeapValue)]>) -> Vec<Slot> {
+    values
+        .iter()
+        .map(|(name, value)| {
+            let before = earlier.and_then(|e| e.iter().find(|(n, _)| n == name).map(|(_, v)| v));
+            slot(name.clone(), value, before)
+        })
+        .collect()
+}
+
 fn slot(name: String, value: &HeapValue, before: Option<&HeapValue>) -> Slot {
     let changed = before.is_some_and(|earlier| earlier != value);
+    let is_return = name == RETURN_VALUE;
     match value {
         HeapValue::Ref(id) => Slot {
             name,
             value: String::new(),
             target: Some(id.clone()),
             changed,
+            is_return,
         },
         HeapValue::Scalar(scalar) => Slot {
             name,
             value: elide(&scalar_text(scalar)),
             target: None,
             changed,
+            is_return,
         },
     }
 }
 
-/// The objects to draw, in the order a reader MEETS them: breadth-first from the frames, so a
-/// list a variable points at sits beside that variable rather than wherever its address sorted.
-/// Unreferenced heap entries are dropped — they are the tracer's, not the program's.
-fn reachable_order(step: &HeapStep) -> Vec<String> {
-    let mut queue: Vec<String> = Vec::new();
-    let mut seen: Vec<String> = Vec::new();
-    for frame in step.frames.iter().rev() {
-        for (_, value) in &frame.locals {
-            if let HeapValue::Ref(id) = value {
-                push_once(&mut queue, &mut seen, id);
+/// Whatever first pointed at an object, which is where the layout puts it: level with that row.
+#[derive(Debug, Clone, PartialEq)]
+enum Referrer {
+    Frame { frame: usize, row: usize },
+    Object { parent: String, row: usize },
+}
+
+struct Reached {
+    id: String,
+    /// 1 = a frame points at it.
+    depth: usize,
+    from: Referrer,
+}
+
+/// The objects to draw, in the order a reader MEETS them — breadth-first from the frames, so a
+/// list a variable points at sits beside that variable rather than wherever its address sorted —
+/// each with its depth and what reached it first. Unreferenced heap entries are dropped: they are
+/// the tracer's, not the program's.
+fn reachable(frames: &[Frame], step: &HeapStep) -> Vec<Reached> {
+    let mut reached: Vec<Reached> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    for (frame, f) in frames.iter().enumerate() {
+        for (row, slot) in f.slots.iter().enumerate() {
+            if let Some(id) = &slot.target
+                && seen.insert(id.clone())
+            {
+                reached.push(Reached {
+                    id: id.clone(),
+                    depth: 1,
+                    from: Referrer::Frame { frame, row },
+                });
             }
         }
     }
     let mut at = 0;
-    while at < queue.len() {
-        let id = queue[at].clone();
+    while at < reached.len() {
+        let (id, depth) = (reached[at].id.clone(), reached[at].depth);
         at += 1;
         let Some(object) = step.heap.get(&id) else {
             continue;
         };
-        for value in object_values(object) {
-            if let HeapValue::Ref(next) = value {
-                push_once(&mut queue, &mut seen, &next);
+        for (row, next) in object_refs(object) {
+            if seen.insert(next.to_owned()) {
+                reached.push(Reached {
+                    id: next.to_owned(),
+                    depth: depth + 1,
+                    from: Referrer::Object {
+                        parent: id.clone(),
+                        row,
+                    },
+                });
             }
         }
     }
-    queue
+    reached
 }
 
-fn push_once(queue: &mut Vec<String>, seen: &mut Vec<String>, id: &str) {
-    if seen.iter().any(|s| s == id) {
-        return;
-    }
-    seen.push(id.to_owned());
-    queue.push(id.to_owned());
-}
-
-fn object_values(object: &HeapObject) -> Vec<HeapValue> {
+/// Every reference an object holds, with the ROW it is drawn on — a dict entry's key and value
+/// share their entry's row.
+fn object_refs(object: &HeapObject) -> Vec<(usize, &str)> {
     match object {
-        HeapObject::Instance { fields, .. } => fields.iter().map(|(_, v)| v.clone()).collect(),
-        HeapObject::Arr { items, .. } => items.clone(),
-        HeapObject::Dict { entries } => entries.iter().flat_map(|(k, v)| [k.clone(), v.clone()]).collect(),
+        HeapObject::Instance { fields, .. } | HeapObject::Class { members: fields, .. } => fields
+            .iter()
+            .enumerate()
+            .filter_map(|(row, (_, value))| as_ref(value).map(|id| (row, id)))
+            .collect(),
+        HeapObject::Arr { items, .. } => items
+            .iter()
+            .enumerate()
+            .filter_map(|(row, value)| as_ref(value).map(|id| (row, id)))
+            .collect(),
+        HeapObject::Dict { entries } => entries
+            .iter()
+            .enumerate()
+            .flat_map(|(row, (key, value))| {
+                [as_ref(key), as_ref(value)]
+                    .into_iter()
+                    .flatten()
+                    .map(move |id| (row, id))
+            })
+            .collect(),
+        HeapObject::Function { .. } => Vec::new(),
     }
 }
 
-fn objects_of(step: &HeapStep, previous: Option<&HeapStep>, order: &[String]) -> Vec<Object> {
-    order
-        .iter()
-        .filter_map(|id| {
-            let object = step.heap.get(id)?;
-            let before = previous.and_then(|p| p.heap.get(id));
-            Some(build_object(id, object, before, previous))
-        })
-        .collect()
+fn as_ref(value: &HeapValue) -> Option<&str> {
+    match value {
+        HeapValue::Ref(id) => Some(id),
+        HeapValue::Scalar(_) => None,
+    }
 }
 
 fn build_object(
@@ -282,6 +387,7 @@ fn build_object(
     object: &HeapObject,
     before: Option<&HeapObject>,
     previous: Option<&HeapStep>,
+    column: usize,
 ) -> Object {
     // New = this id was not in the heap a step ago. Unknowable on the first step, where
     // "everything is new" would light the whole diagram up and say nothing.
@@ -301,9 +407,12 @@ fn build_object(
                 ArrKind::Tup => ObjKind::Tuple,
                 _ => ObjKind::List,
             };
-            let title = match kind {
-                ObjKind::Tuple => "tuple",
-                _ => "list",
+            // An empty one says so in words: a strip with no cells reads as a drawing that failed.
+            let title = match (kind, items.is_empty()) {
+                (ObjKind::Tuple, true) => "empty tuple",
+                (ObjKind::Tuple, false) => "tuple",
+                (_, true) => "empty list",
+                (_, false) => "list",
             };
             (title.to_owned(), kind, rows)
         }
@@ -320,23 +429,27 @@ fn build_object(
                     slot(elide(&value_key(key)), value, before)
                 })
                 .collect();
-            ("dict".to_owned(), ObjKind::Dict, rows)
+            let title = if entries.is_empty() { "empty dict" } else { "dict" };
+            (title.to_owned(), ObjKind::Dict, rows)
         }
         HeapObject::Instance { cls, fields } => {
             let earlier = match before {
-                Some(HeapObject::Instance { fields, .. }) => Some(fields),
+                Some(HeapObject::Instance { fields, .. }) => Some(fields.as_slice()),
                 _ => None,
             };
-            let rows = fields
-                .iter()
-                .map(|(name, value)| {
-                    let before = earlier
-                        .and_then(|e| e.iter().find(|(n, _)| n == name))
-                        .map(|(_, v)| v);
-                    slot(name.clone(), value, before)
-                })
-                .collect();
-            (cls.clone(), ObjKind::Instance, rows)
+            (cls.clone(), ObjKind::Instance, slots_of(fields, earlier))
+        }
+        HeapObject::Class { members, .. } => {
+            let earlier = match before {
+                Some(HeapObject::Class { members, .. }) => Some(members.as_slice()),
+                _ => None,
+            };
+            let title = object.code_title().unwrap_or_default();
+            (title, ObjKind::Class, slots_of(members, earlier))
+        }
+        HeapObject::Function { .. } => {
+            let title = object.code_title().unwrap_or_default();
+            (title, ObjKind::Function, Vec::new())
         }
     };
     Object {
@@ -344,14 +457,10 @@ fn build_object(
         title,
         kind,
         rows,
-        rect: Rect {
-            x: 0.0,
-            y: 0.0,
-            w: 0.0,
-            h: 0.0,
-        },
+        rect: Rect::default(),
         cell_w: None,
         is_new,
+        column,
     }
 }
 
@@ -390,7 +499,7 @@ fn elide(text: &str) -> String {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LAYOUT — two columns, stacked; the arrows follow from the boxes
+// LAYOUT — frames, then objects in columns by depth; the arrows follow from the boxes
 // ─────────────────────────────────────────────────────────────────────────────
 
 fn text_w(text: &str) -> f64 {
@@ -399,7 +508,47 @@ fn text_w(text: &str) -> f64 {
     chars * CHAR_W
 }
 
-fn place(line: i32, out: usize, mut frames: Vec<Frame>, mut objects: Vec<Object>) -> MemoryStep {
+/// A box's own size, before it has a place.
+fn size(object: &mut Object) {
+    let is_strip = matches!(object.kind, ObjKind::List | ObjKind::Tuple) && !object.rows.is_empty();
+    if is_strip {
+        // A list draws as an indexed strip, the way it is indexed — one uniform cell so the eye
+        // reads position rather than value width.
+        let cell = object
+            .rows
+            .iter()
+            .map(|r| text_w(&r.value) + PAD_X)
+            .fold(CELL_MIN_W, f64::max);
+        #[allow(clippy::cast_precision_loss)]
+        let w = (object.rows.len() as f64).mul_add(cell, PAD_X);
+        object.cell_w = Some(cell);
+        object.rect.w = w.max(text_w(&object.title) + PAD_X * 2.0);
+        object.rect.h = HEAD_H + ROW_H + 14.0;
+        return;
+    }
+    // A box with nothing inside it — a function, an empty list, an instance with no fields — is
+    // as wide as its title and no wider; the floor is for rows that would crowd its edges.
+    let floor = if object.rows.is_empty() { 0.0 } else { ROWS_MIN_W };
+    object.rect.w = object
+        .rows
+        .iter()
+        .map(|r| text_w(&r.name).max(NAME_COL_MIN) + text_w(&r.value) + PAD_X * 3.0)
+        .fold(text_w(&object.title) + PAD_X * 2.0, f64::max)
+        .max(floor);
+    #[allow(clippy::cast_precision_loss)]
+    let rows = object.rows.len() as f64;
+    object.rect.h = rows.mul_add(ROW_H, HEAD_H + 6.0);
+}
+
+fn place(
+    line: i32,
+    out: usize,
+    mut frames: Vec<Frame>,
+    mut objects: Vec<Object>,
+    referrers: &[Referrer],
+) -> MemoryStep {
+    let top = MARGIN + HEADER_H;
+
     // ── the frames column ──
     let frame_w = frames
         .iter()
@@ -412,7 +561,7 @@ fn place(line: i32, out: usize, mut frames: Vec<Frame>, mut objects: Vec<Object>
             widest.max(text_w(&f.title) + PAD_X * 2.0)
         })
         .fold(140.0_f64, f64::max);
-    let mut y = MARGIN;
+    let mut y = top;
     for frame in &mut frames {
         #[allow(clippy::cast_precision_loss)]
         let h = HEAD_H + frame.slots.len() as f64 * ROW_H + 6.0;
@@ -426,52 +575,65 @@ fn place(line: i32, out: usize, mut frames: Vec<Frame>, mut objects: Vec<Object>
     }
     let frames_bottom = y;
 
-    // ── the objects column ──
-    let obj_x = MARGIN + frame_w + COL_GAP;
-    let mut oy = MARGIN;
+    // ── the objects: sized, then placed column by column ──
     for object in &mut objects {
-        match object.kind {
-            // A list draws as an indexed strip, the way it is indexed — one uniform cell so the
-            // eye reads position rather than value width.
-            ObjKind::List | ObjKind::Tuple => {
-                let cell = object
-                    .rows
-                    .iter()
-                    .map(|r| text_w(&r.value) + PAD_X)
-                    .fold(CELL_MIN_W, f64::max);
-                #[allow(clippy::cast_precision_loss)]
-                let w = (object.rows.len().max(1) as f64).mul_add(cell, PAD_X);
-                object.cell_w = Some(cell);
-                object.rect = Rect {
-                    x: obj_x,
-                    y: oy,
-                    w,
-                    h: HEAD_H + ROW_H + 14.0,
-                };
+        size(object);
+    }
+    let columns = objects.iter().map(|o| o.column + 1).max().unwrap_or(0);
+    let mut column_w = vec![0.0_f64; columns];
+    for object in &objects {
+        column_w[object.column] = column_w[object.column].max(object.rect.w);
+    }
+    let objects_x = MARGIN + frame_w + COL_GAP;
+    let mut column_x = Vec::with_capacity(columns);
+    let mut x = objects_x;
+    for w in &column_w {
+        column_x.push(x);
+        x += w + OBJ_COL_GAP;
+    }
+    let index: HashMap<String, usize> = objects
+        .iter()
+        .enumerate()
+        .map(|(i, o)| (o.id.clone(), i))
+        .collect();
+    // How far down each column is already taken — a box never lands on one placed before it.
+    let mut taken = vec![top; columns];
+    for (i, referrer) in referrers.iter().enumerate().take(objects.len()) {
+        // Breadth-first order puts every parent before its children, so a parent is always among
+        // the boxes already placed.
+        let (placed, rest) = objects.split_at_mut(i);
+        let object = &mut rest[0];
+        let preferred = match referrer {
+            Referrer::Frame { frame, row } => frames.get(*frame).map_or(top, |f| f.rect.row_y(*row)),
+            Referrer::Object { parent, row } => {
+                index
+                    .get(parent)
+                    .and_then(|&p| placed.get(p))
+                    .map_or(top, |parent| {
+                        // A strip's references leave from UNDER its cells, so its children start below
+                        // it and every one of those arrows runs down and across; a box of rows points
+                        // from the row itself, so its child sits level with that row.
+                        if parent.cell_w.is_some() {
+                            parent.rect.y + parent.rect.h + GAP_Y
+                        } else {
+                            parent.rect.row_y(*row)
+                        }
+                    })
             }
-            ObjKind::Dict | ObjKind::Instance => {
-                let w = object
-                    .rows
-                    .iter()
-                    .map(|r| text_w(&r.name).max(NAME_COL_MIN) + text_w(&r.value) + PAD_X * 3.0)
-                    .fold(text_w(&object.title) + PAD_X * 2.0, f64::max)
-                    .max(120.0);
-                #[allow(clippy::cast_precision_loss)]
-                let h = HEAD_H + object.rows.len() as f64 * ROW_H + 6.0;
-                object.rect = Rect {
-                    x: obj_x,
-                    y: oy,
-                    w,
-                    h,
-                };
-            }
-        }
-        oy += object.rect.h + GAP_Y;
+        };
+        let column = object.column;
+        object.rect.x = column_x[column];
+        object.rect.y = preferred.max(taken[column]);
+        taken[column] = object.rect.y + object.rect.h + GAP_Y;
     }
 
-    let arrows = arrows_of(&frames, &objects);
-    let width = objects.iter().map(|o| o.rect.x + o.rect.w).fold(obj_x, f64::max) + MARGIN;
-    let height = frames_bottom.max(oy) + MARGIN;
+    let arrows = arrows_of(&frames, &objects, &index);
+    let width = objects
+        .iter()
+        .map(|o| o.rect.x + o.rect.w)
+        .fold(objects_x, f64::max)
+        + MARGIN;
+    let height = taken.iter().copied().fold(frames_bottom, f64::max) + MARGIN;
     MemoryStep {
         line,
         out,
@@ -480,14 +642,16 @@ fn place(line: i32, out: usize, mut frames: Vec<Frame>, mut objects: Vec<Object>
         arrows,
         width,
         height,
+        objects_x,
+        ends_run: false,
     }
 }
 
 /// Every reference, as a line from the row that holds it to the box it names. A row pointing at
 /// an object that is not drawn (a truncated heap) yields no arrow rather than one into blank
 /// canvas.
-fn arrows_of(frames: &[Frame], objects: &[Object]) -> Vec<Arrow> {
-    let target_of = |id: &str| objects.iter().find(|o| o.id == id);
+fn arrows_of(frames: &[Frame], objects: &[Object], index: &HashMap<String, usize>) -> Vec<Arrow> {
+    let target_of = |id: &str| index.get(id).and_then(|&i| objects.get(i));
     let mut arrows = Vec::new();
     for frame in frames {
         for (i, slot) in frame.slots.iter().enumerate() {
@@ -499,6 +663,8 @@ fn arrows_of(frames: &[Frame], objects: &[Object]) -> Vec<Arrow> {
                 y1: frame.rect.row_mid_y(i),
                 x2: object.rect.x,
                 y2: object.rect.y + object.rect.h / 2.0,
+                dim: !frame.is_active,
+                from_below: false,
             });
         }
     }
@@ -511,19 +677,22 @@ fn arrows_of(frames: &[Frame], objects: &[Object]) -> Vec<Arrow> {
                 continue; // a self-reference has no line to draw between two points
             }
             // A strip's reference leaves from UNDER its cell; a row's leaves from the right.
-            let (x1, y1) = if let Some(cell) = object.cell_w {
+            let (x1, y1, from_below) = if let Some(cell) = object.cell_w {
                 (
                     object.rect.cell_x(i, cell) + cell / 2.0,
                     object.rect.y + object.rect.h,
+                    true,
                 )
             } else {
-                (object.rect.x + object.rect.w, object.rect.row_mid_y(i))
+                (object.rect.x + object.rect.w, object.rect.row_mid_y(i), false)
             };
             arrows.push(Arrow {
                 x1,
                 y1,
                 x2: target.rect.x,
                 y2: target.rect.y + target.rect.h / 2.0,
+                dim: false,
+                from_below,
             });
         }
     }

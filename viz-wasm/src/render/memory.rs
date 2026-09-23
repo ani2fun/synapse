@@ -9,7 +9,9 @@
 //! one thing this lens exists to make legible. A horizontal bezier leaves and lands flat, so the
 //! eye follows it out of one box and into the next.
 
-use crate::engine::memory::{Arrow, Frame, HEAD_H, MemoryStep, ObjKind, Object, PAD_X, ROW_H, Rect, Slot};
+use crate::engine::memory::{
+    Arrow, FRAMES_X, Frame, HEAD_H, HEADER_BASELINE, MemoryStep, ObjKind, Object, PAD_X, ROW_H, Rect, Slot,
+};
 use leptos::prelude::*;
 
 use super::arrow_defs;
@@ -33,7 +35,14 @@ pub fn canvas(steps: Vec<MemoryStep>, step_index: Signal<usize>) -> AnyView {
                 let arrows: Vec<_> = step.arrows.iter().map(arrow).collect();
                 let frames: Vec<_> = step.frames.iter().map(frame).collect();
                 let objects: Vec<_> = step.objects.iter().map(object).collect();
+                // The two column names, so a first-time reader knows which side is the call
+                // stack and which is what it points at.
+                let objects_header = (!step.objects.is_empty()).then(|| view! {
+                    <text class="viz-mem__colhead" x=step.objects_x y=HEADER_BASELINE>"Objects"</text>
+                });
                 view! {
+                    <text class="viz-mem__colhead" x=FRAMES_X y=HEADER_BASELINE>"Frames"</text>
+                    {objects_header}
                     // Arrows first, so a line passes BEHIND the boxes it runs between.
                     <g class="viz-mem__arrows">{arrows}</g>
                     <g class="viz-mem__frames">{frames}</g>
@@ -76,10 +85,10 @@ fn row(slot: &Slot, box_rect: Rect, index: usize) -> AnyView {
     let x = box_rect.x;
     let y = box_rect.row_y(index);
     let w = box_rect.w;
-    let class = if slot.changed {
-        "viz-mem__row viz-mem__row--changed"
-    } else {
-        "viz-mem__row"
+    let class = match (slot.changed, slot.is_return) {
+        (_, true) => "viz-mem__row viz-mem__row--return",
+        (true, false) => "viz-mem__row viz-mem__row--changed",
+        (false, false) => "viz-mem__row",
     };
     let value = (!slot.value.is_empty()).then(|| {
         view! {
@@ -108,11 +117,15 @@ fn row(slot: &Slot, box_rect: Rect, index: usize) -> AnyView {
 
 fn object(o: &Object) -> AnyView {
     let r = o.rect;
-    let class = if o.is_new {
-        "viz-mem__obj viz-mem__obj--new"
-    } else {
-        "viz-mem__obj"
+    // A function or class is part of the program, not its data, and is tinted so the eye can
+    // skip past it to the lists and nodes the algorithm is actually changing.
+    let kind = match o.kind {
+        ObjKind::Function => " viz-mem__obj--function",
+        ObjKind::Class => " viz-mem__obj--class",
+        ObjKind::List | ObjKind::Tuple | ObjKind::Dict | ObjKind::Instance => "",
     };
+    let fresh = if o.is_new { " viz-mem__obj--new" } else { "" };
+    let class = format!("viz-mem__obj{kind}{fresh}");
     let body: Vec<AnyView> = match (o.kind, o.cell_w) {
         (ObjKind::List | ObjKind::Tuple, Some(cell)) => o
             .rows
@@ -162,16 +175,32 @@ fn cell_view(slot: &Slot, x: f64, y: f64, w: f64, index: usize) -> AnyView {
     .into_any()
 }
 
-/// A horizontal bezier: out flat, in flat. The control points sit at the midpoint's x so the
-/// curve's tangent is horizontal at both ends regardless of how far it has to fall.
+/// A bezier that lands flat. Out of a row it also leaves flat — the control points sit at the
+/// midpoint's x, so the tangent is horizontal at both ends however far it has to fall. Out from
+/// under an array cell it leaves heading DOWN, so each of a strip's arrows is seen to come from
+/// its own cell rather than all of them running along the strip's bottom edge together.
 fn arrow(a: &Arrow) -> AnyView {
-    let mid = f64::midpoint(a.x1, a.x2);
+    let (c1x, c1y) = if a.from_below {
+        (a.x1, a.y1 + (a.y2 - a.y1).abs().mul_add(0.5, 18.0))
+    } else {
+        (f64::midpoint(a.x1, a.x2), a.y1)
+    };
+    let c2x = if a.from_below {
+        a.x2 - (a.x2 - a.x1).abs().mul_add(0.4, 18.0)
+    } else {
+        f64::midpoint(a.x1, a.x2)
+    };
     let d = format!(
         "M {:.1} {:.1} C {:.1} {:.1}, {:.1} {:.1}, {:.1} {:.1}",
-        a.x1, a.y1, mid, a.y1, mid, a.y2, a.x2, a.y2
+        a.x1, a.y1, c1x, c1y, c2x, a.y2, a.x2, a.y2
     );
+    let class = if a.dim {
+        "viz-mem__arrow viz-mem__arrow--dim"
+    } else {
+        "viz-mem__arrow"
+    };
     view! {
-        <path class="viz-mem__arrow" d=d fill="none" marker-end="url(#viz-arrow)"></path>
+        <path class=class d=d fill="none" marker-end="url(#viz-arrow)"></path>
     }
     .into_any()
 }

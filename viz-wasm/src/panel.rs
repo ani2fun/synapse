@@ -177,7 +177,17 @@ impl VizPanelStore {
         };
         let index = self.active_step().get().index;
         let line_at: Box<dyn Fn(usize) -> Option<i32>> = match self.lens.get() {
-            Lens::Memory => Box::new(move |i| run.memory.get(i).map(|s| s.line)),
+            Lens::Memory => {
+                // The program has FINISHED here: the line on this step is the last one that ran,
+                // and pointing a next-line arrow at it would say it is about to run again.
+                if let Some(last) = run.memory.get(index).filter(|step| step.ends_run) {
+                    return Cursor {
+                        executed: Some(last.line).filter(|l| *l > 0),
+                        next: None,
+                    };
+                }
+                Box::new(move |i| run.memory.get(i).map(|s| s.line))
+            }
             Lens::Structure => {
                 let Ok(cases) = run.cases else {
                     return Cursor::default();

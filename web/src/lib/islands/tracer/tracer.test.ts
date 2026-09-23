@@ -164,7 +164,7 @@ describe("the Python harness reports what it did with stdin", () => {
   });
 
   it("names what a frame returned, but never the module's implicit None", () => {
-    expect(pythonHarness).toContain('list(specs[0][1]) + [("Return value", arg)]');
+    expect(pythonHarness).toContain('specs[0] = (name, items + [("Return value", arg)], comp)');
     expect(pythonHarness).toContain('frame.f_code.co_name != "<module>"');
   });
 
@@ -184,5 +184,38 @@ describe("the Python harness reports what it did with stdin", () => {
     // `type(Solution).__name__` is "type", which tells a reader nothing about the box their
     // variable points at.
     expect(pythonHarness).toContain('v.__name__ + " class"');
+  });
+});
+
+/**
+ * The shape contract, asserted against the harness SOURCE: what a frame and an object carry so
+ * the memory lens can draw the program the way it was written. The behaviour itself needs a real
+ * interpreter and is pinned by `server/tests/python_tracer_it.rs`; these catch a rename that
+ * would silently strand the decoder.
+ */
+describe("the Python harness reports the program's own shape", () => {
+  it("does not step a class body", () => {
+    // A class body runs once, at the `class` line; walking it shows a frame named after the class
+    // stepping through `def` lines that define rather than run.
+    expect(pythonHarness).toContain("_SYN_CO_OPTIMIZED = 0x0001");
+    expect(pythonHarness).toMatch(/if event == "call" and not \(frame\.f_code\.co_flags & _SYN_CO_OPTIMIZED\)/);
+  });
+
+  it("reads the module's names from its globals while a comprehension is inlined into it", () => {
+    // 3.12+: mid-comprehension, a module frame's f_locals holds ONLY the comprehension's variables.
+    expect(pythonHarness).toContain('if cur.f_code.co_name == "<module>" and local is not cur.f_globals:');
+    expect(pythonHarness).toContain('entry["comp"] = names(comp)');
+  });
+
+  it("names a function by its signature and gives the reader's class its members", () => {
+    // The decoder reads exactly these keys: `sig`, and `name` + `members`.
+    expect(pythonHarness).toContain('{"type": "function", "sig": _syn_signature(v)}');
+    expect(pythonHarness).toContain('{"type": "class", "name": v.__name__, "members": members}');
+    expect(pythonHarness).toContain('getattr(v, "__module__", None) == "__main__"');
+  });
+
+  it("lists the dunder methods the reader wrote, and none of the ones Python adds", () => {
+    // `__init__` is the reader's; `__module__`, `__qualname__` and `__dict__` are bookkeeping.
+    expect(pythonHarness).toContain('if mk.startswith("__") and not isinstance(mv, types.FunctionType):');
   });
 });

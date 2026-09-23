@@ -31,7 +31,8 @@ pub enum ArrKind {
     JArr,
 }
 
-/// A heap object: a class instance (named fields), an ordered array, or a dict.
+/// A heap object: a class instance (named fields), an ordered array, a dict — or a function or a
+/// class the program defined, which are part of its memory but never part of a data structure.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum HeapObject {
     Instance {
@@ -45,6 +46,40 @@ pub enum HeapObject {
     Dict {
         entries: Vec<(HeapValue, HeapValue)>,
     },
+    /// A function, by its signature — `spiralOrder(self, matrix)`. What tells one function box
+    /// from the next, and all a memory diagram has to say about one.
+    Function {
+        signature: String,
+    },
+    /// A class the reader defined, with its own members; a method is a reference to its
+    /// `Function`. TYPED rather than an `Instance` under a naming convention because the
+    /// structure lens has to branch on it: a class with members is a heap object with outgoing
+    /// references, and nothing else would stop `auto_detect_root` rooting a structure at
+    /// `Solution`.
+    Class {
+        name: String,
+        members: Vec<(String, HeapValue)>,
+    },
+}
+
+impl HeapObject {
+    /// A function or a class — part of the program's memory, never part of a data structure, so
+    /// never a node, an edge or a root of the structure lens.
+    #[must_use]
+    pub const fn is_code(&self) -> bool {
+        matches!(self, Self::Function { .. } | Self::Class { .. })
+    }
+
+    /// How a function or class reads wherever it is named: `function spiralOrder(self, matrix)`,
+    /// `Solution class`. One place, so the canvas and the frames panel cannot word it differently.
+    #[must_use]
+    pub fn code_title(&self) -> Option<String> {
+        match self {
+            Self::Function { signature } => Some(format!("function {signature}")),
+            Self::Class { name, .. } => Some(format!("{name} class")),
+            Self::Instance { .. } | Self::Arr { .. } | Self::Dict { .. } => None,
+        }
+    }
 }
 
 /// One call-stack frame: the function name + its locals. Frames are innermost-first.
@@ -53,6 +88,13 @@ pub struct HeapFrame {
     #[serde(rename = "fn")]
     pub fn_name: String,
     pub locals: Vec<(String, HeapValue)>,
+    /// The variables of a comprehension running INSIDE this frame, where the runtime inlined it
+    /// and they can live in neither `locals` nor a frame of their own — Python 3.12+ at module
+    /// scope, where reading them as the module's would replace every global the reader defined.
+    /// Empty everywhere else, including a function's comprehension, whose variable genuinely is
+    /// one of that function's locals.
+    #[serde(default)]
+    pub comprehension: Vec<(String, HeapValue)>,
 }
 
 /// One traced event: the source `line`, the `event` kind (line/call/return), the live

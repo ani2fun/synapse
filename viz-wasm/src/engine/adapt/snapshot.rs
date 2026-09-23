@@ -26,7 +26,10 @@ impl<'a> HeapSnapshot<'a> {
     #[must_use]
     pub fn out_refs(obj: &HeapObject) -> Vec<&str> {
         match obj {
-            HeapObject::Instance { fields, .. } => fields
+            HeapObject::Function { .. } => Vec::new(),
+            // A class DOES reference its methods, so the graph says so; it is kept out of the
+            // structure lens by `auto_detect_root`, not by pretending the edge is not there.
+            HeapObject::Instance { fields, .. } | HeapObject::Class { members: fields, .. } => fields
                 .iter()
                 .filter_map(|(_, v)| match v {
                     HeapValue::Ref(to) => Some(to.as_str()),
