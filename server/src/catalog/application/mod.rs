@@ -7,7 +7,7 @@ mod content_repository;
 mod content_sources;
 mod service;
 
-pub use content_fetcher::{ContentFetcher, FetchError, Fetched};
+pub use content_fetcher::{ContentFetcher, FetchError, Fetched, SpooledArchive};
 pub use content_repository::{ContentError, ContentRepository};
 pub use content_sources::{
     Audience, Audiences, ContentReader, ContentSourceDraft, ContentSourceRecord, ContentSources, Placements,

@@ -17,21 +17,24 @@
 //! after it, never before.
 
 use std::fs;
-use std::io::Read;
+use std::io::{BufReader, Read};
 use std::path::{Component, Path, PathBuf};
 
 use flate2::read::GzDecoder;
 
 use crate::catalog::application::FetchError;
 
-/// Refusal thresholds. Generous for prose — the largest book in the corpus is a few MB — and far
-/// below anything that could fill the cache volume.
-const MAX_UNPACKED_BYTES: u64 = 256 * 1024 * 1024;
+/// Refusal thresholds. A prose book is a few MB; a book that carries its own images is hundreds
+/// (dsa-helmsman: ~800 MB in ~15k files). Unpacking streams entry by entry, so these bound the
+/// cache volume, not memory.
+const MAX_UNPACKED_BYTES: u64 = 1536 * 1024 * 1024;
 const MAX_ENTRIES: usize = 50_000;
 
 /// The `current` symlink name, matching git-sync's so the two layouts read alike.
 const CURRENT: &str = "current";
 
+/// Cheap to clone — it is a path — so an unpack can move onto a blocking thread.
+#[derive(Clone)]
 pub struct ContentCache {
     root: PathBuf,
 }
@@ -51,6 +54,17 @@ impl ContentCache {
 
     /// Unpack an archive into its own commit directory, then flip `current` onto it.
     pub fn publish(&self, source_id: &str, sha: &str, archive: &[u8]) -> Result<PathBuf, FetchError> {
+        self.publish_from(source_id, sha, archive)
+    }
+
+    /// [`Self::publish`] from an archive on disk, read as it unpacks. Blocking I/O for as long as
+    /// the archive takes: call it from a blocking thread.
+    pub fn publish_file(&self, source_id: &str, sha: &str, archive: &Path) -> Result<PathBuf, FetchError> {
+        let file = fs::File::open(archive).map_err(|e| io_failed(&e))?;
+        self.publish_from(source_id, sha, BufReader::new(file))
+    }
+
+    fn publish_from(&self, source_id: &str, sha: &str, archive: impl Read) -> Result<PathBuf, FetchError> {
         let source_dir = self.root.join(source_id);
         let commit_dir = source_dir.join(sha);
         // A leftover from a crashed unpack must not be merged with this one.
@@ -130,7 +144,7 @@ fn prune_other_commits(source_dir: &Path, keep: &str) {
 /// GitHub roots its tarballs at `{owner}-{repo}-{sha7}/`, so one leading component is stripped —
 /// which is also why the guard cannot simply trust `Archive::unpack`'s own checks: the paths are
 /// rewritten here, and a rewritten path must be re-validated.
-fn unpack(archive: &[u8], dest: &Path) -> Result<(), FetchError> {
+fn unpack(archive: impl Read, dest: &Path) -> Result<(), FetchError> {
     let mut tar = tar::Archive::new(GzDecoder::new(archive));
     // Symlinks and hard links are the sharpest edge in an untrusted archive: a link may point
     // outside `dest`, and a later regular entry written "through" it escapes. Prose needs
@@ -195,9 +209,9 @@ fn unpack(archive: &[u8], dest: &Path) -> Result<(), FetchError> {
         if let Some(parent) = target.parent() {
             fs::create_dir_all(parent).map_err(|e| io_failed(&e))?;
         }
-        let mut bytes = Vec::new();
-        entry.read_to_end(&mut bytes).map_err(|e| io_failed(&e))?;
-        fs::write(&target, &bytes).map_err(|e| io_failed(&e))?;
+        // Copied through a small buffer, not read whole: one entry is never this process's memory.
+        let mut file = fs::File::create(&target).map_err(|e| io_failed(&e))?;
+        std::io::copy(&mut entry, &mut file).map_err(|e| io_failed(&e))?;
     }
     Ok(())
 }

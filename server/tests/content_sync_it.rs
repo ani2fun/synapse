@@ -19,7 +19,8 @@ use flate2::Compression;
 use flate2::write::GzEncoder;
 use synapse_server::catalog::application::{
     Audience, Audiences, CatalogService, ContentFetcher, ContentReader, ContentSourceDraft,
-    ContentSourceRecord, ContentSources, FetchError, Fetched, Placements, RegistryError, SyncOutcome, Viewer,
+    ContentSourceRecord, ContentSources, FetchError, Fetched, Placements, RegistryError, SpooledArchive,
+    SyncOutcome, Viewer,
 };
 use synapse_server::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
 use synapse_server::catalog::infrastructure::{
@@ -87,6 +88,8 @@ struct FakeFetcher {
     sha: String,
     archive: Vec<u8>,
     pulls: Mutex<usize>,
+    /// Where the archive is spooled, as the real fetcher spools into the cache root.
+    spool: std::path::PathBuf,
 }
 
 impl FakeFetcher {
@@ -95,7 +98,13 @@ impl FakeFetcher {
             sha: sha.to_owned(),
             archive,
             pulls: Mutex::new(0),
+            spool: std::env::temp_dir(),
         }
+    }
+
+    fn spooling_into(mut self, dir: &Path) -> Self {
+        self.spool = dir.to_path_buf();
+        self
     }
 }
 
@@ -107,7 +116,7 @@ impl ContentFetcher for FakeFetcher {
         *self.pulls.lock().unwrap() += 1;
         Ok(Fetched::Archive {
             sha: self.sha.clone(),
-            bytes: self.archive.clone(),
+            archive: SpooledArchive::from_bytes(&self.spool, &self.archive).unwrap(),
         })
     }
 }
@@ -189,13 +198,16 @@ async fn the_satellite_takes_over_at_the_identical_url_once_the_monorepo_lets_go
     seed_primary(primary.path());
 
     let registry = Arc::new(FakeRegistry::with(record(&["programming-languages"])));
-    let fetcher = Arc::new(FakeFetcher::new(
-        "abc1234",
-        guide_archive(
-            "java",
-            "---\ntitle: What Java Is\nsummary: s\n---\nFROM THE SATELLITE",
-        ),
-    ));
+    let fetcher = Arc::new(
+        FakeFetcher::new(
+            "abc1234",
+            guide_archive(
+                "java",
+                "---\ntitle: What Java Is\nsummary: s\n---\nFROM THE SATELLITE",
+            ),
+        )
+        .spooling_into(cache.path()),
+    );
     let mounted = MountedSources::new(vec![SourceRoot::new(PRIMARY_SOURCE_ID, primary.path())]);
     let placements = Placements::default();
     let sync = ContentSync::new(
@@ -226,6 +238,14 @@ async fn the_satellite_takes_over_at_the_identical_url_once_the_monorepo_lets_go
     // The satellite is on disk and verifiable even though it is not the one serving.
     assert!(cache.path().join("java-guide/current/book.json").exists());
     assert_eq!(*fetcher.pulls.lock().unwrap(), 1);
+    // The archive was spooled into the cache root and is gone once unpacked: a large book must
+    // not leave a second copy of itself on the volume.
+    let leftovers: Vec<_> = std::fs::read_dir(cache.path())
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with('.'))
+        .collect();
+    assert!(leftovers.is_empty(), "spool files left behind: {leftovers:?}");
 
     // ── 2. The monorepo lets go. The satellite takes over at the SAME url.
     std::fs::remove_dir_all(primary.path().join("programming-languages/03-java")).unwrap();
@@ -333,7 +353,7 @@ async fn a_rate_limited_source_is_left_alone_until_its_window_has_passed() {
             }
             Ok(Fetched::Archive {
                 sha: "abc1234".to_owned(),
-                bytes: self.archive.clone(),
+                archive: SpooledArchive::from_bytes(&std::env::temp_dir(), &self.archive).unwrap(),
             })
         }
     }

@@ -288,7 +288,7 @@ fn spawn_content_sync(
     };
     let sync = ContentSync::new(
         Arc::clone(&admin.sources),
-        Arc::new(GitHubFetcher::new(cfg.github_token.clone())),
+        Arc::new(GitHubFetcher::new(cfg.github_token.clone(), &cfg.content_cache)),
         ContentCache::new(&cfg.content_cache),
         content.mounted.clone(),
         content.placements.clone(),

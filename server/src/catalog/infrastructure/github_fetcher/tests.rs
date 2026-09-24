@@ -11,8 +11,24 @@ use super::*;
 const REPO: &str = "ani2fun/java-guide";
 const SHA: &str = "0123456789abcdef0123456789abcdef01234567";
 
+/// Tests that never pull an archive spool nowhere in particular; the ones that do pass their own.
 fn fetcher(base: &str) -> GitHubFetcher {
-    GitHubFetcher::at(base, "ghp_token")
+    GitHubFetcher::at(
+        base,
+        "ghp_token",
+        std::env::temp_dir().join("synapse-fetcher-tests"),
+    )
+}
+
+fn tarball_returns(body: &[u8]) -> Mock {
+    Mock::given(method("GET"))
+        .and(path(format!("/repos/{REPO}/tarball/{SHA}")))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(body.to_vec()))
+}
+
+/// Every file the fetcher has left in its spool directory.
+fn spooled(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    std::fs::read_dir(dir).map_or_else(|_| Vec::new(), |d| d.map(|e| e.unwrap().path()).collect())
 }
 
 async fn head_returns(server: &MockServer, body: &str) {
@@ -41,35 +57,74 @@ async fn an_unchanged_head_never_asks_for_the_archive() {
 async fn a_moved_head_pulls_the_archive_for_that_exact_commit() {
     let server = MockServer::start().await;
     head_returns(&server, &format!("{SHA}\n")).await;
-    Mock::given(method("GET"))
-        .and(path(format!("/repos/{REPO}/tarball/{SHA}")))
-        .respond_with(ResponseTemplate::new(200).set_body_bytes(b"gzip-bytes".to_vec()))
-        .mount(&server)
-        .await;
+    tarball_returns(b"gzip-bytes").mount(&server).await;
+    let spool = tempfile::tempdir().unwrap();
 
-    let fetched = fetcher(&server.uri())
+    let fetched = GitHubFetcher::at(server.uri(), "ghp_token", spool.path())
         .fetch(REPO, "main", Some("an-older-sha"))
         .await
         .unwrap();
 
     match fetched {
-        Fetched::Archive { sha, bytes } => {
+        Fetched::Archive { sha, archive } => {
             assert_eq!(sha, SHA, "the trailing newline is trimmed");
-            assert_eq!(bytes, b"gzip-bytes");
+            assert_eq!(std::fs::read(archive.path()).unwrap(), b"gzip-bytes");
         }
         Fetched::Unchanged => panic!("expected an archive"),
     }
+}
+
+/// The archive is written to disk, never held: a book with its images is hundreds of MB and the
+/// container has 256 MiB. The file is the fetch's to clean up, so dropping it must delete it.
+#[tokio::test]
+async fn the_archive_is_spooled_to_disk_and_deleted_once_dropped() {
+    let server = MockServer::start().await;
+    head_returns(&server, SHA).await;
+    tarball_returns(&vec![7u8; 64 * 1024]).mount(&server).await;
+    let spool = tempfile::tempdir().unwrap();
+
+    let fetched = GitHubFetcher::at(server.uri(), "ghp_token", spool.path())
+        .fetch(REPO, "main", None)
+        .await
+        .unwrap();
+
+    let Fetched::Archive { archive, .. } = fetched else {
+        panic!("expected an archive")
+    };
+    assert!(
+        archive.path().starts_with(spool.path()),
+        "{}",
+        archive.path().display()
+    );
+    assert_eq!(std::fs::metadata(archive.path()).unwrap().len(), 64 * 1024);
+    drop(archive);
+    assert_eq!(spooled(spool.path()), Vec::<std::path::PathBuf>::new());
+}
+
+/// Over the cap is refused, and the partial download does not stay behind on the volume.
+#[tokio::test]
+async fn an_archive_over_the_cap_is_refused_and_leaves_no_file() {
+    let server = MockServer::start().await;
+    head_returns(&server, SHA).await;
+    tarball_returns(&[7u8; 4096]).mount(&server).await;
+    let spool = tempfile::tempdir().unwrap();
+
+    let error = GitHubFetcher::at(server.uri(), "ghp_token", spool.path())
+        .capped_at(1024)
+        .fetch(REPO, "main", None)
+        .await
+        .unwrap_err();
+
+    assert!(matches!(error, FetchError::TooLarge(_)), "{error:?}");
+    assert!(error.to_string().contains(REPO), "{error}");
+    assert_eq!(spooled(spool.path()), Vec::<std::path::PathBuf>::new());
 }
 
 #[tokio::test]
 async fn a_first_fetch_has_no_known_sha_and_still_pulls() {
     let server = MockServer::start().await;
     head_returns(&server, SHA).await;
-    Mock::given(method("GET"))
-        .and(path(format!("/repos/{REPO}/tarball/{SHA}")))
-        .respond_with(ResponseTemplate::new(200).set_body_bytes(b"x".to_vec()))
-        .mount(&server)
-        .await;
+    tarball_returns(b"x").mount(&server).await;
 
     let fetched = fetcher(&server.uri()).fetch(REPO, "main", None).await.unwrap();
     assert!(matches!(fetched, Fetched::Archive { .. }));

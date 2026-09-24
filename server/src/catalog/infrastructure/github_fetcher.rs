@@ -8,18 +8,23 @@
 //! Shares the forge's request conventions (bearer, API version, user agent) deliberately: one
 //! token, one set of headers, one place where GitHub's error shapes are interpreted.
 
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use reqwest::header::{ACCEPT, AUTHORIZATION, USER_AGENT};
 use reqwest::{Client, Response, StatusCode};
+use tokio::io::AsyncWriteExt;
 
-use crate::catalog::application::{ContentFetcher, FetchError, Fetched};
+use crate::catalog::application::{ContentFetcher, FetchError, Fetched, SpooledArchive};
 
 const API: &str = "https://api.github.com";
 const API_VERSION: &str = "2022-11-28";
 const AGENT: &str = "synapse-rs";
-/// A prose book is a few MB; anything approaching this is not a guide.
-const MAX_ARCHIVE_BYTES: usize = 128 * 1024 * 1024;
+/// A prose book is a few MB, but a book that carries its own images is hundreds: dsa-helmsman is
+/// ~700 MB compressed. The archive streams to disk, so this bounds the cache volume, not memory.
+const MAX_ARCHIVE_BYTES: u64 = 1024 * 1024 * 1024;
+/// The whole request, body included. A 1 GiB archive at a modest 10 MB/s takes ~100 s.
+const ARCHIVE_TIMEOUT: Duration = Duration::from_mins(10);
 
 pub struct GitHubFetcher {
     client: Client,
@@ -27,23 +32,36 @@ pub struct GitHubFetcher {
     /// Optional: public repositories fetch anonymously, but the token lifts the rate limit from
     /// 60/hour to 5000, which at one tick a minute per source is the difference that matters.
     token: String,
+    /// Where archives are written while they download. The content cache's own volume, so an
+    /// archive costs disk the cache already budgets for; never memory.
+    spool: PathBuf,
+    max_archive_bytes: u64,
 }
 
 impl GitHubFetcher {
-    pub fn new(token: impl Into<String>) -> Self {
-        Self::at(API, token)
+    pub fn new(token: impl Into<String>, spool: impl Into<PathBuf>) -> Self {
+        Self::at(API, token, spool)
     }
 
     /// The loopback seam the tests drive.
-    pub fn at(api_base: impl Into<String>, token: impl Into<String>) -> Self {
+    pub fn at(api_base: impl Into<String>, token: impl Into<String>, spool: impl Into<PathBuf>) -> Self {
         Self {
             client: Client::builder()
-                .timeout(Duration::from_mins(1))
+                .timeout(ARCHIVE_TIMEOUT)
                 .build()
                 .unwrap_or_default(),
             api_base: api_base.into(),
             token: token.into(),
+            spool: spool.into(),
+            max_archive_bytes: MAX_ARCHIVE_BYTES,
         }
+    }
+
+    /// A lower cap, so a test can prove the refusal without a gigabyte of body.
+    #[cfg(test)]
+    fn capped_at(mut self, bytes: u64) -> Self {
+        self.max_archive_bytes = bytes;
+        self
     }
 
     fn request(&self, url: &str, accept: &str) -> reqwest::RequestBuilder {
@@ -80,7 +98,7 @@ impl GitHubFetcher {
         Ok(sha)
     }
 
-    async fn archive(&self, repo: &str, sha: &str) -> Result<Vec<u8>, FetchError> {
+    async fn archive(&self, repo: &str, sha: &str) -> Result<SpooledArchive, FetchError> {
         let url = format!("{}/repos/{repo}/tarball/{sha}", self.api_base);
         let response = self
             .request(&url, "application/vnd.github+json")
@@ -89,24 +107,29 @@ impl GitHubFetcher {
             .map_err(|e| FetchError::Transport(e.to_string()))?;
         let mut response = check(response, &format!("{repo}@{sha}"))?;
 
-        // Streamed with a running cap rather than `bytes()`: codeload does not always send a
-        // Content-Length, so a declared size cannot be trusted and an unbounded read would let a
-        // hostile archive decide how much memory this process uses.
-        let mut bytes = Vec::new();
+        // Streamed to disk with a running cap rather than `bytes()`: codeload does not always
+        // send a Content-Length, so a declared size cannot be trusted, and holding the body would
+        // let the repository decide how much memory this process uses. Adopted before the first
+        // write, so every early return below deletes the partial file.
+        let archive = SpooledArchive::adopt(spool_path(&self.spool, repo, sha));
+        let mut file = spool_file(archive.path()).await?;
+        let mut written: u64 = 0;
         while let Some(chunk) = response
             .chunk()
             .await
             .map_err(|e| FetchError::Transport(e.to_string()))?
         {
-            bytes.extend_from_slice(&chunk);
-            if bytes.len() > MAX_ARCHIVE_BYTES {
+            written += chunk.len() as u64;
+            if written > self.max_archive_bytes {
                 return Err(FetchError::TooLarge(format!(
                     "{repo}: archive over {} MiB",
-                    MAX_ARCHIVE_BYTES / (1024 * 1024)
+                    self.max_archive_bytes / (1024 * 1024)
                 )));
             }
+            file.write_all(&chunk).await.map_err(|e| spool_failed(&e))?;
         }
-        Ok(bytes)
+        file.flush().await.map_err(|e| spool_failed(&e))?;
+        Ok(archive)
     }
 }
 
@@ -116,10 +139,30 @@ impl ContentFetcher for GitHubFetcher {
         if known_sha == Some(sha.as_str()) {
             return Ok(Fetched::Unchanged);
         }
-        let bytes = self.archive(repo, &sha).await?;
-        tracing::info!(repo, branch, sha, bytes = bytes.len(), "content archive fetched");
-        Ok(Fetched::Archive { sha, bytes })
+        let archive = self.archive(repo, &sha).await?;
+        let bytes = std::fs::metadata(archive.path()).map_or(0, |m| m.len());
+        tracing::info!(repo, branch, sha, bytes, "content archive fetched");
+        Ok(Fetched::Archive { sha, archive })
     }
+}
+
+/// A dot-file in the cache root. The cache lists its sources by DIRECTORY, so a spool file is
+/// never mistaken for one — and never reclaimed from under a download.
+fn spool_path(spool: &Path, repo: &str, sha: &str) -> PathBuf {
+    spool.join(format!(".fetch-{}-{sha}.tar.gz", repo.replace('/', "_")))
+}
+
+async fn spool_file(path: &Path) -> Result<tokio::fs::File, FetchError> {
+    if let Some(dir) = path.parent() {
+        tokio::fs::create_dir_all(dir)
+            .await
+            .map_err(|e| spool_failed(&e))?;
+    }
+    tokio::fs::File::create(path).await.map_err(|e| spool_failed(&e))
+}
+
+fn spool_failed(error: &std::io::Error) -> FetchError {
+    FetchError::Transport(format!("spooling the archive to disk: {error}"))
 }
 
 /// Map GitHub's answer onto the registry's vocabulary. A rate limit carries its reset so the loop

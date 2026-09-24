@@ -17,6 +17,7 @@
 //!   book being migrated out of the monorepo keeps serving from there until it is deleted there.
 
 use std::collections::{BTreeSet, HashMap};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -24,7 +25,7 @@ use tokio::time::Instant;
 
 use crate::catalog::application::{
     Audiences, ContentFetcher, ContentSourceRecord, ContentSources, FetchError, Fetched, Placements,
-    SyncOutcome,
+    SpooledArchive, SyncOutcome,
 };
 use crate::catalog::infrastructure::content_cache::ContentCache;
 use crate::catalog::infrastructure::filesystem::{MountedSources, SourceRoot};
@@ -144,7 +145,7 @@ impl<R: ContentSources, F: ContentFetcher> ContentSync<R, F> {
 
         match self.fetcher.fetch(&source.repo, &source.branch, known).await {
             Ok(Fetched::Unchanged) => false,
-            Ok(Fetched::Archive { sha, bytes }) => match self.cache.publish(&source.id, &sha, &bytes) {
+            Ok(Fetched::Archive { sha, archive }) => match self.unpack(&source.id, &sha, archive).await {
                 Ok(_) => {
                     tracing::info!(id = %source.id, repo = %source.repo, %sha, "content source updated");
                     self.record(&source.id, &SyncOutcome::Landed(sha)).await;
@@ -162,6 +163,16 @@ impl<R: ContentSources, F: ContentFetcher> ContentSync<R, F> {
                 false
             }
         }
+    }
+
+    /// Unpack on a blocking thread. A book with its images is hundreds of MB of file writes, and
+    /// on an async worker that would stall every request sharing it for as long as it took. The
+    /// spooled archive moves in with it and is deleted when the unpack is done, either way.
+    async fn unpack(&self, id: &str, sha: &str, archive: SpooledArchive) -> Result<PathBuf, FetchError> {
+        let (cache, id, sha) = (self.cache.clone(), id.to_owned(), sha.to_owned());
+        tokio::task::spawn_blocking(move || cache.publish_file(&id, &sha, archive.path()))
+            .await
+            .unwrap_or_else(|e| Err(FetchError::Malformed(format!("unpack did not finish: {e}"))))
     }
 
     /// Record how the attempt ended, and answer what it means for the NEXT tick.
