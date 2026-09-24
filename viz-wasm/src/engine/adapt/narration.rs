@@ -44,7 +44,7 @@ pub fn finish(
                 changed: ds.changed.clone(),
                 removed: ds.removed.clone(),
                 annotation: Annotation {
-                    eyebrow: eyebrow_of(&ds.event).to_owned(),
+                    eyebrow: ds.event.as_str().to_owned(),
                     title: narrate(prev, ds, &body),
                     body: body.clone(),
                     link: None,
@@ -70,15 +70,6 @@ fn source_line(line: i32, src_lines: &[&str]) -> String {
     idx.and_then(|i| src_lines.get(i))
         .map(|l| l.trim().to_owned())
         .unwrap_or_default()
-}
-
-fn eyebrow_of(event: &str) -> &'static str {
-    match event {
-        "call" => "call",
-        "return" => "return",
-        "exception" => "exception",
-        _ => "line",
-    }
 }
 
 // ── the caption, by precedence ──

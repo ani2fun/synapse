@@ -24,7 +24,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::engine::trace::{ArrKind, HeapObject, HeapScalar, HeapStep, HeapValue};
+use crate::engine::trace::{ArrKind, HeapObject, HeapScalar, HeapStep, HeapValue, TraceEvent};
 
 // ── metrics (px, at the 12px mono the sheet pins) ──
 // The renderer reads these too: a box drawn from one set of numbers and an arrow aimed with
@@ -36,7 +36,7 @@ pub const PAD_X: f64 = 10.0;
 /// The band above both columns that names them — "Frames", "Objects".
 pub const HEADER_H: f64 = 22.0;
 /// Where those names' baseline sits, and where the frames column's left edge is.
-pub const HEADER_BASELINE: f64 = MARGIN + HEADER_H - 8.0;
+pub const HEADER_BASELINE: f64 = MARGIN + HEADER_H - 8.0; // 8px clear of the first box
 pub const FRAMES_X: f64 = MARGIN;
 const GAP_Y: f64 = 18.0;
 /// Between the frames column and the objects column — the arrows' whole run.
@@ -44,6 +44,22 @@ const COL_GAP: f64 = 96.0;
 /// Between one objects column and the next: a reference's run from a parent to its child.
 const OBJ_COL_GAP: f64 = 56.0;
 const MARGIN: f64 = 12.0;
+/// Below a box's last row — breathing room, so the bottom row does not sit on the border.
+const BOX_PAD_B: f64 = 6.0;
+/// Below a strip's cells: the rail its indices are drawn on.
+const INDEX_RAIL_H: f64 = 14.0;
+/// The frames column is never narrower than this, so a lone `Global frame` does not read as a tag.
+const FRAMES_MIN_W: f64 = 140.0;
+
+// ── where text sits, for the renderer — every one an offset from a geometry the layout owns ──
+/// A box title's baseline, below the box's top edge.
+pub const TITLE_BASELINE: f64 = 17.0;
+/// A row's (or a cell's) text baseline, below the row's top edge.
+pub const ROW_BASELINE: f64 = 15.0;
+/// A cell's index baseline, below the cell's top edge — inside `INDEX_RAIL_H`.
+pub const INDEX_BASELINE: f64 = ROW_H + 12.0;
+/// Every box's corner radius.
+pub const CORNER_R: f64 = 7.0;
 /// One array cell, and the floor a short value still occupies.
 const CELL_MIN_W: f64 = 30.0;
 const NAME_COL_MIN: f64 = 52.0;
@@ -184,18 +200,17 @@ pub struct MemoryStep {
 pub fn project(step: &HeapStep, previous: Option<&HeapStep>) -> MemoryStep {
     let frames = frames_of(step, previous);
     let reached = reachable(&frames, step);
-    let mut objects = Vec::with_capacity(reached.len());
-    let mut referrers = Vec::with_capacity(reached.len());
-    for found in reached {
-        let Some(object) = step.heap.get(&found.id) else {
-            continue;
-        };
-        let before = previous.and_then(|p| p.heap.get(&found.id));
-        objects.push(build_object(&found.id, object, before, previous, found.depth - 1));
-        referrers.push(found.from);
-    }
-    let mut laid = place(step.line, step.out, frames, objects, &referrers);
-    laid.ends_run = step.event == "return" && step.frames.len() == 1;
+    let objects = reached
+        .into_iter()
+        .filter_map(|found| {
+            let object = step.heap.get(&found.id)?;
+            let before = previous.and_then(|p| p.heap.get(&found.id));
+            let built = build_object(&found.id, object, before, previous, found.depth - 1);
+            Some((built, found.from))
+        })
+        .collect();
+    let mut laid = place(step.line, step.out, frames, objects);
+    laid.ends_run = step.event == TraceEvent::Return && step.frames.len() == 1;
     laid
 }
 
@@ -223,8 +238,17 @@ fn frames_of(step: &HeapStep, previous: Option<&HeapStep>) -> Vec<Frame> {
         .iter()
         .enumerate()
         .flat_map(|(i, frame)| {
+            // The same frame a step ago is the one at the same distance from the OUTERMOST — the
+            // innermost end is where calls come and go, so counting from it would pair a caller
+            // with the callee that just returned.
+            let from_outermost = depth - i;
             let was = previous
-                .and_then(|p| p.frames.get(p.frames.len().wrapping_sub(depth - i)))
+                .and_then(|p| {
+                    p.frames
+                        .len()
+                        .checked_sub(from_outermost)
+                        .and_then(|at| p.frames.get(at))
+                })
                 .filter(|earlier| earlier.fn_name == frame.fn_name);
             // The innermost frame is the one executing — index 0 before the reversal below.
             let innermost = i == 0;
@@ -508,6 +532,18 @@ fn text_w(text: &str) -> f64 {
     chars * CHAR_W
 }
 
+/// How wide a `name │ value` row needs its box to be — one rule for frames and objects alike.
+fn row_w(slot: &Slot) -> f64 {
+    text_w(&slot.name).max(NAME_COL_MIN) + text_w(&slot.value) + PAD_X * 3.0
+}
+
+/// A box of `rows` rows, header included.
+fn rows_h(rows: usize) -> f64 {
+    #[allow(clippy::cast_precision_loss)]
+    let n = rows as f64;
+    n.mul_add(ROW_H, HEAD_H + BOX_PAD_B)
+}
+
 /// A box's own size, before it has a place.
 fn size(object: &mut Object) {
     let is_strip = matches!(object.kind, ObjKind::List | ObjKind::Tuple) && !object.rows.is_empty();
@@ -523,7 +559,7 @@ fn size(object: &mut Object) {
         let w = (object.rows.len() as f64).mul_add(cell, PAD_X);
         object.cell_w = Some(cell);
         object.rect.w = w.max(text_w(&object.title) + PAD_X * 2.0);
-        object.rect.h = HEAD_H + ROW_H + 14.0;
+        object.rect.h = HEAD_H + ROW_H + INDEX_RAIL_H;
         return;
     }
     // A box with nothing inside it — a function, an empty list, an instance with no fields — is
@@ -532,39 +568,31 @@ fn size(object: &mut Object) {
     object.rect.w = object
         .rows
         .iter()
-        .map(|r| text_w(&r.name).max(NAME_COL_MIN) + text_w(&r.value) + PAD_X * 3.0)
+        .map(row_w)
         .fold(text_w(&object.title) + PAD_X * 2.0, f64::max)
         .max(floor);
-    #[allow(clippy::cast_precision_loss)]
-    let rows = object.rows.len() as f64;
-    object.rect.h = rows.mul_add(ROW_H, HEAD_H + 6.0);
+    object.rect.h = rows_h(object.rows.len());
 }
 
-fn place(
-    line: i32,
-    out: usize,
-    mut frames: Vec<Frame>,
-    mut objects: Vec<Object>,
-    referrers: &[Referrer],
-) -> MemoryStep {
+/// Boxes and arrows for one step. `placed` is in breadth-first order, each object with whatever
+/// first pointed at it — which is where it prefers to sit.
+fn place(line: i32, out: usize, mut frames: Vec<Frame>, placed: Vec<(Object, Referrer)>) -> MemoryStep {
+    let (mut objects, referrers): (Vec<Object>, Vec<Referrer>) = placed.into_iter().unzip();
     let top = MARGIN + HEADER_H;
 
     // ── the frames column ──
     let frame_w = frames
         .iter()
         .map(|f| {
-            let widest = f
-                .slots
+            f.slots
                 .iter()
-                .map(|s| text_w(&s.name).max(NAME_COL_MIN) + text_w(&s.value) + PAD_X * 3.0)
-                .fold(0.0_f64, f64::max);
-            widest.max(text_w(&f.title) + PAD_X * 2.0)
+                .map(row_w)
+                .fold(text_w(&f.title) + PAD_X * 2.0, f64::max)
         })
-        .fold(140.0_f64, f64::max);
+        .fold(FRAMES_MIN_W, f64::max);
     let mut y = top;
     for frame in &mut frames {
-        #[allow(clippy::cast_precision_loss)]
-        let h = HEAD_H + frame.slots.len() as f64 * ROW_H + 6.0;
+        let h = rows_h(frame.slots.len());
         frame.rect = Rect {
             x: MARGIN,
             y,
@@ -598,7 +626,7 @@ fn place(
         .collect();
     // How far down each column is already taken — a box never lands on one placed before it.
     let mut taken = vec![top; columns];
-    for (i, referrer) in referrers.iter().enumerate().take(objects.len()) {
+    for (i, referrer) in referrers.iter().enumerate() {
         // Breadth-first order puts every parent before its children, so a parent is always among
         // the boxes already placed.
         let (placed, rest) = objects.split_at_mut(i);

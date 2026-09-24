@@ -40,7 +40,7 @@ fn heap(entries: &[(&str, HeapObject)]) -> BTreeMap<String, HeapObject> {
 fn step(frames: Vec<HeapFrame>, objects: &[(&str, HeapObject)]) -> HeapStep {
     HeapStep {
         line: 1,
-        event: "line".to_owned(),
+        event: TraceEvent::Line,
         frames,
         heap: heap(objects),
         out: 0,
@@ -563,18 +563,21 @@ fn the_columns_are_named_above_both_of_them() {
 
 #[test]
 fn only_the_outermost_frame_returning_ends_the_run() {
-    let at = |event: &str, frames: Vec<HeapFrame>| HeapStep {
-        event: event.to_owned(),
+    let at = |event: TraceEvent, frames: Vec<HeapFrame>| HeapStep {
+        event,
         ..step(frames, &[])
     };
-    assert!(project(&at("return", vec![frame("<module>", &[])]), None).ends_run);
+    assert!(project(&at(TraceEvent::Return, vec![frame("<module>", &[])]), None).ends_run);
     assert!(
         !project(
-            &at("return", vec![frame("solve", &[]), frame("<module>", &[])]),
+            &at(
+                TraceEvent::Return,
+                vec![frame("solve", &[]), frame("<module>", &[])]
+            ),
             None
         )
         .ends_run,
         "a call returning is not the end of the program"
     );
-    assert!(!project(&at("line", vec![frame("<module>", &[])]), None).ends_run);
+    assert!(!project(&at(TraceEvent::Line, vec![frame("<module>", &[])]), None).ends_run);
 }

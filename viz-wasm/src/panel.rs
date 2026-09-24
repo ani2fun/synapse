@@ -155,8 +155,7 @@ impl VizPanelStore {
         if !self.lens_draws() {
             return false;
         }
-        let state = self.active_step().get();
-        state.index + 1 >= state.count
+        self.active_step().get().at_end()
     }
 
     /// Whether the lens on screen has a run it can actually describe. The structure lens needs a
@@ -183,7 +182,8 @@ impl VizPanelStore {
             return Cursor::default();
         };
         let index = self.active_step().get().index;
-        let line_at: Box<dyn Fn(usize) -> Option<i32>> = match self.lens.get() {
+        // Each lens's steps, as the lines they stand on — the two count different things.
+        let lines: Vec<i32> = match self.lens.get() {
             Lens::Memory => {
                 // The program has FINISHED here: the line on this step is the last one that ran,
                 // and pointing a next-line arrow at it would say it is about to run again.
@@ -193,19 +193,24 @@ impl VizPanelStore {
                         next: None,
                     };
                 }
-                Box::new(move |i| run.memory.get(i).map(|s| s.line))
+                run.memory.iter().map(|step| step.line).collect()
             }
             Lens::Structure => {
                 let Ok(cases) = run.cases else {
                     return Cursor::default();
                 };
                 let case = self.case_idx.get().min(cases.cases.len().saturating_sub(1));
-                Box::new(move |i| cases.cases.get(case)?.steps.get(i).map(|s| s.line))
+                cases
+                    .cases
+                    .get(case)
+                    .map(|graph| graph.steps.iter().map(|step| step.line).collect())
+                    .unwrap_or_default()
             }
         };
+        let line_at = |i: usize| lines.get(i).copied().filter(|l| *l > 0);
         Cursor {
-            executed: index.checked_sub(1).and_then(&line_at).filter(|l| *l > 0),
-            next: line_at(index).filter(|l| *l > 0),
+            executed: index.checked_sub(1).and_then(line_at),
+            next: line_at(index),
         }
     }
 
@@ -312,23 +317,19 @@ fn ready(
     // they can answer it. They can still step back through everything that led there.
     let waiting = run.waiting;
     Effect::new(move |_| {
-        let at = match store.resume_at.get_untracked() {
-            Some(at) => {
-                store.resume_at.set(None);
-                at
-            }
-            None if waiting => usize::MAX,
-            None => return,
-        };
         let (target, count) = match store.lens.get_untracked() {
             Lens::Structure => (store.step, resume_case_steps),
             Lens::Memory => (store.mem_step, resume_steps),
         };
-        target.update(|s| {
-            s.count = count.max(1);
-            s.index = at.min(s.count - 1);
-            s.playing = false;
-        });
+        let landing = match store.resume_at.get_untracked() {
+            Some(at) => {
+                store.resume_at.set(None);
+                State::at(count, at)
+            }
+            None if waiting => State::at_last(count),
+            None => return,
+        };
+        target.set(landing);
     });
 
     // `r` re-traces in the modal; here the page owns Trace, so the key is left to the page and
@@ -401,8 +402,8 @@ fn structure_lens(
         ..
     } = store;
     let cases = match &run.cases {
-        // Not a dead end any more: the objection names the structure that could not be found,
-        // and the other lens is one click away and always works.
+        // The objection names the structure that could not be found, and the other lens is one
+        // click away and always works.
         Err(message) => {
             let message = message.clone();
             return view! {
@@ -428,10 +429,7 @@ fn structure_lens(
                 {move || {
                     let idx = case_idx.get().min(host_cases.cases.len() - 1);
                     let graph = host_cases.cases[idx].clone();
-                    step.update(|s| {
-                        s.count = graph.steps.len().max(1);
-                        s.index = s.index.min(s.count - 1);
-                    });
+                    step.update(|s| *s = s.resized(graph.steps.len()));
                     let one = VizCases { cases: vec![graph] };
                     view! {
                         <WidgetHost
@@ -466,10 +464,7 @@ fn memory_lens(run: &Run, store: VizPanelStore) -> AnyView {
         .into_any();
     }
     let count = run.memory.len();
-    mem_step.update(|s| {
-        s.count = count;
-        s.index = s.index.min(count - 1);
-    });
+    mem_step.update(|s| *s = s.resized(count));
     let steps = run.memory.clone();
     let lines: Vec<i32> = steps.iter().map(|s| s.line).collect();
     let index = Signal::derive(move || mem_step.get().index);

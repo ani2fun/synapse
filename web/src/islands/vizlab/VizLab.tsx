@@ -27,13 +27,7 @@ import { h, render } from "preact";
 import { useCallback, useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 import * as log from "../../lib/log";
-import {
-  DEFAULT_LEFT_PCT,
-  MAX_LEFT_PCT,
-  MIN_LEFT_PCT,
-  parseLeftPct,
-  serializeLeftPct,
-} from "../../lib/catalog/pane";
+import { DEFAULT_LEFT_PCT } from "../../lib/catalog/pane";
 import type { Variant } from "../../lib/execution/blocks";
 import type { EditorHandle } from "../../lib/islands/editor/monaco";
 import {
@@ -45,6 +39,7 @@ import {
   get as storageGet,
   set as storageSet,
 } from "../../lib/storage";
+import { LabSplit, useLabSplitter } from "../labshell/splitter";
 import { ensureViz } from "../viz";
 import { CODE_CHANGED, VIZ_READY } from "../workbench/contracts";
 import type { CodeSnapshot } from "../workbench/contracts";
@@ -102,13 +97,11 @@ export function VizLab() {
   const canvasHost = useRef<HTMLDivElement>(null);
   const consoleHost = useRef<HTMLDivElement>(null);
   const benchSlot = useRef<HTMLDivElement>(null);
-  const panes = useRef<HTMLDivElement>(null);
   /** The live Monaco, while there is one — the workbench evicts it off-viewport. */
   const editor = useRef<EditorHandle | null>(null);
   /** The last cursor the crate reported, so a Monaco that mounts LATE (or remounts after an
    *  eviction) is painted with where the reader actually is rather than with nothing. */
   const cursor = useRef<[number | null, number | null]>([null, null]);
-  const dragging = useRef(false);
   /** The workbench's live buffer, off its own CODE_CHANGED — never a second copy of the code. */
   const live = useRef<CodeSnapshot>({
     source: STARTERS[LANGUAGES[0]] ?? "",
@@ -126,11 +119,16 @@ export function VizLab() {
   const runner = useRef<(() => void) | null>(null);
   /** The code the canvas is showing a run of, so an edit can take a now-wrong trace away. */
   const traced = useRef<CodeSnapshot | null>(null);
+  /** The pending draft write — per page, not per language, because only the buffer on screen
+   *  changes, and its snapshot names the language it belongs to. */
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const say = useCallback((message: string) => {
     setToast(message);
-    setTimeout(() => setToast(null), 2400);
+    if (toastTimer.current != null) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2400);
   }, []);
 
   const variants = useMemo<Variant[]>(
@@ -162,6 +160,14 @@ export function VizLab() {
     const onCode = (event: Event) => {
       const snapshot = (event as CustomEvent<CodeSnapshot>).detail;
       live.current = snapshot;
+      // Saved from HERE, the buffer's own writer: the buffer is a ref, so typing never renders
+      // this page, and a render-driven save would wait for some unrelated state to change. The
+      // snapshot carries its language, so a language switch saves under the right key.
+      if (draftTimer.current != null) clearTimeout(draftTimer.current);
+      draftTimer.current = setTimeout(
+        () => storageSet(draftKeyFor(snapshot.language), snapshot.source),
+        DRAFT_DEBOUNCE_MS,
+      );
       // An edit ends the last run: its question and its trace both describe code that is gone.
       // PythonTutor does the same the moment you choose to edit — a trace left standing paints
       // its arrows onto the wrong lines (the last line, once the program got shorter).
@@ -197,6 +203,8 @@ export function VizLab() {
     log.info(`viz lab: workbench mounted (${variants.map((v) => v.language).join("/")})`);
     return () => {
       wrap.removeEventListener(CODE_CHANGED, onCode);
+      if (draftTimer.current != null) clearTimeout(draftTimer.current);
+      if (toastTimer.current != null) clearTimeout(toastTimer.current);
       render(null, wrap);
     };
   }, []);
@@ -204,12 +212,12 @@ export function VizLab() {
 
   // ── the wasm: the canvas in one pane, the console in the other, over one store ──
   useEffect(() => {
-    let live = true;
+    let alive = true;
     const mount = () => {
       const canvas = canvasHost.current;
       const console_ = consoleHost.current;
       const panel = window.__synapseVizPanel;
-      if (!live || canvas == null || console_ == null || panel == null) return;
+      if (!alive || canvas == null || console_ == null || panel == null) return;
       panel.mount(canvas);
       panel.mountConsole(console_);
       panel.onCursor((executed, next) => {
@@ -225,18 +233,12 @@ export function VizLab() {
     // VIZ_READY may have fired before this listener existed (a warm bundle resolves instantly).
     mount();
     return () => {
-      live = false;
+      alive = false;
       window.removeEventListener(VIZ_READY, mount);
     };
   }, []);
 
-  // ── the drafts ──
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      storageSet(draftKeyFor(live.current.language), live.current.source);
-    }, DRAFT_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  });
+  // ── the drafts (the buffer's is written by `onCode`, above) ──
   useEffect(() => {
     storageSet(VIZ_LAB_HINT_KEY, composeHint(structure, root));
   }, [structure, root]);
@@ -245,32 +247,7 @@ export function VizLab() {
     return () => clearTimeout(timer);
   }, [stdin]);
 
-  // ── the splitter ──
-  const [leftPct, setLeftPct] = useState(() => parseLeftPct(storageGet(VIZ_LAB_PANE_KEY)));
-  useEffect(() => {
-    const onMove = (event: PointerEvent) => {
-      const box = panes.current?.getBoundingClientRect();
-      if (!dragging.current || box == null || box.width <= 0) return;
-      const pct = ((event.clientX - box.left) / box.width) * 100;
-      setLeftPct(Math.min(Math.max(pct, MIN_LEFT_PCT), MAX_LEFT_PCT));
-    };
-    // Persist on RELEASE — this fires for every window pointerup, so it is gated on `dragging`
-    // rather than writing storage at pointer rate.
-    const onUp = () => {
-      if (!dragging.current) return;
-      dragging.current = false;
-      document.body.style.cursor = "";
-      const left = panes.current?.querySelector<HTMLElement>(".lab-pane--l");
-      const pct = parseFloat(left?.style.width ?? "") || DEFAULT_LEFT_PCT;
-      storageSet(VIZ_LAB_PANE_KEY, serializeLeftPct(pct));
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-  }, []);
+  const { leftPct, panes, startDrag } = useLabSplitter(VIZ_LAB_PANE_KEY, DEFAULT_LEFT_PCT);
 
   const trace = () => {
     const panel = window.__synapseVizPanel;
@@ -445,23 +422,7 @@ export function VizLab() {
           {/* Leptos owns everything inside this node. Preact must never render into it again. */}
           <div class="vlab__canvas" ref={canvasHost} data-vizlab-canvas></div>
         </section>
-        <div
-          class="lab-split"
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize the canvas"
-          onPointerDown={(event) => {
-            event.preventDefault();
-            dragging.current = true;
-            document.body.style.cursor = "col-resize";
-          }}
-        >
-          <span class="lab-split__grip">
-            <i></i>
-            <i></i>
-            <i></i>
-          </span>
-        </div>
+        <LabSplit label="Resize the canvas" onPointerDown={startDrag} />
         <section class="lab-pane lab-pane--r">
           {/* Three empty nodes, three owners. Preact renders each once and never looks inside:
               the workbench renders itself into the first, Leptos into the second, and only the

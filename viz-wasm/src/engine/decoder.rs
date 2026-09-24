@@ -5,7 +5,7 @@
 //! The JSON walk preserves object order (locals + fields ride insertion order on the wire).
 
 use crate::engine::trace::{
-    ArrKind, HeapFrame, HeapObject, HeapScalar, HeapStep, HeapTrace, HeapValue, RunError, Served,
+    ArrKind, HeapFrame, HeapObject, HeapScalar, HeapStep, HeapTrace, HeapValue, RunError, Served, TraceEvent,
 };
 
 pub const HEAP_BEGIN: &str = "__SYNAPSE_HEAP_BEGIN__";
@@ -139,11 +139,7 @@ fn decode_step(v: &serde_json::Value) -> HeapStep {
         .unwrap_or_default();
     HeapStep {
         line: i32::try_from(v.get("line").and_then(serde_json::Value::as_i64).unwrap_or(0)).unwrap_or(0),
-        event: v
-            .get("event")
-            .and_then(|s| s.as_str())
-            .unwrap_or("line")
-            .to_owned(),
+        event: TraceEvent::parse(v.get("event").and_then(|s| s.as_str()).unwrap_or_default()),
         frames,
         heap,
         out: usize::try_from(v.get("out").and_then(serde_json::Value::as_u64).unwrap_or(0)).unwrap_or(0),

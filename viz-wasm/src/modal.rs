@@ -212,8 +212,8 @@ fn ready(
     // A program that crashed still traced every step up to the crash, so the modal shows the run
     // — but without this it shows a story that simply stops, which reads as the visualiser giving
     // up rather than the code failing.
-    let ended_badly = run.error.clone().map(|error| {
-        view! { <div class="viz-error viz-error--flat"><span class="viz-error__kind">{error.kind}</span><span class="viz-error__msg">{error.message}</span>{(error.line > 0).then(|| view! { <span class="viz-error__at">{format!("line {}", error.line)}</span> })}</div> }
+    let ended_badly = run.error.as_ref().map(|error| {
+        view! { <div class="viz-error viz-error--flat">{player::error_summary(error)}</div> }
     });
     let case_idx = RwSignal::new(0usize);
     let zoom = RwSignal::new(1.0_f64);
@@ -251,10 +251,7 @@ fn ready(
                     {move || {
                         let idx = case_idx.get().min(host_cases.cases.len() - 1);
                         let graph = host_cases.cases[idx].clone();
-                        step_state.update(|s| {
-                            s.count = graph.steps.len().max(1);
-                            s.index = s.index.min(s.count - 1);
-                        });
+                        step_state.update(|s| *s = s.resized(graph.steps.len()));
                         let one = VizCases { cases: vec![graph] };
                         view! {
                             <WidgetHost

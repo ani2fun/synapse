@@ -41,7 +41,7 @@ fn build_step(step: &HeapStep) -> ProjectedStep {
         .collect();
     ProjectedStep {
         line: step.line,
-        event: step.event.clone(),
+        event: step.event,
         nodes,
         edges: Vec::new(),
         cursor: Vec::new(),

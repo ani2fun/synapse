@@ -19,6 +19,7 @@ import { type DiagramProblem } from "./PreviewFrame";
 import { type Subject, subjectFromUrl } from "./subject";
 import * as api from "../../lib/api/client";
 import { Icon } from "./icons";
+import { LabSplit, useLabSplitter } from "../labshell/splitter";
 import {
   DIAGRAM_LAB_DRAFT_PREFIX,
   DIAGRAM_LAB_PANE_KEY,
@@ -34,14 +35,8 @@ import { mountDiagramEditor } from "../../lib/islands/editor/loader";
 /** The draft is a convenience, not a document; it can lag the keystroke it belongs to. */
 const DRAFT_DEBOUNCE_MS = 800;
 
+/** Wider than the problem page's split: a diagram's source is terse and its figure is not. */
 const DEFAULT_LEFT_PCT = 44;
-const MIN_LEFT_PCT = 28;
-const MAX_LEFT_PCT = 64;
-
-function clampPct(value: number): number {
-  if (!Number.isFinite(value) || value <= 0) return DEFAULT_LEFT_PCT;
-  return Math.min(Math.max(value, MIN_LEFT_PCT), MAX_LEFT_PCT);
-}
 
 /** The draft key. Scoped per language AND per diagram, so editing two of them does not have one
  *  overwrite the other's autosave, and neither disturbs the blank scratchpad. */
@@ -121,13 +116,11 @@ export function Lab({
   const [published, setPublished] = useState<string | null>(null);
   const [openedMeta, setOpenedMeta] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [leftPct, setLeftPct] = useState(() => clampPct(Number(storageGet(DIAGRAM_LAB_PANE_KEY))));
+  const { leftPct, panes, startDrag } = useLabSplitter(DIAGRAM_LAB_PANE_KEY, DEFAULT_LEFT_PCT);
   const [toast, setToast] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const editorHost = useRef<HTMLDivElement>(null);
   const editor = useRef<EditorHandle | null>(null);
-  const panes = useRef<HTMLDivElement>(null);
-  const dragging = useRef(false);
   /** The buffer as of now, for the mount below: it runs once and would otherwise capture the
    *  empty string a page opened on a diagram starts with. */
   const sourceRef = useRef(source);
@@ -216,30 +209,6 @@ export function Lab({
     return () => clearTimeout(timer);
   }, [source, draftKey]);
 
-  useEffect(() => {
-    const onMove = (event: PointerEvent) => {
-      const box = panes.current?.getBoundingClientRect();
-      if (!dragging.current || box == null || box.width <= 0) return;
-      setLeftPct(clampPct(((event.clientX - box.left) / box.width) * 100));
-    };
-    const onUp = () => {
-      if (!dragging.current) return;
-      dragging.current = false;
-      document.body.style.cursor = "";
-      const left = panes.current?.querySelector<HTMLElement>(".lab-pane--l");
-      storageSet(
-        DIAGRAM_LAB_PANE_KEY,
-        (parseFloat(left?.style.width ?? "") || DEFAULT_LEFT_PCT).toFixed(2),
-      );
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-  }, []);
-
   // Always answers, because the commonest outcome is that the source was ALREADY tidy — and a
   // button that silently computes an identical string is indistinguishable from a broken one.
   const onTidy = () => {
@@ -318,23 +287,7 @@ export function Lab({
           </div>
           <div class="lab-ed" ref={editorHost}></div>
         </section>
-        <div
-          class="lab-split"
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize the editor"
-          onPointerDown={(event) => {
-            event.preventDefault();
-            dragging.current = true;
-            document.body.style.cursor = "col-resize";
-          }}
-        >
-          <span class="lab-split__grip">
-            <i></i>
-            <i></i>
-            <i></i>
-          </span>
-        </div>
+        <LabSplit label="Resize the editor" onPointerDown={startDrag} />
         <section class="lab-pane lab-pane--r">{doc.preview}</section>
       </div>
 

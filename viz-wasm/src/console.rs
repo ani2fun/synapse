@@ -26,8 +26,9 @@
 use leptos::prelude::*;
 
 use crate::engine::memory::MemoryStep;
+use crate::engine::playback::State;
 use crate::panel::{Lens, VizPanelStore};
-use crate::player::FramesPanel;
+use crate::player::{self, FramesPanel};
 use crate::session::{self, Run, Session, TraceState};
 
 #[component]
@@ -107,23 +108,16 @@ fn error_card(run: &Run, store: VizPanelStore) -> AnyView {
         return ().into_any();
     };
     let steps = run.memory.len();
-    let line = error.line;
     view! {
         <div class="viz-error">
-            <span class="viz-error__kind">{error.kind}</span>
-            <span class="viz-error__msg">{error.message}</span>
-            {(line > 0).then(|| view! { <span class="viz-error__at">{format!("line {line}")}</span> })}
+            {player::error_summary(&error)}
             {(steps > 0).then(|| view! {
                 <button
                     class="viz-error__go"
                     title="Stop where it broke"
                     on:click=move |_| {
                         store.lens.set(Lens::Memory);
-                        store.mem_step.update(|s| {
-                            s.count = steps;
-                            s.index = steps - 1;
-                            s.playing = false;
-                        });
+                        store.mem_step.set(State::at_last(steps));
                     }
                 >
                     "Show me"

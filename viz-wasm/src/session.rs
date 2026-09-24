@@ -5,7 +5,6 @@
 //! a Failed card, never a blank modal.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
 
 use crate::engine::adapt;
 use crate::engine::graph::VizCases;
@@ -23,9 +22,9 @@ use crate::ffi::tracer;
 /// One finished run, in both lenses.
 ///
 /// `cases` is a RESULT, not a precondition: the structure lens needs a root it can project and
-/// often has none — a program with two lists and a counter fits no `viz=` token. That used to
-/// fail the whole run. It no longer can, because the MEMORY lens needs no vocabulary at all, so a
-/// trace that decodes is always worth showing; only the structure half reports the objection.
+/// often has none — a program with two lists and a counter fits no `viz=` token. The MEMORY lens
+/// needs no vocabulary at all, so a trace that decodes is always worth showing, and only the
+/// structure half reports the objection.
 #[derive(Clone, PartialEq)]
 pub struct Run {
     pub cases: Result<VizCases, String>,
@@ -67,43 +66,102 @@ pub struct Session {
     pub state: RwSignal<TraceState>,
 }
 
+/// How many traced runs the cache keeps. Every one holds its laid-out memory steps (up to the
+/// harness's 600), and on `/viz` every edit-then-Trace and every answered prompt is a new key, so
+/// an unbounded cache grows for as long as the tab is open. The run on screen is always the one
+/// obtained LAST — every caller shows what it obtains, at once — so it is never the one evicted.
+const CACHE_CAP: usize = 8;
+
+/// A small most-recently-used map: a hit moves its key to the back, and an insert past `cap`
+/// hands back the oldest entries for the caller to dispose of. Linear scans, because `cap` is
+/// single digits and a `Key` holds a whole program — hashing it twice would cost more.
+struct Recent<K, V> {
+    cap: usize,
+    entries: Vec<(K, V)>,
+}
+
+impl<K: PartialEq, V: Clone> Recent<K, V> {
+    const fn new(cap: usize) -> Self {
+        Self {
+            cap,
+            entries: Vec::new(),
+        }
+    }
+
+    fn get(&mut self, key: &K) -> Option<V> {
+        let at = self.entries.iter().position(|(k, _)| k == key)?;
+        let entry = self.entries.remove(at);
+        let value = entry.1.clone();
+        self.entries.push(entry);
+        Some(value)
+    }
+
+    /// Insert or replace `key`, returning whatever fell out: the entry it replaced, and the
+    /// oldest ones past the cap.
+    fn insert(&mut self, key: K, value: V) -> Vec<V> {
+        let mut dropped = Vec::new();
+        if let Some(at) = self.entries.iter().position(|(k, _)| *k == key) {
+            dropped.push(self.entries.remove(at).1);
+        }
+        self.entries.push((key, value));
+        let excess = self.entries.len().saturating_sub(self.cap);
+        dropped.extend(self.entries.drain(..excess).map(|(_, v)| v));
+        dropped
+    }
+}
+
+/// A cached session and the owner its signal lives under — disposed when the session leaves the
+/// cache, which is what actually frees the run it holds.
+#[derive(Clone)]
+struct Cached {
+    session: Session,
+    owner: Owner,
+}
+
 thread_local! {
-    static CACHE: RefCell<HashMap<Key, Session>> = RefCell::new(HashMap::new());
+    static CACHE: RefCell<Recent<Key, Cached>> = const { RefCell::new(Recent::new(CACHE_CAP)) };
     // Sessions live in the global cache and outlive every view, so their signals must be
     // owned by a DETACHED root — a session minted inside a click handler would otherwise die
     // with that handler's reactive scope (the modal's own re-trace button disposes itself on
-    // store.open, and reading the dead signal panics the whole reactive graph).
+    // store.open, and reading the dead signal panics the whole reactive graph). Each session
+    // gets a CHILD of it, so one can be disposed without the rest.
     static SESSION_OWNER: Owner = Owner::new_root(None);
 }
 
-/// A session whose `state` signal is owned by the detached root — safe to cache + read from
-/// any (later) view, regardless of which scope asked for the trace.
-fn mint(key: Key) -> Session {
-    SESSION_OWNER.with(|owner| {
-        owner.with(|| Session {
-            key,
-            state: RwSignal::new(TraceState::Tracing),
-        })
-    })
+/// A session whose `state` signal is owned by its own child of the detached root — safe to cache
+/// and read from any later view, and freed alone when the cache lets go of it. A run still in
+/// flight when that happens writes into a disposed signal, which is a silent no-op.
+fn mint(key: Key) -> Cached {
+    let owner = SESSION_OWNER.with(Owner::child);
+    let session = owner.with(|| Session {
+        key,
+        state: RwSignal::new(TraceState::Tracing),
+    });
+    Cached { session, owner }
+}
+
+/// Cache `cached` under its key and free whatever that pushes out.
+fn remember(cached: &Cached) {
+    let dropped = CACHE.with_borrow_mut(|c| c.insert(cached.session.key.clone(), cached.clone()));
+    for old in dropped {
+        old.owner.cleanup();
+    }
 }
 
 /// Cached: the same code+case re-opens instantly; `force` re-traces.
 pub fn obtain(key: Key) -> Session {
-    if let Some(session) = CACHE.with_borrow(|c| c.get(&key).cloned()) {
-        return session;
+    if let Some(cached) = CACHE.with_borrow_mut(|c| c.get(&key)) {
+        return cached.session;
     }
-    let session = mint(key.clone());
-    CACHE.with_borrow_mut(|c| c.insert(key, session.clone()));
-    run(&session);
-    session
+    obtain_fresh(key)
 }
 
 /// A FRESH trace for a (possibly new) key — replaces any cached session and re-runs.
 pub fn obtain_fresh(key: Key) -> Session {
-    let session = mint(key.clone());
-    CACHE.with_borrow_mut(|c| c.insert(key, session.clone()));
-    run(&session);
-    session
+    let cached = mint(key);
+    remember(&cached);
+    run(&cached.session);
+    cached.session
 }
 
 pub fn force(session: &Session) {

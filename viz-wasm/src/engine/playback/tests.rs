@@ -75,3 +75,44 @@ fn at_start_at_end_read_the_boundaries_including_single_step() {
     assert!(state(2, false, 3).at_end());
     assert!(state(0, false, 1).at_start() && state(0, false, 1).at_end());
 }
+
+#[test]
+fn landing_clamps_into_the_run_and_pauses() {
+    assert_eq!(
+        State::at(5, 2),
+        State {
+            index: 2,
+            playing: false,
+            count: 5
+        }
+    );
+    assert_eq!(State::at(5, 99).index, 4);
+    assert_eq!(
+        State::at(0, 3),
+        State {
+            index: 0,
+            playing: false,
+            count: 1
+        }
+    );
+    assert_eq!(State::at_last(7).index, 6);
+}
+
+#[test]
+fn resizing_keeps_a_position_that_still_fits_and_its_playing() {
+    let playing = State {
+        index: 3,
+        playing: true,
+        count: 10,
+    };
+    assert_eq!(
+        playing.resized(8),
+        State {
+            index: 3,
+            playing: true,
+            count: 8
+        }
+    );
+    assert_eq!(playing.resized(2).index, 1);
+    assert_eq!(playing.resized(0).count, 1);
+}

@@ -25,6 +25,35 @@ impl State {
         }
     }
 
+    /// Standing on step `index` of `count`, paused — where a run LANDS rather than starts: on the
+    /// step past an answered prompt, or where a crash happened. `count` floors at 1 and `index` is
+    /// clamped into it.
+    #[must_use]
+    pub fn at(count: usize, index: usize) -> Self {
+        let count = count.max(1);
+        Self {
+            index: index.min(count - 1),
+            playing: false,
+            count,
+        }
+    }
+
+    /// Standing on the LAST of `count` steps, paused.
+    #[must_use]
+    pub fn at_last(count: usize) -> Self {
+        Self::at(count, usize::MAX)
+    }
+
+    /// The same position over a run of `count` steps — kept where it is when it still fits, pulled
+    /// back onto the last step when it does not. Whether it is playing is left alone.
+    #[must_use]
+    pub fn resized(self, count: usize) -> Self {
+        Self {
+            playing: self.playing,
+            ..Self::at(count, self.index)
+        }
+    }
+
     /// At the first step — `previous`/first are no-ops here.
     #[must_use]
     pub fn at_start(self) -> bool {

@@ -97,14 +97,50 @@ pub struct HeapFrame {
     pub comprehension: Vec<(String, HeapValue)>,
 }
 
-/// One traced event: the source `line`, the `event` kind (line/call/return), the live
+/// What the tracer saw happen. A trace event fires BEFORE its line runs, so `Line` names the line
+/// about to execute; `Return` is a frame handing back, `Exception` one being raised through.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TraceEvent {
+    #[default]
+    Line,
+    Call,
+    Return,
+    Exception,
+}
+
+impl TraceEvent {
+    /// The wire's spelling. Anything unrecognised is a `Line`: an event this client does not
+    /// know is still a step on some line, and dropping it would renumber every step after it.
+    #[must_use]
+    pub fn parse(wire: &str) -> Self {
+        match wire {
+            "call" => Self::Call,
+            "return" => Self::Return,
+            "exception" => Self::Exception,
+            _ => Self::Line,
+        }
+    }
+
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Line => "line",
+            Self::Call => "call",
+            Self::Return => "return",
+            Self::Exception => "exception",
+        }
+    }
+}
+
+/// One traced event: the source `line`, the `event` kind, the live
 /// frames, and the heap. `BTreeMap` keeps every heap scan deterministic by construction —
 /// a Rust `HashMap`'s iteration order is unspecified, and object-key order varies across
 /// JS engines too, so nothing here can be allowed to depend on it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HeapStep {
     pub line: i32,
-    pub event: String,
+    pub event: TraceEvent,
     pub frames: Vec<HeapFrame>,
     pub heap: BTreeMap<String, HeapObject>,
     /// How many BYTES the program had printed by the time this step ran — an index into the run's

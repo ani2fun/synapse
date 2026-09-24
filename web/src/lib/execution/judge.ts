@@ -52,8 +52,6 @@ export function stdinFor(args: ArgSpec[], values: Record<string, string>): strin
   return lines.join("\n");
 }
 
-/** Judge one run: a non-clean run is `Errored`; a clean run with no expected output is
- *  `Finished`; otherwise TRIMMED stdout comparison. */
 /**
  * Did the run die because stdin ran out?
  *
@@ -82,6 +80,8 @@ export function pendingPrompt(stdout: string): string | null {
   return tail === "" ? null : tail;
 }
 
+/** Judge one run: a non-clean run is `Errored`; a clean run with no expected output is
+ *  `Finished`; otherwise TRIMMED stdout comparison. */
 export function judge(result: RunResult, expected: string | null | undefined): Verdict {
   if (result.status !== "Accepted") return "Errored";
   if (expected == null) return "Finished";

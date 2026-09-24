@@ -81,3 +81,19 @@ test("the d2 export refuses to copy a figure that does not exist yet", async ({ 
   // clipboard — a silent copy is indistinguishable from a broken button.
   await expect(page.locator(".lab-toast")).toContainText("Trace something first");
 });
+
+test("what the reader types survives a reload", async ({ page }) => {
+  await page.goto(LAB);
+  const lines = page.locator(".lab-pane--r .view-lines");
+  await expect(lines).toContainText("arr = [5, 2, 8, 1, 9, 3]", { timeout: 30_000 });
+
+  // Typing ALONE, with nothing else on the page changing: the buffer is a ref, so a save that
+  // waited for the page to re-render would wait forever and this would come back as the starter.
+  await lines.click();
+  await page.keyboard.press("ControlOrMeta+End");
+  await page.keyboard.type("\nkept = 42");
+  await page.waitForTimeout(1_200); // past the 800ms draft debounce
+
+  await page.reload();
+  await expect(page.locator(".lab-pane--r .view-lines")).toContainText("kept = 42", { timeout: 30_000 });
+});

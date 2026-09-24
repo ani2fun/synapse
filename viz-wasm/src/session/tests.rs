@@ -107,3 +107,32 @@ fn a_run_that_crashed_part_way_is_still_shown_and_still_carries_the_reason() {
         _ => panic!("a partial trace is worth showing"),
     }
 }
+
+// ── the cache's bound ──
+
+#[test]
+fn the_cache_lets_go_of_the_oldest_run_past_its_cap() {
+    let mut recent = Recent::new(2);
+    assert!(recent.insert("a", 1).is_empty());
+    assert!(recent.insert("b", 2).is_empty());
+    assert_eq!(recent.insert("c", 3), vec![1]);
+    assert_eq!(recent.get(&"a"), None);
+    assert_eq!(recent.get(&"c"), Some(3));
+}
+
+#[test]
+fn reopening_a_run_keeps_it_from_being_the_next_one_evicted() {
+    let mut recent = Recent::new(2);
+    recent.insert("a", 1);
+    recent.insert("b", 2);
+    assert_eq!(recent.get(&"a"), Some(1));
+    assert_eq!(recent.insert("c", 3), vec![2], "b was the least recently used");
+}
+
+#[test]
+fn replacing_a_key_hands_back_the_run_it_replaced() {
+    let mut recent = Recent::new(4);
+    recent.insert("a", 1);
+    assert_eq!(recent.insert("a", 9), vec![1]);
+    assert_eq!(recent.get(&"a"), Some(9));
+}

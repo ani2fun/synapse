@@ -338,21 +338,27 @@ export function Workbench({
     })();
   }, [mountedTick, active]);
 
-  // Latest-closure refs for the editor callbacks (mounted once, must see current state).
+  // Latest-closure refs for every callback read from a once-installed listener — the editor's, and
+  // the host's three — so a host that passes a new function each render is still the one called.
   const onEditorRef = useRef(onEditor);
   onEditorRef.current = onEditor;
+  const onNeedsInputRef = useRef(onNeedsInput);
+  onNeedsInputRef.current = onNeedsInput;
+  const onRunnerRef = useRef(onRunner);
+  onRunnerRef.current = onRunner;
   const activeStoreRef = useRef(activeStore);
   activeStoreRef.current = activeStore;
   const runRef = useRef(run);
   runRef.current = run;
-  useEffect(() => onRunner?.(() => runRef.current()), []);
+  useEffect(() => onRunnerRef.current?.(() => runRef.current()), []);
 
   // ── a run that stopped to ask ──
   // Once per finished run, like the verdict recorder: a program that ran out of input is reported
   // with the question it left, anything else as not asking — which is what takes a host's answer
   // box away again once the program has what it wanted.
+  const answerable = onNeedsInput != null;
   useEffect(() => {
-    if (onNeedsInput == null) return;
+    if (!answerable) return;
     const seen = { id: null as number | null };
     const unsubs = stores.map((store, storeIndex) =>
       store.state.subscribe(() => {
@@ -362,11 +368,11 @@ export function Workbench({
         seen.id = s.runId;
         const prompt = s.result != null && ranOutOfInput(s.result) ? (pendingPrompt(s.result.stdout) ?? "") : null;
         log.debug(prompt == null ? "run: finished without asking" : `run: waiting for input (${prompt || "no prompt"})`);
-        onNeedsInput(prompt);
+        onNeedsInputRef.current?.(prompt);
       }),
     );
     return () => unsubs.forEach((u) => u());
-  }, [active]);
+  }, [active, answerable]);
   const submitRef = useRef(doSubmit);
   submitRef.current = doSubmit;
 
@@ -627,7 +633,7 @@ export function Workbench({
         </div>
       )}
       {tests && <TestsPanel tests={tests} onSwitch={onCaseSwitch} />}
-      <Output state={state} tests={tests} answerable={onNeedsInput != null} />
+      <Output state={state} tests={tests} answerable={answerable} />
       <VerdictPanel submit={submit} tests={tests} onSwitch={onCaseSwitch} />
     </div>
   );

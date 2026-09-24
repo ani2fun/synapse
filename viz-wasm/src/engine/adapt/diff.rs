@@ -15,7 +15,7 @@ use crate::engine::graph::{NodeId, VizCursor, VizEdge, VizFrame, VizNode};
 #[derive(Debug, Clone, PartialEq)]
 pub struct DiffedStep {
     pub line: i32,
-    pub event: String,
+    pub event: crate::engine::trace::TraceEvent,
     pub nodes: Vec<VizNode>,
     pub edges: Vec<VizEdge>,
     pub cursor: Vec<VizCursor>,
@@ -54,7 +54,7 @@ fn diff_at(steps: &[ProjectedStep], i: usize) -> DiffedStep {
         // Step 1 gets no diff cues (narrate(None) → "initial structure").
         return DiffedStep {
             line: cur.line,
-            event: cur.event.clone(),
+            event: cur.event,
             nodes: cur_nodes,
             edges: cur.edges.clone(),
             cursor: cur.cursor.clone(),
@@ -151,7 +151,7 @@ fn diff_at(steps: &[ProjectedStep], i: usize) -> DiffedStep {
     nodes.extend(removed);
     DiffedStep {
         line: cur.line,
-        event: cur.event.clone(),
+        event: cur.event,
         nodes,
         edges: cur.edges.clone(),
         cursor: cur.cursor.clone(),

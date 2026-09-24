@@ -12,6 +12,7 @@
 
 use crate::engine::graph::{VizCases, VizGraph};
 use crate::engine::playback::State;
+use crate::engine::trace::RunError;
 use leptos::prelude::*;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -40,6 +41,18 @@ pub fn failed_card(message: &str) -> AnyView {
         </div>
     }
     .into_any()
+}
+
+/// The exception that ended a run: its class, its message, and where. Both hosts show it — the
+/// console as a card with a jump to the step that broke, the modal flat above its canvas — so it
+/// is the line itself that is shared, and each host frames it.
+pub fn error_summary(error: &RunError) -> impl IntoView + use<> {
+    let RunError { kind, message, line } = error.clone();
+    view! {
+        <span class="viz-error__kind">{kind}</span>
+        <span class="viz-error__msg">{message}</span>
+        {(line > 0).then(|| view! { <span class="viz-error__at">{format!("line {line}")}</span> })}
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

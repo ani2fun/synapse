@@ -14,7 +14,9 @@ use viz_wasm::engine::adapt::segmentation;
 use viz_wasm::engine::adapt::snapshot::HeapSnapshot;
 use viz_wasm::engine::adapt::{self, VizError};
 use viz_wasm::engine::graph::{NodeId, VizNode};
-use viz_wasm::engine::trace::{ArrKind, HeapFrame, HeapObject, HeapScalar, HeapStep, HeapTrace, HeapValue};
+use viz_wasm::engine::trace::{
+    ArrKind, HeapFrame, HeapObject, HeapScalar, HeapStep, HeapTrace, HeapValue, TraceEvent,
+};
 
 // ── tiny builders ─────────────────────────────────────────────────────────────
 
@@ -40,7 +42,7 @@ fn node_obj(val: i64, next: Option<&str>) -> HeapObject {
 fn step(line: i32, locals: Vec<(&str, HeapValue)>, heap: Vec<(&str, HeapObject)>) -> HeapStep {
     HeapStep {
         line,
-        event: "line".to_owned(),
+        event: TraceEvent::Line,
         frames: vec![HeapFrame {
             fn_name: "solve".to_owned(),
             locals: locals.into_iter().map(|(n, v)| (n.to_owned(), v)).collect(),
@@ -61,7 +63,7 @@ fn trace(steps: Vec<HeapStep>) -> HeapTrace {
 fn pstep(line: i32, ids: &[(&str, &str)]) -> ProjectedStep {
     ProjectedStep {
         line,
-        event: "line".to_owned(),
+        event: TraceEvent::Line,
         nodes: ids
             .iter()
             .map(|(id, label)| ProjectedNode {

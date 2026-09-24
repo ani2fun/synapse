@@ -26,7 +26,7 @@ pub struct ProjectedNode {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProjectedStep {
     pub line: i32,
-    pub event: String,
+    pub event: crate::engine::trace::TraceEvent,
     pub nodes: Vec<ProjectedNode>,
     pub edges: Vec<VizEdge>,
     pub cursor: Vec<VizCursor>,
@@ -43,7 +43,7 @@ pub fn project(rooted: &RootedSegment, root_hint: Option<&str>, layout_hint: &st
             .iter()
             .map(|s| ProjectedStep {
                 line: s.line,
-                event: s.event.clone(),
+                event: s.event,
                 nodes: Vec::new(),
                 edges: Vec::new(),
                 cursor: Vec::new(),
@@ -116,7 +116,7 @@ fn build_step(
         .collect();
     ProjectedStep {
         line: step.line,
-        event: step.event.clone(),
+        event: step.event,
         cursor: cursors::cursors(step, &step_root, &node_ids),
         frames: build_frames(step),
         nodes,
