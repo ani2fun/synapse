@@ -205,3 +205,50 @@ async fn an_ipv6_host_is_one_caller_across_its_slash_64() {
     let (status, _) = run_as(gated_app(tmp.path(), &admission), "2001:db8:1:2::abcd").await;
     assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
 }
+
+// ── behind Cloudflare ──
+
+async fn run_via_cloudflare(app: axum::Router, edge: &str, client: &str) -> StatusCode {
+    let request = Request::builder()
+        .method("POST")
+        .uri("/api/run")
+        .header("content-type", "application/json")
+        .header("x-forwarded-for", edge)
+        .header("cf-connecting-ip", client)
+        .body(Body::from(r#"{"language":"python","source":"print(1)"}"#))
+        .unwrap();
+    app.oneshot(request).await.unwrap().status()
+}
+
+#[tokio::test]
+async fn one_reader_through_many_cloudflare_edges_is_one_budget() {
+    let tmp = tempfile::tempdir().unwrap();
+    let app = tiny_budget_app(tmp.path());
+    // Cloudflare connects from a different edge from request to request.
+    for edge in ["172.70.1.2", "162.158.9.9"] {
+        let status = run_via_cloudflare(app.clone(), edge, "203.0.113.7").await;
+        assert_eq!(
+            status,
+            StatusCode::SERVICE_UNAVAILABLE,
+            "admitted; the executor refused"
+        );
+    }
+    let status = run_via_cloudflare(app.clone(), "104.23.1.1", "203.0.113.7").await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+    // Someone else behind the same edges keeps their own budget.
+    let status = run_via_cloudflare(app, "172.70.1.2", "198.51.100.4").await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[tokio::test]
+async fn a_forged_cloudflare_header_from_outside_cloudflare_is_ignored() {
+    let tmp = tempfile::tempdir().unwrap();
+    let app = tiny_budget_app(tmp.path());
+    // Straight at the origin, naming a fresh "client" every time: still one caller.
+    for n in 0..2 {
+        let status = run_via_cloudflare(app.clone(), "198.51.100.4", &format!("10.0.0.{n}")).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    }
+    let status = run_via_cloudflare(app, "198.51.100.4", "10.0.0.9").await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+}
