@@ -23,6 +23,7 @@ import { decodeManifest } from "../../lib/islands/diagram/boards";
 // it renders through stays behind a dynamic `import()` inside it, so nothing heavy lands here.
 import { d2Salt, renderD2Source } from "../../lib/islands/diagram/d2";
 import * as log from "../../lib/log";
+import { privateMediaActive, resolveMedia } from "../../lib/privateMedia";
 import { watchNear } from "../workbench/lazy";
 
 /**
@@ -429,6 +430,23 @@ function FrameSlideshow({ frames, caption }: { frames: string[]; caption: string
   const requested = useRef(new Set<number>([0]));
   const stepped = useRef(false);
   const imgRef = useRef<HTMLImageElement>(null);
+  // A PRIVATE book's frames are gated behind the reader's bearer, which an <img> cannot send, so
+  // each one is fetched through lib/privateMedia as it is needed and shown from a blob URL. On a
+  // public page every frame is its own URL from the start and `need` never fetches anything.
+  const [urls, setUrls] = useState<(string | undefined)[]>(() => (privateMediaActive() ? [] : frames));
+  const asked = useRef(new Set<number>());
+  const need = (index: number) => {
+    if (urls[index] != null || asked.current.has(index)) return;
+    asked.current.add(index);
+    void resolveMedia(frames[index]!).then((url) =>
+      setUrls((current) => {
+        const next = current.slice();
+        next[index] = url;
+        return next;
+      }),
+    );
+  };
+  useEffect(() => need(0), []);
 
   const altFor = (index: number) => `${caption} — frame ${index + 1} of ${total}`;
 
@@ -452,6 +470,11 @@ function FrameSlideshow({ frames, caption }: { frames: string[]; caption: string
   // one frame forever. `error` settles too — a broken URL must cost one dud frame, not the widget.
   useEffect(() => {
     if (wanted === shown) return;
+    const url = urls[wanted];
+    if (url == null) {
+      need(wanted); // a private frame not fetched yet: this effect runs again once it lands
+      return;
+    }
     let live = true;
     const settle = () => {
       if (live) setShown(wanted);
@@ -459,13 +482,13 @@ function FrameSlideshow({ frames, caption }: { frames: string[]; caption: string
     const probe = new Image();
     probe.onload = settle;
     probe.onerror = settle;
-    probe.src = frames[wanted]!;
+    probe.src = url;
     requested.current.add(wanted);
     if (probe.complete) settle(); // already cached — the event may have fired before we listened
     return () => {
       live = false;
     };
-  }, [wanted, shown, frames]);
+  }, [wanted, shown, urls]);
 
   // A frame served straight from cache can finish before the listener is attached, and then the
   // `load` that gates Enlarge and the preloads never arrives. Checking `complete` each render is
@@ -485,10 +508,12 @@ function FrameSlideshow({ frames, caption }: { frames: string[]; caption: string
       for (const index of [shown + offset, shown - offset]) {
         if (index < 0 || index >= total || requested.current.has(index)) continue;
         requested.current.add(index);
-        new Image().src = frames[index]!; // fire and forget: the HTTP cache is the store
+        const url = urls[index];
+        if (url != null) new Image().src = url; // fire and forget: the HTTP cache is the store
+        else need(index); // private: fetching it is the warming
       }
     }
-  }, [shown, ready, total, frames]);
+  }, [shown, ready, total, urls]);
 
   // Autoplay advances off `shown`, not `wanted`, so a slow network slows the animation down
   // instead of skipping frames the reader never sees.
@@ -530,9 +555,9 @@ function FrameSlideshow({ frames, caption }: { frames: string[]; caption: string
       tabIndex={0}
       onKeyDown={onKeyDown}
     >
-      {ready && (
+      {ready && urls[shown] != null && (
         <ZoomAffordance>
-          <img src={frames[shown]} alt={altFor(shown)} />
+          <img src={urls[shown]} alt={altFor(shown)} />
         </ZoomAffordance>
       )}
       {/* The live region announces each frame through the img's alt, which carries the position. */}
@@ -540,7 +565,7 @@ function FrameSlideshow({ frames, caption }: { frames: string[]; caption: string
         <img
           ref={imgRef}
           class={wanted === shown ? "frames__img" : "frames__img frames__img--pending"}
-          src={frames[shown]}
+          src={urls[shown]}
           alt={altFor(shown)}
           loading="lazy"
           decoding="async"

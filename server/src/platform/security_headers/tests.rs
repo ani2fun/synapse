@@ -38,3 +38,12 @@ fn an_unparseable_issuer_fails_open_without_a_gap() {
     assert!(csp.contains("connect-src 'self' https://cloudflareinsights.com"));
     assert!(!csp.contains("  "), "no double spaces from the empty origin");
 }
+
+/// A private book's images and video reach the page as blob URLs (the island fetches them with the
+/// reader's bearer). Without `blob:` here every one of them is refused and shows its alt text.
+#[test]
+fn private_media_blob_urls_are_allowed() {
+    let csp = csp_for("https://keycloak.kakde.eu");
+    assert!(csp.contains("img-src 'self' data: https: blob:"), "{csp}");
+    assert!(csp.contains("media-src 'self' blob:"), "{csp}");
+}

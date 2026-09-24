@@ -98,13 +98,16 @@ fn origin_of(issuer: &str) -> String {
 
 /// The policy in practice: `'wasm-unsafe-eval'` carries the viz-wasm engine, `'unsafe-eval'`
 /// carries d2's ELK blob worker, `blob:`+`worker-src` carry Monaco/d2/mermaid/tracer workers,
-/// and only the auth origin + named third parties join `'self'`.
+/// and only the auth origin + named third parties join `'self'`. `blob:` in `img-src` and
+/// `media-src` is a private book's media: an `<img>` cannot send the reader's bearer, so the
+/// private lesson island fetches each file with it and shows the bytes through a blob URL.
 fn csp_for(auth_origin: &str) -> String {
     [
         "default-src 'self'".to_owned(),
         format!("script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: {CF_INSIGHTS}"),
         format!("style-src 'self' 'unsafe-inline' {GOOGLE_FONTS_CSS}"),
-        "img-src 'self' data: https:".to_owned(),
+        "img-src 'self' data: https: blob:".to_owned(),
+        "media-src 'self' blob:".to_owned(),
         format!("font-src 'self' data: {GOOGLE_FONTS_FILE}"),
         format!("connect-src 'self' {auth_origin} {CF_BEACON_API} {CF_INSIGHTS}"),
         "worker-src 'self' blob:".to_owned(),

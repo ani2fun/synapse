@@ -21,6 +21,7 @@ import { DEFAULT_LEFT_PCT } from "../../lib/catalog/pane";
 import { humanize, problemFrame } from "../../lib/catalog/problemFrame";
 import { bookOf, chapterProblems, problemContentSplit } from "../../lib/catalog/tree";
 import * as log from "../../lib/log";
+import { installPrivateMedia, resolveMedia } from "../../lib/privateMedia";
 import { boot, getState, signIn, subscribe } from "../auth/store";
 
 type Book = components["schemas"]["BookDto"];
@@ -109,14 +110,23 @@ function renderPager(payload: LessonPayload): void {
   nav.innerHTML = card(payload.prev, "Previous", false) + card(payload.next, "Next", true);
 }
 
+/** Fetch one gated `/media/…` file WITH the bearer and return a blob URL the page can show. */
+async function blobUrlOf(src: string): Promise<string> {
+  const response = await fetch(src, { headers: bearerHeaders() });
+  if (!response.ok) throw new Error(`${response.status}`);
+  return URL.createObjectURL(await response.blob());
+}
+
 /**
  * A private source's `/media/…` files are gated like its prose, and an `<img>` (or a `<video>`,
  * `<audio>`, `<source>`) carries no bearer. So every media reference in the rendered body is
  * fetched here WITH the bearer and swapped for a blob URL the browser can show. A file that is
  * refused or missing keeps its original `src`, so the broken-image mark says what happened
- * rather than a blank.
+ * rather than a blank. Widgets that load media only after hydration (a frame slideshow's frames)
+ * resolve each file through the same fetcher, installed here, as they need it.
  */
 async function attachPrivateMedia(body: HTMLElement): Promise<void> {
+  installPrivateMedia(blobUrlOf);
   const nodes = body.querySelectorAll<HTMLImageElement | HTMLMediaElement | HTMLSourceElement>(
     'img[src^="/media/"], video[src^="/media/"], audio[src^="/media/"], source[src^="/media/"]',
   );
@@ -125,14 +135,13 @@ async function attachPrivateMedia(body: HTMLElement): Promise<void> {
     Array.from(nodes).map(async (node) => {
       const src = node.getAttribute("src");
       if (!src) return;
-      try {
-        const response = await fetch(src, { headers: bearerHeaders() });
-        if (!response.ok) return;
-        node.src = URL.createObjectURL(await response.blob());
-        swapped += 1;
-      } catch (error) {
-        log.debug(`private media skipped: ${src} (${error instanceof Error ? error.message : String(error)})`);
+      const shown = await resolveMedia(src);
+      if (shown === src) {
+        log.debug(`private media skipped: ${src}`);
+        return;
       }
+      node.src = shown;
+      swapped += 1;
     }),
   );
   // A `<source>` swap only takes effect once its parent reloads.
