@@ -29,6 +29,7 @@ use synapse_server::identity::application::IdentityService;
 use synapse_server::identity::domain::Username;
 use synapse_server::identity::http::IdentityRoutesState;
 use synapse_server::identity::infrastructure::{JwksTokenVerifier, KeycloakAdminClient};
+use synapse_server::platform::admission::Admission;
 use synapse_server::platform::rate_limiter::{RateLimitBucket, RateLimiter};
 use synapse_server::platform::readiness::PgReadiness;
 use synapse_server::progress::PostgresProblemProgress;
@@ -75,7 +76,7 @@ async fn main() -> anyhow::Result<()> {
         CatalogService::with_placements(repo, content.placements.clone())
             .with_audiences(content.audiences.clone()),
     );
-    let runner = Arc::new(RunCodeService::new(GoJudgeRunner::new(&cfg.executor_url)));
+    let runner = Arc::new(run_service(&cfg));
     let allowlist = Arc::new(PostgresSubmissionAllowlist::new(pool.clone()));
     let views = Arc::new(synapse_server::insights::PostgresLessonViews::new(pool.clone()));
     let readiness = Arc::new(PgReadiness::new(pool.clone()));
@@ -146,6 +147,7 @@ async fn main() -> anyhow::Result<()> {
         ident: identity,
         blog,
         limiter,
+        admission: Arc::new(admission(&cfg)),
         allowlist,
         views,
         progress,
@@ -168,6 +170,16 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// The sandbox, with the share of its time limits an anonymous run gets.
+fn run_service(cfg: &synapse_server::config::AppConfig) -> RunCodeService<GoJudgeRunner> {
+    RunCodeService::new(GoJudgeRunner::new(&cfg.executor_url, cfg.run_anon_time_percent))
+}
+
+/// How many runs the sandbox admits at once — per caller, and in total.
+fn admission(cfg: &synapse_server::config::AppConfig) -> Admission {
+    Admission::new(cfg.run_max_in_flight_per_caller, cfg.run_max_in_flight)
+}
+
 /// The two per-caller budgets, anonymous and signed-in. Extracted from `main` for the same reason
 /// as its neighbours: the wiring point stays under the per-function line cap.
 fn rate_limiter(cfg: &synapse_server::config::AppConfig) -> RateLimiter {
@@ -179,6 +191,12 @@ fn rate_limiter(cfg: &synapse_server::config::AppConfig) -> RateLimiter {
         RateLimitBucket {
             window_seconds: cfg.rate_limit_auth_window_seconds,
             limit: cfg.rate_limit_auth_limit,
+        },
+        // The shared anonymous ceiling rolls with the per-IP window, so "per minute" means the
+        // same minute for both.
+        RateLimitBucket {
+            window_seconds: cfg.rate_limit_anon_window_seconds,
+            limit: cfg.rate_limit_anon_total_limit,
         },
     )
 }

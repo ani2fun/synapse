@@ -24,6 +24,7 @@ use blog::http::LiveBlogService;
 use catalog::http::LiveCatalogService;
 use execution::http::{ExecutionRoutesState, LiveRunService};
 use identity::http::IdentityRoutesState;
+use platform::admission::Admission;
 use platform::rate_limiter::RateLimiter;
 use submission::http::{LiveSubmitSolution, SubmissionRoutesState};
 use synapse_shared::api::{ApiError, HealthStatus};
@@ -64,6 +65,8 @@ pub struct AppDeps<
     pub ident: IdentityRoutesState,
     pub blog: Arc<LiveBlogService>,
     pub limiter: Arc<RateLimiter>,
+    /// Runs in flight in the sandbox — per caller and in total (`platform::admission`).
+    pub admission: Arc<Admission>,
     /// The allowlist store the admin panel manages (the submit gate holds its own Arc).
     pub allowlist: Arc<L>,
     /// Readership: the catalog records into it, the admin panel reads it.
@@ -126,6 +129,7 @@ where
         run: deps.run,
         identity: Arc::clone(&deps.ident.identity),
         limiter: deps.limiter,
+        admission: deps.admission,
     };
     // Crawler plumbing mounts UNCONDITIONALLY, before the page proxy: robots + sitemap are
     // generated from the in-memory catalog, which lives in THIS process.

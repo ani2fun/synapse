@@ -9,6 +9,7 @@ use synapse_shared::execution::{RunRequest, TestSpec, Verdict, judge, stdin_for}
 use uuid::Uuid;
 
 use crate::execution::application::{CodeRunner, ExecutionError, RunCodeService};
+use crate::execution::domain::Tier;
 use crate::identity::domain::Username;
 use crate::submission::domain::{FailedCase, Submission, SubmissionId, SubmissionState, SuiteOutcome};
 
@@ -303,7 +304,17 @@ where
     pub(crate) async fn judge_and_complete(&self, submission: Submission, spec: TestSpec) {
         let total = spec.cases.len();
         let outcome = match self.repo.update(&submission.judging()).await {
-            Ok(()) => self.judge(&spec, &submission.language, &submission.source).await,
+            Ok(()) => {
+                // A signed-in submission is judged with the whole sandbox budget; an anonymous
+                // one with the share an anonymous Run gets, since it is the same sandbox.
+                let tier = if submission.user_id.is_some() {
+                    Tier::SignedIn
+                } else {
+                    Tier::Anonymous
+                };
+                self.judge(&spec, &submission.language, &submission.source, tier)
+                    .await
+            }
             Err(error) => SuiteOutcome::JudgeFailed {
                 passed: 0,
                 total,
@@ -325,7 +336,13 @@ where
 
     /// Run in AUTHORED ORDER, stop at the first failure. Never fails — machinery trouble is the
     /// `JudgeFailed` outcome.
-    pub(crate) async fn judge(&self, spec: &TestSpec, language: &str, source: &str) -> SuiteOutcome {
+    pub(crate) async fn judge(
+        &self,
+        spec: &TestSpec,
+        language: &str,
+        source: &str,
+        tier: Tier,
+    ) -> SuiteOutcome {
         let total = spec.cases.len();
         let mut passed = 0;
         for (index, case) in spec.cases.iter().enumerate() {
@@ -334,7 +351,7 @@ where
                 source: source.to_owned(),
                 stdin: Some(stdin_for(&spec.args, &case.args)),
             };
-            match self.runner.run(&request).await {
+            match self.runner.run(&request, tier).await {
                 Err(error) => {
                     return SuiteOutcome::JudgeFailed {
                         passed,

@@ -12,7 +12,7 @@ use std::sync::Mutex;
 use synapse_shared::execution::{ArgSpec, RunResult, RunStatus, TestCase};
 
 use super::*;
-use crate::execution::domain::Language;
+use crate::execution::domain::{Language, Tier};
 
 // ── fakes ─────────────────────────────────────────────────────────────────────
 
@@ -149,6 +149,7 @@ impl crate::execution::application::CodeRunner for ScriptedRunner {
         _language: Language,
         _source: &str,
         stdin: Option<&str>,
+        _tier: Tier,
     ) -> Result<RunResult, ExecutionError> {
         self.stdins.lock().unwrap().push(stdin.map(str::to_owned));
         self.replies.lock().unwrap().remove(0)
@@ -273,7 +274,12 @@ async fn submit_persists_pending_and_anonymous_and_returns_the_id() {
 async fn an_all_pass_suite_is_accepted_in_authored_order_with_the_stdin_shape() {
     let (svc, probe) = service(None, vec![ok_run("0"), ok_run("1"), ok_run("2")]);
     let outcome = svc
-        .judge(&spec(&[Some("0"), Some("1"), Some("2")]), "python", "src")
+        .judge(
+            &spec(&[Some("0"), Some("1"), Some("2")]),
+            "python",
+            "src",
+            Tier::SignedIn,
+        )
         .await;
     assert_eq!(outcome, SuiteOutcome::Accepted { total: 3 });
     let stdins = probe.stdins.lock().unwrap().clone();
@@ -291,7 +297,12 @@ async fn an_all_pass_suite_is_accepted_in_authored_order_with_the_stdin_shape() 
 async fn judging_stops_at_the_first_failure() {
     let (svc, probe) = service(None, vec![ok_run("0"), ok_run("wrong"), ok_run("never-run")]);
     let outcome = svc
-        .judge(&spec(&[Some("0"), Some("1"), Some("2")]), "python", "src")
+        .judge(
+            &spec(&[Some("0"), Some("1"), Some("2")]),
+            "python",
+            "src",
+            Tier::SignedIn,
+        )
         .await;
     let SuiteOutcome::Rejected {
         passed,
@@ -310,7 +321,9 @@ async fn judging_stops_at_the_first_failure() {
 #[tokio::test]
 async fn a_crash_is_a_rejection_carrying_the_crash_status() {
     let (svc, _) = service(None, vec![crashed_run()]);
-    let outcome = svc.judge(&spec(&[Some("0")]), "python", "src").await;
+    let outcome = svc
+        .judge(&spec(&[Some("0")]), "python", "src", Tier::SignedIn)
+        .await;
     let SuiteOutcome::Rejected { first_failure, .. } = outcome else {
         panic!("expected rejection")
     };
@@ -328,7 +341,12 @@ async fn machinery_failure_mid_suite_is_judge_failed_with_passes_so_far() {
         ],
     );
     let outcome = svc
-        .judge(&spec(&[Some("0"), Some("1"), Some("2")]), "python", "src")
+        .judge(
+            &spec(&[Some("0"), Some("1"), Some("2")]),
+            "python",
+            "src",
+            Tier::SignedIn,
+        )
         .await;
     assert_eq!(
         outcome,
@@ -343,7 +361,7 @@ async fn machinery_failure_mid_suite_is_judge_failed_with_passes_so_far() {
 #[tokio::test]
 async fn a_clean_run_with_no_expected_output_counts_as_a_pass() {
     let (svc, _) = service(None, vec![ok_run("whatever")]);
-    let outcome = svc.judge(&spec(&[None]), "python", "src").await;
+    let outcome = svc.judge(&spec(&[None]), "python", "src", Tier::SignedIn).await;
     assert_eq!(outcome, SuiteOutcome::Accepted { total: 1 });
 }
 

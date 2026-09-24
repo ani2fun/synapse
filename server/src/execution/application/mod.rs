@@ -6,7 +6,7 @@ use synapse_shared::execution::{RunRequest, RunResult};
 
 use crate::execution::domain::GO_JUDGE_LIMITS;
 
-use crate::execution::domain::Language;
+use crate::execution::domain::{Language, Tier};
 
 /// What execution needs from the sandbox. Returns a `RunResult` EVEN WHEN the program failed
 /// (crash → `RuntimeError`, compile fail → `CompileError`) — only backend-machinery failures
@@ -17,6 +17,7 @@ pub trait CodeRunner: Send + Sync {
         language: Language,
         source: &str,
         stdin: Option<&str>,
+        tier: Tier,
     ) -> impl Future<Output = Result<RunResult, ExecutionError>> + Send;
 }
 
@@ -57,16 +58,16 @@ impl<R: CodeRunner> RunCodeService<R> {
         skip(self, request),
         fields(language = %request.language, source_bytes = request.source.len())
     )]
-    pub async fn run(&self, request: &RunRequest) -> Result<RunResult, ExecutionError> {
+    pub async fn run(&self, request: &RunRequest, tier: Tier) -> Result<RunResult, ExecutionError> {
         let language = Language::resolve(&request.language)
             .ok_or_else(|| ExecutionError::UnknownLanguage(request.language.clone()))?;
         ensure_within("Source", &request.source, GO_JUDGE_LIMITS.max_source_bytes)?;
         if let Some(stdin) = &request.stdin {
             ensure_within("Standard input", stdin, GO_JUDGE_LIMITS.max_stdin_bytes)?;
         }
-        tracing::debug!(language = language.label(), "running code");
+        tracing::debug!(language = language.label(), ?tier, "running code");
         self.runner
-            .run(language, &request.source, request.stdin.as_deref())
+            .run(language, &request.source, request.stdin.as_deref(), tier)
             .await
     }
 }

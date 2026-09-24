@@ -101,7 +101,7 @@
       "_type": "request",
       "parentId": "fld_execution",
       "name": "POST /api/run",
-      "description": "Run one snippet in the go-judge sandbox. A badly-running program is a 200 with a non-Accepted status; 422 unknown language, 413 over the byte caps, 503/502 backend. (step 10)",
+      "description": "Run one snippet in the go-judge sandbox. A badly-running program is a 200 with a non-Accepted status; 422 unknown language, 413 over the byte caps, 429 over the run budget (per caller, or the ceiling all anonymous callers share) or with runs already in flight, 503 sandbox queue full or backend down, 502 backend failed. An anonymous run gets SYNAPSE_RUN_ANON_TIME_PERCENT of the language's time limits.",
       "method": "POST",
       "url": "{{ _.base_url }}/api/run",
       "body": {

@@ -1,4 +1,4 @@
-//! The precedence deciding which address rate limiting counts against: the first hop of
+//! The precedence deciding which address rate limiting counts against: the last hop of
 //! `X-Forwarded-For`, then `X-Real-IP`, then the peer, then `unknown`.
 
 #![allow(clippy::unwrap_used)]
@@ -6,10 +6,25 @@
 use super::*;
 
 #[test]
-fn forwarded_for_wins_and_takes_the_first_hop() {
+fn forwarded_for_wins_and_takes_the_hop_the_edge_appended() {
     let mut headers = HeaderMap::new();
-    headers.insert("x-forwarded-for", "203.0.113.7, 10.0.0.1".parse().unwrap());
+    headers.insert("x-forwarded-for", "10.0.0.1, 203.0.113.7".parse().unwrap());
     headers.insert("x-real-ip", "10.0.0.2".parse().unwrap());
+    assert_eq!(client_ip(&headers, None), "203.0.113.7");
+}
+
+#[test]
+fn a_hop_the_client_wrote_itself_cannot_pick_the_budget() {
+    // The client sent `X-Forwarded-For: 1.2.3.4`; the edge appended the real address.
+    let mut headers = HeaderMap::new();
+    headers.insert("x-forwarded-for", "1.2.3.4, 198.51.100.9".parse().unwrap());
+    assert_eq!(client_ip(&headers, None), "198.51.100.9");
+}
+
+#[test]
+fn a_single_hop_is_the_caller() {
+    let mut headers = HeaderMap::new();
+    headers.insert("x-forwarded-for", " 203.0.113.7 ".parse().unwrap());
     assert_eq!(client_ip(&headers, None), "203.0.113.7");
 }
 

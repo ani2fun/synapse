@@ -6,9 +6,39 @@ use serde_json::Value;
 use synapse_shared::execution::RunStatus;
 
 use super::*;
+use crate::execution::domain::Tier;
 
 fn body_json(language: Language, source: &str, stdin: Option<&str>) -> Value {
-    serde_json::from_str(&build_request_body(language, source, stdin)).unwrap()
+    let recipe = Recipe::for_language(language);
+    serde_json::from_str(&build_request_body(&recipe, language, source, stdin)).unwrap()
+}
+
+fn tier_limits(language: Language, tier: Tier, percent: u64) -> (u64, u64) {
+    let recipe = Recipe::for_language(language).for_tier(tier, percent);
+    let body: Value = serde_json::from_str(&build_request_body(&recipe, language, "x", None)).unwrap();
+    let seconds = |key: &str| body["cmd"][0][key].as_u64().unwrap() / 1_000_000_000;
+    (seconds("cpuLimit"), seconds("clockLimit"))
+}
+
+// ── the tier's share of the sandbox ───────────────────────────────────────────
+
+#[test]
+fn a_signed_in_run_keeps_the_languages_whole_limits() {
+    assert_eq!(tier_limits(Language::Python, Tier::SignedIn, 50), (15, 30));
+    assert_eq!(tier_limits(Language::Scala, Tier::SignedIn, 50), (60, 120));
+}
+
+#[test]
+fn an_anonymous_run_gets_its_share_of_each_languages_own_limits() {
+    // A share, not a flat cap: the slow toolchains keep room to compile.
+    assert_eq!(tier_limits(Language::Python, Tier::Anonymous, 50), (7, 15));
+    assert_eq!(tier_limits(Language::Scala, Tier::Anonymous, 50), (30, 60));
+    assert_eq!(tier_limits(Language::Kotlin, Tier::Anonymous, 50), (30, 45));
+}
+
+#[test]
+fn an_anonymous_share_never_rounds_to_nothing() {
+    assert_eq!(tier_limits(Language::Python, Tier::Anonymous, 1), (1, 1));
 }
 
 // ── request shapes ────────────────────────────────────────────────────────────
@@ -80,6 +110,30 @@ fn nonzero_exit_is_a_runtime_error_even_when_accepted() {
             .status,
         RunStatus::RuntimeError
     );
+}
+
+#[test]
+fn go_judges_own_spelling_of_a_time_out_is_a_time_out() {
+    // What go-judge actually sends (captured from a live clock kill): words, with spaces. Read
+    // as a crash, every time-out in the product showed as a runtime error.
+    assert_eq!(
+        parse_run_result(false, &response("Time Limit Exceeded", 9, ""))
+            .unwrap()
+            .status,
+        RunStatus::TimeLimitExceeded
+    );
+    for backend in ["Internal Error", "File Error"] {
+        assert_eq!(
+            parse_run_result(false, &response(backend, 0, "")).unwrap().status,
+            RunStatus::InternalError
+        );
+    }
+    for crash in ["Memory Limit Exceeded", "Signalled", "Nonzero Exit Status"] {
+        assert_eq!(
+            parse_run_result(false, &response(crash, 1, "")).unwrap().status,
+            RunStatus::RuntimeError
+        );
+    }
 }
 
 #[test]

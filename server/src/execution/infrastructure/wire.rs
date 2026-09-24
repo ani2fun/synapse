@@ -18,9 +18,14 @@ const COMPILE_RC_FILE: &str = "__cf_crc";
 const COMPILE_ERR_FILE: &str = "__cf_cerr";
 const PROC_LIMIT: u32 = 256;
 
-/// Build the `POST /run` body for one run. Output streams are RAW (not base64).
-pub(crate) fn build_request_body(language: Language, source: &str, stdin: Option<&str>) -> String {
-    let recipe = Recipe::for_language(language);
+/// Build the `POST /run` body for one run of `recipe` — the language's own, already cut to the
+/// caller's tier. Output streams are RAW (not base64).
+pub(crate) fn build_request_body(
+    recipe: &Recipe,
+    language: Language,
+    source: &str,
+    stdin: Option<&str>,
+) -> String {
     let effective = java_rewriter::effective_source(language, source);
     let compiled = recipe.compile.is_some();
 
@@ -31,7 +36,7 @@ pub(crate) fn build_request_body(language: Language, source: &str, stdin: Option
     };
     let body = json!({
         "cmd": [{
-            "args": ["/bin/sh", "-c", shell_body(&recipe)],
+            "args": ["/bin/sh", "-c", shell_body(recipe)],
             "env": [
                 "PATH=/usr/bin:/bin:/usr/local/bin",
                 "HOME=/w",
@@ -103,7 +108,10 @@ pub(crate) fn parse_run_result(compiled: bool, body: &str) -> Result<RunResult, 
         });
     }
 
-    let run_status = match status {
+    // go-judge spells its statuses as words — "Time Limit Exceeded", "Internal Error" — so they
+    // are compared with the spaces taken out. Matching the run-together form alone read every
+    // time-out as a crash.
+    let run_status = match status.replace(' ', "").as_str() {
         "Accepted" if exit_status == 0 => RunStatus::Accepted,
         "TimeLimitExceeded" => RunStatus::TimeLimitExceeded,
         "InternalError" | "FileError" => RunStatus::InternalError,

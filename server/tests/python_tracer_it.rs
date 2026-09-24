@@ -14,7 +14,7 @@
 mod tracer;
 
 use synapse_server::execution::application::CodeRunner;
-use synapse_server::execution::domain::Language;
+use synapse_server::execution::domain::{Language, Tier};
 
 const HARNESS: &str = include_str!("../../web/src/lib/islands/tracer/python-harness.py");
 
@@ -63,7 +63,10 @@ fn line_of(needle: &str) -> i64 {
 async fn traced() -> Option<(String, Vec<serde_json::Value>, serde_json::Value)> {
     let runner = tracer::gated()?;
     let source = tracer::wrap(HARNESS, USER_SOURCE);
-    let result = runner.run(Language::Python, &source, Some(STDIN)).await.unwrap();
+    let result = runner
+        .run(Language::Python, &source, Some(STDIN), Tier::Anonymous)
+        .await
+        .unwrap();
     let (program_out, trace) = tracer::split(&result.stdout);
     let steps = trace["steps"].as_array().unwrap().clone();
     assert!(

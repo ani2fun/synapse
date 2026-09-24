@@ -17,7 +17,7 @@
 mod tracer;
 
 use synapse_server::execution::application::CodeRunner;
-use synapse_server::execution::domain::Language;
+use synapse_server::execution::domain::{Language, Tier};
 
 const HARNESS: &str = include_str!("../../web/src/lib/islands/tracer/java-harness.java");
 
@@ -64,7 +64,10 @@ async fn heap_ids_identify_objects_across_frames_not_walk_order() {
     let Some(runner) = tracer::gated() else { return };
     let source = tracer::wrap(HARNESS, USER_SOURCE);
 
-    let result = runner.run(Language::Java, &source, None).await.unwrap();
+    let result = runner
+        .run(Language::Java, &source, None, Tier::Anonymous)
+        .await
+        .unwrap();
     let (_, trace) = tracer::split(&result.stdout);
     let steps = trace["steps"].as_array().unwrap();
     assert!(

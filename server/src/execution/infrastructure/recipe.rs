@@ -2,7 +2,7 @@
 //! runner with NO language abstraction — compile/run orchestration lives in the adapter. The
 //! `match` is exhaustive on purpose: adding a `Language` won't compile until it gets a recipe.
 
-use crate::execution::domain::Language;
+use crate::execution::domain::{Language, Tier};
 
 pub(crate) struct Recipe {
     pub(crate) source_file: &'static str,
@@ -37,6 +37,24 @@ impl Recipe {
             cpu_seconds: DEFAULT_CPU,
             clock_seconds: DEFAULT_CLOCK,
             memory_mib: DEFAULT_MEMORY_MIB,
+        }
+    }
+
+    /// The recipe as a `tier` caller runs it. An anonymous run keeps `anonymous_percent` of the
+    /// language's CPU and wall-clock limits — a share, not a flat number, because the limits
+    /// differ fortyfold between Python and a cold scala-cli compile, and one flat cap would
+    /// either do nothing to the fast languages or time out every compile of the slow ones.
+    /// Memory is untouched: it bounds what a run can do, not how long it holds the sandbox.
+    /// Never below one second.
+    pub(crate) fn for_tier(self, tier: Tier, anonymous_percent: u64) -> Self {
+        let share = |seconds: u64| (seconds * anonymous_percent / 100).max(1);
+        match tier {
+            Tier::SignedIn => self,
+            Tier::Anonymous => Self {
+                cpu_seconds: share(self.cpu_seconds),
+                clock_seconds: share(self.clock_seconds),
+                ..self
+            },
         }
     }
 

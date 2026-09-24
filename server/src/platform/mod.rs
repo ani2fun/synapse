@@ -3,6 +3,7 @@
 //! ports beyond `ReadinessProbe` — the full hexagonal layering lives in `catalog`.
 
 pub mod admin_gate;
+pub mod admission;
 pub mod astro_proxy;
 pub(crate) mod blocking;
 pub mod client_ip;

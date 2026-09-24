@@ -22,6 +22,7 @@ use synapse_server::identity::application::IdentityService;
 use synapse_server::identity::domain::Username;
 use synapse_server::identity::http::{IdentityRoutesState, LiveIdentityService};
 use synapse_server::identity::infrastructure::{JwksTokenVerifier, KeycloakAdminClient};
+use synapse_server::platform::admission::Admission;
 use synapse_server::platform::rate_limiter::{RateLimitBucket, RateLimiter};
 use synapse_server::progress::PostgresProblemProgress;
 use synapse_server::submission::application::SubmitSolution;
@@ -115,6 +116,7 @@ where
         ident: base.ident,
         blog: base.blog,
         limiter: base.limiter,
+        admission: base.admission,
         progress: base.progress,
         canvas: base.canvas,
         astro_url: base.astro_url,
@@ -136,7 +138,7 @@ pub fn deps_with(
 ) -> AppDeps {
     let pool = pool.unwrap_or_else(lazy_pool);
     let repo = FileSystemContentRepository::new(content_root, true);
-    let runner = Arc::new(RunCodeService::new(GoJudgeRunner::new(executor_url)));
+    let runner = Arc::new(RunCodeService::new(GoJudgeRunner::new(executor_url, 100)));
     let allowlist = Arc::new(PostgresSubmissionAllowlist::new(pool.clone()));
     let views = Arc::new(synapse_server::insights::PostgresLessonViews::new(pool.clone()));
     let readiness = Arc::new(synapse_server::platform::readiness::PgReadiness::new(
@@ -168,7 +170,7 @@ pub fn deps_with(
         // The dev default ("tester") — the minted IT token IS tester, so admin ITs pass the gate.
         admin_users: Arc::new(std::collections::HashSet::from([username("tester")])),
     };
-    let limiter = Arc::new(RateLimiter::new(TEST_BUCKET, TEST_BUCKET));
+    let limiter = Arc::new(RateLimiter::new(TEST_BUCKET, TEST_BUCKET, TEST_BUCKET));
     // Content editing MOUNTED, in dry-run — the routes, the gates and the error mapping are all
     // real, and only the forge call is skipped. An IT that wants it absent sets `authoring: None`.
     let authoring = Some(AuthoringRoutesState {
@@ -215,6 +217,8 @@ pub fn deps_with(
             true,
         ))),
         limiter,
+        // Roomy: an IT that is not about admission must never be refused by it.
+        admission: Arc::new(Admission::new(100, 100)),
         astro_url: None,
         site_url: "https://synapse.test".to_owned(),
         // The single-checkout shape the binary boots with before any satellite lands.

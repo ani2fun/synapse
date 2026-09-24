@@ -2666,7 +2666,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Over the run budget */
+            /** @description Over the run budget, or the caller already has runs in flight */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2684,7 +2684,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Backend unavailable */
+            /** @description Backend unavailable, or the sandbox queue is full */
             503: {
                 headers: {
                     [name: string]: unknown;

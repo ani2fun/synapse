@@ -36,6 +36,37 @@ fn platform_and_rate_limit_envs_are_read_without_the_synapse_prefix() {
 }
 
 #[test]
+fn the_sandbox_guardrails_default_and_read_their_envs() {
+    figment::Jail::expect_with(|jail| {
+        let cfg = AppConfig::load().map_err(|e| *e)?;
+        assert_eq!(
+            (
+                cfg.rate_limit_anon_total_limit,
+                cfg.run_max_in_flight,
+                cfg.run_max_in_flight_per_caller,
+                cfg.run_anon_time_percent
+            ),
+            (120, 6, 2, 50)
+        );
+        jail.set_env("RATE_LIMIT_ANON_TOTAL_LIMIT", "40");
+        jail.set_env("SYNAPSE_RUN_MAX_IN_FLIGHT", "3");
+        jail.set_env("SYNAPSE_RUN_MAX_IN_FLIGHT_PER_CALLER", "1");
+        jail.set_env("SYNAPSE_RUN_ANON_TIME_PERCENT", "25");
+        let cfg = AppConfig::load().map_err(|e| *e)?;
+        assert_eq!(
+            (
+                cfg.rate_limit_anon_total_limit,
+                cfg.run_max_in_flight,
+                cfg.run_max_in_flight_per_caller,
+                cfg.run_anon_time_percent
+            ),
+            (40, 3, 1, 25)
+        );
+        Ok(())
+    });
+}
+
+#[test]
 fn an_empty_astro_url_reads_as_no_page_tier() {
     figment::Jail::expect_with(|jail| {
         jail.set_env("SYNAPSE_ASTRO_URL", "");

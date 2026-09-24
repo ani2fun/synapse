@@ -81,6 +81,20 @@ pub struct AppConfig {
     /// `RATE_LIMIT_AUTH_WINDOW_SECONDS` / `RATE_LIMIT_AUTH_LIMIT`.
     pub rate_limit_auth_window_seconds: u64,
     pub rate_limit_auth_limit: u32,
+    /// The ceiling every ANONYMOUS caller shares, per anonymous window — the circuit breaker
+    /// per-IP budgets cannot be, since a hundred addresses get a hundred of them. Signed-in
+    /// callers never meet it. Env: `RATE_LIMIT_ANON_TOTAL_LIMIT`.
+    pub rate_limit_anon_total_limit: u32,
+    /// Runs admitted to the sandbox at once, running or waiting; past it a run is refused as
+    /// busy rather than queued (`platform::admission`). go-judge runs one program at a time, so
+    /// this is the queue's length. Env: `SYNAPSE_RUN_MAX_IN_FLIGHT`.
+    pub run_max_in_flight: u32,
+    /// Runs one caller may have in flight. Above one, because Cancel only abandons the response
+    /// and the run it started still finishes. Env: `SYNAPSE_RUN_MAX_IN_FLIGHT_PER_CALLER`.
+    pub run_max_in_flight_per_caller: u32,
+    /// The share, in percent, of each language's CPU and wall-clock limits an anonymous run
+    /// gets (`Recipe::for_tier`). Env: `SYNAPSE_RUN_ANON_TIME_PERCENT`.
+    pub run_anon_time_percent: u64,
     /// The submit gate: dev/personal instances stay open; prod flips it on. Env:
     /// `SUBMISSION_ALLOWLIST_ENFORCED`.
     pub submission_allowlist_enforced: bool,
@@ -148,6 +162,10 @@ impl Default for AppConfig {
             rate_limit_anon_limit: 10,
             rate_limit_auth_window_seconds: 3600,
             rate_limit_auth_limit: 100,
+            rate_limit_anon_total_limit: 120,
+            run_max_in_flight: 6,
+            run_max_in_flight_per_caller: 2,
+            run_anon_time_percent: 50,
             submission_allowlist_enforced: false,
             keycloak_admin_client_id: "synapse-admin".to_owned(),
             keycloak_admin_client_secret: "dev-admin-secret".to_owned(),
@@ -246,6 +264,7 @@ impl AppConfig {
                 "RATE_LIMIT_ANON_LIMIT",
                 "RATE_LIMIT_AUTH_WINDOW_SECONDS",
                 "RATE_LIMIT_AUTH_LIMIT",
+                "RATE_LIMIT_ANON_TOTAL_LIMIT",
             ])
             .map(|key| key.as_str().to_lowercase().into());
         let account = Env::raw()

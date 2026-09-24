@@ -8,13 +8,15 @@ use synapse_server::execution::infrastructure::GoJudgeRunner;
 const PLACEHOLDER: &str = "__SYNAPSE_USER_SOURCE_B64__";
 
 /// The live sandbox, or `None` (with the line CI greps for) when the suite is not asked to run.
+/// At the production anonymous share (50%), and the suites run `Tier::Anonymous`: the lab is
+/// used signed-out, so a trace has to fit an anonymous budget, and this is where that is proved.
 pub fn gated() -> Option<GoJudgeRunner> {
     if std::env::var("GOJUDGE_IT").is_err() {
         eprintln!("skipped (set GOJUDGE_IT=1 with a live go-judge to run)");
         return None;
     }
     let url = std::env::var("EXECUTOR_URL").unwrap_or_else(|_| "http://localhost:5150".to_owned());
-    Some(GoJudgeRunner::new(&url))
+    Some(GoJudgeRunner::new(&url, 50))
 }
 
 /// A harness with `source` embedded — what the client sends to `/api/run`.

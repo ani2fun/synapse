@@ -6,6 +6,16 @@ mod language;
 
 pub use language::Language;
 
+/// Who a run is for, which decides how long it may hold the sandbox. The sandbox runs one
+/// program at a time, so wall-clock seconds are the scarce thing: an anonymous caller gets a
+/// share of each language's limits (`GoJudgeRunner`'s anonymous percent), a signed-in one the
+/// whole of them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Tier {
+    Anonymous,
+    SignedIn,
+}
+
 /// The sandbox's hard edges — hardcoded, since go-judge exposes no runner-info endpoint to query
 /// them from. Byte caps are UTF-8 byte counts, INCLUSIVE (`> limit` fails).
 ///

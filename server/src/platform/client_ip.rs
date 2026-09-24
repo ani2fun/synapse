@@ -1,6 +1,15 @@
-//! The caller's IP for anonymous rate-limit keys: the first
-//! `X-Forwarded-For` hop (the edge appends; good enough for budgets, not for auth), then
-//! `X-Real-IP`, then the socket peer, then a shared `"unknown"` bucket. `Peer` is an
+//! The caller's IP for anonymous rate-limit keys: the LAST
+//! `X-Forwarded-For` hop, then `X-Real-IP`, then the socket peer, then a shared `"unknown"`
+//! bucket. Good enough for budgets, never for auth.
+//!
+//! The LAST hop, because it is the only one a client cannot write. The edge (one Traefik, in
+//! front of this server) APPENDS the address it accepted the connection from, so everything to
+//! the left of it arrived in the request — and a client that sends its own `X-Forwarded-For:
+//! 1.2.3.4` would otherwise pick its own budget key, a fresh one per request. Traefik also strips
+//! an untrusted client's forwarding headers by default, so today the two readings agree; this one
+//! keeps the budget honest if that default ever changes (`forwardedHeaders.insecure`). A second
+//! trusted proxy in front of Traefik would make its address the last hop, and this would need to
+//! skip that many from the right. `Peer` is an
 //! infallible extractor over the connect-info extension — present when `main` serves with
 //! connect info, absent (and harmless) under the in-process test router.
 
@@ -30,7 +39,7 @@ pub fn client_ip(headers: &HeaderMap, peer: Option<SocketAddr>) -> String {
     let forwarded = headers
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.split(',').next())
+        .and_then(|v| v.rsplit(',').next())
         .map(str::trim)
         .filter(|v| !v.is_empty());
     if let Some(ip) = forwarded {
