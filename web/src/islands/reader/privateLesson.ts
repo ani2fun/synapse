@@ -201,6 +201,11 @@ async function renderProblem(payload: LessonPayload, segments: string[]): Promis
     main.append(src);
     renderSidebar(aside, book, current);
   }
+  // The drawer's PINNED mount host, as the server-rendered problem page carries: reader.css hides
+  // a drawer at desktop width anywhere else, so without it the Contents pill opens into nothing.
+  const pinned = document.createElement("div");
+  pinned.className = "reader-nav reader-nav--pinned";
+  main.append(pinned);
   const description = main.querySelector<HTMLElement>(".pwb-description");
   if (description) await attachPrivateMedia(description);
   document.title = `${payload.book.title} · ${payload.frontmatter.title} — Synapse`;

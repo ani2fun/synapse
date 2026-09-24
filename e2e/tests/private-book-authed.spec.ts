@@ -81,6 +81,15 @@ test.describe("private book — a listed reader, and one who is not", () => {
     // The editorial tab carries the private editorial the payload brought along.
     await page.locator(".problem-tab--editorial").click();
     await expect(page.locator('[data-pane="editorial"]')).toContainText("private editorial says so", { timeout: 15_000 });
+
+    // The Contents pill opens the book's drawer here too. The frame replaces the whole shell after
+    // the reader island has wired its drawer, so anything that island captured at load is gone.
+    await page.locator(".pwb__contents").click();
+    const drawer = page.locator(".reader-nav-drawer");
+    await expect(drawer).toBeVisible();
+    await expect(drawer.locator("a", { hasText: "Threshold, Rewritten" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(drawer).toHaveCount(0);
   });
 
   test("a signed-in user who is not on the list is told so, and never sees the book listed", async ({ page }) => {

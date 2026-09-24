@@ -31,7 +31,7 @@ import * as log from "../lib/log";
 import * as storage from "../lib/storage";
 import * as progress from "../lib/catalog/progress";
 import * as api from "../lib/api/client";
-import { AUTH_CHANGED, isAuthed } from "./workbench/contracts";
+import { AUTH_CHANGED, isAuthed, OPEN_CONTENTS } from "./workbench/contracts";
 import { parse as parsePrefs, applyToHtml } from "../lib/catalog/prefs";
 
 const SYNAPSE_PREFIX = "/synapse/";
@@ -241,18 +241,25 @@ function wireReadToggle(path: string): () => void {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // The FAB is the LESSON page's trigger; the PROBLEM page has no FAB — its docked `.pwb__nav`
-// Contents pill fires the `OPEN_CONTENTS` window event instead. So the drawer is set
-// up whenever there is a sidebar to clone, the FAB is optional, and the mount host is `.reader-nav`
-// when present (the lesson layout) else `document.body` (the problem layout, which keeps the
-// sidebar markup only as a hidden clone source). scrim/drawer are `position: fixed`, so the parent
-// choice is presentational, not positional.
+// Contents pill fires the `OPEN_CONTENTS` window event instead. The mount host is the PINNED
+// `.reader-nav--pinned` when the page has one (the problem layout — reader.css hides a drawer at
+// >=1024px anywhere else), then `.reader-nav`, then `document.body`. scrim/drawer are
+// `position: fixed`, so the parent choice is presentational, not positional.
+//
+// EVERYTHING IS FOUND AT OPEN, never at load. A private lesson renders after this runs: it fills
+// the sidebar in, and a private PROBLEM replaces the whole `<main>` — the `.reader-nav` inside it
+// included — with the problem frame. Anything captured here was empty or detached by the time the
+// reader clicked, and the drawer opened into a node that was no longer on the page: a Contents
+// pill that did nothing at all.
 function wireNavDrawer(done: Set<string>): void {
-  const nav = document.querySelector<HTMLElement>(".reader-nav");
-  const fab = nav?.querySelector<HTMLButtonElement>(".reader-nav-fab") ?? null;
-  const sidebarInner = document.querySelector<HTMLElement>(".reader-sidebar .reader-sidebar__inner");
-  // Nothing to open onto: no lesson FAB AND no problem-page contents source.
-  if (!fab && !sidebarInner) return;
-  const host = nav ?? document.body;
+  const sidebarInner = (): HTMLElement | null =>
+    document.querySelector<HTMLElement>(".reader-sidebar .reader-sidebar__inner");
+  const host = (): HTMLElement =>
+    document.querySelector<HTMLElement>(".reader-nav--pinned") ??
+    document.querySelector<HTMLElement>(".reader-nav") ??
+    document.body;
+  const fab = (): HTMLButtonElement | null =>
+    document.querySelector<HTMLButtonElement>(".reader-nav .reader-nav-fab");
 
   let scrim: HTMLDivElement | null = null;
   let drawer: HTMLElement | null = null;
@@ -262,11 +269,16 @@ function wireNavDrawer(done: Set<string>): void {
     drawer?.remove();
     scrim = null;
     drawer = null;
-    fab?.setAttribute("aria-expanded", "false");
+    fab()?.setAttribute("aria-expanded", "false");
   };
 
   const open = (): void => {
     if (drawer) return;
+    const source = sidebarInner();
+    if (!source) {
+      log.debug("contents drawer: nothing to open — the page has no sidebar source");
+      return;
+    }
     log.debug("contents drawer opened");
     scrim = document.createElement("div");
     scrim.className = "reader-nav-scrim";
@@ -292,19 +304,21 @@ function wireNavDrawer(done: Set<string>): void {
     head.append(title, closeBtn);
     drawer.append(head);
 
-    if (sidebarInner) {
-      const clone = sidebarInner.cloneNode(true) as HTMLElement;
-      applyDoneTicks(clone, done);
-      drawer.append(clone);
-    }
+    const clone = source.cloneNode(true) as HTMLElement;
+    applyDoneTicks(clone, done);
+    drawer.append(clone);
 
-    host.append(scrim, drawer);
-    fab?.setAttribute("aria-expanded", "true");
+    host().append(scrim, drawer);
+    fab()?.setAttribute("aria-expanded", "true");
   };
 
-  fab?.addEventListener("click", open);
+  // Delegated, so a FAB that arrives (or is replaced) after load still opens the drawer.
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (target instanceof Element && target.closest(".reader-nav-fab")) open();
+  });
   // The problem page's Contents pill lives in another island; it reaches this drawer by event.
-  window.addEventListener("synapse:open-contents", open);
+  window.addEventListener(OPEN_CONTENTS, open);
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && drawer) close();
   });
