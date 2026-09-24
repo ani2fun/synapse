@@ -77,9 +77,13 @@ rm -rf web/node_modules/.vite/deps
 # insight-earned is PRIVATE here as in production (RS011): the reader's own study documents, served
 # under `study-notes` to the two dev-realm users, tester and test1. Anonymous gets the 401 shell;
 # the 403 path is proven by the e2e private fixture. Its media is gated with it.
+#
+# dsa-helmsman is PRIVATE too, for its author (ani2fun, the GitHub login production sees) and the
+# two dev-realm users. Its ~11k images live in the repository's own _media/, gated the same way.
 SATELLITES='[
   {"id":"system-design-guide","root":"../synapse-content-github/system-design-guide","order":2},
   {"id":"low-level-design-guide","root":"../synapse-content-github/low-level-design-guide","order":4},
+  {"id":"dsa-helmsman","root":"../synapse-content-github/dsa-helmsman","order":3,"private":true,"readers":["ani2fun","tester","test1"]},
   {"id":"dsa-guide","root":"../synapse-content-github/dsa-guide","order":5},
   {"id":"python-guide","root":"../synapse-content-github/python-guide","grouping":"programming-languages","order":6},
   {"id":"java-guide","root":"../synapse-content-github/java-guide","grouping":"programming-languages","order":7},
