@@ -148,16 +148,31 @@
    Scoped here rather than in viz.css because these are the DOCKED player's proportions: the
    modal gives its canvas a viewport fraction, and a pane has to be told to share instead. Since
    the reading strips moved to the other pane, the stage gets nearly all of it. */
-.viz-panel { padding: 10px 12px 12px; overflow: hidden; }
+/* THE STAGE NEVER GIVES UP ITS FLOOR. Everything else in the column — lens tabs, controls, the
+   step chips — is a fixed height, so on a short window the stage was the one item left to shrink,
+   and its drawing went to ~60px: a grid showed its column header and nothing else. The stage keeps
+   `--viz-stage-min` (a drawing of ~200px plus the transport, caption and legend under it) and the
+   PANEL scrolls when the column is taller than the pane.
+   The floor sits on the STAGE, not on the canvas, and everything inside keeps `min-height: 0`:
+   a flex item's automatic minimum is its CONTENT height, so an `auto` anywhere in the chain lets
+   a tall drawing size the whole column and push the transport below the fold, instead of
+   scrolling inside its own box. On a tall window nothing changes. */
+.viz-panel { --viz-stage-min: 330px; padding: 10px 12px 12px; overflow: hidden auto; }
 .viz-panel__ready { display: flex; flex-direction: column; gap: 8px; min-height: 0; flex: 1; }
-.viz-panel__stage { flex: 1; min-height: 0; display: flex; flex-direction: column;
-                    touch-action: none; }
+.viz-panel__stage { flex: 1; min-height: var(--viz-stage-min); display: flex;
+                    flex-direction: column; touch-action: none; }
 .viz-panel__stage .viz-widget-host { margin: 0; flex: 1; min-height: 0; display: flex;
                                      flex-direction: column; }
+/* The structure lens carries a caption and a legend under its transport (~130px the memory lens
+   does not have), so its floor is taller by that much — the DRAWING gets the same ~200px in both. */
+.viz-panel__stage:has(.viz-legend) { --viz-stage-min: 460px; }
 /* The drawing scrolls; the transport bar and caption below it do not — which is why the pan
    handlers drive THIS box rather than the stage around it. */
 .viz-panel__stage .viz-widget-host__canvas { flex: 1; min-height: 0; overflow: auto;
                                              cursor: grab; }
+/* The step chips are an index, not the content: a long trace wraps them onto row after row, and
+   past two rows they scroll inside their own strip rather than pushing the stage away. */
+.viz-panel .viz-timeline { max-height: 56px; overflow-y: auto; flex: none; }
 .viz-panel__stage .viz-widget-host__canvas:active { cursor: grabbing; }
 .viz-panel__stage .viz-svg { width: auto; max-width: none; }
 

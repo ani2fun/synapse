@@ -356,19 +356,29 @@ export function Workbench({
   // Once per finished run, like the verdict recorder: a program that ran out of input is reported
   // with the question it left, anything else as not asking — which is what takes a host's answer
   // box away again once the program has what it wanted.
+  // The question is worked out HERE, once per run, because reading it needs the run before: a
+  // re-run that answered one prompt carries that prompt on the same stdout line as the next one
+  // (`pendingPrompt`'s `earlier`). The output panel quotes the same question the host is told.
   const answerable = onNeedsInput != null;
+  const [asked, setAsked] = useState<{ runId: executor.RunHandle; question: string | null } | null>(null);
   useEffect(() => {
     if (!answerable) return;
     const seen = { id: null as number | null };
+    /** The stdout of the last run that stopped to ask — empty once a run gets what it wanted. */
+    let earlier = "";
     const unsubs = stores.map((store, storeIndex) =>
       store.state.subscribe(() => {
         if (storeIndex !== active) return;
         const s = store.state.get();
         if (s.runState !== "done" || seen.id === s.runId) return;
         seen.id = s.runId;
-        const prompt = s.result != null && ranOutOfInput(s.result) ? (pendingPrompt(s.result.stdout) ?? "") : null;
-        log.debug(prompt == null ? "run: finished without asking" : `run: waiting for input (${prompt || "no prompt"})`);
-        onNeedsInputRef.current?.(prompt);
+        const waiting = s.result != null && ranOutOfInput(s.result);
+        const stdout = s.result?.stdout ?? "";
+        const question = waiting ? pendingPrompt(stdout, earlier) : null;
+        earlier = waiting ? stdout : "";
+        setAsked({ runId: s.runId, question });
+        log.debug(waiting ? `run: waiting for input (${question ?? "no prompt"})` : "run: finished without asking");
+        onNeedsInputRef.current?.(waiting ? (question ?? "") : null);
       }),
     );
     return () => unsubs.forEach((u) => u());
@@ -633,7 +643,12 @@ export function Workbench({
         </div>
       )}
       {tests && <TestsPanel tests={tests} onSwitch={onCaseSwitch} />}
-      <Output state={state} tests={tests} answerable={answerable} />
+      <Output
+        state={state}
+        tests={tests}
+        answerable={answerable}
+        question={asked != null && asked.runId === state.runId ? asked.question : undefined}
+      />
       <VerdictPanel submit={submit} tests={tests} onSwitch={onCaseSwitch} />
     </div>
   );

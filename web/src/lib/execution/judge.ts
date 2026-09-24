@@ -74,9 +74,17 @@ export function ranOutOfInput(result: RunResult): boolean {
  * stdout, which is where `input("How many? ")` and `System.out.print("How many? ")` leave a
  * question that has no newline yet. Null when the output ends at a line break — nothing is
  * pending on the line, so there is no question to quote.
+ *
+ * `earlier` is the stdout of the run that asked LAST time, when this run is that one re-run with
+ * one more answer. A prompt ends without a newline and an answer read from stdin is never echoed,
+ * so every question sits on one line — the second ask's last line reads "How many? Number 1:".
+ * The program is deterministic up to the new answer, so the earlier stdout is a prefix of this
+ * one, and only what follows it is the new question. A run that does not start with it is some
+ * other program, and is read whole.
  */
-export function pendingPrompt(stdout: string): string | null {
-  const tail = stdout.slice(stdout.lastIndexOf("\n") + 1).trim();
+export function pendingPrompt(stdout: string, earlier = ""): string | null {
+  const fresh = earlier !== "" && stdout.startsWith(earlier) ? stdout.slice(earlier.length) : stdout;
+  const tail = fresh.slice(fresh.lastIndexOf("\n") + 1).trim();
   return tail === "" ? null : tail;
 }
 

@@ -28,17 +28,19 @@ function ResultPanel({
   result,
   expected,
   answerable,
+  question,
 }: {
   result: RunResult;
   expected: string | null;
   answerable: boolean;
+  question: string | null | undefined;
 }) {
   const verdict = expected != null ? judge(result, expected) : null;
   // On a page that can ANSWER the program, running out of input is the program asking, not the
   // program failing — the traceback is the mechanism, and leading with it reads as a bug in the
   // code. Where nothing can answer, it stays an error, with the hint that says why.
   const waiting = answerable && ranOutOfInput(result);
-  const asked = waiting ? pendingPrompt(result.stdout) : null;
+  const asked = waiting ? (question !== undefined ? question : pendingPrompt(result.stdout)) : null;
   const badgeOk =
     verdict === "Accepted" || (verdict === null && result.status === "Accepted");
   const badgeClass = waiting
@@ -97,11 +99,15 @@ export function Output({
   state,
   tests,
   answerable = false,
+  question,
 }: {
   state: ExecutorState;
   tests: TestsState | null;
   /** Something on the page can type the value a program asks for — see `ResultPanel`. */
   answerable?: boolean;
+  /** The question THIS run left, as the host worked it out (null: asked without words).
+   *  Undefined until it has — the panel then reads it off the run's own stdout. */
+  question?: string | null;
 }) {
   const ranCase = tests ? useStore(tests.ranCase) : null;
   const spec = tests ? useStore(tests.spec) : null;
@@ -119,7 +125,7 @@ export function Output({
     // Judged against the case the run was LAUNCHED for — switching chips must never re-label
     // an old run's output under a different case's expected.
     const expected = spec != null && ranCase != null ? expectedFor(spec, ranCase) : null;
-    return <ResultPanel result={state.result} expected={expected} answerable={answerable} />;
+    return <ResultPanel result={state.result} expected={expected} answerable={answerable} question={question} />;
   }
   if (state.runState === "running") {
     return <div class="runnable__out runnable__out--running">Running…</div>;

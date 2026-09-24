@@ -100,4 +100,22 @@ describe("pendingPrompt", () => {
     expect(pendingPrompt("")).toBeNull();
     expect(pendingPrompt("   ")).toBeNull();
   });
+
+  it("quotes only the NEW question on a re-run that answered the last one", () => {
+    // Answers are not echoed, so both prompts share a line: read whole, it would quote both.
+    const first = "How many numbers? ";
+    const second = "How many numbers? Number 1: ";
+    expect(pendingPrompt(second)).toBe("How many numbers? Number 1:");
+    expect(pendingPrompt(second, first)).toBe("Number 1:");
+    expect(pendingPrompt("How many numbers? Number 1: Number 2: ", second)).toBe("Number 2:");
+  });
+
+  it("reads a run whole when it is not a continuation of the earlier one", () => {
+    // The code changed between runs, so the earlier output is no prefix of this one.
+    expect(pendingPrompt("Name: ", "How many numbers? ")).toBe("Name:");
+  });
+
+  it("has no question when the re-run asked with no words", () => {
+    expect(pendingPrompt("Count: \n", "Count: ")).toBeNull();
+  });
 });
