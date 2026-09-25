@@ -39,8 +39,10 @@ const synapseTheme = createCssVariablesTheme({
 const runnableMeta = /(?:^|\s)run(?:$|\s)/;
 
 function isRunnable(node: Code): boolean {
-  return node.lang != null && node.meta != null && runnableMeta.test(node.meta);
+  return node.lang != null && node.meta != null && runnableMeta.test(bareMeta(node.meta));
 }
+// Quoted values blanked: a marker is a bare WORD, so title="The solution is…" is not one.
+const bareMeta = (meta: string): string => meta.replace(/"[^"]*"/g, '""');
 
 // A run fence may also carry a `viz=<structure>[:<root>]` hint — ```python run viz=array:nums —
 // declaring how the traced run should be visualised. Captured per variant; the shared
@@ -58,7 +60,7 @@ function vizOf(meta: string | null | undefined): string | undefined {
 const solutionMeta = /(?:^|\s)solution(?:$|\s)/;
 
 function isSolution(node: Code): boolean {
-  return node.lang != null && node.meta != null && solutionMeta.test(node.meta);
+  return node.lang != null && node.meta != null && solutionMeta.test(bareMeta(node.meta));
 }
 
 // A *plain* fence is one no other transform claims: a real display language, no `run` or

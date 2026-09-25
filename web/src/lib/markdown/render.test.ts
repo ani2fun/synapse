@@ -525,6 +525,15 @@ describe("simulator fences → iframe placeholder", () => {
     expect(html).toContain('data-height="240"');
   });
 
+  it("a quoted title that says 'solution' or 'run' does not turn the fence into one", async () => {
+    const html = await renderLesson(
+      '```simulator src=_assets/_simulators/index.html?fig=01 title="The solution is built as the calls run"\n```',
+    );
+    expect(html).toContain('class="simulator-block"');
+    expect(html).not.toContain("solution-block");
+    expect(html).not.toContain("workbench");
+  });
+
   it("a src= outside _assets/_simulators, or climbing out of it, earns the error card", async () => {
     for (const src of ["_assets/_diagrams/a.svg", "/simulators/x/", "_assets/_simulators/../../secret.md", "https://evil.test/x.html"]) {
       const html = await renderLesson(`\`\`\`simulator src=${src}\n\`\`\``);
