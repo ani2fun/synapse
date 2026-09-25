@@ -9,6 +9,9 @@
 
 type Fetcher = (url: string) => Promise<string>;
 
+/** The gated file routes: `/media/…`, and the `_assets/_simulators/` files beside a lesson. */
+const GATED = ["/media/", "/content-assets/"];
+
 let fetcher: Fetcher | null = null;
 /** One promise per path, so a frame asked for twice (shown, then warmed) is fetched once. */
 const resolved = new Map<string, Promise<string>>();
@@ -20,7 +23,7 @@ export function installPrivateMedia(fetchBlobUrl: Fetcher): void {
   resolved.clear();
 }
 
-/** Whether a resolver is installed, i.e. whether a raw `/media/…` path would be refused. */
+/** Whether a resolver is installed, i.e. whether a raw `/media/…` (or `/content-assets/…`) path would be refused. */
 export function privateMediaActive(): boolean {
   return fetcher != null;
 }
@@ -31,7 +34,7 @@ export function privateMediaActive(): boolean {
  * original path, so the broken-image mark still says what happened rather than leaving a blank.
  */
 export function resolveMedia(url: string): Promise<string> {
-  if (fetcher == null || !url.startsWith("/media/")) return Promise.resolve(url);
+  if (fetcher == null || !GATED.some((prefix) => url.startsWith(prefix))) return Promise.resolve(url);
   let hit = resolved.get(url);
   if (hit == null) {
     hit = fetcher(url).catch(() => url);

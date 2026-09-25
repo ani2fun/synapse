@@ -517,6 +517,22 @@ describe("simulator fences → iframe placeholder", () => {
     expect(html).not.toContain('class="simulator-block"');
   });
 
+  it("a src= fence keeps a lesson-local widget's path, query included, for the client to resolve", async () => {
+    const html = await renderLesson('```simulator src=_assets/_simulators/index.html?fig=04 height=240 title="Figure"\n```');
+    expect(html).toContain('class="simulator-block"');
+    expect(html).toContain('data-src="_assets/_simulators/index.html?fig=04"');
+    expect(html).not.toContain("data-name");
+    expect(html).toContain('data-height="240"');
+  });
+
+  it("a src= outside _assets/_simulators, or climbing out of it, earns the error card", async () => {
+    for (const src of ["_assets/_diagrams/a.svg", "/simulators/x/", "_assets/_simulators/../../secret.md", "https://evil.test/x.html"]) {
+      const html = await renderLesson(`\`\`\`simulator src=${src}\n\`\`\``);
+      expect(html, src).toContain("Simulator ignored");
+      expect(html, src).not.toContain('class="simulator-block"');
+    }
+  });
+
   it("a malformed height earns the error card naming the simulator", async () => {
     const html = await renderLesson("```simulator name=osi-encapsulation height=tall\n```");
     expect(html).toContain("workbench-error");

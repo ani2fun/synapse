@@ -28,6 +28,19 @@ fn resolve_in_entries<'a>(
     }
 }
 
+/// Resolve a slug path that ends AT a book (`category…/book`), not inside it.
+pub fn resolve_book<'a>(catalog: &'a SynapseContentCatalog, path: &[String]) -> Option<&'a Book> {
+    fn within<'a>(entries: &'a [CatalogEntry], path: &[String]) -> Option<&'a Book> {
+        let (first, rest) = path.split_first()?;
+        match entries.iter().find(|e| e.slug() == first)? {
+            CatalogEntry::Book(book) if rest.is_empty() => Some(book),
+            CatalogEntry::Category(category) => within(&category.entries, rest),
+            CatalogEntry::Book(_) => None,
+        }
+    }
+    within(&catalog.entries, path)
+}
+
 fn lesson_at<'a>(entries: &'a [BookEntry], path: &[String]) -> Option<&'a Lesson> {
     let (first, rest) = path.split_first()?;
     entries.iter().find_map(|entry| match entry {

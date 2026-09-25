@@ -7,6 +7,7 @@ pub mod admission;
 pub mod astro_proxy;
 pub(crate) mod blocking;
 pub mod client_ip;
+pub mod content_asset_routes;
 pub mod content_cache_control;
 pub mod d2_render_proxy;
 pub(crate) mod frontmatter;

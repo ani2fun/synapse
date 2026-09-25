@@ -86,6 +86,8 @@ struct Merge {
     furnished: BTreeSet<Vec<String>>,
     /// Levels a later source inserted into, and which therefore need re-sorting.
     touched: BTreeSet<Vec<String>>,
+    /// The source being absorbed's book folders, handed to the output only for the books it wins.
+    pending_dirs: BTreeMap<String, String>,
 }
 
 impl Merge {
@@ -102,6 +104,7 @@ impl Merge {
         // authority applies is already settled here, once, rather than re-derived per book.
         let ordered_by = placement.map_or(OrderedBy::BookJson, |p| OrderedBy::Row(p.order));
         let mut files = walk.lesson_files;
+        self.pending_dirs = walk.book_dirs;
         for entry in walk.catalog.entries {
             self.absorb(source_id, &grouping, &mut files, ordered_by, entry, is_first);
         }
@@ -167,6 +170,9 @@ impl Merge {
             .book_sources
             .insert(book.slug.clone(), source_id.to_owned());
         self.out.lesson_files.insert(book.slug.clone(), book_files);
+        if let Some(dir) = self.pending_dirs.remove(&book.slug) {
+            self.out.book_dirs.insert(book.slug.clone(), dir);
+        }
         if !is_first {
             self.touched.insert(path.to_vec());
         }

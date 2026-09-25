@@ -127,7 +127,7 @@ fn resolve_in(root: &Path, rest: &str) -> Option<Resolved> {
         .map(|bytes| Resolved::File(bytes, content_type))
 }
 
-fn content_type_of(path: &Path) -> &'static str {
+pub(crate) fn content_type_of(path: &Path) -> &'static str {
     match path.extension().and_then(|ext| ext.to_str()) {
         Some("html") => "text/html; charset=utf-8",
         Some("js" | "mjs") => "text/javascript",

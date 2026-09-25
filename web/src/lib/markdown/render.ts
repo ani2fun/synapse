@@ -219,6 +219,9 @@ function frameSequenceTransform() {
   };
 }
 
+// A lesson-local simulator's `src=`: inside `_assets/_simulators/`, optional query, no `..`.
+const SIMULATOR_SRC = /^_assets\/_simulators\/(?!.*\.\.)[A-Za-z0-9._\/-]*(\?[A-Za-z0-9=&._-]*)?$/;
+
 const isD2Fence = (node: RootContent): node is Code =>
   node.type === "code" && fenceLang(node as Code) === "d2";
 
@@ -555,17 +558,29 @@ export async function renderLesson(raw: string): Promise<string> {
 
           // Simulator fences → an iframe placeholder the client hydrates from
           // /simulators/<name>/. ```simulator name=<slug> [height=<px>] [title="…"] — the body
-          // stays empty; the bundle itself is a content repo's _simulators/<name>/ tree. Bad
-          // meta earns the loud authoring card (with the raw fence kept visible below), never
-          // a silently-missing embed.
+          // stays empty; the bundle itself is a content repo's _simulators/<name>/ tree. Or
+          // ```simulator src=_assets/_simulators/<file>[?query] — a widget kept BESIDE its lesson,
+          // which the client resolves against the lesson's URL (ADR-RS012). Bad meta earns the
+          // loud authoring card (with the raw fence kept visible below), never a
+          // silently-missing embed.
           if (node.lang === "simulator") {
             const meta = node.meta ?? "";
             const name = /(?:^|\s)name=(\S+)/.exec(meta)?.[1];
-            if (!name || !/^[a-z0-9][a-z0-9-]*$/.test(name)) {
+            const src = /(?:^|\s)src=(\S+)/.exec(meta)?.[1];
+            if (src !== undefined && !SIMULATOR_SRC.test(src)) {
               return [
                 authoringError(
                   "Simulator ignored",
-                  "needs name=<slug> of [a-z0-9-] (e.g. name=osi-encapsulation)",
+                  "src= must be a path inside the lesson's _assets/_simulators/ (e.g. src=_assets/_simulators/index.html?fig=04)",
+                ),
+                defaultHandlers.code(state, node),
+              ].flat();
+            }
+            if (src === undefined && (!name || !/^[a-z0-9][a-z0-9-]*$/.test(name))) {
+              return [
+                authoringError(
+                  "Simulator ignored",
+                  "needs name=<slug> of [a-z0-9-] (e.g. name=osi-encapsulation), or src=_assets/_simulators/…",
                 ),
                 defaultHandlers.code(state, node),
               ].flat();
@@ -575,7 +590,7 @@ export async function renderLesson(raw: string): Promise<string> {
             if (height !== undefined && (!Number.isInteger(height) || height < 160 || height > 2000)) {
               return [
                 authoringError(
-                  `Simulator “${name}” ignored`,
+                  `Simulator “${name ?? src}” ignored`,
                   "height must be a whole number of pixels between 160 and 2000",
                 ),
                 defaultHandlers.code(state, node),
@@ -587,7 +602,7 @@ export async function renderLesson(raw: string): Promise<string> {
               tagName: "div",
               properties: {
                 className: ["simulator-block"],
-                "data-name": name,
+                ...(src !== undefined ? { "data-src": src } : { "data-name": name }),
                 ...(height !== undefined ? { "data-height": String(height) } : {}),
                 ...(title ? { "data-title": title } : {}),
               },

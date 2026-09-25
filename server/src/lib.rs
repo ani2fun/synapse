@@ -110,6 +110,33 @@ pub struct AppDeps<
     >,
 }
 
+/// The file routes that read a mounted checkout directly: `/media`, `/simulators` and the
+/// lesson-local `/content-assets`. The gated ones share the live audiences with the catalog, so a
+/// source made private stops serving its files on the same tick as its prose.
+fn file_routes(
+    catalog: &Arc<catalog::http::routes::LiveCatalogService>,
+    mounted: catalog::infrastructure::MountedSources,
+    audiences: catalog::application::Audiences,
+    identity: &Arc<identity::http::LiveIdentityService>,
+) -> Router {
+    let media = platform::media_routes::MediaRoutes::mounted(
+        mounted.clone(),
+        audiences.clone(),
+        Arc::clone(identity),
+    );
+    let simulators = platform::simulator_routes::SimulatorRoutes::mounted(mounted.clone());
+    let content_assets = platform::content_asset_routes::ContentAssetRoutes::mounted(
+        Arc::clone(catalog),
+        mounted,
+        audiences,
+        Arc::clone(identity),
+    );
+    Router::new()
+        .merge(media.routes())
+        .merge(simulators.routes())
+        .merge(content_assets.routes())
+}
+
 /// The assembled HTTP surface. Contexts contribute their routers here; integration tests drive
 /// this exact router, so what the suite exercises is what the binary serves. Precedence: API
 /// (cache-stamped) → `/media` → robots/sitemap → the Astro page proxy as the
@@ -137,12 +164,7 @@ where
         catalog: Arc::clone(&deps.catalog),
         site_url: deps.site_url.clone(),
     };
-    let media = platform::media_routes::MediaRoutes::mounted(
-        deps.mounted.clone(),
-        deps.audiences.clone(),
-        Arc::clone(&deps.ident.identity),
-    );
-    let simulators = platform::simulator_routes::SimulatorRoutes::mounted(deps.mounted);
+    let files = file_routes(&deps.catalog, deps.mounted, deps.audiences, &deps.ident.identity);
     let security = platform::security_headers::SecurityHeaders::new(&deps.ident.issuer);
     let admin = submission::http::admin::AdminRoutesState {
         allowlist: deps.allowlist,
@@ -191,8 +213,7 @@ where
     }
     let mut router = api
         .layer(axum::middleware::from_fn(platform::content_cache_control::stamp))
-        .merge(media.routes())
-        .merge(simulators.routes())
+        .merge(files)
         .merge(
             deps.d2_render_url
                 .as_deref()

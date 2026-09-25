@@ -90,6 +90,33 @@ impl<R: ContentRepository> CatalogService<R> {
             .is_some_and(|(book, _, _)| self.audience_of(&walk, &book.slug).is_private()))
     }
 
+    /// Where the `_assets/` folder of the lesson, or the book, at this slug path lives: the source
+    /// that owns it and the folder inside that source (a lesson's own folder; a book's root
+    /// folder). `None` for a path that is neither. Gating is the caller's, as for `/media`: the
+    /// asset route checks the owning source's audience, and only when it is private.
+    pub async fn asset_home(&self, path: &[String]) -> Result<Option<(String, String)>, ContentError> {
+        if path.is_empty() || !path.iter().all(|s| walker::slug_like(s)) {
+            return Ok(None);
+        }
+        let walk = Arc::clone(&self.current().await?.walk);
+        if let Some((book, in_book_path, _)) = resolver::resolve_lesson(&walk.catalog, path) {
+            return Ok(walk
+                .lesson_files
+                .get(&book.slug)
+                .and_then(|files| files.get(&in_book_path))
+                .map(|file| {
+                    let dir = file.path.rsplit_once('/').map_or("", |(dir, _)| dir);
+                    (file.source_id.clone(), dir.to_owned())
+                }));
+        }
+        Ok(resolver::resolve_book(&walk.catalog, path).and_then(|book| {
+            Some((
+                walk.book_sources.get(&book.slug)?.clone(),
+                walk.book_dirs.get(&book.slug)?.clone(),
+            ))
+        }))
+    }
+
     /// The browsable index (cached per content version), minus every book this viewer may not
     /// read. Pruning happens per request rather than per snapshot — the snapshot is one per
     /// content version, and there is one viewer per request.

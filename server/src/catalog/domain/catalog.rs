@@ -127,6 +127,11 @@ pub struct WalkResult {
     /// and it is what an audience is keyed on: a registration says who may read a SOURCE, and a
     /// reader asks for a BOOK.
     pub book_sources: BTreeMap<String, String>,
+    /// Book slug → the book's folder inside that source, `/`-joined with its real folder names
+    /// (order prefixes intact); empty when the source root IS the book. A lesson's folder comes
+    /// from its `LessonFileRef`; this is the one place a BOOK's folder is known, which is what a
+    /// book-level `_assets/` (shared by every lesson in it) is served from.
+    pub book_dirs: BTreeMap<String, String>,
     /// Cross-source conflicts, as DATA rather than log lines. Two reasons: the domain stays free
     /// of `tracing`, and the walk runs uncached on every edit-source fetch and every submit — a
     /// warn inside it would fire per request instead of once per content version. The caller with
