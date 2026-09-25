@@ -44,3 +44,26 @@ describe("privateMedia", () => {
     await expect(media.resolveMedia("/media/book/gone.png")).resolves.toBe("/media/book/gone.png");
   });
 });
+
+describe("fetchPrivateText", () => {
+  it("fetches a lesson-local asset's text through the installed fetcher, not a blob URL", async () => {
+    vi.resetModules();
+    const media = await import("./privateMedia");
+    const fetchBlob = vi.fn(async (url: string) => `blob:${url}`);
+    const fetchText = vi.fn(async (url: string) => `text of ${url}`);
+    media.installPrivateMedia(fetchBlob, fetchText);
+
+    await expect(media.fetchPrivateText("/content-assets/b/l/_assets/_simulators/index.html")).resolves.toBe(
+      "text of /content-assets/b/l/_assets/_simulators/index.html",
+    );
+    expect(fetchBlob).not.toHaveBeenCalled();
+  });
+
+  it("rejects with no fetcher installed, or for a path outside /content-assets", async () => {
+    vi.resetModules();
+    const media = await import("./privateMedia");
+    await expect(media.fetchPrivateText("/content-assets/b/l/_assets/_simulators/a.js")).rejects.toThrow();
+    media.installPrivateMedia(async (u) => u, async (u) => u);
+    await expect(media.fetchPrivateText("/media/b/a.png")).rejects.toThrow();
+  });
+});

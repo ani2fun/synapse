@@ -8,22 +8,36 @@
 // resolves to itself, so public media never pays for the detour.
 
 type Fetcher = (url: string) => Promise<string>;
-
-/** The gated file routes: `/media/…`, and the `_assets/_simulators/` files beside a lesson. */
-const GATED = ["/media/", "/content-assets/"];
+type TextFetcher = (url: string) => Promise<string>;
 
 let fetcher: Fetcher | null = null;
 /** One promise per path, so a frame asked for twice (shown, then warmed) is fetched once. */
 const resolved = new Map<string, Promise<string>>();
 
 /** Route every later `/media/…` lookup through `fetchBlobUrl`. */
-export function installPrivateMedia(fetchBlobUrl: Fetcher): void {
+export function installPrivateMedia(fetchBlobUrl: Fetcher, fetchText?: TextFetcher): void {
+  if (fetchText) textFetcher = fetchText;
   if (fetcher === fetchBlobUrl) return; // a second body on the same page: keep what it fetched
   fetcher = fetchBlobUrl;
   resolved.clear();
 }
 
-/** Whether a resolver is installed, i.e. whether a raw `/media/…` (or `/content-assets/…`) path would be refused. */
+let textFetcher: TextFetcher | null = null;
+
+/**
+ * A gated `/content-assets/…` file's TEXT, fetched with the bearer: a lesson-local widget page and
+ * the scripts it loads, which are inlined into one `srcdoc` rather than shown by URL (ADR-RS012).
+ * Not via a blob URL: reading one back with `fetch` needs `blob:` in `connect-src`, which the
+ * page's CSP does not grant. Rejects when no fetcher is installed or the file is refused.
+ */
+export function fetchPrivateText(url: string): Promise<string> {
+  if (textFetcher == null || !url.startsWith("/content-assets/")) {
+    return Promise.reject(new Error(`no private fetcher for ${url}`));
+  }
+  return textFetcher(url);
+}
+
+/** Whether a resolver is installed, i.e. whether a raw `/media/…` path would be refused. */
 export function privateMediaActive(): boolean {
   return fetcher != null;
 }
@@ -34,7 +48,7 @@ export function privateMediaActive(): boolean {
  * original path, so the broken-image mark still says what happened rather than leaving a blank.
  */
 export function resolveMedia(url: string): Promise<string> {
-  if (fetcher == null || !GATED.some((prefix) => url.startsWith(prefix))) return Promise.resolve(url);
+  if (fetcher == null || !url.startsWith("/media/")) return Promise.resolve(url);
   let hit = resolved.get(url);
   if (hit == null) {
     hit = fetcher(url).catch(() => url);

@@ -117,6 +117,13 @@ async function blobUrlOf(src: string): Promise<string> {
   return URL.createObjectURL(await response.blob());
 }
 
+/** Fetch one gated `/content-assets/…` file (a lesson-local widget's page or script) WITH the bearer, as text. */
+async function textOf(src: string): Promise<string> {
+  const response = await fetch(src, { headers: bearerHeaders() });
+  if (!response.ok) throw new Error(`${response.status}`);
+  return response.text();
+}
+
 /**
  * A private source's `/media/…` files are gated like its prose, and an `<img>` (or a `<video>`,
  * `<audio>`, `<source>`) carries no bearer. So every media reference in the rendered body is
@@ -126,7 +133,7 @@ async function blobUrlOf(src: string): Promise<string> {
  * resolve each file through the same fetcher, installed here, as they need it.
  */
 async function attachPrivateMedia(body: HTMLElement): Promise<void> {
-  installPrivateMedia(blobUrlOf);
+  installPrivateMedia(blobUrlOf, textOf);
   const nodes = body.querySelectorAll<HTMLImageElement | HTMLMediaElement | HTMLSourceElement>(
     'img[src^="/media/"], video[src^="/media/"], audio[src^="/media/"], source[src^="/media/"]',
   );

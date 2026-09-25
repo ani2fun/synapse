@@ -9,7 +9,7 @@
  * is resolved against the reader URL (`/synapse/<slug path>`) to `/content-assets/<slug path>/…`.
  * On a public book that URL is framed as is. On a PRIVATE book the files are gated like its prose
  * and an iframe cannot send the bearer, so the page and the scripts and stylesheets it references
- * are fetched here with the bearer (lib/privateMedia) and framed as one self-contained `srcdoc`.
+ * are fetched here with the bearer, as text (lib/privateMedia), and framed as one self-contained `srcdoc`.
  * A `srcdoc` has no query string, so the `src` query reaches the page as
  * `window.synapseSimulator.params`, defined before any of its own scripts.
  *
@@ -21,7 +21,7 @@ import { render, h } from "preact";
 import { useEffect, useState } from "preact/hooks";
 
 import * as log from "../../lib/log";
-import { privateMediaActive, resolveMedia } from "../../lib/privateMedia";
+import { fetchPrivateText, privateMediaActive } from "../../lib/privateMedia";
 import { contentAssetUrl, selfContained } from "../../lib/simulatorDoc";
 
 const DEFAULT_HEIGHT = 480;
@@ -76,12 +76,6 @@ export function hydrateSimulators(root: ParentNode): number {
 // LESSON-LOCAL WIDGETS (ADR-RS012)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** A gated file's text, fetched with the reader's bearer; throws when it was refused. */
-async function privateText(url: string): Promise<string> {
-  const blob = await resolveMedia(url);
-  if (blob === url) throw new Error(`refused: ${url}`);
-  return (await fetch(blob)).text();
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE INLINE EMBED: existence probe → iframe (or the loud missing card)
@@ -114,7 +108,7 @@ function SimulatorCard({ src, probe, height, title, missing }: CardProps) {
       if (!cancelled) setState(ok ? "ok" : "missing");
     };
     if (gated) {
-      selfContained(src, location.origin, privateText)
+      selfContained(src, location.origin, fetchPrivateText)
         .then((html) => {
           if (!cancelled) setDoc(html);
           settle(true);
