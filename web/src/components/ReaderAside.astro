@@ -1,0 +1,47 @@
+---
+// The reading aside, the lesson grid's right column: the progress card, the "On this page"
+// outline that islands/chrome renders into `nav.reader-outline`, and the Up next card.
+//
+// Shared by the server-rendered lesson and the private shell. The private shell is rendered
+// before the session settles, so it knows no neighbour yet: it passes no `next`, and
+// islands/reader/privateLesson appends the Up next card once the payload arrives (`upNextHtml`
+// there mirrors the markup below; keep the two in step).
+interface Props {
+  /** Directory-mirror path of the next lesson; no card when absent. */
+  next?: string | null;
+  /** Its visible title. */
+  nextTitle?: string;
+}
+
+const { next, nextTitle } = Astro.props;
+---
+
+<aside class="reader-aside" aria-label="Reading aside">
+  <div class="reader-aside__card">
+    <span class="reader-aside__eyebrow">Your progress</span>
+    <div class="reader-aside__prog-top">
+      <span class="reader-aside__pct" data-progress-pct>0%</span>
+      <span class="reader-aside__prog-sub" data-progress-sub />
+    </div>
+    <div class="reader-bar"><div class="reader-bar__fill" data-progress-fill /></div>
+  </div>
+
+  {/* chrome.ts renders the "On this page" outline into here on desktop; on smaller
+      widths the rail is hidden and the TOC lives in the bottom-right sheet instead. */}
+  <nav class="reader-outline" aria-label="On this page" />
+
+  {
+    next && (
+      <a class="reader-aside__next" href={`/synapse/${next}`}>
+        <span class="reader-aside__eyebrow">Up next</span>
+        <span class="reader-aside__next-title">{nextTitle}</span>
+        <span class="reader-aside__next-go">
+          Continue
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
+        </span>
+      </a>
+    )
+  }
+</aside>

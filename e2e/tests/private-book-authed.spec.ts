@@ -46,6 +46,11 @@ test.describe("private book — a listed reader, and one who is not", () => {
     expect(await figure.getAttribute("src")).toMatch(/^blob:/);
     await expect(page.locator("[data-private-sidebar] .reader-sidebar__link--active")).toHaveText("Selection Sort, Rewritten");
     await expect(page.locator("[data-private-sidebar]")).toContainText("Private book");
+    // The reader chrome a public lesson has: the "On this page" outline in the aside, the
+    // reading-preferences FAB and the scroll-to-top button (a private lesson lost all three).
+    await expect(page.locator(".reader-outline")).toContainText("Why the scan is enough");
+    await expect(page.getByRole("button", { name: "Reading preferences" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Scroll to top" })).toHaveCount(1);
 
     // The library landing is rendered from the anonymous index, so the book reaches it only
     // after the session settles — as its own group, ahead of the public grid.

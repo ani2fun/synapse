@@ -96,6 +96,23 @@ function humanise(path: string): string {
   return humanize(path.split("/").pop() ?? path);
 }
 
+/** The aside's Up next card: the shell cannot know the neighbour before the payload, so it ships
+ *  without one. Mirrors components/ReaderAside.astro. */
+function renderUpNext(payload: LessonPayload): void {
+  const aside = root?.querySelector<HTMLElement>(".reader-aside");
+  if (!aside || !payload.next || aside.querySelector(".reader-aside__next")) return;
+  aside.insertAdjacentHTML(
+    "beforeend",
+    `<a class="reader-aside__next" href="/synapse/${payload.next}">` +
+      `<span class="reader-aside__eyebrow">Up next</span>` +
+      `<span class="reader-aside__next-title">${escape(humanise(payload.next))}</span>` +
+      `<span class="reader-aside__next-go">Continue ` +
+      `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ` +
+      `stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>` +
+      `</span></a>`,
+  );
+}
+
 function renderPager(payload: LessonPayload): void {
   const nav = root?.querySelector<HTMLElement>("[data-private-pager]");
   if (!nav) return;
@@ -248,6 +265,11 @@ async function render(payload: LessonPayload, segments: string[]): Promise<void>
   const book = await admittedBook(segments);
   const aside = root?.querySelector<HTMLElement>("[data-private-sidebar]");
   if (book && aside) renderSidebar(aside, book, segments.join("/"));
+  renderUpNext(payload);
+  // The reader chrome (sidebar faces, prefs FAB, TOC + minimap, scroll-to-top) reads the rendered
+  // headings and the sidebar once, at init, so it loads only now that both are in the page. A
+  // public lesson gets it from the page script; this is the same island, one step later.
+  await import("../chrome");
   log.info(`private lesson rendered client-side: /synapse/${segments.join("/")}`);
 }
 

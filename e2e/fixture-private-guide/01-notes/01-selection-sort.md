@@ -10,3 +10,7 @@ The quokka invariant: after pass `i`, the first `i` slots hold the smallest valu
 Served from the private satellite, grafted under `programming-languages`.
 
 ![One pass of the scan](/media/insight-earned/pass.svg)
+
+## Why the scan is enough
+
+Each pass fixes one more slot, so the reader outline has a heading to list.

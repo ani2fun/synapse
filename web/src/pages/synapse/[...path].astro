@@ -22,6 +22,8 @@
 import Base from "../../layouts/Base.astro";
 import Sidebar from "../../components/Sidebar.astro";
 import Pager from "../../components/Pager.astro";
+import ReaderAside from "../../components/ReaderAside.astro";
+import ReaderNavFab from "../../components/ReaderNavFab.astro";
 import NotFound from "../../components/NotFound.astro";
 import { lesson as fetchLesson, fetchIndex, ApiFailure } from "../../lib/api/client";
 import type { LessonPayload } from "../../lib/api/client";
@@ -188,7 +190,12 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
               <nav class="reader-pager" data-private-pager />
             </div>
           </article>
+          {/* The same aside and Contents FAB as a public lesson: islands/chrome fills the outline,
+              the prefs FAB and scroll-to-top once the private island has rendered the body. A
+              private PROBLEM replaces this whole main with the problem frame, aside and all. */}
+          <ReaderAside />
         </div>
+        <ReaderNavFab />
       </main>
     )
   }
@@ -263,56 +270,9 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
             </div>
           </article>
 
-          <aside class="reader-aside" aria-label="Reading aside">
-            <div class="reader-aside__card">
-              <span class="reader-aside__eyebrow">Your progress</span>
-              <div class="reader-aside__prog-top">
-                <span class="reader-aside__pct" data-progress-pct>0%</span>
-                <span class="reader-aside__prog-sub" data-progress-sub />
-              </div>
-              <div class="reader-bar"><div class="reader-bar__fill" data-progress-fill /></div>
-            </div>
-
-            {/* chrome.ts renders the "On this page" outline into here on desktop; on smaller
-                widths the rail is hidden and the TOC lives in the bottom-right sheet instead. */}
-            <nav class="reader-outline" aria-label="On this page" />
-
-            {payload.next && (
-              <a class="reader-aside__next" href={`/synapse/${payload.next}`}>
-                <span class="reader-aside__eyebrow">Up next</span>
-                <span class="reader-aside__next-title">{humanize(payload.next.split("/").pop() ?? payload.next)}</span>
-                <span class="reader-aside__next-go">
-                  Continue
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M5 12h14M13 6l6 6-6 6" />
-                  </svg>
-                </span>
-              </a>
-            )}
-          </aside>
+          <ReaderAside next={payload.next} nextTitle={payload.next ? humanize(payload.next.split("/").pop() ?? payload.next) : undefined} />
         </div>
-        <!-- OUTSIDE the reader grid on purpose: a sibling of `.reader-layout`, never its third
-             grid child, or it becomes a phantom grid item at desktop width. The FAB itself is
-             CSS-hidden at >=1024px (reader.css's `.reader-nav-fab` media rule); the drawer it
-             opens clones `.reader-sidebar .reader-sidebar__inner` at click time
-             (islands/reader.ts). -->
-        <div class="reader-nav">
-          <button class="reader-nav-fab" aria-label="Contents" aria-expanded="false" type="button">
-            <svg
-              class="reader-nav-fab__ic"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <rect width="18" height="18" x="3" y="3" rx="2" />
-              <path d="M9 3v18 M14 9l3 3-3 3" />
-            </svg>
-          </button>
-        </div>
+        <ReaderNavFab />
       </main>
     )
   }
