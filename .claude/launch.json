@@ -5,7 +5,8 @@
       "name": "synapse",
       "runtimeExecutable": "dev-tools/dev",
       "runtimeArgs": [],
-      "port": 5373
+      "port": 5373,
+      "autoPort": false
     }
   ]
 }
