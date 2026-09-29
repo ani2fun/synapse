@@ -1,6 +1,6 @@
 /**
- * What each area of the canvas is FOR — the text behind every ℹ️, and the chips that seed the two
- * areas readers most often stare at blankly.
+ * What each area of the canvas is FOR — the text behind every ℹ️, and the chips that seed the
+ * area readers most often stare at blankly.
  *
  * Every entry links its source. The canvas is not this app's invention: it is HiredInTech's
  * Algorithm Design Canvas as extended by the startupnextdoor write-up (which adds Inputs, Return,
@@ -144,10 +144,10 @@ export const GUIDANCE: Record<string, AreaGuidance> = {
   },
 };
 
-/** One click appends `· <label> — ` and drops the caret after it. Only the two areas whose blank
- *  state is genuinely paralysing get chips: the rest are answered by reading the problem. */
+/** One click appends `· <label> — ` and drops the caret after it. Only Tests gets chips: its blank
+ *  state is the one that is genuinely paralysing. Constraints has none — its ℹ️ checklist already
+ *  names every question, and a row of seven chips under a medium card crowds the spec block. */
 export const CHIPS: Record<string, readonly string[]> = {
-  constraints: ["max N", "value range", "duplicates?", "sorted?", "memory limit", "mutate input?", "unicode?"],
   tests: ["empty", "single element", "two elements", "negatives", "zero", "odd / even length", "no solution", "max size"],
 };
 

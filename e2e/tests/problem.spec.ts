@@ -284,16 +284,19 @@ test("every area explains itself, and Constraints links the handout", async ({ p
 test("a chip plants a line and the meter follows the writing", async ({ page }) => {
   await openThink(page);
 
-  const constraints = page.locator('.pcanvas__field[aria-label="Constraints"]');
+  // Only Tests carries chips; Constraints' questions live in its ℹ️ checklist instead.
+  await expect(page.locator(".pcanvas__card--constraints .pcanvas__chip")).toHaveCount(0);
+  const tests = page.locator('.pcanvas__field[aria-label="Tests"]');
+  const chips = page.locator(".pcanvas__card--tests .pcanvas__chip");
   await expect(page.locator(".pcanvas__meter-label")).toHaveText("0 / 8");
 
-  await page.locator(".pcanvas__chip", { hasText: "max N" }).first().click();
-  await expect(constraints).toHaveValue("· max N — ");
-  // One area filled — and Constraints is one area however many chips land in it.
+  await chips.filter({ hasText: "empty" }).click();
+  await expect(tests).toHaveValue("· empty — ");
+  // One area filled — and Tests is one area however many chips land in it.
   await expect(page.locator(".pcanvas__meter-label")).toHaveText("1 / 8");
 
-  await page.locator(".pcanvas__chip", { hasText: "sorted?" }).first().click();
-  await expect(constraints).toHaveValue("· max N — \n· sorted? — ");
+  await chips.filter({ hasText: "single element" }).click();
+  await expect(tests).toHaveValue("· empty — \n· single element — ");
   await expect(page.locator(".pcanvas__meter-label")).toHaveText("1 / 8");
 
   // The draft survives a reload — planning that evaporates is worse than no planning surface.
@@ -306,8 +309,8 @@ test("a chip plants a line and the meter follows the writing", async ({ page }) 
     .toBe(true);
 
   await page.reload();
-  await expect(page.locator('.pcanvas__field[aria-label="Constraints"]')).toHaveValue(
-    "· max N — \n· sorted? — ",
+  await expect(page.locator('.pcanvas__field[aria-label="Tests"]')).toHaveValue(
+    "· empty — \n· single element — ",
   );
   await expect(page.locator(".pcanvas__meter-label")).toHaveText("1 / 8");
 });
