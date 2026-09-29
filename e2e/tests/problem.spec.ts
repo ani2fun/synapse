@@ -176,7 +176,8 @@ test("the contents pill opens the book drawer", async ({ page }) => {
 test("the right pane opens on Think, with Code one click away", async ({ page }) => {
   await page.goto(PROBLEM);
 
-  await expect(page.locator(".pwb__rtab")).toHaveCount(2);
+  // Think · Code · Notes, in that order: the plan, the typing, then what you jot down while typing.
+  await expect(page.locator(".pwb__rtab")).toHaveText(["Think", "Code", "Notes"]);
   // The plan comes before the typing — that is the whole premise of the page.
   await expect(page.locator(".pwb__rtab--think")).toHaveClass(/pwb__rtab--active/);
   await expect(page.locator(".pcanvas")).toBeVisible();
@@ -313,6 +314,31 @@ test("a chip plants a line and the meter follows the writing", async ({ page }) 
     "· empty — \n· single element — ",
   );
   await expect(page.locator(".pcanvas__meter-label")).toHaveText("1 / 8");
+});
+
+test("Notes keeps a signed-out reader's markdown on this device and previews it", async ({ page }) => {
+  await openThink(page);
+  await page.locator(".pwb__rtab--notes").click();
+  const field = page.locator(".pnotes__field");
+  await expect(field).toBeVisible();
+  await expect(page.locator(".pnotes__status")).toHaveText("Autosaves on this device");
+
+  await field.fill("## Plan\n\nuse two pointers");
+  await expect(page.locator(".pnotes__count")).toHaveText("25 / 10,000 characters");
+  // Signed out, the note never leaves the browser — and the status says how to change that.
+  await expect(page.locator(".pnotes__status")).toHaveText("Saved on this device · sign in to sync");
+
+  await page.reload();
+  await expect(page.locator(".pcanvas")).toBeVisible();
+  await page.locator(".pwb__rtab--notes").click();
+  await expect(page.locator(".pnotes__field")).toHaveValue("## Plan\n\nuse two pointers");
+
+  // Preview renders the reader's markdown, and a note's raw HTML never reaches the page.
+  await page.locator(".pnotes__field").fill("## Plan\n\n<img src=x onerror=alert(1)> **two**");
+  await page.locator(".pcanvas__seg-btn", { hasText: "Preview" }).click();
+  await expect(page.locator(".pnotes__preview h2")).toHaveText("Plan");
+  await expect(page.locator(".pnotes__preview strong")).toHaveText("two");
+  await expect(page.locator(".pnotes__preview img")).toHaveCount(0);
 });
 
 test("an anonymous reader can plan, but saving asks for a sign-in", async ({ page }) => {

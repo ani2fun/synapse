@@ -194,6 +194,7 @@ function clearReaderStorage(): void {
     storage.removeByPrefix(`${storage.CODEBENCH_DRAFT_PREFIX}${state.me.username}:`);
     storage.removeByPrefix(`${storage.CANVAS_DRAFT_PREFIX}${state.me.username}:`);
     storage.removeByPrefix(`${storage.TESTS_DRAFT_PREFIX}${state.me.username}:`);
+    storage.removeByPrefix(`${storage.PROBLEM_NOTES_PREFIX}${state.me.username}:`);
   }
 }
 
@@ -212,12 +213,13 @@ export async function resetProgress(): Promise<number> {
   return result.deleted;
 }
 
-/** Erase server data (submissions + canvas entries + progress) AND this browser's reading
+/** Erase server data (submissions + canvas entries + notes + progress) AND this browser's reading
  *  state, then reload. Every store the account owns is named here — a leg left out is data that
  *  outlives the erase that promised to remove it. */
 export async function eraseAllData(): Promise<void> {
   await api.eraseSubmissions();
   await api.eraseCanvasEntries();
+  await api.eraseNotes();
   await api.resetProgress();
   clearReaderStorage();
   window.location.reload();
@@ -227,6 +229,7 @@ export async function eraseAllData(): Promise<void> {
 export async function deleteAccount(): Promise<void> {
   await api.eraseSubmissions();
   await api.eraseCanvasEntries();
+  await api.eraseNotes();
   await api.resetProgress();
   await api.deleteMe();
   clearReaderStorage();

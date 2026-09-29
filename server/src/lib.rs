@@ -11,6 +11,7 @@ pub mod config;
 pub mod execution;
 pub mod identity;
 pub mod insights;
+pub mod notes;
 pub mod platform;
 pub mod progress;
 pub mod submission;
@@ -78,6 +79,9 @@ pub struct AppDeps<
     /// Saved design canvases: the Think pane writes here and `/account`'s erase clears it.
     /// Concrete for the same reason `progress` is — one Postgres store, nothing fakes it.
     pub canvas: Arc<canvas::PostgresCanvasStore>,
+    /// Problem notes: the Notes tab syncs here and `/account`'s erase clears it. Concrete, like
+    /// `canvas`.
+    pub notes: Arc<notes::PostgresNoteStore>,
     /// The Astro SSR sidecar serving the pages. `Some` mounts `astro_proxy` as the router
     /// FALLBACK (registered routes always win); `None` (dev without a web tier) serves the
     /// API alone with a plain-text pointer at `/`.
@@ -184,6 +188,10 @@ where
         canvas: deps.canvas,
         identity: Arc::clone(&deps.ident.identity),
     };
+    let notes_state = notes::http::NotesRoutesState {
+        notes: deps.notes,
+        identity: Arc::clone(&deps.ident.identity),
+    };
     let catalog_state = catalog::http::routes::CatalogRoutesState {
         service: deps.catalog,
         views: deps.views,
@@ -200,6 +208,7 @@ where
         .merge(insights::http::routes(readership))
         .merge(progress::http::routes(progress_state))
         .merge(canvas::http::routes(canvas_state))
+        .merge(notes::http::routes(notes_state))
         .merge(tutoring::http::routes(deps.tutor));
     // In-app editing mounts only where a forge is configured; `CONTENT_FORGE=off` leaves
     // `/api/edits` and its admin allowlist absent rather than gated.
@@ -296,6 +305,9 @@ where
         canvas::http::list_entries,
         canvas::http::delete_entry,
         canvas::http::erase_all,
+        notes::http::get_note,
+        notes::http::save_note,
+        notes::http::erase_all,
         tutoring::http::tutor_config,
         tutoring::http::tutor_chat,
         authoring::http::get_config,
@@ -355,6 +367,8 @@ where
         synapse_shared::canvas::CanvasBodyDto,
         synapse_shared::canvas::SaveCanvasRequestDto,
         synapse_shared::canvas::CanvasEntryDto,
+        synapse_shared::notes::SaveNoteRequestDto,
+        synapse_shared::notes::NoteDto,
         synapse_shared::tutor::ChatMessage,
         synapse_shared::tutor::TutorConfigDto,
         synapse_shared::tutor::TutorChatRequestDto,

@@ -282,6 +282,66 @@
       ]
     },
     {
+      "_id": "fld_notes",
+      "_type": "request_group",
+      "parentId": "wrk_synapse_rs",
+      "name": "notes",
+      "description": "The Notes tab's markdown scratchpad — ONE document per account per problem; a save replaces it. PUT/erase require a bearer; GET is an empty note when anonymous. Erasing notes touches nothing else."
+    },
+    {
+      "_id": "req_notes_get",
+      "_type": "request",
+      "parentId": "fld_notes",
+      "name": "GET /api/notes?path=",
+      "description": "The caller's note for one problem. No note (or anonymous, store untouched) → text \"\" and updatedAt null — one shape, never a 404.",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/notes?path=dsa/arrays/two-sum",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ]
+    },
+    {
+      "_id": "req_notes_save",
+      "_type": "request",
+      "parentId": "fld_notes",
+      "name": "PUT /api/notes",
+      "description": "Replace the caller's note (upsert); the 200 carries the stored updatedAt. Empty text deletes the note. 400 past 10,000 UTF-16 code units (the textarea's own unit); 401 when anonymous.",
+      "method": "PUT",
+      "url": "{{ _.base_url }}/api/notes",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"path\": [\n    \"dsa\",\n    \"arrays\",\n    \"two-sum\"\n  ],\n  \"text\": \"## Plan\\n\\n- [ ] one pass with a complements map\\n- [x] watch for duplicates\"\n}"
+      },
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ]
+    },
+    {
+      "_id": "req_notes_erase",
+      "_type": "request",
+      "parentId": "fld_notes",
+      "name": "DELETE /api/notes",
+      "description": "Erase every note of the caller — the account page's 'erase my data' leg. Other stores survive.",
+      "method": "DELETE",
+      "url": "{{ _.base_url }}/api/notes",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ]
+    },
+    {
       "_id": "req_submit",
       "_type": "request",
       "parentId": "fld_submissions",

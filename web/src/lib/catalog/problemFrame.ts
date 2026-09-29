@@ -72,6 +72,10 @@ const ICONS = {
     '<path d="M12 5a3 3 0 0 0-3-3 2.5 2.5 0 0 0-2.5 2.5A2.5 2.5 0 0 0 4 7c0 1 .4 1.7 1 2.2A2.7 2.7 0 0 0 4 11.5c0 1 .5 1.9 1.3 2.4A2.6 2.6 0 0 0 5 15.5C5 17 6.2 18 7.7 18H9a3 3 0 0 0 3-3z" /><path d="M12 5a3 3 0 0 1 3-3 2.5 2.5 0 0 1 2.5 2.5A2.5 2.5 0 0 1 20 7c0 1-.4 1.7-1 2.2a2.7 2.7 0 0 1 1 2.3c0 1-.5 1.9-1.3 2.4.2.4.3.9.3 1.6 0 1.5-1.2 2.5-2.7 2.5H15a3 3 0 0 1-3-3z" /><path d="M12 18v4" />',
   ),
   code: ICON("pwb__rtab-ic", '<path d="M16 18l6-6-6-6 M8 6l-6 6 6 6" />'),
+  notes: ICON(
+    "pwb__rtab-ic",
+    '<path d="M12 20h9" /><path d="M16.38 3.62a2.12 2.12 0 1 1 3 3L7.37 18.64a2 2 0 0 1-.86.5l-2.87.84a.5.5 0 0 1-.62-.62l.84-2.87a2 2 0 0 1 .5-.86z" />',
+  ),
   pin: ICON(
     "pwb__rpin-ic",
     '<path d="M12 17v5" /><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />',
@@ -144,17 +148,20 @@ export function problemFrame(input: ProblemFrameInput): string {
     `</div></div>` +
     `<div class="wb-split" aria-label="Resize the panes"><div class="wb-split__grip"><span></span><span></span><span></span></div></div>` +
     // Think before Code, in that order, and Think is the tab that OPENS — the plan comes before
-    // the typing. The pin is the only thing that writes the preference; a tab click is a visit.
+    // the typing. Notes sits after Code: it is what you jot down while coding, not before.
+    // The pin is the only thing that writes the preference; a tab click is a visit.
     `<div class="pwb__right">` +
     `<div class="pwb__rtabs" role="tablist" aria-label="Workbench mode">` +
     `<button class="pwb__rtab pwb__rtab--think pwb__rtab--active" data-rtab="think" type="button">${ICONS.think}Think</button>` +
     `<button class="pwb__rtab pwb__rtab--code" data-rtab="code" type="button">${ICONS.code}Code</button>` +
+    `<button class="pwb__rtab pwb__rtab--notes" data-rtab="notes" type="button">${ICONS.notes}Notes</button>` +
     `<span class="pwb__rtabs-spacer"></span>` +
     `<button class="pwb__rpin" data-rpin type="button" aria-pressed="false">${ICONS.pin}<span class="pwb__rpin-text" data-rpin-text>Default</span></button>` +
     `</div>` +
     `<div class="pwb__rpane-host">` +
     `<div class="pwb__rpane" data-rpane="think"><div class="pcanvas-host"></div></div>` +
     `<div class="pwb__rpane hidden" data-rpane="code"><div class="pwb__nowb">Loading the workbench…</div></div>` +
+    `<div class="pwb__rpane hidden" data-rpane="notes"><div class="pnotes-host"></div></div>` +
     `</div></div></div>` +
     `<nav class="pwb__nav" aria-label="Problem navigation">` +
     `<div class="pwb__nav-left"><button class="pwb__contents" aria-label="Contents — the book's lessons and problems" type="button">${ICONS.contents}<span>Contents</span></button></div>` +

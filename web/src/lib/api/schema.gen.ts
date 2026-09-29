@@ -415,6 +415,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's note for one problem. Private: an anonymous caller gets an empty note and the
+         *     store is never touched (`list_entries`' exact policy).
+         */
+        get: operations["getNote"];
+        /** Replace the caller's note for one problem. Empty text deletes it. Bearer required. */
+        put: operations["saveNote"];
+        post?: never;
+        /** Erase every note of the caller — the "erase my data" leg. Other stores survive. */
+        delete: operations["eraseNotes"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/progress": {
         parameters: {
             query?: never;
@@ -1033,6 +1055,17 @@ export interface components {
             id: string;
             username: string;
         };
+        /**
+         * @description The caller's note for one problem. A problem with no note — or an anonymous caller — reads as
+         *     empty `text` with no `updatedAt`, so the client has one shape to handle rather than a 404 to
+         *     tell apart from a real failure.
+         */
+        NoteDto: {
+            path: string[];
+            text: string;
+            /** @description ISO-8601 instant of the last save; absent when there is no stored note. */
+            updatedAt?: string | null;
+        };
         /** @description `GET /api/progress` — every lesson path the caller has completed. */
         ProgressListDto: {
             completed: string[];
@@ -1099,6 +1132,12 @@ export interface components {
             body: components["schemas"]["CanvasBodyDto"];
             /** @description The problem's directory-mirror path, e.g. `["dsa", "arrays", "move-zeroes"]`. */
             path: string[];
+        };
+        /** @description `PUT /api/notes` body. An empty `text` deletes the note. */
+        SaveNoteRequestDto: {
+            /** @description The problem's directory-mirror path, e.g. `["dsa", "arrays", "move-zeroes"]`. */
+            path: string[];
+            text: string;
         };
         /** @description One hit. No score: the ORDER is the contract, and a float the client must ignore is noise. */
         SearchHitDto: {
@@ -2438,6 +2477,127 @@ export interface operations {
             };
             /** @description Keycloak admin API unavailable */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getNote: {
+        parameters: {
+            query: {
+                /** @description The problem's directory-mirror path */
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's note (empty when there is none) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteDto"];
+                };
+            };
+            /** @description Store failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    saveNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveNoteRequestDto"];
+            };
+        };
+        responses: {
+            /** @description The stored note */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NoteDto"];
+                };
+            };
+            /** @description Longer than the note limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Store failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    eraseNotes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Erased */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteResultDto"];
+                };
+            };
+            /** @description Anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Store failed */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

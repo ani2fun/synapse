@@ -26,6 +26,8 @@ export type CanvasBodyWire = components["schemas"]["CanvasBodyDto"];
 export type CanvasIdeaWire = components["schemas"]["CanvasIdeaDto"];
 export type CanvasEntry = components["schemas"]["CanvasEntryDto"];
 export type SaveCanvasRequest = components["schemas"]["SaveCanvasRequestDto"];
+export type Note = components["schemas"]["NoteDto"];
+export type SaveNoteRequest = components["schemas"]["SaveNoteRequestDto"];
 export type Me = components["schemas"]["MeDto"];
 export type AuthConfig = components["schemas"]["AuthConfigDto"];
 export type SearchResults = components["schemas"]["SearchResultsDto"];
@@ -169,6 +171,15 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return decode<T>(response);
 }
 
+async function put<T>(path: string, body: unknown): Promise<T> {
+  const response = await loggedFetch(`${apiBase()}${path}`, {
+    method: "PUT",
+    headers: { ...bearerHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return decode<T>(response);
+}
+
 async function del<T>(path: string): Promise<T> {
   const response = await loggedFetch(`${apiBase()}${path}`, { method: "DELETE", headers: bearerHeaders() });
   return decode<T>(response);
@@ -288,6 +299,24 @@ export function deleteCanvasEntry(id: string): Promise<DeleteResult> {
 /** Erase every canvas entry of the caller — the account page's "erase my data" leg. */
 export function eraseCanvasEntries(): Promise<DeleteResult> {
   return del<DeleteResult>("/api/canvas");
+}
+
+// ── problem notes ───────────────────────────────────────────────────────────────────────────
+
+/** The caller's note for one problem — empty text and no `updatedAt` when there is none, or when
+ *  the caller is anonymous. */
+export function noteFor(path: string[]): Promise<Note> {
+  return get<Note>(`/api/notes?path=${path.join("/")}`);
+}
+
+/** Replace the caller's note for one problem (bearer required). Empty text deletes it. */
+export function saveNote(request: SaveNoteRequest): Promise<Note> {
+  return put<Note>("/api/notes", request);
+}
+
+/** Erase every note of the caller — the account page's "erase my data" leg. */
+export function eraseNotes(): Promise<DeleteResult> {
+  return del<DeleteResult>("/api/notes");
 }
 
 /** Reset the caller's progress — clears every ✓ tick server-side; submissions are untouched. */

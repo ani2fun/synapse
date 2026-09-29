@@ -29,6 +29,7 @@ use synapse_server::identity::application::IdentityService;
 use synapse_server::identity::domain::Username;
 use synapse_server::identity::http::IdentityRoutesState;
 use synapse_server::identity::infrastructure::{JwksTokenVerifier, KeycloakAdminClient};
+use synapse_server::notes::PostgresNoteStore;
 use synapse_server::platform::admission::Admission;
 use synapse_server::platform::rate_limiter::{RateLimitBucket, RateLimiter};
 use synapse_server::platform::readiness::PgReadiness;
@@ -60,14 +61,7 @@ async fn main() -> anyhow::Result<()> {
 
     let cfg = synapse_server::config::AppConfig::load()?;
 
-    // Postgres FAILS FAST (Keycloak degrades gracefully instead; the system of record does
-    // not); migrations run automatically at boot, on pool acquire.
-    let pool = sqlx::postgres::PgPoolOptions::new()
-        .max_connections(8)
-        .connect(&cfg.database_url)
-        .await?;
-    sqlx::migrate!("../migrations").run(&pool).await?;
-    tracing::info!("postgres connected + migrations applied");
+    let pool = connect_postgres(&cfg.database_url).await?;
 
     // The wiring graph, in one place: config → adapters → services → the router.
     let content = ContentHandles::for_primary(&cfg.content_root, &cfg)?;
@@ -82,6 +76,7 @@ async fn main() -> anyhow::Result<()> {
     let readiness = Arc::new(PgReadiness::new(pool.clone()));
     let progress = Arc::new(PostgresProblemProgress::new(pool.clone()));
     let canvas = Arc::new(PostgresCanvasStore::new(pool.clone()));
+    let notes = Arc::new(PostgresNoteStore::new(pool.clone()));
     let editors = Arc::new(PostgresContentEditors::new(pool.clone()));
     let edit_requests = Arc::new(PostgresEditRequests::new(pool.clone()));
     // Kept back: the submission store takes `pool` by value below, and the source registry is
@@ -152,6 +147,7 @@ async fn main() -> anyhow::Result<()> {
         views,
         progress,
         canvas,
+        notes,
         tutor,
         authoring,
         content_sources: Some(source_admin),
@@ -171,6 +167,18 @@ async fn main() -> anyhow::Result<()> {
 }
 
 /// The sandbox, with the share of its time limits an anonymous run gets.
+/// Postgres FAILS FAST (Keycloak degrades gracefully instead; the system of record does not);
+/// migrations run automatically at boot, before anything is served.
+async fn connect_postgres(url: &str) -> anyhow::Result<sqlx::PgPool> {
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(8)
+        .connect(url)
+        .await?;
+    sqlx::migrate!("../migrations").run(&pool).await?;
+    tracing::info!("postgres connected + migrations applied");
+    Ok(pool)
+}
+
 fn run_service(cfg: &synapse_server::config::AppConfig) -> RunCodeService<GoJudgeRunner> {
     RunCodeService::new(GoJudgeRunner::new(&cfg.executor_url, cfg.run_anon_time_percent))
 }

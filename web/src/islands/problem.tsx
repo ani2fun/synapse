@@ -7,9 +7,10 @@
  *   · the Description | Editorial | Submissions tabs (mount-once, `.hidden`; opens on Description
  *     unless the URL fragment names a tab, which is how a ⌘K "Solution" hit lands on the
  *     walkthrough rather than the statement),
- *   · the right pane's Think | Code tabs — Code holds the Workbench, with the FIRST description
- *     workbench EXTRACTED into it; Think mounts the design canvas (`canvas/CanvasPane`) on first
- *     open, the way the editorial and coach panes mount,
+ *   · the right pane's Think | Code | Notes tabs — Code holds the Workbench, with the FIRST
+ *     description workbench EXTRACTED into it; Think mounts the design canvas (`canvas/CanvasPane`)
+ *     and Notes the markdown scratchpad (`notes/NotesPane`) on first open, the way the editorial
+ *     and coach panes mount,
  *   · the remaining description workbenches + fence-group bars, hydrated in place,
  *   · the Submissions feed (lazy, refetched on submit) and the anonymous sign-in bar,
  *   · the Contents pill, which opens the reader's nav drawer by event (`reader.ts`).
@@ -44,6 +45,7 @@ import { SubmissionsFeed } from "./problem-submissions";
 import { EditorialPane } from "./practice/EditorialPane";
 import { CoachPane } from "./coach/CoachPane";
 import { CanvasPane } from "./canvas/CanvasPane";
+import { NotesPane } from "./notes/NotesPane";
 import { hydrateDiagrams } from "./widgets/Diagrams";
 import { hydrateSimulators } from "./widgets/Simulator";
 // Side-effect import: mounts the page-wide codebench modal — a description-pane fence
@@ -303,17 +305,26 @@ function wireTabs(pwb: HTMLElement, lessonPath: string[], spec: TestSpec | null)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// THE RIGHT PANE'S TABS — Think | Code, mount-once, opening on Code
+// THE RIGHT PANE'S TABS — Think | Code | Notes, mount-once, opening on the pinned tab
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Which side the page opens on. Think unless the reader has PINNED Code — the page exists to put
- *  the plan before the typing, so that is the default a first visit gets. */
-function openingMode(): "think" | "code" {
-  return storageGet(PROBLEM_MODE_KEY) === "code" ? "code" : "think";
+type RightTab = "think" | "code" | "notes";
+
+const RIGHT_TAB_LABEL: Record<RightTab, string> = { think: "Think", code: "Code", notes: "Notes" };
+
+function asRightTab(value: string | null | undefined): RightTab {
+  return value === "code" || value === "notes" ? value : "think";
 }
 
-/** Think is the design canvas (`canvas/CanvasPane`), mounted on first open the way the editorial
- *  and coach panes are — so a reader who pins Code and never opens Think pays nothing for it.
+/** Which side the page opens on. Think unless the reader has PINNED another tab — the page exists
+ *  to put the plan before the typing, so that is the default a first visit gets. */
+function openingMode(): RightTab {
+  return asRightTab(storageGet(PROBLEM_MODE_KEY));
+}
+
+/** Think is the design canvas (`canvas/CanvasPane`) and Notes the markdown scratchpad
+ *  (`notes/NotesPane`), each mounted on first open the way the editorial and coach panes are — so
+ *  a reader who pins Code and never opens either pays nothing for them.
  *
  *  Every switch fires RELAYOUT. That is load-bearing rather than tidy: coming back to Code hands
  *  the reader a Monaco that was measured while its pane was `display: none`, which is precisely
@@ -329,9 +340,10 @@ function wireRightTabs(pwb: HTMLElement, lessonPath: string[], title: string): v
   const pin = pwb.querySelector<HTMLElement>("[data-rpin]");
   const pinText = pwb.querySelector<HTMLElement>("[data-rpin-text]");
   let canvasMounted = false;
+  let notesMounted = false;
   let current = openingMode();
 
-  const label = (tab: string) => (tab === "think" ? "Think" : "Code");
+  const label = (tab: RightTab) => RIGHT_TAB_LABEL[tab];
 
   /** The pin reads as a STATE, not an action: pressed when this tab is already what problems open
    *  on, so the reader can tell at a glance without clicking to find out. */
@@ -350,8 +362,9 @@ function wireRightTabs(pwb: HTMLElement, lessonPath: string[], title: string): v
     if (pinText) pinText.textContent = isDefault ? "Default" : "Make default";
   };
 
-  const activate = (tab: string): void => {
-    current = tab === "code" ? "code" : "think";
+  const activate = (requested: string): void => {
+    const tab = asRightTab(requested);
+    current = tab;
     for (const button of buttons) button.classList.toggle("pwb__rtab--active", button.dataset.rtab === tab);
     for (const pane of panes) pane.classList.toggle("hidden", pane.dataset.rpane !== tab);
     if (tab === "think" && !canvasMounted) {
@@ -359,6 +372,13 @@ function wireRightTabs(pwb: HTMLElement, lessonPath: string[], title: string): v
       if (host) {
         canvasMounted = true;
         render(h(CanvasPane, { path: lessonPath, title }), host);
+      }
+    }
+    if (tab === "notes" && !notesMounted) {
+      const host = pwb.querySelector<HTMLElement>('[data-rpane="notes"] .pnotes-host');
+      if (host) {
+        notesMounted = true;
+        render(h(NotesPane, { path: lessonPath }), host);
       }
     }
     paintPin();

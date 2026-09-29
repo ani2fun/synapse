@@ -77,7 +77,7 @@ export const READER_SIDEBAR_KEY = "reader-sidebar";
 export const PROBLEM_PANE_KEY = "problem-pane";
 /** The problem workbench's remembered editorial approach tab. */
 export const PROBLEM_APPROACH_KEY = "problem-approach";
-/** Which side of the workbench a problem OPENS on — `"think"` or `"code"`. Absent means Think,
+/** Which side of the workbench a problem OPENS on — `"think"`, `"code"` or `"notes"`. Absent means Think,
  *  because the method the page is built around says the plan comes first.
  *
  *  Written only by the explicit pin, never by switching tabs: peeking at the editor is not the
@@ -134,3 +134,7 @@ export const TESTS_DRAFT_PREFIX = "tests-draft:";
  *  another account and two problems never overwrite each other. SAVED entries are not here:
  *  they are the account's, in Postgres, the way submissions are. See islands/canvas/draft. */
 export const CANVAS_DRAFT_PREFIX = "canvas-draft:";
+/** The problem page's Notes tab — a key PREFIX. The username and the problem path are appended
+ *  (`problem-notes:<username>:<problem-path>`), so one account's notes never surface under another
+ *  and two problems never overwrite each other. See islands/notes/store. */
+export const PROBLEM_NOTES_PREFIX = "problem-notes:";

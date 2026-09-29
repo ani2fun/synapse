@@ -29,7 +29,8 @@
 .pwb__rpane.hidden { display: none; }
 /* The canvas host must RELAY the flex chain (bounded height, min-height: 0) for the same reason
    the left pane's island hosts do — see the note above them. */
-.pwb__rpane > .pcanvas-host { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.pwb__rpane > .pcanvas-host,
+.pwb__rpane > .pnotes-host { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
 /* The standalone problem page: the editor EXPANDS into the pane's free height instead of
    sitting at its source-derived pixel height over a dead strip (the toolbar, tests, output
    and verdict keep natural height). min-height (not height) on the column: shorter content

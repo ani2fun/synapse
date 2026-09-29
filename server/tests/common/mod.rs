@@ -22,6 +22,7 @@ use synapse_server::identity::application::IdentityService;
 use synapse_server::identity::domain::Username;
 use synapse_server::identity::http::{IdentityRoutesState, LiveIdentityService};
 use synapse_server::identity::infrastructure::{JwksTokenVerifier, KeycloakAdminClient};
+use synapse_server::notes::PostgresNoteStore;
 use synapse_server::platform::admission::Admission;
 use synapse_server::platform::rate_limiter::{RateLimitBucket, RateLimiter};
 use synapse_server::progress::PostgresProblemProgress;
@@ -119,6 +120,7 @@ where
         admission: base.admission,
         progress: base.progress,
         canvas: base.canvas,
+        notes: base.notes,
         astro_url: base.astro_url,
         site_url: base.site_url,
         mounted: base.mounted,
@@ -146,6 +148,7 @@ pub fn deps_with(
     ));
     let progress = Arc::new(PostgresProblemProgress::new(pool.clone()));
     let canvas = Arc::new(PostgresCanvasStore::new(pool.clone()));
+    let notes = Arc::new(PostgresNoteStore::new(pool.clone()));
     let editors = Arc::new(PostgresContentEditors::new(pool.clone()));
     let edit_requests = Arc::new(PostgresEditRequests::new(pool.clone()));
     // Gate OFF (the dev default) — the gate tests exercise it over in-memory fakes.
@@ -203,6 +206,7 @@ pub fn deps_with(
         views,
         progress,
         canvas,
+        notes,
         // The dev default: coach OFF — chat is a structural 404 (the tutor ITs build their own).
         tutor: TutorRoutesState {
             service: Arc::new(TutoringService::new(OllamaTutorClient::new(
