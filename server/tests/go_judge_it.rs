@@ -59,6 +59,28 @@ async fn the_whole_pipeline_normalises_java_and_reads_stdin() {
 }
 
 #[tokio::test]
+async fn jvm_runs_print_non_ascii_text_as_utf8() {
+    use synapse_server::execution::domain::Language;
+    let Some(runner) = gated() else { return };
+    let java = "public class Main {\n  public static void main(String[] a) {\n    System.out.println(\"ça coûte 5 €\");\n    System.err.println(\"März\");\n  }\n}";
+    let result = runner
+        .run(Language::Java, java, None, Tier::SignedIn)
+        .await
+        .unwrap();
+    assert_eq!(result.status, RunStatus::Accepted, "stderr: {}", result.stderr);
+    assert_eq!(result.stdout, "ça coûte 5 €\n");
+    assert_eq!(result.stderr, "März\n");
+
+    let kotlin = "fun main() {\n  println(\"ça coûte 5 €\")\n}";
+    let result = runner
+        .run(Language::Kotlin, kotlin, None, Tier::SignedIn)
+        .await
+        .unwrap();
+    assert_eq!(result.status, RunStatus::Accepted, "stderr: {}", result.stderr);
+    assert_eq!(result.stdout, "ça coûte 5 €\n");
+}
+
+#[tokio::test]
 async fn compile_and_runtime_errors_come_back_as_results() {
     use synapse_server::execution::domain::Language;
     let Some(runner) = gated() else { return };

@@ -58,10 +58,17 @@ impl Recipe {
         }
     }
 
+    /// Every JVM run names its output encoding. The sandbox sets no `LANG`, so the JVM's native
+    /// encoding is ASCII and every non-ASCII character a program prints (`€`, `ç`, a CLDR
+    /// no-break space) would reach the reader as `?`.
     pub(crate) fn for_language(language: Language) -> Recipe {
         match language {
             Language::Python => Self::interpreted("main.py", "python3 main.py"),
-            Language::Java => Self::compiled("Main.java", "javac Main.java", "java -cp . Main"),
+            Language::Java => Self::compiled(
+                "Main.java",
+                "javac Main.java",
+                "java -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 -cp . Main",
+            ),
             Language::Scala => Recipe {
                 cpu_seconds: 60,
                 clock_seconds: 120,
@@ -84,7 +91,7 @@ impl Recipe {
                 ..Self::compiled(
                     "main.kt",
                     "kotlinc main.kt -include-runtime -d __cf.jar",
-                    "java -jar __cf.jar",
+                    "java -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 -jar __cf.jar",
                 )
             },
             Language::TypeScript => Self::interpreted("main.ts", "tsx main.ts"),

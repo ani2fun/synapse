@@ -71,7 +71,10 @@ fn compiled_requests_use_the_marker_file_trick_and_normalise_java() {
     let cmd = &body["cmd"][0];
     let shell = cmd["args"][2].as_str().unwrap();
     assert!(shell.starts_with("javac Main.java 2>__cf_cerr; echo $? >__cf_crc;"));
-    assert!(shell.contains("if [ \"$(cat __cf_crc)\" != \"0\" ]; then exit 0; fi; java -cp . Main"));
+    assert!(shell.contains(
+        "if [ \"$(cat __cf_crc)\" != \"0\" ]; then exit 0; fi; \
+         java -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 -cp . Main"
+    ));
     let source = cmd["copyIn"]["Main.java"]["content"].as_str().unwrap();
     assert_eq!(source, "class Main { void go() { new Main(); } }");
     assert_eq!(cmd["copyOut"], serde_json::json!(["__cf_crc?", "__cf_cerr?"]));
