@@ -89,6 +89,7 @@ fn reserved_aux_dirs_and_hidden_files_are_skipped_inside_books() {
         vec![
             dir("examples", vec![file("snippet.md", "x")]),
             dir("01-examples", vec![file("snippet.md", "x")]),
+            dir("graphify-out", vec![file("GRAPH_REPORT.md", "# Graph report")]),
             dir("_d2-blocks", vec![file("theme.md", "x")]),
             dir(".hidden", vec![file("h.md", "x")]),
             file("_draft.md", "x"),

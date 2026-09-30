@@ -25,6 +25,11 @@ pub const DEFAULT_ESSENTIAL: bool = true;
 ///
 /// `examples` is an aux dir a book may carry alongside its chapters.
 ///
+/// `graphify-out` is the output directory of the graphify knowledge-graph tool, which authors run
+/// inside their content checkouts. It holds generated Markdown (`GRAPH_REPORT.md`) with no
+/// frontmatter; a working-tree mount would otherwise serve it as a lesson and fail the book's
+/// validation.
+///
 /// `local-only-content` is different in kind and is here for a REASON WORTH KNOWING. The content
 /// tree carries material that must never be served — most of it adapted from a commercial course,
 /// kept for personal study (ADR-RS002). Relying solely on a `.gitignore` rule in the CONTENT
@@ -52,7 +57,7 @@ pub const DEFAULT_ESSENTIAL: bool = true;
 ///
 /// Releasing it here instead would also double-mount it: walked inside the primary AND mounted as
 /// a source, every book in it duplicated, which is a hard error.
-const RESERVED_AUX_DIRS: [&str; 3] = ["examples", "local-only", "local-only-content"];
+const RESERVED_AUX_DIRS: [&str; 4] = ["examples", "graphify-out", "local-only", "local-only-content"];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NAMING RULES — the public helpers the whole context leans on
