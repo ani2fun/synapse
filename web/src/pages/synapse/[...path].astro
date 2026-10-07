@@ -313,11 +313,9 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
             </aside>
           </div>
         )}
-        <!-- The drawer's mount host, PINNED: reader.css hides .reader-nav-scrim/-drawer
-             at >=1024px except under .reader-nav--pinned — a body-mounted drawer on this page
-             opened into display:none, which is why the Contents pill looked dead on desktop.
-             No FAB inside: the crumb-row pill is this page's only trigger (and --pinned hides
-             the FAB anyway). -->
+        <!-- The drawer's mount host, PINNED. No FAB or desktop pill inside: the docked nav's
+             Browse pill is this page's only trigger, and reader.css stands the reader's own
+             triggers down under .reader-nav--pinned should one ever land here. -->
         <div class="reader-nav reader-nav--pinned"></div>
       </main>
     )

@@ -1,13 +1,20 @@
 ---
-// The Contents FAB for narrow widths. Place it OUTSIDE the reader grid on purpose: a sibling of
-// `.reader-layout`, never its third grid child, or it becomes a phantom grid item at desktop
-// width. The FAB itself is CSS-hidden at >=1024px (reader.css's `.reader-nav-fab` media rule);
-// the drawer it opens clones `.reader-sidebar .reader-sidebar__inner` at click time
-// (islands/reader.ts). Shared by the server-rendered lesson and the private shell.
+// The Browse triggers. Place them OUTSIDE the reader grid on purpose: a sibling of
+// `.reader-layout`, never its third grid child, or they become phantom grid items at desktop
+// width. Two buttons, one drawer: the round FAB is the PHONE trigger (CSS-hidden at >=1024px)
+// and the labelled "Browse" pill is the DESKTOP trigger (CSS-shown only at >=1024px), so
+// exactly one is on screen at any width. Both wear the library glyph (books on a shelf), as does
+// the problem page's pill: it says what the drawer is for — the whole shelf, not the one book
+// open. A stroked `currentColor` glyph rather than an emoji, so it matches every other control
+// and follows the theme. Both share one accessible name, so a screen reader hears the same word
+// the pill and the drawer heading show. Either button opens the drawer, which clones
+// `.reader-sidebar .reader-sidebar__inner` at click time (islands/reader.ts) and sits OVER the
+// page — the desktop sidebar stays as it is. Shared by the server-rendered lesson and the
+// private shell.
 ---
 
 <div class="reader-nav">
-  <button class="reader-nav-fab" aria-label="Contents" aria-expanded="false" type="button">
+  <button class="reader-nav-fab" aria-label="Browse — every lesson in this book" aria-expanded="false" type="button">
     <svg
       class="reader-nav-fab__ic"
       viewBox="0 0 24 24"
@@ -18,8 +25,22 @@
       stroke-linejoin="round"
       aria-hidden="true"
     >
-      <rect width="18" height="18" x="3" y="3" rx="2" />
-      <path d="M9 3v18 M14 9l3 3-3 3" />
+      <path d="m16 6 4 14 M12 6v14 M8 8v12 M4 4v16" />
     </svg>
+  </button>
+  <button class="reader-contents-pill" aria-label="Browse — every lesson in this book" aria-expanded="false" type="button">
+    <svg
+      class="reader-contents-pill__ic"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m16 6 4 14 M12 6v14 M8 8v12 M4 4v16" />
+    </svg>
+    <span>Browse</span>
   </button>
 </div>

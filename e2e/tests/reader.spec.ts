@@ -187,3 +187,87 @@ test("un-marking a lesson clears its tick and survives a reload", async ({ page,
   await expect(page.locator("[data-read-switch]")).toHaveAttribute("aria-checked", "false");
   await expect(page.locator(".reader-sidebar__link--done")).toHaveCount(0);
 });
+
+// The desktop Browse pill opens the same drawer the phone FAB does, OVER the page — the sidebar
+// column keeps whichever face the reader chose. Every face is walked because each one breaks the
+// drawer differently: Compact hides the sidebar's inner with an inline style the clone would
+// inherit (an empty drawer), and Hidden leaves no sidebar on screen at all.
+for (const face of ["expanded", "compact", "hidden"] as const) {
+  test(`the desktop Browse pill opens the book drawer on the ${face} sidebar face`, async ({ page, request }) => {
+    // An init script runs in EVERY frame, and a sandboxed iframe denies storage outright — so only
+    // the top document is seeded, and a refusal anywhere else is not this test's business.
+    await page.addInitScript((value) => {
+      if (window !== window.top) return;
+      try {
+        window.localStorage.setItem("reader-sidebar", value);
+      } catch {
+        // storage denied — the face assertion below names it
+      }
+    }, face);
+    await page.goto(await firstLessonPath(request));
+    await expect(page.locator(".reader-layout")).toHaveAttribute("data-sidebar", face);
+
+    // Exactly one trigger per width: the round FAB is the phone's.
+    await expect(page.locator(".reader-nav-fab")).toBeHidden();
+    const pill = page.locator(".reader-contents-pill");
+    await expect(pill).toBeVisible();
+    await expect(pill).toHaveAttribute("aria-expanded", "false");
+
+    await pill.click();
+    const drawer = page.locator(".reader-nav-drawer");
+    await expect(drawer).toBeVisible();
+    await expect(pill).toHaveAttribute("aria-expanded", "true");
+    await expect(drawer.locator(".reader-nav-drawer__title")).toHaveText("Browse");
+    await expect(drawer.locator(".reader-sidebar__link--active")).toBeVisible();
+    // A clone carries no listeners, so the sidebar's own collapse buttons must not ride along.
+    await expect(drawer.locator(".reader-sidebar__controls")).toBeHidden();
+    // The existing sidebar is untouched: same face as before the drawer opened.
+    await expect(page.locator(".reader-layout")).toHaveAttribute("data-sidebar", face);
+
+    // What is ON TOP at the ✕, not merely whether it is visible — the phone drawer once rendered
+    // under the fixed header with a perfectly visible, unclickable close button.
+    const close = drawer.locator(".reader-nav-drawer__close");
+    const box = await close.boundingBox();
+    expect(box).not.toBeNull();
+    if (box) {
+      const topmost = await page.evaluate(
+        ([x, y]) => document.elementFromPoint(x, y)?.className ?? "none",
+        [box.x + box.width / 2, box.y + box.height / 2] as [number, number],
+      );
+      expect(topmost).toContain("reader-nav-drawer__close");
+    }
+
+    // Focus moves INTO the drawer, so a keyboard reader's next Tab walks the tree.
+    await expect(close).toBeFocused();
+
+    // A click anywhere outside the drawer lands on the scrim and closes it.
+    const viewport = page.viewportSize();
+    if (!viewport) throw new Error("no viewport");
+    await page.mouse.click(viewport.width - 40, viewport.height / 2);
+    await expect(drawer).toBeHidden();
+    await expect(pill).toHaveAttribute("aria-expanded", "false");
+
+    // Escape closes it too.
+    await pill.click();
+    await expect(drawer).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(drawer).toBeHidden();
+    // Dismissed, focus returns to the control that opened it.
+    await expect(pill).toBeFocused();
+  });
+}
+
+test("Back to Main flips the drawer's view instead of closing it", async ({ page, request }) => {
+  await page.goto(await firstLessonPath(request));
+  await page.locator(".reader-contents-pill").click();
+  const drawer = page.locator(".reader-nav-drawer");
+  await expect(drawer).toBeVisible();
+
+  const home = drawer.locator('a[data-sidebar-view="browse"]');
+  test.skip((await home.count()) === 0, "this sidebar renders no Back to Main");
+  await home.click();
+  await expect(drawer).toBeVisible();
+  await expect(drawer.locator(".reader-sidebar__inner")).toHaveAttribute("data-view", "browse");
+  // The page itself did not navigate to the library.
+  await expect(page).toHaveURL(/\/synapse\//);
+});

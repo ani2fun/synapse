@@ -121,9 +121,9 @@ html[data-reader-width] .lesson.lesson--problem,
 .wb__ghost:disabled { opacity: 0.45; cursor: default; }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   THE MOBILE NAV DRAWER (step 33; oracle step 38) — the bottom-LEFT FAB opens an
-   off-canvas drawer reusing the reader sidebar; one breakpoint (1024px) governs
-   both hiding the desktop sidebar and showing the mobile affordances.
+   THE NAV DRAWER — an off-canvas drawer reusing the reader sidebar. Below 1024px
+   the round FAB opens it (and the sidebar column is hidden); at and above it the
+   bottom-left Browse pill does, over the sidebar the reader already has.
    ───────────────────────────────────────────────────────────────────────────── */
 
 /* TOP of the right-hand rail (step 46), not alone at bottom-left. One 44px button on the left
@@ -166,25 +166,47 @@ html[data-reader-width] .lesson.lesson--problem,
                             background: transparent; color: hsl(var(--muted-foreground));
                             cursor: pointer; }
 .reader-nav-drawer__close:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+/* The drawer is a CLONE of the sidebar, and a clone carries no listeners: the sidebar's own
+   collapse buttons (`.reader-sidebar__controls`, islands/chrome) would ride in looking live and
+   do nothing. They also describe the sidebar column, not the drawer, so they stand down here. */
+.reader-nav-drawer .reader-sidebar__controls { display: none; }
 
-/* One breakpoint: ≥1024px = desktop sidebar, no mobile chrome. Problem pages are the
-   exception both ways: they hide the sidebar column at EVERY width, so the drawer stays
-   reachable above the breakpoint — but driven from the crumb row's Contents button, not
-   the FAB, which would float over the left pane's content. */
+/* The DESKTOP trigger: a "Browse" pill at the bottom-left — the same label, library glyph and
+   fill as the problem page's docked pill (`.pwb__contents`), so one control means one thing on
+   both page kinds. It opens the
+   drawer OVER the page and leaves the sidebar's face alone — a reader on the Compact rail or the
+   Hidden face reaches the whole tree without changing how they chose to read. Under the header
+   (50) and the drawer's scrim (55), so an open drawer covers it. */
+.reader-contents-pill { position: fixed; left: 16px; bottom: 16px; z-index: 40;
+                        display: none; align-items: center; gap: 7px;
+                        height: 38px; padding: 0 14px; border-radius: 9px; border: 0;
+                        background: hsl(var(--primary)); color: hsl(var(--primary-foreground));
+                        font-size: 13px; font-weight: 600; cursor: pointer;
+                        box-shadow: 0 6px 18px -4px rgb(0 0 0 / 0.25), 0 2px 4px -1px rgb(0 0 0 / 0.1);
+                        transition: filter 120ms ease, transform 180ms ease; }
+.reader-contents-pill:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.reader-contents-pill:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 3px; }
+.reader-contents-pill__ic { width: 16px; height: 16px; flex: none; }
+
+/* One breakpoint, and exactly one trigger on either side of it: the round FAB below 1024px,
+   the labelled pill at and above it. The scrim and drawer are NOT hidden here — the drawer
+   exists at every width and is shown only while open, whichever trigger opened it. */
 @media (min-width: 1024px) {
-    .reader-nav-fab, .reader-nav-scrim, .reader-nav-drawer { display: none; }
-    .reader-nav--pinned .reader-nav-scrim { display: block; }
-    .reader-nav--pinned .reader-nav-drawer { display: flex; }
+    .reader-nav-fab { display: none; }
+    .reader-contents-pill { display: inline-flex; }
 }
-/* Problem pages carry their own Contents pill at every width (.pwb-fab--contents), and it
-   opens this same drawer — so the reader's FAB stands down there rather than stacking a
-   second control into the corner the Prev pill now occupies. */
-.reader-nav--pinned .reader-nav-fab { display: none; }
+/* Problem pages carry their own Browse pill at every width (`.pwb__contents`), and it opens
+   this same drawer — so the reader's triggers stand down there rather than stacking a second
+   control into the corner the Prev pill occupies. */
+.reader-nav--pinned :is(.reader-nav-fab, .reader-contents-pill) { display: none; }
 @media (max-width: 1023.9px) {
     .reader { grid-template-columns: 1fr; }
     .reader-sidebar { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { .reader-nav-drawer { animation: none; } }
+@media (prefers-reduced-motion: reduce) {
+    .reader-nav-drawer { animation: none; }
+    .reader-contents-pill { transition: none; }
+}
 
 /* ─────────────────────────────────────────────────────────────────────────────
    THE READER CHROME (step 36; oracle reader.css) — layout grid + sidebar faces,
@@ -276,6 +298,10 @@ html[data-reader-width] .lesson.lesson--problem,
                   overscroll-behavior: contain; scrollbar-width: thin;
                   transition: opacity 180ms ease, top 220ms ease, max-height 220ms ease;
                   padding: 0; }
+/* The desktop Browse pill floats over the Expanded sidebar's bottom-left corner; this lets the
+   last rows of a long tree scroll clear of it instead of ending underneath. After the base rule
+   on purpose: same specificity, so source order decides. */
+@media (min-width: 1024px) { .reader-sidebar { padding-bottom: 64px; } }
 
 /* Consistent scrollbars on the sticky columns: `scrollbar-gutter` reserves the space either way,
    so a scrolling book (System Design's long tree) and a non-scrolling one (LLD) keep the SAME

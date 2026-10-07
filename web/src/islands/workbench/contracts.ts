@@ -36,9 +36,10 @@ export interface CodeSnapshot {
 export const AUTH_CHANGED = "synapse:auth-changed";
 
 /** Fired on window to open the reader's nav drawer (the book's contents). The problem page's
- *  docked nav bar has no sidebar column of its own — its Contents pill dispatches this and
- *  `reader.ts` (already loaded for progress/prefs) opens the same drawer the mobile FAB drives.
- *  One drawer, two triggers; the event is the seam because the two live in different islands. */
+ *  docked nav bar has no sidebar column of its own — its Browse pill dispatches this and
+ *  `reader.ts` (already loaded for progress/prefs) opens the same drawer a lesson page's FAB and
+ *  desktop Browse pill drive. The lesson triggers sit in reader.ts's own markup and are wired
+ *  directly; the event is the seam only for this one, because it lives in a different island. */
 export const OPEN_CONTENTS = "synapse:open-contents";
 
 /** The relayout nudge — panes that unhide a Monaco fire it so the editor re-measures. */

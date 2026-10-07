@@ -13,7 +13,7 @@
  *     and coach panes mount,
  *   · the remaining description workbenches + fence-group bars, hydrated in place,
  *   · the Submissions feed (lazy, refetched on submit) and the anonymous sign-in bar,
- *   · the Contents pill, which opens the reader's nav drawer by event (`reader.ts`).
+ *   · the Browse pill, which opens the reader's nav drawer by event (`reader.ts`).
  *
  * DOUBLE-HYDRATION GUARD: this module imports `Workbench`/`parseVariants`/`hydrateFenceGroups`
  * DIRECTLY, never `islands/workbench` (whose bottom line auto-hydrates `document`). The problem
@@ -405,7 +405,7 @@ function wireRightTabs(pwb: HTMLElement, lessonPath: string[], title: string): v
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// THE CONTENTS PILL — opens the reader's nav drawer (reader.ts listens for the event)
+// THE BROWSE PILL — opens the reader's nav drawer (reader.ts listens for the event)
 // ─────────────────────────────────────────────────────────────────────────────
 
 function wireContents(pwb: HTMLElement): void {

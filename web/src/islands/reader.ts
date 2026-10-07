@@ -237,13 +237,15 @@ function wireReadToggle(path: string): () => void {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// THE MOBILE NAV DRAWER
+// THE NAV DRAWER
 // ─────────────────────────────────────────────────────────────────────────────
 
-// The FAB is the LESSON page's trigger; the PROBLEM page has no FAB — its docked `.pwb__nav`
-// Contents pill fires the `OPEN_CONTENTS` window event instead. The mount host is the PINNED
-// `.reader-nav--pinned` when the page has one (the problem layout — reader.css hides a drawer at
-// >=1024px anywhere else), then `.reader-nav`, then `document.body`. scrim/drawer are
+// Three triggers, one drawer. A LESSON page carries two inside `.reader-nav` and CSS shows exactly
+// one per width: the round FAB below 1024px, the labelled Browse pill at and above it. The
+// PROBLEM page carries neither — its docked `.pwb__nav` Browse pill fires the `OPEN_CONTENTS`
+// window event instead. The mount host is the PINNED
+// `.reader-nav--pinned` when the page has one (the problem layout), then `.reader-nav`, then
+// `document.body`. scrim/drawer are
 // `position: fixed`, so the parent choice is presentational, not positional.
 //
 // EVERYTHING IS FOUND AT OPEN, never at load. A private lesson renders after this runs: it fills
@@ -251,6 +253,34 @@ function wireReadToggle(path: string): () => void {
 // included — with the problem frame. Anything captured here was empty or detached by the time the
 // reader clicked, and the drawer opened into a node that was no longer on the page: a Contents
 // pill that did nothing at all.
+/** The lesson page's own drawer triggers — the phone FAB and the desktop pill. */
+const TRIGGERS = ".reader-nav-fab, .reader-contents-pill";
+
+/** Why the drawer is changing state: it just opened, the reader dismissed it (✕, scrim, Escape),
+ *  or a link inside it was followed and the page is about to navigate away. */
+type DrawerMoment = "open" | "dismiss" | "navigate";
+
+/** Where keyboard focus goes as the drawer opens and closes. `closeBtn` is the drawer's ✕ (null
+ *  once the drawer is gone); `opener` is whatever held focus when the drawer opened — the FAB, the
+ *  desktop pill, the problem page's pill, or `document.body` after a mouse click on a page that
+ *  focuses nothing. */
+function moveDrawerFocus(moment: DrawerMoment, closeBtn: HTMLElement | null, opener: HTMLElement | null): void {
+  // Opening puts focus INSIDE the drawer, so a keyboard reader's next Tab walks the tree rather
+  // than the page behind the scrim. A mouse-opened drawer shows no ring on the ✕: `:focus-visible`
+  // follows the interaction that led here, not the programmatic call.
+  if (moment === "open") {
+    closeBtn?.focus({ preventScroll: true });
+    return;
+  }
+  // A followed link is about to replace the page; moving focus now would only scroll something
+  // the reader is leaving.
+  if (moment === "navigate") return;
+  // Dismissed: back to whatever opened it, so the reader resumes where they were. `body` is what a
+  // mouse click leaves on a page that focuses nothing, and a detached opener (a private problem
+  // swaps its frame in) cannot take focus — both mean there is nowhere sensible to return to.
+  if (opener && opener !== document.body && opener.isConnected) opener.focus({ preventScroll: true });
+}
+
 function wireNavDrawer(done: Set<string>): void {
   const sidebarInner = (): HTMLElement | null =>
     document.querySelector<HTMLElement>(".reader-sidebar .reader-sidebar__inner");
@@ -258,18 +288,23 @@ function wireNavDrawer(done: Set<string>): void {
     document.querySelector<HTMLElement>(".reader-nav--pinned") ??
     document.querySelector<HTMLElement>(".reader-nav") ??
     document.body;
-  const fab = (): HTMLButtonElement | null =>
-    document.querySelector<HTMLButtonElement>(".reader-nav .reader-nav-fab");
+  const triggers = (): NodeListOf<HTMLButtonElement> =>
+    document.querySelectorAll<HTMLButtonElement>(`.reader-nav :is(${TRIGGERS})`);
+  const setExpanded = (expanded: boolean): void =>
+    triggers().forEach((trigger) => trigger.setAttribute("aria-expanded", String(expanded)));
 
   let scrim: HTMLDivElement | null = null;
   let drawer: HTMLElement | null = null;
+  let opener: HTMLElement | null = null;
 
-  const close = (): void => {
+  const close = (moment: DrawerMoment = "dismiss"): void => {
     scrim?.remove();
     drawer?.remove();
     scrim = null;
     drawer = null;
-    fab()?.setAttribute("aria-expanded", "false");
+    setExpanded(false);
+    moveDrawerFocus(moment, null, opener);
+    opener = null;
   };
 
   const open = (): void => {
@@ -280,44 +315,52 @@ function wireNavDrawer(done: Set<string>): void {
       return;
     }
     log.debug("contents drawer opened");
+    opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     scrim = document.createElement("div");
     scrim.className = "reader-nav-scrim";
-    scrim.addEventListener("click", close);
+    scrim.addEventListener("click", () => close());
 
     drawer = document.createElement("aside");
     drawer.className = "reader-nav-drawer";
     drawer.addEventListener("click", (event) => {
       const target = event.target;
-      if (target instanceof Element && target.closest("a")) close();
+      // "Back to Main" and its way back are `<a>`s too, but they flip the drawer's view in place
+      // (wireSidebarViewToggle) rather than leaving the page — closing on them threw the view away.
+      if (target instanceof Element && target.closest("a:not([data-sidebar-view])")) close("navigate");
     });
 
     const head = document.createElement("div");
     head.className = "reader-nav-drawer__head";
     const title = document.createElement("span");
     title.className = "reader-nav-drawer__title";
-    title.textContent = "Contents";
+    // Named like the pills that open it, so the control and the panel it raises say one thing.
+    title.textContent = "Browse";
     const closeBtn = document.createElement("button");
     closeBtn.className = "reader-nav-drawer__close";
     closeBtn.setAttribute("aria-label", "Close");
     closeBtn.textContent = "✕";
-    closeBtn.addEventListener("click", close);
+    closeBtn.addEventListener("click", () => close());
     head.append(title, closeBtn);
     drawer.append(head);
 
     const clone = source.cloneNode(true) as HTMLElement;
+    // The Compact sidebar face hides its inner with an INLINE `display: none` (islands/chrome), and
+    // a clone copies inline styles — so on that face the drawer opened empty.
+    clone.style.removeProperty("display");
     applyDoneTicks(clone, done);
     drawer.append(clone);
 
     host().append(scrim, drawer);
-    fab()?.setAttribute("aria-expanded", "true");
+    setExpanded(true);
+    moveDrawerFocus("open", closeBtn, opener);
   };
 
-  // Delegated, so a FAB that arrives (or is replaced) after load still opens the drawer.
+  // Delegated, so a trigger that arrives (or is replaced) after load still opens the drawer.
   document.addEventListener("click", (event) => {
     const target = event.target;
-    if (target instanceof Element && target.closest(".reader-nav-fab")) open();
+    if (target instanceof Element && target.closest(TRIGGERS)) open();
   });
-  // The problem page's Contents pill lives in another island; it reaches this drawer by event.
+  // The problem page's Browse pill lives in another island; it reaches this drawer by event.
   window.addEventListener(OPEN_CONTENTS, open);
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && drawer) close();

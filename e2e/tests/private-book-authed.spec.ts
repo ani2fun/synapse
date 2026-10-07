@@ -87,7 +87,7 @@ test.describe("private book — a listed reader, and one who is not", () => {
     await page.locator(".problem-tab--editorial").click();
     await expect(page.locator('[data-pane="editorial"]')).toContainText("private editorial says so", { timeout: 15_000 });
 
-    // The Contents pill opens the book's drawer here too. The frame replaces the whole shell after
+    // The Browse pill opens the book's drawer here too. The frame replaces the whole shell after
     // the reader island has wired its drawer, so anything that island captured at load is gone.
     await page.locator(".pwb__contents").click();
     const drawer = page.locator(".reader-nav-drawer");

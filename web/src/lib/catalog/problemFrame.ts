@@ -80,7 +80,9 @@ const ICONS = {
     "pwb__rpin-ic",
     '<path d="M12 17v5" /><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />',
   ),
-  contents: ICON("pwb__contents-ic", '<rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 3v18 M14 9l3 3-3 3" />'),
+  // The library glyph (books on a shelf) — the same mark the lesson page's desktop Browse pill
+  // wears (components/ReaderNavFab.astro), since both open the one drawer.
+  contents: ICON("pwb__contents-ic", '<path d="m16 6 4 14 M12 6v14 M8 8v12 M4 4v16" />'),
 };
 
 function tab(kind: keyof typeof ICONS, label: string, active: boolean): string {
@@ -164,7 +166,7 @@ export function problemFrame(input: ProblemFrameInput): string {
     `<div class="pwb__rpane hidden" data-rpane="notes"><div class="pnotes-host"></div></div>` +
     `</div></div></div>` +
     `<nav class="pwb__nav" aria-label="Problem navigation">` +
-    `<div class="pwb__nav-left"><button class="pwb__contents" aria-label="Contents — the book's lessons and problems" type="button">${ICONS.contents}<span>Contents</span></button></div>` +
+    `<div class="pwb__nav-left"><button class="pwb__contents" aria-label="Browse — the book's lessons and problems" type="button">${ICONS.contents}<span>Browse</span></button></div>` +
     `<div class="pwb__nav-mid">${counterNav(input.counter)}</div>` +
     `<div class="pwb__nav-right">${step(input.prev, "Previous", false)}${step(input.next, "Next", true)}</div>` +
     `</nav></div>`

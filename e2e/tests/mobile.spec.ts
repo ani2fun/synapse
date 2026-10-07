@@ -29,6 +29,8 @@ test("the nav drawer opens and its close button is actually clickable", async ({
 
   const fab = page.locator(".reader-nav-fab").first();
   await expect(fab).toBeVisible();
+  // The desktop Browse pill is the other half of the pair — one trigger per width, never both.
+  await expect(page.locator(".reader-contents-pill")).toBeHidden();
   await fab.click();
 
   // `.reader-nav` is the SIDEBAR container and is correctly hidden on a phone —

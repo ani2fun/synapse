@@ -225,8 +225,9 @@ async function renderProblem(payload: LessonPayload, segments: string[]): Promis
     main.append(src);
     renderSidebar(aside, book, current);
   }
-  // The drawer's PINNED mount host, as the server-rendered problem page carries: reader.css hides
-  // a drawer at desktop width anywhere else, so without it the Contents pill opens into nothing.
+  // The drawer's PINNED mount host, as the server-rendered problem page carries: the problem
+  // frame's own Browse pill is this page's trigger, and `--pinned` stands the reader's FAB and
+  // desktop pill down so they never stack beside it.
   const pinned = document.createElement("div");
   pinned.className = "reader-nav reader-nav--pinned";
   main.append(pinned);
