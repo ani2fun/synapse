@@ -78,6 +78,9 @@ export default defineConfig({
         "/api": "http://localhost:8280",
         "/media": "http://localhost:8280",
         "/simulators": "http://localhost:8280",
+        // Lesson-local widgets (ADR RS012). Without this a `simulator src=_assets/…` fence
+        // shows "not being served" in dev while the origin serves it fine.
+        "/content-assets": "http://localhost:8280",
       },
       fs: {
         // The viz wasm pkg lives under src/, but Cargo.lock (read by the wasm build check)
