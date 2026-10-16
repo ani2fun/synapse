@@ -138,11 +138,12 @@ export function mountScrubber(host: HTMLElement, headings: Heading[]): Scrubber 
 
   // ── pointer: grab the thumb where it was touched, or centre it under a tap on the track ──
   let grab = 0;
-  const moveTo = (clientY: number): void => {
+  /** `coarse` — a finger rather than a mouse or pen, which snaps from further away. */
+  const moveTo = (clientY: number, coarse: boolean): void => {
     const rect = track.getBoundingClientRect();
     if (rect.height <= 0) return;
     const wanted = (clientY - rect.top - grab) / rect.height;
-    const top = snapToTick(Math.min(Math.max(wanted, 0), 1), ticks, rect.height);
+    const top = snapToTick(Math.min(Math.max(wanted, 0), 1), ticks, rect.height, coarse);
     scrollNow(scrollForThumbTop(top, geometry()));
     paint();
   };
@@ -157,11 +158,11 @@ export function mountScrubber(host: HTMLElement, headings: Heading[]): Scrubber 
     dragging = true;
     el.classList.add("reader-scrub--dragging");
     el.setPointerCapture(event.pointerId);
-    moveTo(event.clientY);
-    log.debug("scrubber: drag start");
+    moveTo(event.clientY, event.pointerType === "touch");
+    log.debug(`scrubber: drag start (${event.pointerType})`);
   });
   el.addEventListener("pointermove", (event) => {
-    if (dragging) moveTo(event.clientY);
+    if (dragging) moveTo(event.clientY, event.pointerType === "touch");
   });
   const endDrag = (): void => {
     if (!dragging) return;

@@ -100,16 +100,29 @@ export function neighbour(scrollY: number, ticks: Tick[], dir: 1 | -1): Tick | n
   return null;
 }
 
+/** How close (in track PIXELS) a dragged thumb must come to a section start before it snaps
+ *  onto it. Pixels rather than a fraction of the lesson, so a long lesson and a short one snap
+ *  the same amount under the finger. Wider for a finger than for a mouse: a fingertip covers
+ *  ~40px of track, a mouse pointer one. */
+export const SNAP_PX_COARSE = 12;
+export const SNAP_PX_FINE = 5;
+
 /**
  * Where a dragged thumb settles. `top` is the thumb top the pointer asked for (a track fraction),
- * `ticks` are the section starts, `trackPx` the track's height on screen.
+ * `ticks` are the section starts, `trackPx` the track's height on screen, and `coarse` is true
+ * for a finger (a touch pointer) and false for a mouse or pen.
  *
- * Returning `top` unchanged is a free drag: every pixel of the track is reachable, and a section
- * start is as hard to hit as any other line.
+ * A light, live snap: within `SNAP_PX_COARSE` / `SNAP_PX_FINE` pixels of a tick, the thumb lands
+ * on that tick's `at`; anywhere else it stays exactly where the pointer put it. Only the NEAREST
+ * tick may claim it — clustered h3s can sit closer together than the zone, and the first one in
+ * range would make the second unreachable.
  */
-export function snapToTick(top: number, ticks: Tick[], trackPx: number): number {
-  // TODO(learning mode): decide whether a drag "sticks" to a section start, and how hard.
-  void ticks;
-  void trackPx;
-  return top;
+export function snapToTick(top: number, ticks: Tick[], trackPx: number, coarse: boolean): number {
+  if (trackPx <= 0) return top;
+  const zone = (coarse ? SNAP_PX_COARSE : SNAP_PX_FINE) / trackPx;
+  let nearest: Tick | null = null;
+  for (const tick of ticks) {
+    if (nearest === null || Math.abs(tick.at - top) < Math.abs(nearest.at - top)) nearest = tick;
+  }
+  return nearest !== null && Math.abs(nearest.at - top) <= zone ? nearest.at : top;
 }

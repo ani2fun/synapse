@@ -3,6 +3,8 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  SNAP_PX_COARSE,
+  SNAP_PX_FINE,
   maxScroll,
   neighbour,
   percent,
@@ -13,6 +15,7 @@ import {
   ticksOf,
   type Geometry,
   type MeasuredHeading,
+  type Tick,
 } from "./scrubber";
 
 const PAGE: Geometry = { doc: 4000, view: 1000 };
@@ -84,10 +87,40 @@ describe("ticks", () => {
 });
 
 describe("snapToTick", () => {
+  // A 600px track over the 4000px page: `intro` sits at 520/4000 = 0.13, i.e. 78px down the track.
+  const TRACK = 600;
+  const ticks = ticksOf(HEADINGS, LANDING, PAGE);
+  const intro = ticks[0]?.at ?? NaN;
+  /** A track position `px` pixels below (positive) or above (negative) the intro tick. */
+  const near = (px: number): number => intro + px / TRACK;
+
   it("leavesAPositionFarFromEveryTickWhereThePointerPutIt", () => {
-    const ticks = ticksOf(HEADINGS, LANDING, PAGE);
-    expect(snapToTick(0.5, ticks, 600)).toBe(0.5);
+    expect(snapToTick(0.5, ticks, TRACK, true)).toBe(0.5);
+    expect(snapToTick(0.5, ticks, TRACK, false)).toBe(0.5);
   });
 
-  it.todo("pullsAPositionNearATickOntoIt");
+  it("aFingerSnapsFromFurtherAwayThanAMouse", () => {
+    expect(snapToTick(near(SNAP_PX_FINE + 3), ticks, TRACK, true)).toBe(intro);
+    expect(snapToTick(near(SNAP_PX_FINE + 3), ticks, TRACK, false)).toBe(near(SNAP_PX_FINE + 3));
+  });
+
+  it("snapsFromEitherSideAndStopsAtTheEdgeOfTheZone", () => {
+    expect(snapToTick(near(-(SNAP_PX_COARSE - 1)), ticks, TRACK, true)).toBe(intro);
+    expect(snapToTick(near(SNAP_PX_COARSE + 1), ticks, TRACK, true)).toBe(near(SNAP_PX_COARSE + 1));
+    expect(snapToTick(near(SNAP_PX_FINE - 1), ticks, TRACK, false)).toBe(intro);
+  });
+
+  it("theNearestTickWinsWhenTwoAreInRange", () => {
+    // Two section starts 10px apart on the track — both inside a finger's zone from between them.
+    const close: Tick[] = [
+      { id: "a", text: "a", level: 3, y: 0, at: 0.3 },
+      { id: "b", text: "b", level: 3, y: 0, at: 0.3 + 10 / TRACK },
+    ];
+    expect(snapToTick(0.3 + 7 / TRACK, close, TRACK, true)).toBe(close[1]?.at);
+    expect(snapToTick(0.3 + 3 / TRACK, close, TRACK, true)).toBe(0.3);
+  });
+
+  it("aPageWithNoSectionsNeverSnaps", () => {
+    expect(snapToTick(0.42, [], TRACK, true)).toBe(0.42);
+  });
 });
