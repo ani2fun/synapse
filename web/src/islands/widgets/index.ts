@@ -5,8 +5,8 @@
  * (`[...path].astro`, `blog/[slug].astro`), and this module decides what applies.
  *
  * The LESSON BODY (and a blog post — see the module doc below) gets the full pass. The PROBLEM
- * PAGE's docked description pane has no room for quiz furniture and hydrates only diagrams, scoped
- * to itself (`islands/problem.tsx` calls `hydrateDiagrams` directly) — so this module's
+ * PAGE's docked description pane hydrates its own quizzes, diagrams and simulators, scoped to
+ * itself (`islands/problem.tsx` calls `hydrateQuizzes` / `hydrateDiagrams` directly) — so this module's
  * whole-document pass is guarded off `.pwb[data-problem]`, same guard as its siblings. The
  * codebench modal is the one thing EVERY page needs (a problem description can still carry a plain
  * fence-group with a "Try in Editor" button), so it mounts unconditionally.
@@ -33,7 +33,7 @@ export function mountCodebenchModal(): void {
 
 function init(): void {
   mountCodebenchModal();
-  // The problem page owns its own (diagrams-only) hydration, scoped to the description pane.
+  // The problem page owns its own hydration, scoped to the description pane.
   if (document.querySelector(".pwb[data-problem]")) return;
   const quizzes = hydrateQuizzes(document);
   const diagrams = hydrateDiagrams(document);
