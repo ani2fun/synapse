@@ -333,6 +333,15 @@
 .viz-grid__cell--changed { background: hsl(var(--primary) / 0.14); }
 .viz-grid__cell--removed { opacity: 0.35; }
 .viz-grid__cell--cursor { box-shadow: 0 0 0 2px hsl(var(--primary) / 0.35); }
+/* A badge floats above its node, which in a table is the cell of the row above: it hid that
+   cell's value. In the grid the badge is a small tag inside its own cell's top edge instead,
+   and the cells are tall enough to keep the tag clear of the value. */
+.viz-grid__cell { min-height: 46px; padding-top: 10px; }
+.viz-grid__cell .viz-dom-cursor { bottom: auto; top: 1px; left: 0; right: 0; transform: none;
+                                  flex-direction: row; justify-content: center; gap: 3px; }
+.viz-grid__cell .viz-dom-cursor__name { font-size: 9px; line-height: 1; }
+.viz-grid__cell .viz-dom-cursor__caret { display: none; }
+.viz-grid { padding-top: 0; }
 
 /* ── dual views ── */
 .viz-dual { gap: 14px; }
