@@ -13,6 +13,10 @@ use serde::{Deserialize, Serialize};
 pub struct SearchResultsDto {
     /// Echoed back so a client can drop a reply that a later keystroke has already outdated.
     pub query: String,
+    /// The book scope, echoed for the same reason: a reply to a scoped search must not land in a
+    /// palette whose scope has since been removed. Absent when the search spans every book.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub book: Option<String>,
     pub results: Vec<SearchHitDto>,
 }
 

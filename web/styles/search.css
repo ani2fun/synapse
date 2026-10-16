@@ -42,3 +42,18 @@
    accent instead, so the highlight tracks whichever theme is on. */
 .cmdk__result-snippet mark { background: hsl(var(--primary) / 0.2); color: hsl(var(--foreground));
                              border-radius: 0.15rem; padding: 0 0.1em; font-weight: 600; }
+
+/* The book-scope chip — a palette opened from the reader menu's Search Book searches ONE book.
+   It sits above the input, not inside it, so the input keeps its full width and its own border.
+   The ✕ is the only way to widen the search besides Backspace in an empty box. */
+.cmdk__scope { padding: 0.65rem 1rem 0; }
+.cmdk__scope-chip { display: inline-flex; align-items: center; gap: 0.35rem; max-width: 100%;
+                    padding: 0.2rem 0.25rem 0.2rem 0.6rem; border-radius: 9999px;
+                    background: hsl(var(--primary) / 0.12); color: hsl(var(--primary));
+                    font-size: 0.75rem; font-weight: 600; }
+.cmdk__scope-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmdk__scope-clear { flex: none; width: 1.3rem; height: 1.3rem; display: inline-flex;
+                     align-items: center; justify-content: center; border: 0; border-radius: 9999px;
+                     background: transparent; color: inherit; font-size: 0.7rem; cursor: pointer; }
+.cmdk__scope-clear:hover { background: hsl(var(--primary) / 0.18); }
+.cmdk__scope-clear:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 1px; }

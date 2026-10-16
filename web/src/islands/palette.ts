@@ -12,11 +12,21 @@ import * as log from "../lib/log";
 // the prose of every mounted repository — debounced, race-guarded by the query the reply echoes
 // back, and STRICTLY additive: if it fails, or is slow, or the reader is offline, the palette is
 // exactly what it was before it existed.
+//
+// A search can be SCOPED to one book: the lesson page's reader menu opens the palette through
+// `OPEN_SEARCH` with the book in hand. The scope narrows both halves — the local ranking runs over
+// that book's entries only, and the server is asked with `book=` so another book's better matches
+// never fill the limit first. A chip names the scope; removing it (✕, or Backspace in an empty
+// box) widens the search to everything, as ⌘K opens it.
 
 import { fetchIndex, blogList, searchCatalog } from "../lib/api/client";
 import type { SearchHit } from "../lib/api/client";
-import { entries as flattenEntries, entryUrl, merge, search as rankSearch } from "../lib/search";
+import { entries as flattenEntries, entryUrl, merge, search as rankSearch, withinBook } from "../lib/search";
 import type { SearchEntry, SearchKind } from "../lib/search";
+import { OPEN_SEARCH, type OpenSearch, type SearchScope } from "./workbench/contracts";
+
+const PLACEHOLDER = "Search titles and prose…";
+const SCOPED_PLACEHOLDER = "Search this book…";
 
 /** Long enough that a burst of typing costs one request, short enough to feel instant. */
 const DEBOUNCE_MS = 150;
@@ -77,7 +87,10 @@ class Palette {
    *  a debounce later, flickering through the whole of a word being typed. */
   private prose: SearchHit[] = [];
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /** The one book this search is confined to, or null for the whole library. */
+  private scope: SearchScope | null = null;
 
+  private scopeEl: HTMLDivElement | null = null;
   private scrim: HTMLDivElement | null = null;
   private input: HTMLInputElement | null = null;
   private resultsEl: HTMLUListElement | null = null;
@@ -93,6 +106,11 @@ class Palette {
     document.querySelectorAll<HTMLButtonElement>(".header__search").forEach((button) => {
       button.addEventListener("click", () => this.open());
     });
+
+    window.addEventListener(OPEN_SEARCH, (event) => {
+      const detail = (event as CustomEvent<OpenSearch | null>).detail;
+      this.open(detail?.book ?? null);
+    });
   }
 
   toggle(): void {
@@ -100,13 +118,31 @@ class Palette {
     else this.open();
   }
 
-  open(): void {
+  open(scope: SearchScope | null = null): void {
+    // A second open with a different scope must rebuild the chip, not keep the first one's.
+    if (this.isOpen) this.close();
     this.query = "";
     this.selected = 0;
     this.prose = [];
+    this.scope = scope;
     this.isOpen = true;
     this.mount();
+    log.info(`palette: open${scope ? ` — scoped to book ${scope.slug}` : ""}`);
     void this.refresh();
+  }
+
+  /** Widen a scoped search to the whole library, keeping what has been typed. */
+  private clearScope(): void {
+    if (!this.scope) return;
+    log.debug(`palette: scope ${this.scope.slug} removed — searching every book`);
+    this.scope = null;
+    this.prose = [];
+    this.scopeEl?.remove();
+    this.scopeEl = null;
+    if (this.input) this.input.placeholder = PLACEHOLDER;
+    this.render();
+    this.scheduleProse();
+    this.input?.focus();
   }
 
   close(): void {
@@ -127,7 +163,9 @@ class Palette {
   /** Rank what is already in hand and paint. Synchronous by design — this runs on every
    *  keystroke, and waiting on the network to redraw a title match would be a regression. */
   private render(): void {
-    const local = rankSearch(this.query, cachedEntries ?? []);
+    const all = cachedEntries ?? [];
+    const pool = this.scope ? withinBook(all, this.scope.slug) : all;
+    const local = rankSearch(this.query, pool);
     this.results = merge(this.query, local, this.prose);
     this.selected = clamp(this.selected, this.results.length);
     this.renderResults();
@@ -151,9 +189,10 @@ class Palette {
   }
 
   private async fetchProse(query: string): Promise<void> {
+    const book = this.scope?.slug;
     let answer;
     try {
-      answer = await searchCatalog(query);
+      answer = await searchCatalog(query, book);
     } catch {
       // An enhancement that failed. Say nothing to the reader: the title matches on screen are
       // still the whole of what search did before this endpoint existed.
@@ -163,7 +202,10 @@ class Palette {
     // The ECHO decides, not the closure variable. Replies can land out of order, and this is the
     // only thing that tells an answer to what is typed now from an answer to what was typed two
     // keystrokes ago.
+    // The scope echo decides the same way: a scoped reply landing after the chip was removed
+    // would otherwise paint one book's hits into a search of every book.
     if (!this.isOpen || answer.query !== this.query.trim()) return;
+    if ((answer.book ?? undefined) !== this.scope?.slug) return;
     log.debug(`palette: ${answer.results.length} prose hit(s) for "${query}"`);
     this.prose = answer.results;
     this.render();
@@ -184,7 +226,13 @@ class Palette {
 
     const input = document.createElement("input");
     input.className = "cmdk__input";
-    input.placeholder = "Search titles and prose…";
+    input.placeholder = this.scope ? SCOPED_PLACEHOLDER : PLACEHOLDER;
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Backspace" && input.value === "" && this.scope) {
+        event.preventDefault();
+        this.clearScope();
+      }
+    });
     input.addEventListener("input", () => {
       this.query = input.value;
       this.selected = 0;
@@ -195,6 +243,10 @@ class Palette {
     const resultsEl = document.createElement("ul");
     resultsEl.className = "cmdk__results";
 
+    if (this.scope) {
+      this.scopeEl = this.scopeChip(this.scope);
+      panel.append(this.scopeEl);
+    }
     panel.append(input, resultsEl);
     scrim.append(panel);
     document.body.append(scrim);
@@ -205,7 +257,28 @@ class Palette {
     input.focus();
   }
 
+  /** "In: <book> ✕" — what the search is confined to, and the one control that lifts it. */
+  private scopeChip(scope: SearchScope): HTMLDivElement {
+    const bar = document.createElement("div");
+    bar.className = "cmdk__scope";
+    const chip = document.createElement("span");
+    chip.className = "cmdk__scope-chip";
+    const label = document.createElement("span");
+    label.className = "cmdk__scope-label";
+    label.textContent = `In: ${scope.title}`;
+    const clear = document.createElement("button");
+    clear.type = "button";
+    clear.className = "cmdk__scope-clear";
+    clear.setAttribute("aria-label", `Search every book, not only ${scope.title}`);
+    clear.textContent = "✕";
+    clear.addEventListener("click", () => this.clearScope());
+    chip.append(label, clear);
+    bar.append(chip);
+    return bar;
+  }
+
   private unmount(): void {
+    this.scopeEl = null;
     this.scrim?.remove();
     this.scrim = null;
     this.input = null;

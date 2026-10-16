@@ -252,6 +252,10 @@ async function render(payload: LessonPayload, segments: string[]): Promise<void>
     lede.hidden = !payload.frontmatter.summary;
   }
   document.title = `${payload.book.title} · ${payload.frontmatter.title} — Synapse`;
+  // The book the reader menu's Search Book confines a search to — the attributes a public lesson
+  // is server-rendered with, on the same element.
+  root?.setAttribute("data-book-slug", payload.book.slug);
+  root?.setAttribute("data-book-title", payload.book.title);
 
   const { renderPreview, hydratePreview } = await import("../authoring/preview");
   const { bodyHtml } = await renderPreview(payload.raw);
@@ -267,9 +271,9 @@ async function render(payload: LessonPayload, segments: string[]): Promise<void>
   const aside = root?.querySelector<HTMLElement>("[data-private-sidebar]");
   if (book && aside) renderSidebar(aside, book, segments.join("/"));
   renderUpNext(payload);
-  // The reader chrome (sidebar faces, prefs FAB, TOC + minimap, scroll-to-top) reads the rendered
-  // headings and the sidebar once, at init, so it loads only now that both are in the page. A
-  // public lesson gets it from the page script; this is the same island, one step later.
+  // The reader chrome (sidebar faces, reader menu + scrubber, outline, scroll-to-top) reads the
+  // rendered headings and the sidebar once, at init, so it loads only now that both are in the
+  // page. A public lesson gets it from the page script; this is the same island, one step later.
   await import("../chrome");
   log.info(`private lesson rendered client-side: /synapse/${segments.join("/")}`);
 }

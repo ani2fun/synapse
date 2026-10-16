@@ -144,3 +144,19 @@ fn adjacent_terms_beat_scattered_ones() {
     let hits = index.search("window function", 10);
     assert_eq!(hits[0].title, "Adjacent");
 }
+
+/// A scope filters BEFORE the cut. With a limit of one, the other book's lesson outranks this
+/// book's on every term — filtering the finished hits would cut to that one and then discard it,
+/// answering nothing for a book that does mention the word.
+#[test]
+fn a_book_scope_runs_before_the_limit_cuts() {
+    let mut elsewhere = doc("Sharding Deep Dive", "sharding sharding sharding sharding");
+    elsewhere.book_slug = "other-book".to_owned();
+    let here = doc("Partitions", "a passing mention of sharding");
+    let index = index_of(vec![elsewhere, here]);
+
+    assert_eq!(index.search("sharding", 1)[0].title, "Sharding Deep Dive");
+    let scoped = index.search_where("sharding", 1, |d| d.book_slug == "a-book");
+    assert_eq!(scoped.len(), 1, "the scoped book still answers");
+    assert_eq!(scoped[0].title, "Partitions");
+}

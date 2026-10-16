@@ -168,6 +168,14 @@ pub struct SearchHit {
     pub score: f32,
 }
 
+/// What a search filter may ask about a document: where it came from and which book it is in.
+/// Named fields rather than two `&str` arguments, because the two strings swap silently.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DocScope<'a> {
+    pub source_id: &'a str,
+    pub book_slug: &'a str,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct SearchIndex {
     docs: Vec<Doc>,
@@ -209,10 +217,16 @@ impl SearchIndex {
         self.search_where(query, limit, |_| true)
     }
 
-    /// `search`, over the documents whose SOURCE passes `visible`. The filter runs before the
-    /// candidate cut rather than on the finished hits, so an invisible document never occupies a
-    /// slot a visible one would have had.
-    pub fn search_where(&self, query: &str, limit: usize, visible: impl Fn(&str) -> bool) -> Vec<SearchHit> {
+    /// `search`, over the documents whose scope passes `visible`. The filter runs before the
+    /// candidate cut rather than on the finished hits, so a filtered-out document never occupies
+    /// a slot a kept one would have had — neither a private book's lesson nor, in a search scoped
+    /// to one book, a better match from another.
+    pub fn search_where(
+        &self,
+        query: &str,
+        limit: usize,
+        visible: impl Fn(DocScope<'_>) -> bool,
+    ) -> Vec<SearchHit> {
         let mut terms = text::tokenize(query);
         terms.truncate(MAX_TERMS);
         if terms.is_empty() || limit == 0 || self.docs.is_empty() {
@@ -234,7 +248,14 @@ impl SearchIndex {
             .iter()
             .enumerate()
             .filter(|&(_, count)| *count == wanted)
-            .filter(|&(doc, _)| self.docs.get(doc).is_some_and(|d| visible(&d.source_id)))
+            .filter(|&(doc, _)| {
+                self.docs.get(doc).is_some_and(|d| {
+                    visible(DocScope {
+                        source_id: &d.source_id,
+                        book_slug: &d.book_slug,
+                    })
+                })
+            })
             .filter_map(|(doc, _)| scores.get(doc).map(|score| (doc, *score)))
             .collect();
         ranked.sort_by(|a, b| b.1.total_cmp(&a.1));

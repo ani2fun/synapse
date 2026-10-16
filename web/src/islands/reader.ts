@@ -1,6 +1,6 @@
 import * as log from "../lib/log";
 // The reader's post-hydration chrome: done-ticks on the sidebar, reading-progress WRITES, the
-// book-progress indicators (rail card + sidebar bar), the mobile nav drawer, and reflecting saved
+// book-progress indicators (rail card + sidebar bar), the Browse drawer, and reflecting saved
 // reading-preferences onto `<html>`. Vanilla TS, same
 // reasoning as `islands/library.ts` — the SSR page is plain HTML and every job here is either
 // `localStorage` (no SSR equivalent) or a scroll/click listener, so there is nothing for a
@@ -17,13 +17,15 @@ import * as log from "../lib/log";
 //     already-finished lesson writes nothing, and so does un-marking one that was never marked —
 //     driven by the end-of-page "Mark as read" switch. The reader decides; nothing marks a page
 //     on their behalf.
-//   - the mobile drawer (FAB → scrim + drawer, closes on scrim/Escape/any nav-link tap via
+//   - the Browse drawer (desktop pill, or `OPEN_CONTENTS` from the reader menu's Contents row or
+//     the problem page's pill → scrim + drawer, closes on scrim/Escape/any nav-link tap via
 //     `closest("a")`).
-//   - prefs: the `applyToHtml` half only — the FAB editing UI itself lives in `islands/chrome.ts`.
+//   - prefs: the `applyToHtml` half only — the editing UI lives in the reader menu's settings
+//     view (`islands/reader/settings.ts`).
 //
-// The Compact rail, the on-this-page outline (desktop rail + mobile sheet), the top progress bar,
-// the scroll-top FAB, and the reading-preferences FAB's editing UI live in `islands/chrome.ts`
-// (lesson pages only, not problem pages). Not implemented
+// The Compact rail, the on-this-page outline (desktop rail), the top progress bar, the
+// scroll-top FAB, and the reader menu with its scrubber live in `islands/chrome.ts` and
+// `islands/reader/` (lesson pages only, not problem pages). Not implemented
 // anywhere yet: focus mode, the sidebar filter box, and the Learn-browse toggle — none of the
 // e2e specs exercise them, and the SSR sidebar (`Sidebar.astro`/`SidebarTree.astro`) never
 // renders their markup, so there is nothing half-wired left inert.
@@ -240,10 +242,10 @@ function wireReadToggle(path: string): () => void {
 // THE NAV DRAWER
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Three triggers, one drawer. A LESSON page carries two inside `.reader-nav` and CSS shows exactly
-// one per width: the round FAB below 1024px, the labelled Browse pill at and above it. The
-// PROBLEM page carries neither — its docked `.pwb__nav` Browse pill fires the `OPEN_CONTENTS`
-// window event instead. The mount host is the PINNED
+// Three triggers, one drawer. A LESSON page carries the labelled Browse pill inside `.reader-nav`,
+// shown at and above 1024px; at every width its reader menu's Contents row fires the
+// `OPEN_CONTENTS` window event. The PROBLEM page carries no pill of this page's own — its docked
+// `.pwb__nav` Browse pill fires the same event. The mount host is the PINNED
 // `.reader-nav--pinned` when the page has one (the problem layout), then `.reader-nav`, then
 // `document.body`. scrim/drawer are
 // `position: fixed`, so the parent choice is presentational, not positional.
@@ -253,17 +255,18 @@ function wireReadToggle(path: string): () => void {
 // included — with the problem frame. Anything captured here was empty or detached by the time the
 // reader clicked, and the drawer opened into a node that was no longer on the page: a Contents
 // pill that did nothing at all.
-/** The lesson page's own drawer triggers — the phone FAB and the desktop pill. */
-const TRIGGERS = ".reader-nav-fab, .reader-contents-pill";
+/** The lesson page's own drawer trigger — the desktop pill. Below 1024px the reader menu's
+ *  Contents row opens the drawer, by `OPEN_CONTENTS`. */
+const TRIGGERS = ".reader-contents-pill";
 
 /** Why the drawer is changing state: it just opened, the reader dismissed it (✕, scrim, Escape),
  *  or a link inside it was followed and the page is about to navigate away. */
 type DrawerMoment = "open" | "dismiss" | "navigate";
 
 /** Where keyboard focus goes as the drawer opens and closes. `closeBtn` is the drawer's ✕ (null
- *  once the drawer is gone); `opener` is whatever held focus when the drawer opened — the FAB, the
- *  desktop pill, the problem page's pill, or `document.body` after a mouse click on a page that
- *  focuses nothing. */
+ *  once the drawer is gone); `opener` is whatever held focus when the drawer opened — the reader
+ *  menu's button, the desktop pill, the problem page's pill, or `document.body` after a mouse
+ *  click on a page that focuses nothing. */
 function moveDrawerFocus(moment: DrawerMoment, closeBtn: HTMLElement | null, opener: HTMLElement | null): void {
   // Opening puts focus INSIDE the drawer, so a keyboard reader's next Tab walks the tree rather
   // than the page behind the scrim. A mouse-opened drawer shows no ring on the ✕: `:focus-visible`

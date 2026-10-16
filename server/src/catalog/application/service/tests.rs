@@ -464,22 +464,48 @@ async fn a_private_book_is_absent_from_the_index_the_sitemap_and_search_for_ever
 
     assert!(
         service
-            .search("welcome", 10, &Viewer::Anonymous)
+            .search("welcome", 10, &Viewer::Anonymous, None)
             .await
             .unwrap()
             .is_empty()
     );
     assert!(
         service
-            .search("welcome", 10, &reader("bob"))
+            .search("welcome", 10, &reader("bob"), None)
             .await
             .unwrap()
             .is_empty()
     );
     assert_eq!(
-        service.search("welcome", 10, &reader("ada")).await.unwrap().len(),
+        service
+            .search("welcome", 10, &reader("ada"), None)
+            .await
+            .unwrap()
+            .len(),
         1
     );
+}
+
+/// A book scope narrows what the audience already admits; it never widens it. Scoping to a
+/// private book is not a way in, and a scope naming a book nobody holds is an empty answer.
+#[tokio::test]
+async fn a_book_scope_composes_with_the_audience_rather_than_replacing_it() {
+    let service = private_to_ada();
+
+    let scoped = |viewer: Viewer, book: &'static str| {
+        let service = &service;
+        async move {
+            service
+                .search("welcome", 10, &viewer, Some(book))
+                .await
+                .unwrap()
+                .len()
+        }
+    };
+    assert_eq!(scoped(reader("ada"), "dsa").await, 1);
+    assert_eq!(scoped(reader("ada"), "another-book").await, 0);
+    assert_eq!(scoped(reader("bob"), "dsa").await, 0, "a scope is not a way in");
+    assert_eq!(scoped(Viewer::Anonymous, "dsa").await, 0);
 }
 
 #[tokio::test]

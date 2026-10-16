@@ -276,18 +276,21 @@ impl<R: ContentRepository> CatalogService<R> {
     /// from a different content version than the page the reader lands on. The index holds every
     /// source's text; the filter runs inside ranking, so a private hit never costs a public one
     /// its place in the limit — and never leaves the process.
+    ///
+    /// `book` scopes the search to one book's slug, inside the same filter and for the same
+    /// reason: another book's better matches must not fill the limit before this book's arrive.
     #[tracing::instrument(name = "catalog.search", skip(self, viewer), fields(hits))]
     pub async fn search(
         &self,
         query: &str,
         limit: usize,
         viewer: &Viewer,
+        book: Option<&str>,
     ) -> Result<Vec<SearchHit>, ContentError> {
-        let hits = self
-            .current()
-            .await?
-            .search
-            .search_where(query, limit, |source| self.audiences.of(source).admits(viewer));
+        let hits = self.current().await?.search.search_where(query, limit, |doc| {
+            book.is_none_or(|wanted| wanted == doc.book_slug)
+                && self.audiences.of(doc.source_id).admits(viewer)
+        });
         tracing::Span::current().record("hits", hits.len());
         Ok(hits)
     }

@@ -188,9 +188,9 @@ test("un-marking a lesson clears its tick and survives a reload", async ({ page,
   await expect(page.locator(".reader-sidebar__link--done")).toHaveCount(0);
 });
 
-// The desktop Browse pill opens the same drawer the phone FAB does, OVER the page — the sidebar
-// column keeps whichever face the reader chose. Every face is walked because each one breaks the
-// drawer differently: Compact hides the sidebar's inner with an inline style the clone would
+// The desktop Browse pill opens the same drawer the reader menu's Contents row does, OVER the
+// page — the sidebar column keeps whichever face the reader chose. Every face is walked because
+// each one breaks the drawer differently: Compact hides the sidebar's inner with an inline style the clone would
 // inherit (an empty drawer), and Hidden leaves no sidebar on screen at all.
 for (const face of ["expanded", "compact", "hidden"] as const) {
   test(`the desktop Browse pill opens the book drawer on the ${face} sidebar face`, async ({ page, request }) => {
@@ -207,8 +207,8 @@ for (const face of ["expanded", "compact", "hidden"] as const) {
     await page.goto(await firstLessonPath(request));
     await expect(page.locator(".reader-layout")).toHaveAttribute("data-sidebar", face);
 
-    // Exactly one trigger per width: the round FAB is the phone's.
-    await expect(page.locator(".reader-nav-fab")).toBeHidden();
+    // The pill is the desktop's own trigger; the reader menu's Contents row is the other way in.
+    await expect(page.locator(".reader-menu-fab")).toBeVisible();
     const pill = page.locator(".reader-contents-pill");
     await expect(pill).toBeVisible();
     await expect(pill).toHaveAttribute("aria-expanded", "false");

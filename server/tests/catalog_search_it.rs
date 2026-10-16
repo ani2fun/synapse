@@ -167,3 +167,50 @@ async fn an_edited_lesson_is_searchable_by_its_new_words() {
         "the index followed the edit"
     );
 }
+
+/// `book=` keeps the answer inside one book — the reader's "Search Book" — and echoes the scope
+/// so a reply to a scoped search cannot land in a palette that has since widened.
+#[tokio::test]
+async fn a_book_scope_answers_from_that_book_only() {
+    let tmp = tempfile::tempdir().unwrap();
+    seed(tmp.path());
+    write(
+        &tmp.path().join("01-learn/03-sql/book.json"),
+        r#"{"title": "SQL"}"#,
+    );
+    write(
+        &tmp.path().join("01-learn/03-sql/01-pages.md"),
+        "---\ntitle: Pages\n---\n\nA buffer pool caches pages in memory.\n",
+    );
+    let app = common::app_over(tmp.path());
+
+    let (_, _, everywhere) = search(app.clone(), "q=memory").await;
+    assert_eq!(everywhere["results"].as_array().expect("results").len(), 2);
+    assert!(
+        everywhere.get("book").is_none(),
+        "an unscoped reply carries no scope"
+    );
+
+    let (status, _, scoped) = search(app.clone(), "q=memory&book=sql").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(scoped["book"], "sql");
+    let results = scoped["results"].as_array().expect("results");
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0]["bookSlug"], "sql");
+
+    let (status, _, nowhere) = search(app.clone(), "q=memory&book=no-such-book").await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "a scope matching nothing is not a bad request"
+    );
+    assert_eq!(nowhere["results"], serde_json::json!([]));
+
+    let (_, _, blank) = search(app, "q=memory&book=").await;
+    assert_eq!(
+        blank["results"].as_array().expect("results").len(),
+        2,
+        "blank is no scope"
+    );
+    assert!(blank.get("book").is_none());
+}

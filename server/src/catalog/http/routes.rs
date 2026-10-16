@@ -81,19 +81,22 @@ pub(crate) struct SearchQuery {
     #[serde(default)]
     q: String,
     limit: Option<usize>,
+    book: Option<String>,
 }
 
 /// Full-text search across every mounted source.
 ///
 /// An empty or unusable query is 200 with no results rather than 400: the palette sends whatever
-/// has been typed so far, and a half-finished word is not a client error.
+/// has been typed so far, and a half-finished word is not a client error. The same holds for a
+/// `book` no catalog holds — a scope that matches nothing is an empty answer, not a bad request.
 #[utoipa::path(
     get,
     path = "/api/synapse/search",
     operation_id = "searchCatalog",
     params(
         ("q" = String, Query, description = "The search query"),
-        ("limit" = Option<usize>, Query, description = "Maximum hits (default 20, capped at 50)")
+        ("limit" = Option<usize>, Query, description = "Maximum hits (default 20, capped at 50)"),
+        ("book" = Option<String>, Query, description = "Scope to one book's slug; blank means every book")
     ),
     responses(
         (status = 200, description = "Ranked hits, best first", body = SearchResultsDto),
@@ -106,10 +109,16 @@ pub(crate) async fn search_catalog<V: LessonViewStore>(
     Query(query): Query<SearchQuery>,
 ) -> ApiResult<SearchResultsDto> {
     let limit = query.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT);
+    let book = query.book.filter(|slug| !slug.trim().is_empty());
     let viewer = viewer_of(&state, &headers).await?;
-    match state.service.search(&query.q, limit, &viewer).await {
+    match state
+        .service
+        .search(&query.q, limit, &viewer, book.as_deref())
+        .await
+    {
         Ok(hits) => Ok(Json(SearchResultsDto {
             query: query.q,
+            book,
             results: hits.iter().map(dto::to_search_hit).collect(),
         })),
         Err(error) => fail(&error),

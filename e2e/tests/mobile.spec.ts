@@ -24,14 +24,48 @@ test("the reader fits the screen", async ({ page, request }) => {
   expect(overflow, "horizontal overflow — step 46 all over again").toBeLessThanOrEqual(1);
 });
 
+test("the phone row is the reader menu and scroll-to-top, nothing else", async ({ page, request }) => {
+  await page.goto(await firstLessonPath(request));
+  const menu = page.locator(".reader-menu-fab");
+  await expect(menu).toBeVisible();
+  await page.evaluate(() => window.scrollTo({ top: 600, behavior: "instant" }));
+  await expect(page.locator(".reader-scrolltop")).not.toHaveClass(/reader-scrolltop--hidden/);
+
+  // Both sit on the bottom edge, the menu in the corner — and the buttons the menu absorbed
+  // (Browse, On this page, Aa) are gone rather than hidden.
+  // Polled: scroll-to-top slides 8px into place as it appears.
+  const toTop = page.locator(".reader-scrolltop");
+  await expect
+    .poll(async () => Math.round((await toTop.boundingBox())?.y ?? -1))
+    .toBe(Math.round((await menu.boundingBox())?.y ?? -2));
+  const menuBox = await menu.boundingBox();
+  const topBox = await toTop.boundingBox();
+  if (!menuBox || !topBox) throw new Error("a phone control has no box");
+  expect(menuBox.x).toBeGreaterThan(topBox.x);
+  for (const gone of [".reader-nav-fab", ".reader-toc-fab", ".reader-prefs-fab"]) {
+    await expect(page.locator(gone)).toHaveCount(0);
+  }
+
+  // Open, the scrubber stands up the right edge and the rows stay on screen.
+  await menu.click();
+  await expect(page.locator(".reader-scrub")).toBeVisible();
+  const overflow = await page.evaluate(() => {
+    const pop = document.querySelector(".reader-menu-pop")?.getBoundingClientRect();
+    return pop ? Math.min(pop.left, window.innerWidth - pop.right) : -1;
+  });
+  expect(overflow, "the menu runs off the screen").toBeGreaterThanOrEqual(0);
+});
+
 test("the nav drawer opens and its close button is actually clickable", async ({ page, request }) => {
   await page.goto(await firstLessonPath(request));
 
-  const fab = page.locator(".reader-nav-fab").first();
-  await expect(fab).toBeVisible();
-  // The desktop Browse pill is the other half of the pair — one trigger per width, never both.
+  // On a phone the drawer opens from the reader menu's Contents row; the desktop Browse pill
+  // stays hidden at this width.
+  const menu = page.locator(".reader-menu-fab");
+  await expect(menu).toBeVisible();
   await expect(page.locator(".reader-contents-pill")).toBeHidden();
-  await fab.click();
+  await menu.click();
+  await page.locator(".reader-menu [role=menuitem]", { hasText: "Contents" }).click();
 
   // `.reader-nav` is the SIDEBAR container and is correctly hidden on a phone —
   // matching it was how the first run failed. The drawer is `.reader-nav-drawer`.

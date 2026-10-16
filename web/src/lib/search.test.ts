@@ -2,7 +2,7 @@
 // hits — one fixture library throughout.
 
 import { describe, expect, it } from "vitest";
-import { entries, entryUrl, merge, search } from "./search";
+import { entries, entryUrl, merge, search, withinBook } from "./search";
 import type { components } from "./api/schema.gen";
 
 type SynapseIndex = components["schemas"]["SynapseIndexDto"];
@@ -232,5 +232,50 @@ describe("merge", () => {
     expect(solution).toHaveLength(1);
     expect(solution[0].snippet).toBeDefined();
     expect(merged.filter((e) => e.label === "Two Sum")).toHaveLength(2);
+  });
+});
+
+describe("withinBook", () => {
+  /** The fixture library plus a second book, so a scope has something to leave out. */
+  function twoBooks() {
+    const { index, blog } = fixture();
+    index.entries.push({
+      kind: "book",
+      slug: "sql",
+      title: "SQL",
+      description: "",
+      tags: [],
+      categoryPath: [],
+      entries: [lesson("two-phase-locking", "Two-Phase Locking")],
+    });
+    return entries(index, blog);
+  }
+
+  it("everyBookAndLessonRowNamesItsBookAndABlogPostNamesNone", () => {
+    const all = twoBooks();
+    expect(all.find((e) => e.label === "DSA")?.bookSlug).toBe("dsa");
+    expect(all.find((e) => e.label === "Binary Search")?.bookSlug).toBe("dsa");
+    expect(all.find((e) => e.label === "Two-Phase Locking")?.bookSlug).toBe("sql");
+    expect(all.find((e) => e.kind === "blog")?.bookSlug).toBeUndefined();
+  });
+
+  it("keepsOneBooksEntriesInLibraryOrderAndDropsTheBlog", () => {
+    const scoped = withinBook(twoBooks(), "dsa");
+    expect(scoped.map((e) => e.label)).toEqual(["DSA", "Two Sum", "Binary Search"]);
+  });
+
+  it("aScopedRankingNeverReachesAnotherBook", () => {
+    const all = twoBooks();
+    expect(search("two", all).map((e) => e.label)).toContain("Two-Phase Locking");
+    expect(search("two", withinBook(all, "dsa")).map((e) => e.label)).toEqual(["Two Sum"]);
+  });
+
+  it("aBookNobodyHoldsIsAnEmptyScope", () => {
+    expect(withinBook(twoBooks(), "no-such-book")).toEqual([]);
+  });
+
+  it("aProseHitCarriesItsBookFromTheWire", () => {
+    const [row] = merge("x", [], [hit("sql/two-phase-locking", "Two-Phase Locking", { bookSlug: "sql" })]);
+    expect(row.bookSlug).toBe("sql");
   });
 });

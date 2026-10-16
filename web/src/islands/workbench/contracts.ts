@@ -35,12 +35,34 @@ export interface CodeSnapshot {
 /** Fired on window when the auth state flips (the auth store dispatches; gates re-render). */
 export const AUTH_CHANGED = "synapse:auth-changed";
 
-/** Fired on window to open the reader's nav drawer (the book's contents). The problem page's
- *  docked nav bar has no sidebar column of its own — its Browse pill dispatches this and
- *  `reader.ts` (already loaded for progress/prefs) opens the same drawer a lesson page's FAB and
- *  desktop Browse pill drive. The lesson triggers sit in reader.ts's own markup and are wired
- *  directly; the event is the seam only for this one, because it lives in a different island. */
+/** Fired on window to open the reader's nav drawer (the book's contents). Two surfaces in other
+ *  islands raise it: the problem page's Browse pill (its docked nav bar has no sidebar column of
+ *  its own) and the lesson page's reader menu (`islands/reader/menu`, its Contents row).
+ *  `reader.ts` (already loaded for progress/prefs) opens the same drawer the desktop Browse pill
+ *  drives; that pill sits in reader.ts's own markup and is wired directly. */
 export const OPEN_CONTENTS = "synapse:open-contents";
+
+/** Fired on window to open the ⌘K palette. The reader menu's Search Book row raises it with the
+ *  lesson's book as `detail.book`, which scopes both the title ranking and the server's full-text
+ *  search to that book; no detail opens the palette unscoped, as ⌘K does. */
+export const OPEN_SEARCH = "synapse:open-search";
+export interface OpenSearch {
+  book?: SearchScope;
+}
+/** The one book a palette search is confined to — its slug (the wire's `bookSlug`) and the
+ *  title the scope chip shows. */
+export interface SearchScope {
+  slug: string;
+  title: string;
+}
+
+/** Fired on window after the light/dark theme flips, from whichever control flipped it (the
+ *  header toggle or the reader menu's settings). Every theme control re-reads `<html>.dark` on
+ *  it, so two controls never disagree about which theme is on. detail: `{ dark: boolean }`. */
+export const THEME_CHANGED = "synapse:theme-changed";
+export interface ThemeChanged {
+  dark: boolean;
+}
 
 /** The relayout nudge — panes that unhide a Monaco fire it so the editor re-measures. */
 export const RELAYOUT = "synapse:relayout";

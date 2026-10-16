@@ -201,8 +201,9 @@ export function fetchIndex(): Promise<SynapseIndex> {
  * currently typed is what lets a late answer to an abandoned query be dropped rather than
  * painted over the current one.
  */
-export function searchCatalog(query: string): Promise<SearchResults> {
-  return get<SearchResults>(`/api/synapse/search?q=${encodeURIComponent(query)}`);
+export function searchCatalog(query: string, book?: string): Promise<SearchResults> {
+  const scope = book ? `&book=${encodeURIComponent(book)}` : "";
+  return get<SearchResults>(`/api/synapse/search?q=${encodeURIComponent(query)}${scope}`);
 }
 
 /** A lesson by its full directory-mirror path. */

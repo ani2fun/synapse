@@ -35,6 +35,9 @@ export interface SearchEntry {
    *  Server-side an editorial has no URL of its own; how a problem page is laid out is knowledge
    *  that belongs here, not on the wire. */
   hash?: string;
+  /** The book a lesson or book row belongs to — the wire's `bookSlug`. Absent on a blog post,
+   *  which belongs to no book, so a book-scoped search never shows one. */
+  bookSlug?: string;
 }
 
 /** Where a row goes. The hash is part of the destination, not decoration: two rows that differ
@@ -77,17 +80,24 @@ function flattenBook(book: Book, crumb: string[], out: SearchEntry[]): void {
       sublabel: [...crumb, "Book"].join(" › "),
       kind: "book",
       page: { kind: "lesson", path: first },
+      bookSlug: book.slug,
     });
   }
   const bookCrumb = [...crumb, book.title];
   const prefix = [...book.categoryPath, book.slug];
-  flattenEntries(book.entries, bookCrumb, prefix, out);
+  flattenEntries(book.entries, book.slug, bookCrumb, prefix, out);
 }
 
-function flattenEntries(entries: BookEntry[], crumb: string[], prefix: string[], out: SearchEntry[]): void {
+function flattenEntries(
+  entries: BookEntry[],
+  bookSlug: string,
+  crumb: string[],
+  prefix: string[],
+  out: SearchEntry[],
+): void {
   for (const entry of entries) {
     if (entry.kind === "chapter") {
-      flattenEntries(entry.entries, [...crumb, entry.title], [...prefix, entry.slug], out);
+      flattenEntries(entry.entries, bookSlug, [...crumb, entry.title], [...prefix, entry.slug], out);
     } else {
       const path = [...prefix, entry.slug];
       out.push({
@@ -95,6 +105,7 @@ function flattenEntries(entries: BookEntry[], crumb: string[], prefix: string[],
         sublabel: crumb.join(" › "),
         kind: "lesson",
         page: { kind: "lesson", path },
+        bookSlug,
       });
     }
   }
@@ -113,6 +124,12 @@ function firstLessonPath(book: Book): string[] | null {
 }
 
 export const LIMIT = 20;
+
+/** The entries of one book, in library order — what a book-scoped palette ranks, and, with an
+ *  empty query, what it lists. */
+export function withinBook(all: SearchEntry[], bookSlug: string): SearchEntry[] {
+  return all.filter((entry) => entry.bookSlug === bookSlug);
+}
 
 /** Rank and cap. An empty query returns everything (capped); a no-match query returns nothing. */
 export function search(query: string, all: SearchEntry[]): SearchEntry[] {
@@ -212,6 +229,7 @@ function proseEntry(hit: SearchHit): SearchEntry {
     kind: editorial ? "editorial" : "lesson",
     page: { kind: "lesson", path: segmentsOf(hit.path) },
     snippet: hit.snippet,
+    bookSlug: hit.bookSlug,
     // An editorial shares its problem's URL because it IS that page — a tab on it. The fragment
     // is what makes the row a distinct destination and what lands the reader on the right tab
     // instead of the problem statement they were trying to skip past.

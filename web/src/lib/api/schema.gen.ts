@@ -593,7 +593,8 @@ export interface paths {
         /**
          * Full-text search across every mounted source.
          * @description An empty or unusable query is 200 with no results rather than 400: the palette sends whatever
-         *     has been typed so far, and a half-finished word is not a client error.
+         *     has been typed so far, and a half-finished word is not a client error. The same holds for a
+         *     `book` no catalog holds — a scope that matches nothing is an empty answer, not a bad request.
          */
         get: operations["searchCatalog"];
         put?: never;
@@ -1157,6 +1158,11 @@ export interface components {
         };
         /** @description `GET /api/synapse/search` — ranked hits, best first. */
         SearchResultsDto: {
+            /**
+             * @description The book scope, echoed for the same reason: a reply to a scoped search must not land in a
+             *     palette whose scope has since been removed. Absent when the search spans every book.
+             */
+            book?: string | null;
             /** @description Echoed back so a client can drop a reply that a later keystroke has already outdated. */
             query: string;
             results: components["schemas"]["SearchHitDto"][];
@@ -3067,6 +3073,8 @@ export interface operations {
                 q: string;
                 /** @description Maximum hits (default 20, capped at 50) */
                 limit?: number;
+                /** @description Scope to one book's slug; blank means every book */
+                book?: string;
             };
             header?: never;
             path?: never;

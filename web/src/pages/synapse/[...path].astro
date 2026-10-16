@@ -190,8 +190,8 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
               <nav class="reader-pager" data-private-pager />
             </div>
           </article>
-          {/* The same aside and Contents FAB as a public lesson: islands/chrome fills the outline,
-              the prefs FAB and scroll-to-top once the private island has rendered the body. A
+          {/* The same aside and Browse pill as a public lesson: islands/chrome fills the outline,
+              the reader menu and scroll-to-top once the private island has rendered the body. A
               private PROBLEM replaces this whole main with the problem frame, aside and all. */}
           <ReaderAside />
         </div>
@@ -203,7 +203,9 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
   {
     mode === "lesson" && payload && (
       <main class="shell-main">
-        <div class="reader-layout" data-sidebar="expanded">
+        {/* data-book-slug and data-book-title name the book the reader menu Search Book row
+            confines a search to. Read at click time, so the private shell sets them later. */}
+        <div class="reader-layout" data-sidebar="expanded" data-book-slug={payload.book.slug} data-book-title={payload.book.title}>
           <aside class="reader-sidebar">{book && <Sidebar book={book} books={allBooks} currentPath={segments.join("/")} />}</aside>
           <article class="reader-layout__main">
             <div class="lesson">
@@ -352,8 +354,8 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
           // Practice widgets live in ordinary lesson bodies — their `.practice-problem`
           // placeholders auto-hydrate here (the island guards itself off problem pages).
           import("../../islands/practice");
-          // The reader chrome (sidebar faces, prefs FAB, TOC + minimap) — lesson pages ONLY, so
-          // it rides the dynamic lesson branch, never the problem page.
+          // The reader chrome (sidebar faces, outline, reader menu + scrubber) — lesson pages
+          // ONLY, so it rides the dynamic lesson branch, never the problem page.
           import("../../islands/chrome");
           // The Suggest-an-edit affordance: a tiny config probe that un-hides the header link
           // for an allow-listed editor. Prose lessons only (the link is in the lesson header); the
