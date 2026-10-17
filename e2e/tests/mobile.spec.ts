@@ -24,24 +24,27 @@ test("the reader fits the screen", async ({ page, request }) => {
   expect(overflow, "horizontal overflow — step 46 all over again").toBeLessThanOrEqual(1);
 });
 
-test("the phone row is the reader menu and scroll-to-top, nothing else", async ({ page, request }) => {
+test("the phone column is the reader menu with scroll-to-top above it, nothing else", async ({ page, request }) => {
   await page.goto(await firstLessonPath(request));
   const menu = page.locator(".reader-menu-fab");
   await expect(menu).toBeVisible();
   await page.evaluate(() => window.scrollTo({ top: 600, behavior: "instant" }));
-  await expect(page.locator(".reader-scrolltop")).not.toHaveClass(/reader-scrolltop--hidden/);
-
-  // Both sit on the bottom edge, the menu in the corner — and the buttons the menu absorbed
-  // (Browse, On this page, Aa) are gone rather than hidden.
-  // Polled: scroll-to-top slides 8px into place as it appears.
   const toTop = page.locator(".reader-scrolltop");
+  await expect(toTop).not.toHaveClass(/reader-scrolltop--hidden/);
+
+  // One column at the corner: same right edge, scroll-to-top stacked above the menu. Polled,
+  // because scroll-to-top slides 8px into place as it appears. The buttons the menu absorbed
+  // (Browse, On this page, Aa) are gone rather than hidden.
   await expect
-    .poll(async () => Math.round((await toTop.boundingBox())?.y ?? -1))
-    .toBe(Math.round((await menu.boundingBox())?.y ?? -2));
-  const menuBox = await menu.boundingBox();
-  const topBox = await toTop.boundingBox();
-  if (!menuBox || !topBox) throw new Error("a phone control has no box");
-  expect(menuBox.x).toBeGreaterThan(topBox.x);
+    .poll(async () => {
+      const m = await menu.boundingBox();
+      const t = await toTop.boundingBox();
+      if (!m || !t) return "no box";
+      const sameColumn = Math.round(m.x + m.width) === Math.round(t.x + t.width);
+      const gap = Math.round(m.y - (t.y + t.height));
+      return sameColumn ? `column, gap ${gap}` : "not one column";
+    })
+    .toBe("column, gap 8");
   for (const gone of [".reader-nav-fab", ".reader-toc-fab", ".reader-prefs-fab"]) {
     await expect(page.locator(gone)).toHaveCount(0);
   }

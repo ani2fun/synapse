@@ -697,16 +697,15 @@ body.reader-menu-open .reader-scrolltop { opacity: 0; pointer-events: none; }
        table cell reads as damage. */
     .synapse-prose :is(h1, h2, h3, h4, th, td, pre, code) { text-align: initial; hyphens: manual; }
 
-    /* The buttons turn 90° on a phone: a ROW along the bottom edge, not a column up the side,
-       because once the prose reclaims the full width a column runs straight over it — words
-       genuinely obscured mid-sentence. A row costs 0 width and ~50px of height at the very
-       bottom, which is where phone controls belong anyway. The menu takes the corner, the
-       thumb's first reach; scroll-to-top sits beside it. 38px + an 8px gap = the 46px pitch.
-       The open menu's scrubber still stands up the right edge — it exists only while the
-       reader is steering, not reading. */
+    /* Two buttons in ONE column at the bottom-right corner, the same stack as every wider
+       width: the menu in the corner, the thumb's first reach, and scroll-to-top directly above
+       it. Two 38px buttons cover 84px of the column's edge — one or two words of a line, not
+       the long run of prose a five-button column once hid. 38px + an 8px gap = the 46px pitch.
+       The open menu's scrubber stands up the same column and scroll-to-top stands down while
+       it does. */
     .reader-menu-host { --menu-right: 12px; --menu-bottom: 12px; --menu-size: 38px;
                         --scrub-w: 40px; --scrub-top: 104px; --scrub-gap: 10px; }
-    .reader-scrolltop { right: 58px; bottom: 12px; width: 38px; height: 38px; }
+    .reader-scrolltop { right: 12px; bottom: 58px; width: 38px; height: 38px; }
     .reader-menu__row { height: 50px; font-size: 16px; }
 
     /* Two pager cards sharing ~150px each, with an 18px serif title, is not a target. */
