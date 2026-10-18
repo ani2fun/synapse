@@ -232,7 +232,7 @@ fn region(id: &str, col: i32, row: i32, cols: f64, rows: f64, label: &str, grid:
 
 #[test]
 fn a_region_is_a_frame_not_a_node() {
-    let s = step(
+    let one = step(
         vec![
             region("mem", 0, 0, 4.0, 3.0, "Memory", true),
             node("a", 1, 1),
@@ -241,74 +241,83 @@ fn a_region_is_a_frame_not_a_node() {
         vec![next("a", "b")],
         vec![],
     );
-    let p = placement(&graph(vec![s.clone()]));
-    let f = p.frame(&s);
-    assert_eq!(f.boxes.len(), 2, "the region draws no box");
-    assert_eq!(f.nulls.len(), 1, "and gets no null end");
-    let r = &f.regions[0];
-    assert_eq!(r.lines.len(), 3 + 2, "3 inner column lines and 2 inner row lines");
+    let placed = placement(&graph(vec![one.clone()]));
+    let frame = placed.frame(&one);
+    assert_eq!(frame.boxes.len(), 2, "the region draws no box");
+    assert_eq!(frame.nulls.len(), 1, "and gets no null end");
+    let reg = &frame.regions[0];
+    assert_eq!(
+        reg.lines.len(),
+        3 + 2,
+        "3 inner column lines and 2 inner row lines"
+    );
     // Every node sits inside its cell, and the frame and its label are inside the drawing.
-    for b in &f.boxes {
-        assert!(b.at.x > r.x && b.at.x < r.x + r.w && b.at.y > r.y && b.at.y < r.y + r.h);
+    for bx in &frame.boxes {
+        assert!(bx.at.x > reg.x && bx.at.x < reg.x + reg.w && bx.at.y > reg.y && bx.at.y < reg.y + reg.h);
     }
-    assert!(r.x >= 0.0 && r.y >= 0.0 && r.x + r.w <= p.width && r.y + r.h + REGION_LABEL_DY <= p.height);
+    assert!(
+        reg.x >= 0.0
+            && reg.y >= 0.0
+            && reg.x + reg.w <= placed.width
+            && reg.y + reg.h + REGION_LABEL_DY <= placed.height
+    );
 }
 
 #[test]
 fn a_cross_row_arrow_bends_round_a_node_in_its_way() {
     // b → c runs from the bottom-left to the top-right, and a sits right on the straight line.
-    let s = step(
+    let one = step(
         vec![node("b", 0, 2), node("a", 1, 1), node("c", 2, 0)],
         vec![next("b", "c")],
         vec![],
     );
-    let p = placement(&graph(vec![s.clone()]));
-    let f = p.frame(&s);
-    let a = f.boxes.iter().find(|x| x.node.id.value() == "a").unwrap().at;
-    let arrow = f.arrows.iter().find(|x| x.d.contains('C')).unwrap();
-    let c: [Point; 4] = arrow.pts.clone().try_into().unwrap();
-    let hw = p.box_w() / 2.0;
+    let placed = placement(&graph(vec![one.clone()]));
+    let frame = placed.frame(&one);
+    let blocker = frame.boxes.iter().find(|x| x.node.id.value() == "a").unwrap().at;
+    let arrow = frame.arrows.iter().find(|x| x.d.contains('C')).unwrap();
+    let curve: [Point; 4] = arrow.pts.clone().try_into().unwrap();
+    let hw = placed.box_w() / 2.0;
     for i in 0..=40 {
-        let q = cubic(&c, f64::from(i) / 40.0);
+        let point = cubic(&curve, f64::from(i) / 40.0);
         assert!(
-            (q.x - a.x).abs() >= hw || (q.y - a.y).abs() >= LIST_BOX_H / 2.0,
-            "the curve crosses node a at {q:?}"
+            (point.x - blocker.x).abs() >= hw || (point.y - blocker.y).abs() >= LIST_BOX_H / 2.0,
+            "the curve crosses node a at {point:?}"
         );
     }
 }
 
 #[test]
 fn the_hint_sets_the_row_pitch() {
-    let s = step(vec![node("a", 0, 0), node("b", 0, 1)], vec![], vec![]);
-    let mut g = graph(vec![s.clone()]);
-    g.layout_hint = "placed dy=70".to_owned();
-    assert!(is_placed(&g.layout_hint));
-    let f = placement(&g).frame(&s);
-    assert!((f.boxes[1].at.y - f.boxes[0].at.y - 70.0).abs() < 1e-9);
+    let one = step(vec![node("a", 0, 0), node("b", 0, 1)], vec![], vec![]);
+    let mut gr = graph(vec![one.clone()]);
+    gr.layout_hint = "placed dy=70".to_owned();
+    assert!(is_placed(&gr.layout_hint));
+    let frame = placement(&gr).frame(&one);
+    assert!((frame.boxes[1].at.y - frame.boxes[0].at.y - 70.0).abs() < 1e-9);
 }
 
 #[test]
 fn a_cross_row_arrow_keeps_clear_of_a_pointer_name() {
     // c is straight above d; d carries a pointer name, so the arrow may not drop onto it from above.
-    let s = step(
+    let one = step(
         vec![node("c", 0, 0), node("d", 0, 3)],
         vec![next("c", "d")],
         vec![cursor("tail", "d")],
     );
-    let p = placement(&graph(vec![s.clone()]));
-    let f = p.frame(&s);
-    let d = f.boxes.iter().find(|x| x.node.id.value() == "d").unwrap().at;
-    let arrow = f.arrows.iter().find(|x| x.d.contains('C')).unwrap();
-    let c: [Point; 4] = arrow.pts.clone().try_into().unwrap();
+    let placed = placement(&graph(vec![one.clone()]));
+    let frame = placed.frame(&one);
+    let target = frame.boxes.iter().find(|x| x.node.id.value() == "d").unwrap().at;
+    let arrow = frame.arrows.iter().find(|x| x.d.contains('C')).unwrap();
+    let curve: [Point; 4] = arrow.pts.clone().try_into().unwrap();
     for i in 0..=40 {
-        let q = cubic(&c, f64::from(i) / 40.0);
+        let point = cubic(&curve, f64::from(i) / 40.0);
         let name = Point {
-            x: d.x,
-            y: d.y - LIST_BOX_H / 2.0 - 18.0,
+            x: target.x,
+            y: target.y - LIST_BOX_H / 2.0 - 18.0,
         };
         assert!(
-            (q.x - name.x).abs() >= 24.0 || (q.y - name.y).abs() >= 16.0,
-            "the curve crosses the name at {q:?}"
+            (point.x - name.x).abs() >= 24.0 || (point.y - name.y).abs() >= 16.0,
+            "the curve crosses the name at {point:?}"
         );
     }
 }
