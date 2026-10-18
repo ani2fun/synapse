@@ -452,7 +452,7 @@ body.reader-menu-open .reader-scrolltop { opacity: 0; pointer-events: none; }
    button, the scrubber and the pop together and they cannot drift apart.
    ───────────────────────────────────────────────────────────────────────────── */
 .reader-menu-host { --menu-right: 20px; --menu-bottom: 20px; --menu-size: 44px;
-                    --scrub-w: 44px; --scrub-top: 84px; --scrub-gap: 12px;
+                    --scrub-w: 32px; --scrub-top: 84px; --scrub-gap: 12px;
                     --menu-material: hsl(var(--card) / 0.92); }
 .reader-menu-fab { position: fixed; right: var(--menu-right); bottom: var(--menu-bottom); z-index: 40;
                    width: var(--menu-size); height: var(--menu-size); display: inline-flex;
@@ -471,13 +471,13 @@ body.reader-menu-open .reader-scrolltop { opacity: 0; pointer-events: none; }
 
 .reader-menu-scrim { position: fixed; inset: 0; z-index: 41; background: hsl(var(--background) / 0.18); }
 
-/* The pop sits to the LEFT of the scrubber, its bottom level with the button's. It is as wide as
+/* The pop sits to the LEFT of the button's column (where the scrubber stands), its bottom level with the button's. It is as wide as
    its widest row and no wider: a fixed width stretched short labels away from their glyphs. */
 .reader-menu-pop { position: fixed; z-index: 42;
-                   right: calc(var(--menu-right) + var(--scrub-w) + var(--scrub-gap));
+                   right: calc(var(--menu-right) + var(--menu-size) + var(--scrub-gap));
                    bottom: var(--menu-bottom);
                    width: max-content;
-                   max-width: calc(100vw - var(--menu-right) - var(--scrub-w) - var(--scrub-gap) - 12px);
+                   max-width: calc(100vw - var(--menu-right) - var(--menu-size) - var(--scrub-gap) - 12px);
                    max-height: calc(100vh - var(--scrub-top) - var(--menu-bottom));
                    overflow-y: auto; animation: reader-menu-in 0.18s ease; }
 @keyframes reader-menu-in { from { transform: translateY(8px); opacity: 0; }
@@ -531,27 +531,44 @@ body.reader-menu-open .reader-scrolltop { opacity: 0; pointer-events: none; }
                           color: hsl(var(--muted-foreground)); cursor: pointer; }
 .reader-settings__reset:hover { border-color: hsl(var(--primary)); color: hsl(var(--primary)); }
 
-/* The scrubber: a tall rounded track down the button's column, from under the header to just
-   above the button. The track stands for the whole lesson; the thumb is the screen in view. */
-.reader-scrub { position: fixed; z-index: 42; right: var(--menu-right); top: var(--scrub-top);
+/* The scrubber: a slim rail down the button's column, from under the header to just above the
+   button. The rail stands for the whole lesson; the thumb is the screen in view.
+
+   Two widths, on purpose. The ELEMENT is `--scrub-w` wide and transparent — that is the hit area,
+   and a finger needs ~30px of it. What it DRAWS is a 14px frosted capsule (`::before`) with a 4px
+   rail inside, so it reads as a thin line beside the prose rather than a slab across it. It is
+   centred on the menu button's column, whatever the two widths. */
+.reader-scrub { position: fixed; z-index: 42;
+                right: calc(var(--menu-right) + (var(--menu-size) - var(--scrub-w)) / 2);
+                top: var(--scrub-top);
                 bottom: calc(var(--menu-bottom) + var(--menu-size) + var(--scrub-gap));
-                width: var(--scrub-w); padding: 10px 0; border-radius: 9999px;
-                border: 1px solid hsl(var(--border)); background: var(--menu-material);
-                -webkit-backdrop-filter: blur(16px) saturate(1.4); backdrop-filter: blur(16px) saturate(1.4);
-                box-shadow: 0 18px 44px -16px hsl(var(--foreground) / 0.45);
-                cursor: grab; touch-action: none; user-select: none;
+                width: var(--scrub-w); padding: 12px 0; border-radius: 9999px;
+                cursor: grab; touch-action: none; user-select: none; outline: none;
                 animation: reader-menu-in 0.18s ease; }
-.reader-scrub:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 3px; }
+.reader-scrub::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 14px;
+                        transform: translateX(-50%); border-radius: 9999px;
+                        border: 1px solid hsl(var(--border)); background: var(--menu-material);
+                        -webkit-backdrop-filter: blur(12px) saturate(1.4); backdrop-filter: blur(12px) saturate(1.4);
+                        box-shadow: 0 10px 28px -14px hsl(var(--foreground) / 0.5); }
+.reader-scrub:focus-visible::before { outline: 2px solid hsl(var(--primary)); outline-offset: 3px; }
 .reader-scrub--dragging { cursor: grabbing; }
-.reader-scrub__track { position: relative; height: 100%; margin: 0 8px; }
-.reader-scrub__thumb { position: absolute; left: 0; right: 0; top: 0; border-radius: 9999px;
-                       background: hsl(var(--foreground) / 0.22);
-                       box-shadow: inset 0 0 0 1px hsl(var(--foreground) / 0.12); }
-.reader-scrub--dragging .reader-scrub__thumb { background: hsl(var(--primary) / 0.45); }
-/* Section starts: a wide mark for an h2, a short one for an h3, centred in the track. */
-.reader-scrub__tick { position: absolute; left: 50%; width: 18px; height: 2px; border-radius: 1px;
-                      transform: translate(-50%, -1px); background: hsl(var(--foreground) / 0.45); }
-.reader-scrub__tick--l3 { width: 8px; background: hsl(var(--foreground) / 0.3); }
+/* The rail itself, a hairline centred in the capsule. */
+.reader-scrub__track { position: relative; height: 100%; }
+.reader-scrub__track::before { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px;
+                               transform: translateX(-50%); border-radius: 1px;
+                               background: hsl(var(--foreground) / 0.12); }
+/* The thumb: a 6px pill on the rail (8px and the brand colour while held). Positioned by `left`
+   rather than a transform, because the script owns the thumb's transform for its offset. */
+.reader-scrub__thumb { position: absolute; top: 0; left: calc(50% - 3px); width: 6px; border-radius: 9999px;
+                       background: hsl(var(--foreground) / 0.6);
+                       transition: width 120ms ease, left 120ms ease, background 120ms ease; }
+.reader-scrub--dragging .reader-scrub__thumb { left: calc(50% - 4px); width: 8px;
+                                               background: hsl(var(--primary)); }
+/* Section starts: notches across the rail, wider than the thumb so they still show beside it —
+   10px for an h2, 6px for an h3. */
+.reader-scrub__tick { position: absolute; left: 50%; width: 10px; height: 1.5px; border-radius: 1px;
+                      transform: translate(-50%, -0.75px); background: hsl(var(--foreground) / 0.4); }
+.reader-scrub__tick--l3 { width: 6px; background: hsl(var(--foreground) / 0.25); }
 /* The section under the thumb, named while dragging or right after a keyboard step. */
 .reader-scrub__bubble { position: absolute; right: calc(100% + 10px); transform: translateY(-50%);
                         max-width: min(16rem, 60vw); padding: 6px 12px; border-radius: 9999px;
@@ -708,7 +725,7 @@ body.reader-menu-open .reader-scrolltop { opacity: 0; pointer-events: none; }
        The open menu's scrubber stands up the same column and scroll-to-top stands down while
        it does. */
     .reader-menu-host { --menu-right: 12px; --menu-bottom: 12px; --menu-size: 38px;
-                        --scrub-w: 40px; --scrub-top: 104px; --scrub-gap: 10px; }
+                        --scrub-w: 32px; --scrub-top: 104px; --scrub-gap: 10px; }
     .reader-scrolltop { right: 12px; bottom: 58px; width: 38px; height: 38px; }
     .reader-menu__row { height: 42px; }
 
