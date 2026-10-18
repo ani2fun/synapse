@@ -1,6 +1,6 @@
 import * as log from "../../lib/log";
 // The reader menu — one round button at the bottom-right of a lesson that opens everything the
-// reader steers by: Contents (the book's lessons), Search Book (the palette, confined to this
+// reader steers by: Browse (the book's lessons), Search Book (the palette, confined to this
 // book) and Themes & Settings (light/dark and the reading preferences). Opening it also raises the
 // vertical scrubber down the right edge, for moving through THIS page; closing it takes both away.
 //
@@ -20,7 +20,9 @@ const MENU_ICON =
   '<circle cx="7" cy="17" r="1.4" fill="currentColor" stroke="none"></circle>' +
   '<circle cx="12" cy="17" r="1.4" fill="currentColor" stroke="none"></circle>' +
   '<circle cx="17" cy="17" r="1.4" fill="currentColor" stroke="none"></circle>';
-const CONTENTS_ICON = '<path d="M9 6h11 M9 12h11 M9 18h11 M4.5 6h.01 M4.5 12h.01 M4.5 18h.01"></path>';
+/** The library glyph (books on a shelf) — the one the desktop Browse pill and the problem page's
+ *  pill wear, because this row opens the same drawer and so says the same thing. */
+const BROWSE_ICON = '<path d="m16 6 4 14 M12 6v14 M8 8v12 M4 4v16"></path>';
 const SEARCH_ICON = '<circle cx="11" cy="11" r="6.5"></circle><path d="m20 20-4.2-4.2"></path>';
 
 /** The book this lesson belongs to, as the page names it — or null when it names none. */
@@ -106,8 +108,8 @@ export function wireMenu(headings: Heading[]): void {
     menu.setAttribute("role", "menu");
     menu.setAttribute("aria-label", "Reader menu");
     rows = [
-      row("Contents", icon("reader-menu__ic", CONTENTS_ICON), () => {
-        log.debug("reader menu: contents");
+      row("Browse", icon("reader-menu__ic", BROWSE_ICON), () => {
+        log.debug("reader menu: browse");
         close(false);
         window.dispatchEvent(new Event(OPEN_CONTENTS));
       }),

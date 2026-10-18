@@ -17,7 +17,7 @@ import * as log from "../lib/log";
 //     already-finished lesson writes nothing, and so does un-marking one that was never marked —
 //     driven by the end-of-page "Mark as read" switch. The reader decides; nothing marks a page
 //     on their behalf.
-//   - the Browse drawer (desktop pill, or `OPEN_CONTENTS` from the reader menu's Contents row or
+//   - the Browse drawer (desktop pill, or `OPEN_CONTENTS` from the reader menu's Browse row or
 //     the problem page's pill → scrim + drawer, closes on scrim/Escape/any nav-link tap via
 //     `closest("a")`).
 //   - prefs: the `applyToHtml` half only — the editing UI lives in the reader menu's settings
@@ -122,7 +122,7 @@ function paintProgress(done: Set<string>): void {
   const fillEl = document.querySelector<HTMLElement>("[data-progress-fill]");
   if (fillEl) fillEl.style.setProperty("--pct", `${pct}%`);
 
-  // The sidebar book-progress bar (rides into the mobile Contents drawer via the sidebar clone).
+  // The sidebar book-progress bar (rides into the Browse drawer via the sidebar clone).
   document.querySelectorAll<HTMLElement>("[data-book-progress]").forEach((box) => {
     box.hidden = false;
     box.querySelector<HTMLElement>("[data-book-progress-fill]")?.style.setProperty("--pct", `${pct}%`);
@@ -243,7 +243,7 @@ function wireReadToggle(path: string): () => void {
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Three triggers, one drawer. A LESSON page carries the labelled Browse pill inside `.reader-nav`,
-// shown at and above 1024px; at every width its reader menu's Contents row fires the
+// shown at and above 1024px; at every width its reader menu's Browse row fires the
 // `OPEN_CONTENTS` window event. The PROBLEM page carries no pill of this page's own — its docked
 // `.pwb__nav` Browse pill fires the same event. The mount host is the PINNED
 // `.reader-nav--pinned` when the page has one (the problem layout), then `.reader-nav`, then
@@ -256,7 +256,7 @@ function wireReadToggle(path: string): () => void {
 // reader clicked, and the drawer opened into a node that was no longer on the page: a Contents
 // pill that did nothing at all.
 /** The lesson page's own drawer trigger — the desktop pill. Below 1024px the reader menu's
- *  Contents row opens the drawer, by `OPEN_CONTENTS`. */
+ *  Browse row opens the drawer, by `OPEN_CONTENTS`. */
 const TRIGGERS = ".reader-contents-pill";
 
 /** Why the drawer is changing state: it just opened, the reader dismissed it (✕, scrim, Escape),

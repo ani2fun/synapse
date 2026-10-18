@@ -188,7 +188,7 @@ test("un-marking a lesson clears its tick and survives a reload", async ({ page,
   await expect(page.locator(".reader-sidebar__link--done")).toHaveCount(0);
 });
 
-// The desktop Browse pill opens the same drawer the reader menu's Contents row does, OVER the
+// The desktop Browse pill opens the same drawer the reader menu's Browse row does, OVER the
 // page — the sidebar column keeps whichever face the reader chose. Every face is walked because
 // each one breaks the drawer differently: Compact hides the sidebar's inner with an inline style the clone would
 // inherit (an empty drawer), and Hidden leaves no sidebar on screen at all.
@@ -207,7 +207,7 @@ for (const face of ["expanded", "compact", "hidden"] as const) {
     await page.goto(await firstLessonPath(request));
     await expect(page.locator(".reader-layout")).toHaveAttribute("data-sidebar", face);
 
-    // The pill is the desktop's own trigger; the reader menu's Contents row is the other way in.
+    // The pill is the desktop's own trigger; the reader menu's Browse row is the other way in.
     await expect(page.locator(".reader-menu-fab")).toBeVisible();
     const pill = page.locator(".reader-contents-pill");
     await expect(pill).toBeVisible();

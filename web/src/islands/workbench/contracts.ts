@@ -37,7 +37,7 @@ export const AUTH_CHANGED = "synapse:auth-changed";
 
 /** Fired on window to open the reader's nav drawer (the book's contents). Two surfaces in other
  *  islands raise it: the problem page's Browse pill (its docked nav bar has no sidebar column of
- *  its own) and the lesson page's reader menu (`islands/reader/menu`, its Contents row).
+ *  its own) and the lesson page's reader menu (`islands/reader/menu`, its Browse row).
  *  `reader.ts` (already loaded for progress/prefs) opens the same drawer the desktop Browse pill
  *  drives; that pill sits in reader.ts's own markup and is wired directly. */
 export const OPEN_CONTENTS = "synapse:open-contents";

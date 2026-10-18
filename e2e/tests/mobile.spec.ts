@@ -62,13 +62,13 @@ test("the phone column is the reader menu with scroll-to-top above it, nothing e
 test("the nav drawer opens and its close button is actually clickable", async ({ page, request }) => {
   await page.goto(await firstLessonPath(request));
 
-  // On a phone the drawer opens from the reader menu's Contents row; the desktop Browse pill
+  // On a phone the drawer opens from the reader menu's Browse row; the desktop Browse pill
   // stays hidden at this width.
   const menu = page.locator(".reader-menu-fab");
   await expect(menu).toBeVisible();
   await expect(page.locator(".reader-contents-pill")).toBeHidden();
   await menu.click();
-  await page.locator(".reader-menu [role=menuitem]", { hasText: "Contents" }).click();
+  await page.locator(".reader-menu [role=menuitem]", { hasText: "Browse" }).click();
 
   // `.reader-nav` is the SIDEBAR container and is correctly hidden on a phone —
   // matching it was how the first run failed. The drawer is `.reader-nav-drawer`.

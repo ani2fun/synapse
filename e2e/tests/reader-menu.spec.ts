@@ -3,7 +3,7 @@
 import { expect, test } from "./fixtures";
 
 /**
- * The reader menu: one round button at a lesson's bottom-right that opens Contents, Search Book
+ * The reader menu: one round button at a lesson's bottom-right that opens Browse, Search Book
  * and Themes & Settings, and — while it is open — the vertical scrubber down the right edge.
  *
  * The arrays lesson is the subject because it has sections (h2 + h3) and runs several screens,
@@ -27,7 +27,7 @@ test("the menu opens three rows and the scrubber, and Escape takes both away", a
 
   const rows = page.locator(".reader-menu [role=menuitem]");
   await expect(rows).toHaveCount(3);
-  await expect(rows.nth(0)).toContainText("Contents");
+  await expect(rows.nth(0)).toContainText("Browse");
   await expect(rows.nth(1)).toContainText("Search Book");
   await expect(rows.nth(2)).toContainText("Themes & Settings");
   await expect(rows.nth(0), "opening focuses the first row").toBeFocused();
@@ -46,9 +46,9 @@ test("the menu opens three rows and the scrubber, and Escape takes both away", a
   await expect(fab, "dismissing returns focus to the button").toBeFocused();
 });
 
-test("Contents opens the book drawer and closes the menu", async ({ page }) => {
+test("Browse opens the book drawer and closes the menu", async ({ page }) => {
   await openMenu(page);
-  await page.locator(".reader-menu [role=menuitem]", { hasText: "Contents" }).click();
+  await page.locator(".reader-menu [role=menuitem]", { hasText: "Browse" }).click();
 
   const drawer = page.locator(".reader-nav-drawer");
   await expect(drawer).toBeVisible();

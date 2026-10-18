@@ -135,7 +135,7 @@ html[data-reader-width] .lesson.lesson--problem,
 .reader-contents-pill:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 3px; }
 .reader-contents-pill__ic { width: 16px; height: 16px; flex: none; }
 
-/* The labelled pill shows at and above 1024px; below it, the reader menu's Contents row is the
+/* The labelled pill shows at and above 1024px; below it, the reader menu's Browse row is the
    way in. The scrim and drawer are NOT hidden here — the drawer exists at every width and is
    shown only while open, whichever trigger opened it. */
 @media (min-width: 1024px) {
@@ -444,7 +444,7 @@ body:has(.reader-sticky[data-on="true"]) .reader-expand { top: 120px; }
 body.reader-menu-open .reader-scrolltop { opacity: 0; pointer-events: none; }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   THE READER MENU — one round button opening pill rows (Contents · Search Book ·
+   THE READER MENU — one round button opening pill rows (Browse · Search Book ·
    Themes & Settings) and, beside them, the vertical scrubber for this page.
    The material is the card colour, translucent over a blur, so it reads as one
    floating layer in both themes: a dark grey disc on dark, a white one on light.

@@ -11,7 +11,7 @@ import * as log from "../lib/log";
 //   2. the on-this-page outline, fed by one scroll pass over the headings harvested from
 //      `.lesson-body`: it renders into the desktop rail (`.reader-outline`), drives the thin top
 //      reading-progress bar, and reveals the scroll-to-top FAB — a section below;
-//   3. the reader menu (`islands/reader/menu`): Contents, Search Book, Themes & Settings, and the
+//   3. the reader menu (`islands/reader/menu`): Browse, Search Book, Themes & Settings, and the
 //      vertical scrubber that moves through this page while the menu is open.
 //
 // Not implemented here: the sidebar Filter box and the ← Learn browse toggle — both belong to the
