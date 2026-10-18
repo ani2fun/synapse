@@ -66,7 +66,6 @@ export function wireMenu(headings: Heading[]): void {
   const fab = document.createElement("button");
   fab.className = "reader-menu-fab";
   fab.type = "button";
-  fab.title = "Reader menu";
   fab.setAttribute("aria-label", "Reader menu");
   fab.setAttribute("aria-haspopup", "menu");
   fab.setAttribute("aria-expanded", "false");
