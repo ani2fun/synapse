@@ -33,3 +33,14 @@ pub const PAD: f64 = 12.0;
 // Animation durations (milliseconds) — applied as CSS transitions in the renderers
 pub const MOVE_MS: u32 = 450;
 pub const FADE_MS: u32 = 350;
+
+// Placed linked lists (`layoutHint: "placed"`): the value compartment, one pointer field
+// (next, and prev when doubly), the gap a next arrow or a `∅` terminator sits in, and the
+// stride between rows (room for the pointer names above the row below).
+pub const LIST_VAL_W: f64 = 40.0;
+pub const LIST_FIELD_W: f64 = 18.0;
+pub const LIST_BOX_H: f64 = 34.0;
+pub const LIST_GAP: f64 = 38.0;
+pub const LIST_DY: f64 = 100.0;
+/// How far a skip arrow arcs above the row, and a back arrow (a cycle) below it.
+pub const LIST_ARC: f64 = 30.0;

@@ -316,6 +316,14 @@
 .viz-list__node--changed { box-shadow: 0 0 0 2px hsl(var(--primary) / 0.6); }
 .viz-list__node--removed { opacity: 0.35; border-style: dashed; }
 
+/* ── placed linked list (layoutHint "placed"): boxes where the author put them ── */
+.viz-plist .viz-node rect { fill: hsl(var(--card)); }
+.viz-plist .viz-node text { font-weight: 600; font-size: 15px; }
+.viz-plist__divider { stroke: hsl(var(--border)); stroke-width: 1; }
+.viz-plist__dot { fill: hsl(var(--foreground) / 0.7); }
+.viz-plist__null { fill: hsl(var(--muted-foreground)); font-size: 16px; }
+.viz-plist .viz-node--removed line { opacity: 0.35; }
+
 /* ── grid table ── */
 .viz-grid { gap: 0; align-items: flex-start; padding-top: 26px; }
 .viz-grid__empty { display: flex; align-items: center; gap: 6px; }

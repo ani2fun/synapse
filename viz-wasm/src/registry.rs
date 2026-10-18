@@ -10,7 +10,9 @@ use crate::engine::render_family::RenderFamily;
 use crate::engine::vocabulary::VizStructure;
 use leptos::prelude::*;
 
-use crate::render::{buckets, cells, chain, dual, graph_canvas, grid_table, list_chain, strip, tree};
+use crate::render::{
+    buckets, cells, chain, dual, graph_canvas, grid_table, list_chain, list_placed, strip, tree,
+};
 
 /// `None` when no case has steps OR the family has no renderer yet.
 #[must_use]
@@ -42,6 +44,10 @@ pub fn render(structure: VizStructure, cases: &VizCases, step_index: Signal<usiz
         RenderFamily::Grid => Some(grid_table::table(graph, step_index)),
         RenderFamily::Buckets => Some(buckets::hashmap(graph, step_index)),
         RenderFamily::Queue => Some(strip::queue(graph, step_index, structure == VizStructure::Deque)),
+        // An authored list that places its nodes draws its real pointers; a traced one is a chain.
+        RenderFamily::LinkedList if graph.layout_hint == "placed" => {
+            Some(list_placed::list(graph, step_index))
+        }
         RenderFamily::LinkedList => Some(list_chain::list(graph, step_index)),
         RenderFamily::Forest => Some(dual::union_find(graph, step_index)),
         RenderFamily::HeapDual => Some(dual::heap(graph, step_index)),

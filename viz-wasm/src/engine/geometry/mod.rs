@@ -9,6 +9,7 @@ pub mod constants;
 pub mod graph_layout;
 pub mod grid;
 pub mod linear;
+pub mod placed;
 pub mod tree;
 
 use std::collections::{HashMap, HashSet};
