@@ -15,10 +15,19 @@
 //! - a cursor whose target is `null` sits on the `∅` after the last node of row 0 (a
 //!   standalone `∅` when there is none, the empty list); `null:<id>` names the node whose
 //!   `∅` it is.
+//!
+//! An arrow to another row is a curve that leaves the pointer field and enters the target
+//! from one side, picked so that it crosses no other node. A node of kind `region` is not a
+//! list node: it draws a labelled frame behind the list (meta `cols`, `rows`, `label`, and
+//! `grid` for cell lines), so one figure can show, say, the nodes scattered in a memory grid
+//! above the same list drawn logically. `layoutHint: "placed dy=72"` sets the row pitch.
 
 use std::collections::HashMap;
 
 use super::constants::{LIST_ARC, LIST_BOX_H, LIST_DY, LIST_FIELD_W, LIST_GAP, LIST_VAL_W, PAD};
+
+/// The node kind that draws a labelled frame instead of a list node.
+pub const REGION: &str = "region";
 use super::{LayoutResult, Point};
 use crate::engine::graph::{NodeId, VizCursor, VizGraph, VizNode, VizStep};
 
@@ -31,6 +40,31 @@ const NULL_ARROW: f64 = 17.0;
 /// The two lanes of a pair of opposite arrows between the same two boxes.
 const LANE: f64 = 7.0;
 
+/// Is this layout hint the placed list (`placed`, optionally with `dy=<pitch>`)?
+#[must_use]
+pub fn is_placed(hint: &str) -> bool {
+    hint.split_whitespace().next() == Some("placed")
+}
+
+fn row_pitch(hint: &str) -> f64 {
+    hint.split_whitespace()
+        .filter_map(|t| t.strip_prefix("dy="))
+        .find_map(|v| v.parse::<f64>().ok())
+        .filter(|v| *v >= LIST_BOX_H + 8.0)
+        .unwrap_or(LIST_DY)
+}
+
+fn meta_f(n: &VizNode, name: &str) -> Option<f64> {
+    n.meta
+        .iter()
+        .find(|f| f.name == name)
+        .and_then(|f| f.value.trim().parse().ok())
+}
+
+fn meta_s<'a>(n: &'a VizNode, name: &str) -> Option<&'a str> {
+    n.meta.iter().find(|f| f.name == name).map(|f| f.value.as_str())
+}
+
 #[must_use]
 pub fn is_next(label: &str) -> bool {
     matches!(label, "next" | "nxt")
@@ -41,12 +75,10 @@ pub fn is_prev(label: &str) -> bool {
     matches!(label, "prev" | "previous")
 }
 
-fn row_of(n: &VizNode) -> i32 {
-    n.meta
-        .iter()
-        .find(|f| f.name == "row")
-        .and_then(|f| f.value.trim().parse().ok())
-        .unwrap_or(0)
+/// The row: 0 is the list, -1 above it, 1 below; fractional to centre a node or a frame
+/// between rows.
+fn row_of(n: &VizNode) -> f64 {
+    meta_f(n, "row").unwrap_or(0.0)
 }
 
 /// The column: `slot`, or a `col` meta field when a node sits between two columns (a node
@@ -66,12 +98,28 @@ pub struct PlacedBox {
     pub at: Point,
 }
 
-/// One pointer arrow as an SVG path; `prev` arrows are drawn dashed.
+/// One pointer arrow as an SVG path; `prev` arrows are drawn dashed. `pts` are the path's
+/// points and control points: the curve lies inside their hull, which is what the extent uses.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Arrow {
     pub d: String,
     pub prev: bool,
+    pub pts: Vec<Point>,
 }
+
+/// A labelled frame behind the list; `lines` are its cell lines when it is a grid.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Region {
+    pub x: f64,
+    pub y: f64,
+    pub w: f64,
+    pub h: f64,
+    pub label: String,
+    pub lines: Vec<(Point, Point)>,
+}
+
+/// How far below its frame a region's label sits, and the room it takes.
+pub const REGION_LABEL_DY: f64 = 18.0;
 
 /// Pointer names stacked over one point, `rise` above it.
 #[derive(Debug, Clone, PartialEq)]
@@ -88,6 +136,7 @@ pub struct Frame {
     pub arrows: Vec<Arrow>,
     pub nulls: Vec<Point>,
     pub cursors: Vec<CursorStack>,
+    pub regions: Vec<Region>,
     /// An arc runs above the top row (a skip) or below the bottom row (a cycle).
     pub arc_above: bool,
     pub arc_below: bool,
@@ -102,7 +151,8 @@ pub struct Placement {
     x0: f64,
     y0: f64,
     min_col: f64,
-    min_row: i32,
+    min_row: f64,
+    dy: f64,
     centres: Vec<Point>,
 }
 
@@ -124,7 +174,7 @@ impl Placement {
     fn centre(&self, n: &VizNode) -> Point {
         Point {
             x: self.x0 + (col_of(n) - self.min_col) * self.dx(),
-            y: self.y0 + f64::from(row_of(n) - self.min_row) * LIST_DY,
+            y: self.y0 + (row_of(n) - self.min_row) * self.dy,
         }
     }
 
@@ -147,6 +197,17 @@ impl Placement {
     /// terminators and the cursor stacks.
     #[must_use]
     pub fn frame(&self, step: &VizStep) -> Frame {
+        let regions = step
+            .nodes
+            .iter()
+            .filter(|n| n.kind == REGION)
+            .map(|n| self.region(n))
+            .collect();
+        let list = VizStep {
+            nodes: step.nodes.iter().filter(|n| n.kind != REGION).cloned().collect(),
+            ..step.clone()
+        };
+        let step = &list;
         let at: Spots = step
             .nodes
             .iter()
@@ -168,8 +229,56 @@ impl Placement {
             arrows,
             nulls,
             cursors,
+            regions,
             arc_above,
             arc_below,
+        }
+    }
+
+    /// A region's frame: from its top-left cell (`col`/`slot`, `row`) over `cols` × `rows`
+    /// cells of the list's own pitch, so a node placed in a cell sits in the middle of it.
+    fn region(&self, n: &VizNode) -> Region {
+        let cols = meta_f(n, "cols").unwrap_or(1.0);
+        let rows = meta_f(n, "rows").unwrap_or(1.0);
+        let corner = self.centre(n);
+        let left = corner.x - self.dx() / 2.0;
+        let top = corner.y - self.dy / 2.0;
+        let width = cols * self.dx();
+        let height = rows * self.dy;
+        let mut lines = Vec::new();
+        if meta_s(n, "grid") == Some("true") {
+            let mut cell = 1.0;
+            while cell < cols - 1e-9 {
+                let gx = left + cell * self.dx();
+                lines.push((
+                    Point { x: gx, y: top },
+                    Point {
+                        x: gx,
+                        y: top + height,
+                    },
+                ));
+                cell += 1.0;
+            }
+            let mut cell = 1.0;
+            while cell < rows - 1e-9 {
+                let gy = top + cell * self.dy;
+                lines.push((
+                    Point { x: left, y: gy },
+                    Point {
+                        x: left + width,
+                        y: gy,
+                    },
+                ));
+                cell += 1.0;
+            }
+        }
+        Region {
+            x: left,
+            y: top,
+            w: width,
+            h: height,
+            label: meta_s(n, "label").unwrap_or_default().to_owned(),
+            lines,
         }
     }
 
@@ -182,6 +291,7 @@ impl Placement {
     }
 
     /// Every next/prev edge as an arrow, plus whether any of them arcs above or below.
+    #[allow(clippy::too_many_lines)] // one match over the five shapes an arrow can take
     fn pointer_arrows(&self, step: &VizStep, at: &Spots) -> (Vec<Arrow>, bool, bool) {
         let hw = self.box_w() / 2.0;
         let hh = LIST_BOX_H / 2.0;
@@ -213,11 +323,36 @@ impl Placement {
                 continue;
             };
             let dot = if prev { self.prev_dot(a) } else { self.next_dot(a) };
-            let d = if (a.y - b.y).abs() > f64::EPSILON {
-                // Another row: straight from the pointer field to the target's nearest edge.
-                let end = clip(b, Point { x: dot, y: a.y }, hw, hh);
-                format!("M{:.1},{:.1} L{:.1},{:.1}", dot, a.y, end.x, end.y)
-            } else if (a.x - b.x).abs() < f64::EPSILON {
+            if (a.y - b.y).abs() > f64::EPSILON {
+                // Another row: a curve out of the pointer field and into one side of the
+                // target, the shortest that crosses no other node.
+                let mut others: Vec<Obstacle> = at
+                    .iter()
+                    .filter(|(id, _)| **id != e.from.value() && **id != e.to.value())
+                    .map(|(_, (p, _))| Obstacle {
+                        at: *p,
+                        hw: hw + 6.0,
+                        hh: hh + 6.0,
+                    })
+                    .collect();
+                // A pointer's name stands above its node: an arrow must not run through it.
+                others.extend(
+                    step.cursor
+                        .iter()
+                        .filter_map(|c| at.get(c.target.value()))
+                        .map(|(p, _)| Obstacle {
+                            at: Point {
+                                x: p.x,
+                                y: p.y - hh - 18.0,
+                            },
+                            hw: 24.0,
+                            hh: 16.0,
+                        }),
+                );
+                arrows.push(self.cross_row(a, b, dot, &others, prev));
+                continue;
+            }
+            let d = if (a.x - b.x).abs() < f64::EPSILON {
                 // A node pointing at itself: a loop over its top.
                 arc_above = true;
                 format!(
@@ -282,10 +417,96 @@ impl Placement {
                     ty
                 )
             };
-            arrows.push(Arrow { d, prev });
+            let pts = path_points(&d);
+            arrows.push(Arrow { d, prev, pts });
         }
 
         (arrows, arc_above, arc_below)
+    }
+
+    /// A cubic from the pointer field of `a` into `b`: it leaves the field down, up or
+    /// sideways and enters `b` through its top, bottom or near side. The candidates are
+    /// tried shortest first, and the first one that keeps clear of every other node wins.
+    fn cross_row(&self, a: Point, b: Point, dot: f64, others: &[Obstacle], prev: bool) -> Arrow {
+        let hw = self.box_w() / 2.0;
+        let hh = LIST_BOX_H / 2.0;
+        let reach = ((b.x - a.x).hypot(b.y - a.y) * 0.45).max(30.0);
+        let side = if b.x >= a.x { 1.0 } else { -1.0 };
+        let leaves = [
+            (Point { x: dot, y: a.y + hh }, Point { x: 0.0, y: reach }),
+            (Point { x: dot, y: a.y - hh }, Point { x: 0.0, y: -reach }),
+            (
+                Point {
+                    x: a.x + side * hw,
+                    y: a.y,
+                },
+                Point {
+                    x: side * reach,
+                    y: 0.0,
+                },
+            ),
+        ];
+        let enters = [
+            (Point { x: b.x, y: b.y - hh }, Point { x: 0.0, y: -reach }),
+            (Point { x: b.x, y: b.y + hh }, Point { x: 0.0, y: reach }),
+            (
+                Point {
+                    x: b.x - side * hw,
+                    y: b.y,
+                },
+                Point {
+                    x: -side * reach,
+                    y: 0.0,
+                },
+            ),
+        ];
+        let mut best: Option<(bool, f64, [Point; 4])> = None;
+        for (start, out) in leaves {
+            for (end, into) in enters {
+                let curve = [
+                    start,
+                    Point {
+                        x: start.x + out.x,
+                        y: start.y + out.y,
+                    },
+                    Point {
+                        x: end.x + into.x,
+                        y: end.y + into.y,
+                    },
+                    end,
+                ];
+                let samples: Vec<Point> = (0..=32).map(|i| cubic(&curve, f64::from(i) / 32.0)).collect();
+                let clear = !samples.iter().any(|q| {
+                    others
+                        .iter()
+                        .any(|o| (q.x - o.at.x).abs() < o.hw && (q.y - o.at.y).abs() < o.hh)
+                }) && !samples[3..30].iter().any(|q| {
+                    [a, b]
+                        .iter()
+                        .any(|o| (q.x - o.x).abs() < hw - 1.0 && (q.y - o.y).abs() < hh - 1.0)
+                });
+                let len: f64 = samples
+                    .windows(2)
+                    .map(|w| (w[1].x - w[0].x).hypot(w[1].y - w[0].y))
+                    .sum();
+                let better = match &best {
+                    None => true,
+                    Some((bc, bl, _)) => (clear && !*bc) || (clear == *bc && len < *bl),
+                };
+                if better {
+                    best = Some((clear, len, curve));
+                }
+            }
+        }
+        let c = best.map_or([a, a, b, b], |(_, _, curve)| curve);
+        Arrow {
+            d: format!(
+                "M{:.1},{:.1} C{:.1},{:.1} {:.1},{:.1} {:.1},{:.1}",
+                c[0].x, c[0].y, c[1].x, c[1].y, c[2].x, c[2].y, c[3].x, c[3].y
+            ),
+            prev,
+            pts: c.to_vec(),
+        }
     }
 
     /// The `∅` ends: their short arrows, the glyphs, and which node owns each next `∅`.
@@ -316,6 +537,7 @@ impl Placement {
                         g.y
                     ),
                     prev: false,
+                    pts: vec![g],
                 });
                 nulls.push(g);
                 null_of.insert(n.id.value(), g);
@@ -334,6 +556,7 @@ impl Placement {
                         g.y
                     ),
                     prev: true,
+                    pts: vec![g],
                 });
                 nulls.push(g);
             }
@@ -370,7 +593,7 @@ impl Placement {
                     // The empty list: a `∅` of its own where the first node would be.
                     let g = Point {
                         x: self.x0 - self.min_col * self.dx(),
-                        y: self.y0 + f64::from(-self.min_row) * LIST_DY,
+                        y: self.y0 - self.min_row * self.dy,
                     };
                     nulls.push(g);
                     g
@@ -407,38 +630,48 @@ impl Placement {
 
 type Spots<'a> = HashMap<&'a str, (Point, &'a VizNode)>;
 
+/// Something a curved arrow must keep clear of: a box around `at`, `hw` × `hh` half sizes.
+#[derive(Debug, Clone, Copy)]
+struct Obstacle {
+    at: Point,
+    hw: f64,
+    hh: f64,
+}
+
 /// The `∅` that ends row 0's list: the rightmost row-0 node with a null next.
 fn last_null(step: &VizStep, null_of: &HashMap<&str, Point>) -> Option<Point> {
     step.nodes
         .iter()
-        .filter(|n| row_of(n) == 0)
+        .filter(|n| row_of(n).abs() < 1e-9)
         .filter_map(|n| null_of.get(n.id.value()).map(|g| (col_of(n), *g)))
         .max_by(|(a, _), (b, _)| a.total_cmp(b))
         .map(|(_, g)| g)
 }
 
-/// Where the segment from a box's centre toward `from` leaves the box.
-fn clip(c: Point, from: Point, hw: f64, hh: f64) -> Point {
-    let (dx, dy) = (from.x - c.x, from.y - c.y);
-    let sx = if dx.abs() > f64::EPSILON {
-        hw / dx.abs()
-    } else {
-        f64::INFINITY
-    };
-    let sy = if dy.abs() > f64::EPSILON {
-        hh / dy.abs()
-    } else {
-        f64::INFINITY
-    };
-    let s = sx.min(sy).min(1.0);
+fn cubic(c: &[Point; 4], t: f64) -> Point {
+    let u = 1.0 - t;
+    let (w0, w1, w2, w3) = (u * u * u, 3.0 * u * u * t, 3.0 * u * t * t, t * t * t);
     Point {
-        x: c.x + dx * s,
-        y: c.y + dy * s,
+        x: w0 * c[0].x + w1 * c[1].x + w2 * c[2].x + w3 * c[3].x,
+        y: w0 * c[0].y + w1 * c[1].y + w2 * c[2].y + w3 * c[3].y,
     }
 }
 
-/// The frame of reference over every step: the extreme columns and rows, whether the list
-/// is doubly, and room for the `∅` ends and the arcs.
+/// Every coordinate pair in an SVG path string (end points and control points).
+fn path_points(d: &str) -> Vec<Point> {
+    d.split(|ch: char| ch.is_ascii_alphabetic() || ch == ' ')
+        .filter_map(|xy| {
+            let (x, y) = xy.split_once(',')?;
+            Some(Point {
+                x: x.parse().ok()?,
+                y: y.parse().ok()?,
+            })
+        })
+        .collect()
+}
+
+/// The frame of reference over every step: whether the list is doubly, the row pitch, and an
+/// extent that holds every box, `∅`, arrow, region and region label of every step.
 #[must_use]
 pub fn placement(graph: &VizGraph) -> Placement {
     let nodes: Vec<&VizNode> = graph.steps.iter().flat_map(|s| &s.nodes).collect();
@@ -447,35 +680,75 @@ pub fn placement(graph: &VizGraph) -> Placement {
         .iter()
         .flat_map(|s| &s.edges)
         .any(|e| is_prev(&e.label));
-    let min_col = nodes.iter().map(|n| col_of(n)).fold(0.0, f64::min);
-    let max_col = nodes.iter().map(|n| col_of(n)).fold(0.0, f64::max);
-    let min_row = nodes.iter().map(|n| row_of(n)).min().unwrap_or(0).min(0);
-    let max_row = nodes.iter().map(|n| row_of(n)).max().unwrap_or(0).max(0);
     let mut p = Placement {
         doubly,
         width: 0.0,
         height: 0.0,
         x0: 0.0,
         y0: 0.0,
-        min_col,
-        min_row,
+        min_col: nodes.iter().map(|n| col_of(n)).fold(0.0, f64::min),
+        min_row: nodes.iter().map(|n| row_of(n)).fold(0.0, f64::min),
+        dy: row_pitch(&graph.layout_hint),
         centres: Vec::new(),
     };
     let hw = p.box_w() / 2.0;
     let hh = LIST_BOX_H / 2.0;
-    let end_room = NULL_DX + 10.0;
-    p.x0 = PAD + hw + if doubly { end_room } else { 0.0 };
-    // Arcs: room is only taken when some step draws one (the arc test does not depend on y0).
-    let (mut above, mut below) = (false, false);
+    // Lay every step out from a provisional origin, measure, then shift the origin so the
+    // whole drawing starts PAD in from the top-left corner.
+    let (mut lo, mut hi) = (
+        Point {
+            x: f64::INFINITY,
+            y: f64::INFINITY,
+        },
+        Point {
+            x: f64::NEG_INFINITY,
+            y: f64::NEG_INFINITY,
+        },
+    );
+    let mut grow = |x0: f64, y0: f64, x1: f64, y1: f64| {
+        lo = Point {
+            x: lo.x.min(x0),
+            y: lo.y.min(y0),
+        };
+        hi = Point {
+            x: hi.x.max(x1),
+            y: hi.y.max(y1),
+        };
+    };
     for step in &graph.steps {
         let f = p.frame(step);
-        above |= f.arc_above;
-        below |= f.arc_below;
+        for b in &f.boxes {
+            grow(b.at.x - hw, b.at.y - hh, b.at.x + hw, b.at.y + hh);
+        }
+        for g in &f.nulls {
+            grow(g.x - 10.0, g.y - 10.0, g.x + 10.0, g.y + 10.0);
+        }
+        for a in &f.arrows {
+            for q in &a.pts {
+                grow(q.x, q.y, q.x, q.y);
+            }
+        }
+        for r in &f.regions {
+            let label = if r.label.is_empty() {
+                0.0
+            } else {
+                REGION_LABEL_DY + 6.0
+            };
+            grow(r.x, r.y, r.x + r.w, r.y + r.h + label);
+        }
     }
-    p.y0 = PAD + hh + if above { LIST_ARC } else { 0.0 };
-    p.width = p.x0 + (max_col - min_col) * p.dx() + hw + end_room + PAD;
-    p.height = p.y0 + f64::from(max_row - min_row) * LIST_DY + hh + if below { LIST_ARC } else { 0.0 } + PAD;
-    p.centres = nodes.iter().map(|n| p.centre(n)).collect();
+    if !lo.x.is_finite() {
+        (lo, hi) = (Point { x: -10.0, y: -10.0 }, Point { x: 10.0, y: 10.0 });
+    }
+    p.x0 = PAD - lo.x;
+    p.y0 = PAD - lo.y;
+    p.width = hi.x - lo.x + 2.0 * PAD;
+    p.height = hi.y - lo.y + 2.0 * PAD;
+    p.centres = nodes
+        .iter()
+        .filter(|n| n.kind != REGION)
+        .map(|n| p.centre(n))
+        .collect();
     if p.centres.is_empty() {
         p.centres.push(Point { x: p.x0, y: p.y0 });
     }

@@ -79,7 +79,32 @@ pub fn list(graph: &VizGraph, step_index: Signal<usize>) -> AnyView {
                     })
                     .collect();
                 let cursors: Vec<_> = f.cursors.iter().map(|c| cursor_stack(&c.cursors, c.at, c.rise)).collect();
+                let regions: Vec<_> = f
+                    .regions
+                    .iter()
+                    .map(|r| {
+                        let lines: Vec<_> = r
+                            .lines
+                            .iter()
+                            .map(|(a, b)| view! {
+                                <line class="viz-plist__cell" x1=a.x y1=a.y x2=b.x y2=b.y></line>
+                            })
+                            .collect();
+                        let label = (!r.label.is_empty()).then(|| view! {
+                            <text class="viz-plist__region-label" x=r.x + r.w / 2.0
+                                  y=r.y + r.h + placed::REGION_LABEL_DY text-anchor="middle">{r.label.clone()}</text>
+                        });
+                        view! {
+                            <g class="viz-plist__region">
+                                <rect x=r.x y=r.y width=r.w height=r.h rx="6"></rect>
+                                {lines}
+                                {label}
+                            </g>
+                        }
+                    })
+                    .collect();
                 view! {
+                    <g class="viz-plist__regions">{regions}</g>
                     <g class="viz-plist__edges">{arrows}</g>
                     <g class="viz-plist__nodes">{boxes}</g>
                     <g class="viz-plist__nulls">{nulls}</g>

@@ -45,7 +45,7 @@ pub fn render(structure: VizStructure, cases: &VizCases, step_index: Signal<usiz
         RenderFamily::Buckets => Some(buckets::hashmap(graph, step_index)),
         RenderFamily::Queue => Some(strip::queue(graph, step_index, structure == VizStructure::Deque)),
         // An authored list that places its nodes draws its real pointers; a traced one is a chain.
-        RenderFamily::LinkedList if graph.layout_hint == "placed" => {
+        RenderFamily::LinkedList if crate::engine::geometry::placed::is_placed(&graph.layout_hint) => {
             Some(list_placed::list(graph, step_index))
         }
         RenderFamily::LinkedList => Some(list_chain::list(graph, step_index)),
