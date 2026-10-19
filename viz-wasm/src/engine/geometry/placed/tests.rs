@@ -321,3 +321,21 @@ fn a_cross_row_arrow_keeps_clear_of_a_pointer_name() {
         );
     }
 }
+
+#[test]
+fn a_skip_arc_runs_under_the_row_when_a_spanned_node_has_a_pointer_name() {
+    let one = step(
+        vec![node("a", 0, 0), node("b", 1, 0), node("c", 2, 0)],
+        vec![next("a", "c"), next("b", "c")],
+        vec![cursor("current", "b")],
+    );
+    let frame = placement(&graph(vec![one.clone()])).frame(&one);
+    let skip = frame.arrows.iter().find(|x| x.d.contains('C')).unwrap();
+    let mid = frame.boxes.iter().find(|x| x.node.id.value() == "b").unwrap().at;
+    let curve: [Point; 4] = skip.pts.clone().try_into().unwrap();
+    assert!(frame.arc_below && !frame.arc_above);
+    assert!(
+        cubic(&curve, 0.5).y > mid.y + LIST_BOX_H / 2.0,
+        "the arc should pass under the row"
+    );
+}

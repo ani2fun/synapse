@@ -387,17 +387,30 @@ impl Placement {
                 let x2 = if right { b.x - hw } else { b.x + hw };
                 format!("M{:.1},{:.1} L{:.1},{:.1}", x1, a.y + lane, x2, a.y + lane)
             } else if b.x > a.x {
-                arc_above = true;
-                // Skipping nodes forward: an arc over them, into the target's top.
-                let (sy, ty) = (a.y - hh, b.y - hh);
+                // Skipping nodes forward: an arc over them into the target's top, or, when any
+                // node it spans carries a pointer name (which stands above its node), an arc
+                // under them into the target's bottom, where there are no names to cross.
+                let named = step
+                    .cursor
+                    .iter()
+                    .filter_map(|c| at.get(c.target.value()))
+                    .any(|(p, _)| (p.y - a.y).abs() < f64::EPSILON && p.x > a.x - 1.0 && p.x < b.x + 1.0);
+                let side = if named { 1.0 } else { -1.0 };
+                let lift = LIST_ARC;
+                if named {
+                    arc_below = true;
+                } else {
+                    arc_above = true;
+                }
+                let (sy, ty) = (a.y + side * hh, b.y + side * hh);
                 format!(
                     "M{:.1},{:.1} C{:.1},{:.1} {:.1},{:.1} {:.1},{:.1}",
                     dot,
                     sy,
                     dot,
-                    sy - LIST_ARC,
+                    sy + side * lift,
                     b.x - 8.0,
-                    ty - LIST_ARC,
+                    ty + side * lift,
                     b.x - 8.0,
                     ty
                 )
@@ -719,6 +732,19 @@ pub fn placement(graph: &VizGraph) -> Placement {
         let f = p.frame(step);
         for b in &f.boxes {
             grow(b.at.x - hw, b.at.y - hh, b.at.x + hw, b.at.y + hh);
+        }
+        // Pointer names are centred over their node and can be wider than it.
+        for c in &f.cursors {
+            #[allow(clippy::cast_precision_loss)]
+            let half = c
+                .cursors
+                .iter()
+                .map(|x| x.name.chars().count())
+                .max()
+                .unwrap_or(0) as f64
+                * 3.7
+                + 4.0;
+            grow(c.at.x - half, c.at.y, c.at.x + half, c.at.y);
         }
         for g in &f.nulls {
             grow(g.x - 10.0, g.y - 10.0, g.x + 10.0, g.y + 10.0);
