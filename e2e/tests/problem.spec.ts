@@ -67,23 +67,18 @@ test("the editorial tab mounts its stepper", async ({ page }) => {
   await expect(page.getByRole("button", { name: /intuition/i }).first()).toBeVisible();
 });
 
-test("the editorial's solution reveals real code, not an empty box", async ({ page }) => {
+test("the editorial's solution shows real code, not an empty box", async ({ page }) => {
   await page.goto(PROBLEM);
   await expect(page.locator(".pcanvas")).toBeVisible();
   await page.locator(".problem-tab--editorial").click();
   await expect(page.locator(".pwb-escroll")).toBeVisible();
-
-  // The code is behind a gate, so nothing is mounted until this is pressed.
-  const reveal = page.locator(".pwb-ereveal");
-  await expect(reveal).toBeVisible();
-  await reveal.click();
 
   // The assertion that matters is the TEXT, not the chrome. Monaco arrives as a lazy chunk, and
   // when that import fails -- a stale dev-server dep cache, a chunk 404 after a deploy -- the
   // viewer still renders its bar, its language pill and its Copy to editor button, so everything
   // an element-presence check would look at is present and correct. The only symptom is that the
   // editor is empty, and the only other trace is a console error. Assert the source is on screen.
-  const solution = page.locator(".pwb-ereveal-open .runnable.solution");
+  const solution = page.locator(".runnable.solution");
   await expect(solution.locator(".wb__eyebrow")).toContainText("SOLUTION");
   await expect(solution.locator(".view-lines")).toContainText("int(input())", { timeout: 30_000 });
 });
@@ -104,11 +99,10 @@ test("a slow-loading editor still ends up showing its lines", async ({ page }) =
   await expect(page.locator(".pcanvas")).toBeVisible();
   await page.locator(".problem-tab--editorial").click();
   await expect(page.locator(".pwb-escroll")).toBeVisible();
-  await page.locator(".pwb-ereveal").click();
 
   // Mounted AND measured. An editor that missed its nudge renders no lines at all while every
   // other part of it -- the box, the bar, the language pill -- looks entirely correct.
-  const solution = page.locator(".pwb-ereveal-open .runnable.solution");
+  const solution = page.locator(".runnable.solution");
   await expect(solution.locator(".monaco-editor")).toBeVisible({ timeout: 30_000 });
   await expect(solution.locator(".view-lines")).toContainText("int(input())", { timeout: 30_000 });
 });
@@ -123,11 +117,10 @@ test("a solution whose editor cannot load still shows its code", async ({ page }
   await expect(page.locator(".pcanvas")).toBeVisible();
   await page.locator(".problem-tab--editorial").click();
   await expect(page.locator(".pwb-escroll")).toBeVisible();
-  await page.locator(".pwb-ereveal").click();
 
   // No editor -- and the code is on screen regardless, in the same box at the same size. The
   // reader loses highlighting and nothing else, which is the whole point of the fallback.
-  const solution = page.locator(".pwb-ereveal-open .runnable.solution");
+  const solution = page.locator(".runnable.solution");
   await expect(solution.locator(".monaco-editor")).toHaveCount(0);
   await expect(solution.locator(".runnable__preview")).toContainText("int(input())", { timeout: 30_000 });
 });
@@ -394,16 +387,15 @@ test("a test case the reader types survives a chip switch and a reload", async (
   await expect(right.locator(".runnable__out")).toHaveCount(0);
 });
 
-test("a revealed solution can be copied to the clipboard, not just into the editor", async ({ page }) => {
+test("a solution can be copied to the clipboard, not just into the editor", async ({ page }) => {
   await page.goto(PROBLEM);
   await expect(page.locator(".pcanvas")).toBeVisible();
   await page.locator(".problem-tab--editorial").click();
-  await page.locator(".pwb-ereveal").click();
 
   // The clipboard button lives INSIDE the editor box (where the hover-reveal rule applies and
   // where the workbench puts its own), and is a different verb from "Copy to editor" beside the
   // language pill — that one loads the solution into the workbench tab.
-  const solution = page.locator(".pwb-ereveal-open .runnable.solution");
+  const solution = page.locator(".runnable.solution");
   await expect(solution.locator(".runnable__editor .editor-copy")).toBeVisible();
   await expect(solution.locator(".wb__ghost", { hasText: "Copy to editor" })).toBeVisible();
 });
@@ -444,8 +436,7 @@ test("an anonymous reader can still load a solution into the editor, and Reset t
   // The lock stops TYPING, and only typing: "Copy to editor" replaces the buffer through
   // LOAD_CODE, for anyone. Which is exactly why Reset cannot be gated on sign-in.
   await page.locator(".problem-tab--editorial").click();
-  await page.locator(".pwb-ereveal").click();
-  const solution = page.locator(".pwb-ereveal-open .runnable.solution");
+  const solution = page.locator(".runnable.solution");
   await solution.locator(".wb__ghost", { hasText: "Copy to editor" }).click();
   // The fixture solution carries a comment the starter does not, so the buffer is now dirty.
   await expect(lines).toContainText("threshold is inclusive", { timeout: 30_000 });

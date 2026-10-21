@@ -6,9 +6,8 @@
  * ACTIVE tab's code lands in its matching language tab on the right — language-exact across the
  * pane boundary.
  *
- * Two callers: the embedded practice widget mounts it REVEALED; the problem-page editorial
- * mounts it behind a reveal gate. The component itself is identical either way — the gate is the
- * editorial's, not the viewer's.
+ * Two callers, both mounting it outright: the embedded practice widget and the problem-page
+ * editorial.
  *
  * Monaco is a lazy chunk and is therefore allowed to be UNAVAILABLE. When it is, the viewer falls
  * back to the plain source in the same box rather than to nothing: the reader came here to read
@@ -58,8 +57,7 @@ export function SolutionViewer({ variants, workbenchRoot }: SolutionViewerProps)
 
   const variant = variants[active]!;
 
-  // Lazy Monaco, mounted VISIBLE (the reveal already happened for the gated case, so it measures
-  // right away). Dynamic import keeps monaco a lazy chunk.
+  // Lazy Monaco, mounted VISIBLE (so it measures right away). Dynamic import keeps monaco a lazy chunk.
   useEffect(() => {
     const node = host.current;
     if (!node || mounted.current) return;
@@ -80,7 +78,7 @@ export function SolutionViewer({ variants, workbenchRoot }: SolutionViewerProps)
         // listener below has no editor to nudge and the event never comes again. An editor
         // created into a container that was 0x0, or whose size monaco's ResizeObserver never
         // saw change, then renders no lines forever: mounted, sized, and blank.
-        // Between the two, both orders are covered -- this call for a reveal that happened
+        // Between the two, both orders are covered -- this call for a show that happened
         // before the editor existed, the listener for one that happens after.
         mounted.current.relayout();
         log.debug(`solution viewer monaco mounted (${first.language})`);
@@ -102,7 +100,7 @@ export function SolutionViewer({ variants, workbenchRoot }: SolutionViewerProps)
   }, []);
 
   // A viewer inside a collapsed editorial section (or a hidden tab) mounts 0×0 and renders no
-  // lines; the reveal broadcasts RELAYOUT and re-measuring here makes the code appear.
+  // lines; the pane broadcasts RELAYOUT and re-measuring here makes the code appear.
   useEffect(() => {
     const onRelayout = () => mounted.current?.relayout();
     window.addEventListener(RELAYOUT, onRelayout);

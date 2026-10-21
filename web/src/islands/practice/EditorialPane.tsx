@@ -1,13 +1,13 @@
 /**
  * The problem page's Editorial pane: an approach STEPPER for multi-approach editorials (numbered
  * circles over a connector rail, per-approach complexities), a sticky JUMP bar with a scroll-spy
- * over one continuously scrolling document of numbered sections, the solution gated behind a
- * reveal card (collapses again on approach switch, by design), and the Complexity section
+ * over one continuously scrolling document of numbered sections, the solution shown
+ * outright, and the Complexity section
  * rendered as Time/Space cards when its prose parses.
  *
  * The pure half lives in `lib/catalog/editorial.ts` — this component only spends the parsed
  * `EditorialDoc`: fragments render through `renderLesson` per section (via `MarkdownPane`) and
- * hydrate GATED solutions. The active approach persists under its OWN key (`PROBLEM_APPROACH_KEY`).
+ * hydrate solutions. The active approach persists under its OWN key (`PROBLEM_APPROACH_KEY`).
  *
  * SCROLL THE PANE, NOT THE WINDOW: `scrollIntoView` walks scrollable ancestors and crept the page
  * 64px per jump; below the 1024px breakpoint the pane stops scrolling and the PAGE carries the
@@ -58,7 +58,7 @@ export function EditorialPane({ md, workbenchRoot }: EditorialPaneProps) {
         <SingleApproachBar doc={doc} />
       )}
       {/* Keyed by approach index: a switch mounts a FRESH scroll container, so it opens at the top
-          (no manual scroll reset) and the gated solutions collapse again. */}
+          (no manual scroll reset) and the solutions remount. */}
       <ApproachBody key={active} approach={approach} preamble={doc.preamble} workbenchRoot={workbenchRoot} />
     </div>
   );
@@ -167,11 +167,11 @@ function ApproachBody({
     <div class="pwb__pane-scroll synapse-prose pwb-escroll" ref={scrollRef} onScroll={onScroll}>
       {labels.length > 1 && <JumpBar labels={labels} active={activeSec} onJump={jumpTo} />}
       {preamble !== "" && (
-        <MarkdownPane md={preamble} solutions="gated" forceOpenDetails={true} workbenchRoot={workbenchRoot} />
+        <MarkdownPane md={preamble} solutions="revealed" forceOpenDetails={true} workbenchRoot={workbenchRoot} />
       )}
       {approach.sections.map((section) => {
         if (section.label === "") {
-          return <MarkdownPane md={section.md} solutions="gated" forceOpenDetails={true} workbenchRoot={workbenchRoot} />;
+          return <MarkdownPane md={section.md} solutions="revealed" forceOpenDetails={true} workbenchRoot={workbenchRoot} />;
         }
         const index = number++;
         const tag = section.kind === "Solution" && solutionTag !== "" ? solutionTag : null;
@@ -239,10 +239,10 @@ function SectionBlock({
       const space = parsed.space ?? (claims[1] != null ? ([claims[1], ""] as [string, string]) : null);
       body = <ComplexityCards time={time} space={space} />;
     } else {
-      body = <MarkdownPane md={section.md} solutions="gated" forceOpenDetails={true} workbenchRoot={workbenchRoot} />;
+      body = <MarkdownPane md={section.md} solutions="revealed" forceOpenDetails={true} workbenchRoot={workbenchRoot} />;
     }
   } else {
-    body = <MarkdownPane md={section.md} solutions="gated" forceOpenDetails={true} workbenchRoot={workbenchRoot} />;
+    body = <MarkdownPane md={section.md} solutions="revealed" forceOpenDetails={true} workbenchRoot={workbenchRoot} />;
   }
   return (
     <section class="pwb-esection" data-esec={String(index)}>

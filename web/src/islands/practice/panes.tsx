@@ -1,12 +1,8 @@
 /**
  * The markdown panes shared by the practice widget and the problem-page editorial stepper. A
  * fragment of editorial/statement markdown renders through the SAME `renderLesson` pipeline the
- * reader uses, then hydrates its interactive placeholders: `.solution-block`s (revealed for
- * practice, gated behind a reveal card for the editorial) and fence-group bars.
- *
- * The gated/revealed split is the ONLY difference between the two callers, expressed as the `gated`
- * flag — the reveal gate is the editorial's, not the viewer's (SolutionViewer.tsx is identical
- * either way).
+ * reader uses, then hydrates its interactive placeholders: `.solution-block`s (shown outright, in
+ * the practice widget and the problem-page editorial alike) and fence-group bars.
  */
 import { render, h } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
@@ -29,87 +25,12 @@ function decodedAttr(element: Element, name: string): string | null {
   }
 }
 
-const CODE_ICON = (
-  <svg
-    viewBox="0 0 24 24"
-    width="19"
-    height="19"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="2"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="m9 18 6-6-6-6"></path>
-    <path d="M4 6v12" opacity="0.4"></path>
-  </svg>
-);
-
-const CHEVRON_UP = (
-  <svg
-    viewBox="0 0 24 24"
-    width="14"
-    height="14"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="2"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    aria-hidden="true"
-  >
-    <path d="m18 15-6-6-6 6"></path>
-  </svg>
-);
-
-const INFO_ICON = (
-  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-    <circle cx="12" cy="12" r="10"></circle>
-    <path d="M12 16v-4M12 8h.01"></path>
-  </svg>
-);
-
 /**
- * The problem-page editorial's reveal gate. The viewer mounts on reveal (visible, so Monaco
- * measures right away) and unmounts on Hide; an approach switch re-creates the fragment, so it
- * collapses again.
- */
-export function GatedSolution({ variants, workbenchRoot }: { variants: Variant[]; workbenchRoot: () => HTMLElement | null }) {
-  const [revealed, setRevealed] = useState(false);
-  if (!revealed) {
-    return (
-      <button class="pwb-ereveal" onClick={() => setRevealed(true)}>
-        <span class="pwb-ereveal__icon">{CODE_ICON}</span>
-        <span class="pwb-ereveal__copy">
-          <span class="pwb-ereveal__title">Reveal the solution</span>
-          <span class="pwb-ereveal__sub">Give the intuition a shot before you peek at the code.</span>
-        </span>
-      </button>
-    );
-  }
-  return (
-    <div class="pwb-ereveal-open">
-      <div class="pwb-ereveal-open__bar">
-        <button class="wb__ghost" onClick={() => setRevealed(false)}>
-          {CHEVRON_UP} Hide
-        </button>
-      </div>
-      <SolutionViewer variants={variants} workbenchRoot={workbenchRoot} />
-      <p class="pwb-ereveal__note">
-        {INFO_ICON} Reference only — copy it into the panel on the right to run it.
-      </p>
-    </div>
-  );
-}
-
-/**
- * Hydrate every `.solution-block` under `root`: a revealed viewer for the practice editorial, a
- * reveal-gated one for the problem editorial. Returns the mounted host elements so the caller can
- * unmount them.
+ * Hydrate every `.solution-block` under `root` with a solution viewer. Returns the mounted host
+ * elements so the caller can unmount them.
  */
 export function mountSolutionBlocks(
   root: ParentNode,
-  gated: boolean,
   workbenchRoot: () => HTMLElement | null,
 ): HTMLElement[] {
   const hosts: HTMLElement[] = [];
@@ -119,20 +40,15 @@ export function mountSolutionBlocks(
     if (!variants || variants.length === 0) continue;
     const host = element as HTMLElement;
     host.replaceChildren();
-    render(
-      gated
-        ? h(GatedSolution, { variants, workbenchRoot })
-        : h(SolutionViewer, { variants, workbenchRoot }),
-      host,
-    );
+    render(h(SolutionViewer, { variants, workbenchRoot }), host);
     hosts.push(host);
   }
   return hosts;
 }
 
-/** How a fragment's `.solution-block`s hydrate: not at all (a Description/statement tab), revealed
- *  outright (a practice editorial), or behind a reveal card (the problem-page editorial). */
-export type SolutionMode = "none" | "revealed" | "gated";
+/** How a fragment's `.solution-block`s hydrate: not at all (a Description/statement tab), or shown
+ *  outright (a practice or problem-page editorial). */
+export type SolutionMode = "none" | "revealed";
 
 export interface MarkdownPaneProps {
   md: string;
@@ -165,7 +81,7 @@ export function MarkdownPane({ md, solutions, forceOpenDetails, workbenchRoot }:
         if (forceOpenDetails) {
           for (const details of node.querySelectorAll("details")) details.setAttribute("open", "");
         }
-        if (solutions !== "none") hosts.current = mountSolutionBlocks(node, solutions === "gated", workbenchRoot);
+        if (solutions !== "none") hosts.current = mountSolutionBlocks(node, workbenchRoot);
         hydrateFenceGroups(node);
         // Diagrams hydrate here too, so a diagram authored inside a practice statement renders
         // instead of sitting inert.
@@ -173,7 +89,7 @@ export function MarkdownPane({ md, solutions, forceOpenDetails, workbenchRoot }:
         // A ```viz fence in an editorial plants a fresh widget AFTER the viz loader's initial
         // sweep — ask the loader to re-sweep (idempotent, loads on demand).
         window.dispatchEvent(new Event(VIZ_RESCAN));
-        // A viewer revealed inside a freshly-shown pane may have measured 0×0 — nudge Monaco.
+        // A viewer mounted inside a freshly-shown pane may have measured 0×0 — nudge Monaco.
         window.dispatchEvent(new Event(RELAYOUT));
       } catch (error) {
         log.error(`editorial markdown failed: ${String(error)}`);
