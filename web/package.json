@@ -28,7 +28,7 @@
     "unified": "^11.0.5"
   },
   "devDependencies": {
-    "@types/node": "^26.4.0",
+    "@types/node": "^26.6.3",
     "@vitest/coverage-v8": "^4.1.11",
     "postcss": "8.5.28",
     "typescript": "^7.0.2",
