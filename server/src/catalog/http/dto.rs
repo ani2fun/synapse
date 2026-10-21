@@ -2,7 +2,7 @@
 
 use synapse_shared::api::ApiError;
 use synapse_shared::catalog::{
-    BookDto, BookEntryDto, BookRefDto, CatalogEntryDto, CategoryDto, ChapterDto, LessonDto,
+    BookDto, BookEntryDto, BookRefDto, BookVersionDto, CatalogEntryDto, CategoryDto, ChapterDto, LessonDto,
     LessonFrontmatterDto, LessonPayloadDto, SynapseIndexDto,
 };
 
@@ -103,6 +103,10 @@ pub fn to_payload(content: &LessonContent) -> LessonPayloadDto {
         next: content.next_path.as_deref().map(full),
         editorial: content.editorial.clone(),
         tests: content.sample_tests.clone(),
+        version: content.version.as_ref().map(|v| BookVersionDto {
+            commit: v.commit.clone(),
+            repo: v.repo.clone(),
+        }),
     }
 }
 

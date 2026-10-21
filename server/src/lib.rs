@@ -348,6 +348,8 @@ where
         synapse_shared::execution::ArgSpec,
         synapse_shared::execution::TestCase,
         synapse_shared::execution::TestSpec,
+        // Reached only through `LessonPayloadDto.version`, for the same reason.
+        synapse_shared::catalog::BookVersionDto,
         RunRequest,
         RunResult,
         SubmitRequestDto,

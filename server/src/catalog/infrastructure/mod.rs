@@ -9,7 +9,7 @@ mod mount_order;
 mod postgres;
 mod sync;
 
-pub use commit_sha::read_commit_sha;
+pub use commit_sha::{commit_of, read_commit_sha};
 pub use content_cache::ContentCache;
 pub use filesystem::{FileSystemContentRepository, MountedSources, SourceRoot};
 pub use github_fetcher::GitHubFetcher;

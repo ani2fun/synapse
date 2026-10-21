@@ -90,7 +90,7 @@
       "_type": "request",
       "parentId": "fld_catalog",
       "name": "GET /api/synapse/{paths…}",
-      "description": "A lesson payload by its directory-mirror path (category…/book/chapter…/lesson) — raw markdown + frontmatter + full prev/next. (step 06)",
+      "description": "A lesson payload by its directory-mirror path (category…/book/chapter…/lesson) — raw markdown + frontmatter + full prev/next, and `version` ({commit, repo?}): the commit of the content repository the lesson was read from, omitted when that source has none on disk.",
       "method": "GET",
       "url": "{{ _.base_url }}/api/synapse/learn/dsa/lists/singly"
     },

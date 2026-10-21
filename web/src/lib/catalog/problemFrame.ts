@@ -12,6 +12,8 @@
 // Text from the payload is escaped here; the description HTML is trusted — it is the output of
 // the reader's own markdown pipeline.
 
+import { type BookVersion, bookVersionHtml } from "./bookVersion";
+
 export interface ProblemCounter {
   problems: string[];
   at: number;
@@ -31,6 +33,8 @@ export interface ProblemFrameInput {
   counter: ProblemCounter | null;
   prev: string | null;
   next: string | null;
+  /** The book's commit, for the docked nav's version chip; null renders no chip. */
+  version: BookVersion | null;
   /** The left pane's starting width, in percent. */
   leftPct: number;
 }
@@ -166,7 +170,7 @@ export function problemFrame(input: ProblemFrameInput): string {
     `<div class="pwb__rpane hidden" data-rpane="notes"><div class="pnotes-host"></div></div>` +
     `</div></div></div>` +
     `<nav class="pwb__nav" aria-label="Problem navigation">` +
-    `<div class="pwb__nav-left"><button class="pwb__contents" aria-label="Browse — the book's lessons and problems" type="button">${ICONS.contents}<span>Browse</span></button></div>` +
+    `<div class="pwb__nav-left"><button class="pwb__contents" aria-label="Browse — the book's lessons and problems" type="button">${ICONS.contents}<span>Browse</span></button>${bookVersionHtml(input.version)}</div>` +
     `<div class="pwb__nav-mid">${counterNav(input.counter)}</div>` +
     `<div class="pwb__nav-right">${step(input.prev, "Previous", false)}${step(input.next, "Next", true)}</div>` +
     `</nav></div>`

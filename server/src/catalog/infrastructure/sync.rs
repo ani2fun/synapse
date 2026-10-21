@@ -105,7 +105,8 @@ impl<R: ContentSources, F: ContentFetcher> ContentSync<R, F> {
             // Mounted whether or not THIS tick moved it: a source with a good checkout and a
             // failed refresh must keep serving.
             order.append(
-                SourceRoot::new(source.id.clone(), self.cache.checkout_of(&source.id)),
+                SourceRoot::new(source.id.clone(), self.cache.checkout_of(&source.id))
+                    .from_repo(source.repo.clone()),
                 source.placement(),
             );
         }

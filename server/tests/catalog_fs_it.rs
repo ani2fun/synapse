@@ -10,6 +10,7 @@ use synapse_server::catalog::application::{
     CatalogService, ContentError, ContentRepository, Placements, Viewer,
 };
 use synapse_server::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
+use synapse_server::catalog::domain::lesson::BookVersion;
 use synapse_server::catalog::domain::merge::Placement;
 use synapse_server::catalog::infrastructure::{FileSystemContentRepository, SourceRoot, read_commit_sha};
 
@@ -30,6 +31,54 @@ fn seed_content(root: &Path) {
     write(&root.join("01-learn/02-dsa/01-intro.md"), "# Intro\nwelcome");
     write(&root.join("01-learn/02-dsa/02-lists/01-singly.md"), "singly body");
     write(&root.join(".hidden/ignored.md"), "never seen");
+}
+
+// ── book_version ──────────────────────────────────────────────────────────────
+
+/// Both checkout shapes name their commit, each tagged with the repository it came from; a local
+/// directory that is not a checkout names none, and neither does a source nobody mounted.
+#[tokio::test]
+async fn book_version_reads_each_checkouts_commit_and_its_repository() {
+    const LANDED: &str = "b962f394a9107db4d5d811c75036907c2d25a53d";
+
+    let main = tempfile::tempdir().unwrap();
+    let cache = tempfile::tempdir().unwrap();
+    let local = tempfile::tempdir().unwrap();
+    seed_content(main.path());
+    write(&main.path().join(".git/HEAD"), "ref: refs/heads/main\n");
+    write(&main.path().join(".git/refs/heads/main"), &format!("{SHA}\n"));
+    let commit_dir = cache.path().join("java-guide").join(LANDED);
+    write(&commit_dir.join("book.json"), r#"{"slug":"java"}"#);
+    let current = cache.path().join("java-guide/current");
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&commit_dir, &current).unwrap();
+
+    // `auto_reload` on: the version a reader sees is the commit, never the dev watermark.
+    let repo = FileSystemContentRepository::over(
+        vec![
+            SourceRoot::new(PRIMARY_SOURCE_ID, main.path()).from_repo("ani2fun/synapse-content"),
+            SourceRoot::new("java-guide", &current).from_repo("ani2fun/java-guide"),
+            SourceRoot::new("local", local.path()),
+        ],
+        true,
+    );
+
+    assert_eq!(
+        repo.book_version(PRIMARY_SOURCE_ID).await,
+        Some(BookVersion {
+            commit: SHA.to_owned(),
+            repo: Some("ani2fun/synapse-content".to_owned()),
+        })
+    );
+    assert_eq!(
+        repo.book_version("java-guide").await,
+        Some(BookVersion {
+            commit: LANDED.to_owned(),
+            repo: Some("ani2fun/java-guide".to_owned()),
+        })
+    );
+    assert_eq!(repo.book_version("local").await, None);
+    assert_eq!(repo.book_version("nobody").await, None);
 }
 
 // ── load_tree + read_lesson ───────────────────────────────────────────────────

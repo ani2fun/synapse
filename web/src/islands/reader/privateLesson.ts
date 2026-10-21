@@ -18,6 +18,7 @@ import { ApiFailure, bearerHeaders, fetchIndex, lesson as fetchLesson } from "..
 import type { LessonPayload } from "../../lib/api/client";
 import type { components } from "../../lib/api/schema.gen";
 import { DEFAULT_LEFT_PCT } from "../../lib/catalog/pane";
+import { bookVersionHtml } from "../../lib/catalog/bookVersion";
 import { humanize, problemFrame } from "../../lib/catalog/problemFrame";
 import { bookOf, chapterProblems, problemContentSplit } from "../../lib/catalog/tree";
 import * as log from "../../lib/log";
@@ -125,6 +126,10 @@ function renderPager(payload: LessonPayload): void {
     );
   };
   nav.innerHTML = card(payload.prev, "Previous", false) + card(payload.next, "Next", true);
+  // A private lesson has no Mark-as-read row to carry the version chip, so it gets a row of its
+  // own above the pager.
+  const chip = bookVersionHtml(payload.version);
+  if (chip) nav.insertAdjacentHTML("beforebegin", `<div class="reader-version">${chip}</div>`);
 }
 
 /** Fetch one gated `/media/…` file WITH the bearer and return a blob URL the page can show. */
@@ -213,6 +218,7 @@ async function renderProblem(payload: LessonPayload, segments: string[]): Promis
     counter: book ? chapterProblems(book, current) : null,
     prev: payload.prev ?? null,
     next: payload.next ?? null,
+    version: payload.version ?? null,
     leftPct: DEFAULT_LEFT_PCT,
   });
   if (book) {

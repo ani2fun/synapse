@@ -189,6 +189,7 @@ impl<R: ContentRepository> CatalogService<R> {
             .repo
             .read_lesson(&file_path.source_id, &file_path.path)
             .await?;
+        let version = self.repo.book_version(&file_path.source_id).await;
         let parsed = frontmatter::parse(&source, &lesson.title);
         let editorial = self
             .editorial_for(file_path, parsed.frontmatter.kind.as_deref())
@@ -215,6 +216,7 @@ impl<R: ContentRepository> CatalogService<R> {
             next_path,
             editorial,
             sample_tests,
+            version,
         })
     }
 

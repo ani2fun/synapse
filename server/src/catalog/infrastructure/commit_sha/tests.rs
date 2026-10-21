@@ -101,3 +101,19 @@ fn a_directory_not_named_after_a_commit_is_not_a_version() {
 
     assert_eq!(read_commit_sha(&checkout), FALLBACK);
 }
+
+/// What a reader is shown as the book's version: a checkout that has a commit names it, and one
+/// that does not answers `None` rather than the cache key's `"static"`.
+#[test]
+fn commit_of_names_a_real_commit_and_nothing_else() {
+    let tmp = tempfile::tempdir().unwrap();
+    git_checkout(tmp.path(), SHA_A);
+    let plain = tmp.path().join("plain");
+    fs::create_dir_all(&plain).unwrap();
+    let not_a_sha = unpacked_checkout(&tmp.path().join("cache"), "not-a-sha");
+
+    assert_eq!(commit_of(tmp.path()).as_deref(), Some(SHA_A));
+    assert_eq!(commit_of(&plain), None);
+    assert_eq!(commit_of(&not_a_sha), None);
+    assert_eq!(commit_of(&tmp.path().join("never-landed")), None);
+}

@@ -130,6 +130,18 @@ test("the palette finds a word only a lesson's prose contains", async ({ page })
   await expect(page.locator("h1").first()).toContainText("Arrays");
 });
 
+/** The fixture books are plain directories, not checkouts: with no commit on disk the page shows
+ *  no version rather than an invented one, and the payload carries no key for it. */
+test("a book with no commit on disk shows no version chip", async ({ page, request }) => {
+  const path = await firstLessonPath(request);
+  const payload = await (await request.get(`/api${path}`)).json();
+  expect(payload).not.toHaveProperty("version");
+  await page.goto(path);
+  await waitForLessonBody(page);
+  await expect(page.locator("[data-read-switch]")).toBeVisible();
+  await expect(page.locator(".book-version")).toHaveCount(0);
+});
+
 test("marking a lesson read is remembered across a reload", async ({ page, request }) => {
   const path = await firstLessonPath(request);
   await page.goto(path);

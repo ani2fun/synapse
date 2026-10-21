@@ -41,3 +41,24 @@ fn prose_lessons_carry_no_kind_at_all() {
     assert!(!json.contains("lessonKind"), "{json}");
     assert_eq!(serde_json::from_str::<BookEntryDto>(&json).unwrap(), lesson(None));
 }
+
+/// The book's version rides the lesson payload as `version.commit` / `version.repo`, and a source
+/// with no commit on disk sends no key at all — the page then renders nothing.
+#[test]
+fn a_book_version_is_camel_cased_and_absent_when_unknown() {
+    let local = BookVersionDto {
+        commit: "b962f394a9107db4d5d811c75036907c2d25a53d".to_owned(),
+        repo: None,
+    };
+    assert_eq!(
+        serde_json::to_string(&local).unwrap(),
+        r#"{"commit":"b962f394a9107db4d5d811c75036907c2d25a53d"}"#
+    );
+    let fetched = BookVersionDto {
+        repo: Some("ani2fun/java-guide".to_owned()),
+        ..local
+    };
+    let json = serde_json::to_string(&fetched).unwrap();
+    assert!(json.contains(r#""repo":"ani2fun/java-guide""#), "{json}");
+    assert_eq!(serde_json::from_str::<BookVersionDto>(&json).unwrap(), fetched);
+}

@@ -35,6 +35,10 @@ impl ContentRepository for FakeContent {
             .cloned()
             .ok_or_else(|| ContentError::NotFound(path.to_owned()))
     }
+
+    async fn book_version(&self, _source_id: &str) -> Option<crate::catalog::domain::lesson::BookVersion> {
+        None
+    }
 }
 
 /// `01-system-design/` (a book) → `02-foundations/` (a chapter) → the lesson. The URL path drops

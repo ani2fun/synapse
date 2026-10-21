@@ -230,7 +230,7 @@ impl ContentHandles {
     /// and a fetched one behave identically once mounted.
     fn for_primary(content_root: &str, cfg: &synapse_server::config::AppConfig) -> anyhow::Result<Self> {
         let local = cfg.local_sources()?;
-        let mut roots = vec![SourceRoot::new(PRIMARY_SOURCE_ID, content_root)];
+        let mut roots = vec![SourceRoot::new(PRIMARY_SOURCE_ID, content_root).from_repo(&cfg.content_repo)];
         let mut placements = Vec::new();
         let mut audiences = std::collections::BTreeMap::new();
         mount_local_only(content_root, &mut roots, &mut placements);

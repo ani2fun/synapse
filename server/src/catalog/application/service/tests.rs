@@ -10,6 +10,7 @@ use tokio::sync::Semaphore;
 
 use super::*;
 use crate::catalog::domain::content_tree::{BookMeta, ContentEntry, PRIMARY_SOURCE_ID, SourceTree};
+use crate::catalog::domain::lesson::BookVersion;
 use crate::identity::domain::Username;
 
 // ── the instrumented stub ─────────────────────────────────────────────────────
@@ -21,6 +22,9 @@ struct StubRepo {
     files: BTreeMap<String, String>,
     loads: AtomicUsize,
     reads: AtomicUsize,
+    /// What `book_version` answers, and which sources it was asked about.
+    book: Option<BookVersion>,
+    versions_asked: Mutex<Vec<String>>,
     /// When set, `load_sources` waits for a permit — which lets a test hold one rebuild open and
     /// watch what the readers arriving during it actually do. Without it the stub returns so fast
     /// that a "concurrent" test would pass whether or not anything is single-flighted.
@@ -57,6 +61,11 @@ impl ContentRepository for StubRepo {
             .get(path)
             .cloned()
             .ok_or_else(|| ContentError::NotFound(path.to_owned()))
+    }
+
+    async fn book_version(&self, source_id: &str) -> Option<BookVersion> {
+        self.versions_asked.lock().unwrap().push(source_id.to_owned());
+        self.book.clone()
     }
 }
 
@@ -273,6 +282,34 @@ async fn lesson_resolves_the_mirror_path_and_reads_the_file_path() {
 }
 
 #[tokio::test]
+async fn a_lesson_carries_the_commit_of_the_source_it_was_read_from() {
+    let book = BookVersion {
+        commit: "b962f394a9107db4d5d811c75036907c2d25a53d".to_owned(),
+        repo: Some("ani2fun/java-guide".to_owned()),
+    };
+    let service = CatalogService::new(StubRepo {
+        book: Some(book.clone()),
+        ..fixture()
+    });
+    let lesson = service
+        .lesson(&path(&["learn", "dsa", "intro"]), &Viewer::Anonymous)
+        .await
+        .unwrap();
+    assert_eq!(lesson.version, Some(book));
+    assert_eq!(*service.repo.versions_asked.lock().unwrap(), [PRIMARY_SOURCE_ID]);
+}
+
+#[tokio::test]
+async fn a_source_with_no_commit_on_disk_gives_a_lesson_no_version() {
+    let service = CatalogService::new(fixture());
+    let lesson = service
+        .lesson(&path(&["learn", "dsa", "intro"]), &Viewer::Anonymous)
+        .await
+        .unwrap();
+    assert_eq!(lesson.version, None);
+}
+
+#[tokio::test]
 async fn prev_next_cross_chapter_boundaries_and_end_empty() {
     let service = CatalogService::new(fixture());
     let last = service
@@ -440,6 +477,8 @@ async fn a_private_book_is_refused_typed_and_the_refusal_says_whether_signing_in
     );
     // Refusing costs no body read — the check sits before the repository is touched.
     assert_eq!(service.repo.reads.load(Ordering::SeqCst), 1);
+    // Nor a version read: a refused reader learns nothing about the book's commit either.
+    assert_eq!(service.repo.versions_asked.lock().unwrap().len(), 1);
 }
 
 #[tokio::test]

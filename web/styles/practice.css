@@ -385,7 +385,10 @@ a.pwb__crumb:hover { color: hsl(var(--primary)); }
    space it would drift, because Contents and the two step buttons are different widths. */
 .pwb__nav { flex: 0 0 auto; display: flex; align-items: center; gap: 14px;
             padding: 10px 6px 2px; }
-.pwb__nav-left  { flex: 1 1 0; display: flex; justify-content: flex-start; }
+.pwb__nav-left  { flex: 1 1 0; display: flex; justify-content: flex-start; align-items: center;
+                  gap: 12px; min-width: 0; }
+/* The version chip follows Browse rather than pushing to the cell's far edge. */
+.pwb__nav-left .book-version { margin-left: 0; }
 .pwb__nav-mid   { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;
                   align-items: center; gap: 6px; }
 .pwb__nav-right { flex: 1 1 0; display: flex; justify-content: flex-end; gap: 8px; }
@@ -449,6 +452,7 @@ a.pwb__crumb:hover { color: hsl(var(--primary)); }
     .pwb__nav-mid { order: 3; flex: 1 0 100%; }
     .pwb__step-title { display: none; }
     .pwb__contents span { display: none; }
+    .pwb__nav-left .book-version__label { display: none; }
     .pwb__contents { padding: 0 11px; }
 }
 

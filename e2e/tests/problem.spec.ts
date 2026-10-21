@@ -156,6 +156,12 @@ test("a search hit on a solution opens the editorial, not the problem statement"
   await expect(page.locator(".pwb-escroll")).toBeVisible();
 });
 
+test("a problem from a book with no commit on disk shows no version chip", async ({ page }) => {
+  await page.goto(PROBLEM);
+  await expect(page.locator(".pwb__contents")).toBeVisible();
+  await expect(page.locator(".pwb__nav .book-version")).toHaveCount(0);
+});
+
 test("the contents pill opens the book drawer", async ({ page }) => {
   await page.goto(PROBLEM);
   await expect(page.locator(".pcanvas")).toBeVisible();

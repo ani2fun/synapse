@@ -755,6 +755,14 @@ export interface components {
             title: string;
         };
         /**
+         * @description The commit a lesson was read from. `commit` is the full SHA — shortening is the page's call.
+         *     `repo` is the GitHub `owner/name`, absent for a source mounted from a local path.
+         */
+        BookVersionDto: {
+            commit: string;
+            repo?: string | null;
+        };
+        /**
          * @description The eight areas of the canvas. Every field defaults to empty — a half-filled canvas is the
          *     normal state of one being worked on, and a partial save must never be a 400.
          *
@@ -1019,6 +1027,7 @@ export interface components {
          *     ready-to-navigate FULL paths (`category…/book/chapter…/lesson`), null at book ends. `tests`
          *     carries ONLY the sample cases for a `kind: problem` lesson (the workbench sources them from
          *     here now that the description markdown no longer duplicates a `testcases` fence); null otherwise.
+         *     `version` is the book's commit, omitted when the source has none on disk.
          */
         LessonPayloadDto: {
             book: components["schemas"]["BookRefDto"];
@@ -1029,6 +1038,7 @@ export interface components {
             prev?: string | null;
             raw: string;
             tests?: null | components["schemas"]["TestSpec"];
+            version?: null | components["schemas"]["BookVersionDto"];
         };
         /**
          * @description One lesson's readership. `lastViewed` is an ISO-8601 UTC string, matching the `publishedAt`

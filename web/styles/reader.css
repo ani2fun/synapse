@@ -620,6 +620,21 @@ body.reader-menu-open .reader-scrolltop { opacity: 0; pointer-events: none; }
                                             border-color: hsl(var(--primary)); }
 .reader-read__switch[aria-checked="true"] .reader-read__knob { transform: translateX(22px); }
 
+/* ── book version ──
+   Which commit of the content repository this page was read from. Quiet by design — it answers a
+   question few readers ask, so it sits at the end of the row it shares and never competes with
+   the switch beside it. Shared with the problem page's docked nav (practice.css places it there)
+   and the private lesson's own row. */
+.book-version { margin-left: auto; display: inline-flex; align-items: baseline; gap: 8px;
+                font-size: 13px; color: hsl(var(--muted-foreground)); white-space: nowrap; }
+.book-version__sha { font-family: var(--font-mono); font-size: 12px;
+                     color: hsl(var(--foreground) / 0.85); text-decoration: none;
+                     padding: 2px 7px; border: 1px solid hsl(var(--border)); border-radius: 6px; }
+a.book-version__sha:hover { color: hsl(var(--primary)); border-color: hsl(var(--primary) / 0.5); }
+a.book-version__sha:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 2px; }
+.reader-version { margin-top: 4rem; display: flex; }
+.reader-version + .reader-pager { margin-top: 1.5rem; }
+
 /* ── pager cards ── */
 .reader-read + .reader-pager { margin-top: 1.5rem; padding-top: 0; border-top: none; }
 .reader-pager { margin-top: 4rem; padding-top: 2rem; border-top: 1px solid hsl(var(--border));

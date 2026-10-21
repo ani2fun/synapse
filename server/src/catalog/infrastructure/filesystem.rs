@@ -15,14 +15,17 @@ use crate::catalog::application::{ContentError, ContentRepository};
 use crate::catalog::domain::content_tree::{
     BookMeta, CategoryMeta, ContentEntry, PRIMARY_SOURCE_ID, SourceTree,
 };
-use crate::catalog::infrastructure::commit_sha::read_commit_sha;
+use crate::catalog::domain::lesson::BookVersion;
+use crate::catalog::infrastructure::commit_sha::{commit_of, read_commit_sha};
 use crate::platform::blocking::run_blocking;
 
-/// One mounted checkout: the id lessons are addressed through, and where it lives on disk.
+/// One mounted checkout: the id lessons are addressed through, where it lives on disk, and the
+/// GitHub repository (`owner/name`) it was fetched from — absent for a local path.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourceRoot {
     pub id: String,
     pub root: PathBuf,
+    pub repo: Option<String>,
 }
 
 impl SourceRoot {
@@ -30,7 +33,14 @@ impl SourceRoot {
         Self {
             id: id.into(),
             root: root.into(),
+            repo: None,
         }
+    }
+
+    #[must_use]
+    pub fn from_repo(mut self, repo: impl Into<String>) -> Self {
+        self.repo = Some(repo.into());
+        self
     }
 }
 
@@ -93,12 +103,12 @@ impl FileSystemContentRepository {
         Self { sources, auto_reload }
     }
 
+    fn source(&self, source_id: &str) -> Option<SourceRoot> {
+        self.sources.snapshot().into_iter().find(|s| s.id == source_id)
+    }
+
     fn root_of(&self, source_id: &str) -> Option<PathBuf> {
-        self.sources
-            .snapshot()
-            .into_iter()
-            .find(|s| s.id == source_id)
-            .map(|s| s.root)
+        self.source(source_id).map(|s| s.root)
     }
 }
 
@@ -149,6 +159,14 @@ impl ContentRepository for FileSystemContentRepository {
             fs::read_to_string(target).map_err(|e| ContentError::Io(e.to_string()))
         })
         .await
+    }
+
+    /// The commit is read whatever `auto_reload` says: the dev watermark is a cache key, not
+    /// something a reader can look up, and a dev checkout is usually a real git clone anyway.
+    async fn book_version(&self, source_id: &str) -> Option<BookVersion> {
+        let SourceRoot { root, repo, .. } = self.source(source_id)?;
+        let commit = run_blocking(move || commit_of(&root)).await?;
+        Some(BookVersion { commit, repo })
     }
 }
 

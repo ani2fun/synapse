@@ -33,6 +33,7 @@ import * as log from "../../lib/log";
 import { titleForLesson, SITE_NAME } from "../../lib/seo";
 import { allBooksOf, bookOf, chapterProblems, chapterTitleOf, problemContentSplit } from "../../lib/catalog/tree";
 import { problemFrame } from "../../lib/catalog/problemFrame";
+import { bookVersionHtml } from "../../lib/catalog/bookVersion";
 import { DEFAULT_LEFT_PCT } from "../../lib/catalog/pane";
 import type { components } from "../../lib/api/schema.gen";
 
@@ -263,6 +264,7 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
                 >
                   <span class="reader-read__knob" />
                 </button>
+                <Fragment set:html={bookVersionHtml(payload.version)} />
               </div>
 
               <nav class="reader-pager">
@@ -301,6 +303,7 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
             counter,
             prev: payload.prev ?? null,
             next: payload.next ?? null,
+            version: payload.version ?? null,
             leftPct: DEFAULT_LEFT_PCT,
           })}
         />

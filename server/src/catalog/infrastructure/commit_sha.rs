@@ -16,9 +16,13 @@ const FALLBACK: &str = "static";
 /// Resolve the checkout's commit SHA, or `"static"` when `content_root` is not a readable
 /// checkout (SHA-1 or SHA-256, validated).
 pub fn read_commit_sha(content_root: &Path) -> String {
-    resolve(content_root)
-        .filter(|sha| sha_like(sha))
-        .unwrap_or_else(|| FALLBACK.to_owned())
+    commit_of(content_root).unwrap_or_else(|| FALLBACK.to_owned())
+}
+
+/// The checkout's commit SHA, or `None` when `content_root` is not a readable checkout — what a
+/// reader is shown as the book's version, where a made-up `"static"` would be a lie.
+pub fn commit_of(content_root: &Path) -> Option<String> {
+    resolve(content_root).filter(|sha| sha_like(sha))
 }
 
 fn resolve(content_root: &Path) -> Option<String> {

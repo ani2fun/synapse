@@ -113,10 +113,22 @@ pub struct LessonFrontmatterDto {
     pub topics: Option<Vec<String>>,
 }
 
+/// The commit a lesson was read from. `commit` is the full SHA — shortening is the page's call.
+/// `repo` is the GitHub `owner/name`, absent for a source mounted from a local path.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct BookVersionDto {
+    pub commit: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repo: Option<String>,
+}
+
 /// The lesson the reader renders. `raw` = the markdown body, fence stripped; `prev`/`next` are
 /// ready-to-navigate FULL paths (`category…/book/chapter…/lesson`), null at book ends. `tests`
 /// carries ONLY the sample cases for a `kind: problem` lesson (the workbench sources them from
 /// here now that the description markdown no longer duplicates a `testcases` fence); null otherwise.
+/// `version` is the book's commit, omitted when the source has none on disk.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "camelCase")]
@@ -129,6 +141,8 @@ pub struct LessonPayloadDto {
     pub next: Option<String>,
     pub editorial: Option<String>,
     pub tests: Option<TestSpec>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<BookVersionDto>,
 }
 
 /// A registered content repository, as the admin panel sees it. The sync fields are read-only —

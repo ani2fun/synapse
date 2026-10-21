@@ -2,6 +2,7 @@
 
 use crate::catalog::domain::catalog::SynapseContentError;
 use crate::catalog::domain::content_tree::SourceTree;
+use crate::catalog::domain::lesson::BookVersion;
 
 /// What the catalog needs from the outside world. Native async-fn-in-trait + generic services
 /// (static dispatch): nothing varies at runtime, so `dyn` would be ceremony (RS001).
@@ -23,6 +24,11 @@ pub trait ContentRepository: Send + Sync {
         source_id: &str,
         path: &str,
     ) -> impl Future<Output = Result<String, ContentError>> + Send;
+
+    /// The commit a source's checkout holds right now, and the repository it came from. `None`
+    /// for an unknown source or one with no commit on disk — a reader is shown nothing rather
+    /// than a made-up version. Re-read per call, like the bodies it describes.
+    fn book_version(&self, source_id: &str) -> impl Future<Output = Option<BookVersion>> + Send;
 }
 
 /// The context's error. The HTTP layer maps these to status codes: `NotFound`→404, `Io`→500,
