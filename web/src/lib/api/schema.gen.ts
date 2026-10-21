@@ -1037,8 +1037,8 @@ export interface components {
             next?: string | null;
             prev?: string | null;
             raw: string;
-            tests?: null | components["schemas"]["TestSpec"];
-            version?: null | components["schemas"]["BookVersionDto"];
+            tests?: components["schemas"]["TestSpec"] | null;
+            version?: components["schemas"]["BookVersionDto"] | null;
         };
         /**
          * @description One lesson's readership. `lastViewed` is an ISO-8601 UTC string, matching the `publishedAt`
@@ -1199,7 +1199,7 @@ export interface components {
             createdAt: string;
             /** @description The `judge-failed` machinery message only. */
             detail?: string | null;
-            firstFailure?: null | components["schemas"]["FailedCaseDto"];
+            firstFailure?: components["schemas"]["FailedCaseDto"] | null;
             id: string;
             language: string;
             passed?: number | null;
