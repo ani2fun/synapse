@@ -220,6 +220,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/listeners": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The grants, newest first. */
+        get: operations["listListeners"];
+        put?: never;
+        /** Grant (upsert) — the stored row comes back; usernames are canonicalised here. */
+        post: operations["grantListener"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/listeners/{username}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke — 204 on removal, 404 when the grant never existed. A stream already playing finishes;
+         *     the next `POST /api/listen` is refused.
+         */
+        delete: operations["revokeListener"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/config": {
         parameters: {
             query?: never;
@@ -385,6 +423,43 @@ export interface paths {
          *     storm replaces a recoverable outage with an unrecoverable one.
          */
         get: operations["getHealth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/listen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Validate the units and issue a ticket the `<audio>` element can play. */
+        post: operations["startListen"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/listen/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Whether listening is on for THIS caller. Answers for everyone — an anonymous reader gets
+         *     `canListen: false`, not a 401, because the lesson page asks before it knows who is reading.
+         */
+        get: operations["getListenConfig"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1051,6 +1126,46 @@ export interface components {
             lessonPath: string;
             /** Format: int64 */
             views: number;
+        };
+        /**
+         * @description `GET /api/listen/config` — answered for everyone, because the lesson page asks before it knows
+         *     who is reading. An anonymous or unlisted reader gets `canListen: false` and the page loads
+         *     nothing. A deployment without a speech engine has no such route at all (404).
+         */
+        ListenConfigDto: {
+            canListen: boolean;
+            maxRequestChars: number;
+            maxUnitChars: number;
+            voices: components["schemas"]["ListenVoiceDto"][];
+        };
+        /** @description `POST /api/listen` body. */
+        ListenRequestDto: {
+            /** @description The text to read, in order, each at most [`LISTEN_MAX_UNIT_CHARS`]. */
+            units: string[];
+            /** @description One of [`LISTEN_VOICES`]. */
+            voice: string;
+        };
+        /**
+         * @description What a listen request bought: a short-lived address the `<audio>` element can play. An
+         *     `<audio src>` cannot send a bearer, so the bearer is spent HERE and the address carries a
+         *     one-off ticket instead.
+         */
+        ListenTicketDto: {
+            /**
+             * Format: int64
+             * @description Seconds the address stays valid for STARTING playback. A stream already playing is not
+             *     cut off when it lapses.
+             */
+            expiresIn: number;
+            /** @description How many units the stream will read, after blank ones are dropped. */
+            units: number;
+            /** @description `/api/listen/{ticket}.mp3`. */
+            url: string;
+        };
+        /** @description One voice on offer. */
+        ListenVoiceDto: {
+            id: string;
+            label: string;
         };
         /** @description `POST /api/progress` body — mark one lesson path complete for the caller. */
         MarkProgressRequestDto: {
@@ -1970,6 +2085,143 @@ export interface operations {
             };
         };
     };
+    listListeners: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Every grant, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllowlistEntryDto"][];
+                };
+            };
+            /** @description Anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    grantListener: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrantRequestDto"];
+            };
+        };
+        responses: {
+            /** @description The stored grant */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AllowlistEntryDto"];
+                };
+            };
+            /** @description Blank username */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    revokeListener: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The granted username */
+                username: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description No such grant */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     getAuthConfig: {
         parameters: {
             query?: never;
@@ -2424,6 +2676,95 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthStatus"];
+                };
+            };
+        };
+    };
+    startListen: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ListenRequestDto"];
+            };
+        };
+        responses: {
+            /** @description The address to play */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListenTicketDto"];
+                };
+            };
+            /** @description Unknown voice, nothing to read, or too long */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Anonymous */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Not on the listen allowlist */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The allowlist store failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getListenConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Listening coordinates for this caller */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListenConfigDto"];
+                };
+            };
+            /** @description The allowlist store failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
                 };
             };
         };

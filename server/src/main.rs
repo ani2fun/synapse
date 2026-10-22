@@ -14,8 +14,9 @@ use synapse_server::authoring::infrastructure::{
 use synapse_server::blog::application::BlogService;
 use synapse_server::blog::infrastructure::FileSystemBlogRepository;
 use synapse_server::canvas::PostgresCanvasStore;
-use synapse_server::catalog::application::CatalogService;
-use synapse_server::catalog::application::{Audience, Audiences, Placements, grouping_from_str};
+use synapse_server::catalog::application::{
+    Audience, Audiences, CatalogService, Placements, grouping_from_str,
+};
 use synapse_server::catalog::domain::content_tree::PRIMARY_SOURCE_ID;
 use synapse_server::catalog::domain::merge::Placement;
 use synapse_server::catalog::http::admin::ContentSourceRoutesState;
@@ -82,7 +83,7 @@ async fn main() -> anyhow::Result<()> {
     // Kept back: the submission store takes `pool` by value below, and the source registry is
     // wired later, once identity exists to gate it.
     let content_sources = Arc::new(PostgresContentSources::new(pool.clone()));
-    let submit = submit_service(&cfg, pool, &content, &runner, &allowlist, &progress);
+    let submit = submit_service(&cfg, pool.clone(), &content, &runner, &allowlist, &progress);
 
     let identity = identity_state(&cfg);
     let limiter = Arc::new(rate_limiter(&cfg));
@@ -136,6 +137,7 @@ async fn main() -> anyhow::Result<()> {
         &content,
     );
     let app = synapse_server::app(synapse_server::AppDeps {
+        listen: synapse_server::listen::http::routes_state(&cfg, &identity, &pool),
         catalog,
         run: runner,
         submit,

@@ -891,6 +891,114 @@
       "parentId": "fld_admin",
       "body": {},
       "metaSortKey": 1
+    },
+    {
+      "_id": "fld_listen",
+      "_type": "request_group",
+      "parentId": "wrk_synapse_rs",
+      "name": "listen",
+      "description": "Lessons read aloud by the speech engine (Kokoro). Mounted only when SYNAPSE_TTS_URL is set; otherwise every route here is a STRUCTURAL 404. POST needs a bearer AND a place on the listen_allowlist (a THIRD grant, separate from submitting and editing). The .mp3 address needs no header: an <audio> element cannot send one."
+    },
+    {
+      "_id": "req_listen_config",
+      "_type": "request",
+      "parentId": "fld_listen",
+      "name": "GET /api/listen/config",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/listen/config",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "description": "Answered for everyone: canListen folds signed-in + allowlisted into one bit; anonymous gets false, not a 401."
+    },
+    {
+      "_id": "req_listen_start",
+      "_type": "request",
+      "parentId": "fld_listen",
+      "name": "POST /api/listen",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/listen",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"voice\": \"af_heart\",\n  \"units\": [\n    \"A join pairs rows from two tables.\",\n    \"The condition decides which pairs survive.\"\n  ]\n}"
+      },
+      "description": "Validates the units (each <= 400 chars, <= 60,000 in total, voice from the offered set) and returns a ticket URL valid for 10 minutes. 401 anonymous, 403 not listed, 400 invalid."
+    },
+    {
+      "_id": "req_listen_play",
+      "_type": "request",
+      "parentId": "fld_listen",
+      "name": "GET /api/listen/{ticket}.mp3",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/listen/REPLACE_WITH_TICKET.mp3",
+      "headers": [],
+      "description": "One continuous audio/mpeg stream, unit by unit (cache, else the engine). 404 expired ticket, 429 already two streams for this reader, 503 four streams in total, 502 the engine failed on the first unit."
+    },
+    {
+      "_id": "req_listeners_list",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "GET /api/admin/listeners",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/admin/listeners",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "description": "Who may have lessons read aloud. Separate from the other two lists: this grant spends the speech engine's CPU."
+    },
+    {
+      "_id": "req_listeners_grant",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "POST /api/admin/listeners",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/admin/listeners",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"username\": \"test1\",\n  \"note\": \"listen pilot\"\n}"
+      },
+      "description": "Grant (upsert). Usernames are trimmed and lowercased server-side; blank is a 400."
+    },
+    {
+      "_id": "req_listeners_revoke",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "DELETE /api/admin/listeners/{username}",
+      "method": "DELETE",
+      "url": "{{ _.base_url }}/api/admin/listeners/test1",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "description": "Revoke: 204 on removal, 404 when the grant never existed. A stream already playing finishes."
     }
   ]
 }

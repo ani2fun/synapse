@@ -95,6 +95,29 @@ fn a_real_astro_url_survives_the_blank_check() {
 }
 
 #[test]
+fn an_empty_tts_url_reads_as_no_speech_engine() {
+    figment::Jail::expect_with(|jail| {
+        let cfg = AppConfig::load().map_err(|e| *e)?;
+        assert_eq!((cfg.tts_url(), cfg.tts_cache_mib), (None, 2048), "off by default");
+        jail.set_env("SYNAPSE_TTS_URL", "");
+        let cfg = AppConfig::load().map_err(|e| *e)?;
+        assert_eq!(
+            cfg.tts_url(),
+            None,
+            "blank must not mount /api/listen pointed at nowhere"
+        );
+        jail.set_env("SYNAPSE_TTS_URL", " http://synapse-tts:8880 ");
+        jail.set_env("SYNAPSE_TTS_CACHE_MIB", "64");
+        let cfg = AppConfig::load().map_err(|e| *e)?;
+        assert_eq!(
+            (cfg.tts_url(), cfg.tts_cache_mib),
+            (Some("http://synapse-tts:8880"), 64)
+        );
+        Ok(())
+    });
+}
+
+#[test]
 fn admin_users_canonicalise_to_a_lowercase_set() {
     let cfg = AppConfig {
         admin_users: " Ada, GRACE ,, tester ".to_owned(),

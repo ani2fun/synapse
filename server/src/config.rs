@@ -73,6 +73,17 @@ pub struct AppConfig {
     /// halves must agree, since one inlines the root board and the other serves the rest.
     /// Env: `SYNAPSE_D2_RENDER_URL`.
     pub d2_render_url: Option<String>,
+    /// The speech engine lessons are read aloud with (Kokoro, OpenAI-compatible
+    /// `/v1/audio/speech`). `None` leaves every `/api/listen` route unmounted — a structural 404,
+    /// and the lesson page offers nothing. Env: `SYNAPSE_TTS_URL`.
+    pub tts_url: Option<String>,
+    /// Where synthesised audio is kept, keyed by what was said. A cache in the strict sense: a
+    /// pure function of its input, so an `emptyDir` is correct and a restart costs only
+    /// re-synthesis. Env: `SYNAPSE_TTS_CACHE`.
+    pub tts_cache: String,
+    /// The cache's ceiling in MiB; the oldest files go first once it is passed.
+    /// Env: `SYNAPSE_TTS_CACHE_MIB`.
+    pub tts_cache_mib: u64,
     /// Anonymous run/submit budget: per-IP fixed window. Envs:
     /// `RATE_LIMIT_ANON_WINDOW_SECONDS` / `RATE_LIMIT_ANON_LIMIT`.
     pub rate_limit_anon_window_seconds: u64,
@@ -158,6 +169,9 @@ impl Default for AppConfig {
             astro_url: None,
             site_url: "https://synapse.kakde.eu".to_owned(),
             d2_render_url: None,
+            tts_url: None,
+            tts_cache: "../.synapse-tts-cache".to_owned(),
+            tts_cache_mib: 2048,
             rate_limit_anon_window_seconds: 60,
             rate_limit_anon_limit: 10,
             rate_limit_auth_window_seconds: 3600,
@@ -219,6 +233,16 @@ impl AppConfig {
     /// pointed at nowhere and 502 every board a reader clicks into while the page itself is fine.
     pub fn d2_render_url(&self) -> Option<&str> {
         self.d2_render_url
+            .as_deref()
+            .map(str::trim)
+            .filter(|url| !url.is_empty())
+    }
+
+    /// The speech engine's address, empty treated as absent — the same rule as
+    /// [`Self::d2_render_url`]: an empty variable would otherwise mount `/api/listen` pointed at
+    /// nowhere, offering every listed reader a button that always fails.
+    pub fn tts_url(&self) -> Option<&str> {
+        self.tts_url
             .as_deref()
             .map(str::trim)
             .filter(|url| !url.is_empty())

@@ -43,6 +43,13 @@ chrono = { version = "0.4", features = ["serde"] }
 # `rust_crypto` over `aws_lc_rs` for the same reason flate2 takes `rust_backend` and reqwest
 # takes `rustls-tls` — pure Rust, no C toolchain in the image build.
 jsonwebtoken = { version = "11", features = ["rust_crypto"] }
+# The listen cache keys audio on a hash of what was said. Already in the tree via sqlx, so naming
+# it directly costs no new transitive dependency — and unlike `DefaultHasher`, its output is stable
+# across toolchains, so an upgrade does not silently orphan every cached file.
+sha2 = "0.10"
+# `stream::unfold` turns the listen narrator into a response body that synthesises only as fast as
+# the reader's connection drains it. Already in the tree via reqwest and hyper.
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
 sqlx = { version = "0.8", default-features = false, features = ["postgres", "runtime-tokio", "macros", "migrate", "chrono", "uuid", "json"] }
 
 # ── viz wasm ──

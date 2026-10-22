@@ -53,6 +53,13 @@ reclaim "$WEB_PORT" "astro-dev"
 
 echo "→ building + starting the API on :$SYNAPSE_PORT (content: $SYNAPSE_ROOT, forge: dry-run)"
 cargo build -p synapse-server --quiet
+# The listen click-path needs an engine: the same silent stand-in the anonymous pass uses.
+TTS_PORT="${TTS_PORT:-8392}"
+reclaim "$TTS_PORT" "fake-tts"
+rm -rf target/e2e-tts-cache
+node e2e/fake-tts.mjs "$TTS_PORT" >/tmp/e2e-auth-fake-tts.log 2>&1 &
+TTS_PID=$!
+export SYNAPSE_TTS_URL="http://127.0.0.1:$TTS_PORT" SYNAPSE_TTS_CACHE="$PWD/target/e2e-tts-cache"
 ./target/debug/synapse-server >/tmp/e2e-auth-server.log 2>&1 &
 SERVER_PID=$!
 export SYNAPSE_API_URL="http://localhost:$SYNAPSE_PORT"
@@ -60,7 +67,7 @@ export SYNAPSE_API_URL="http://localhost:$SYNAPSE_PORT"
 echo "→ starting astro dev on :$WEB_PORT (the Keycloak-allowlisted origin)"
 (cd web && exec npx astro dev --port "$WEB_PORT" >/tmp/e2e-auth-web.log 2>&1) &
 WEB_PID=$!
-trap 'kill "$SERVER_PID" "$WEB_PID" 2>/dev/null || true' EXIT
+trap 'kill "$SERVER_PID" "$WEB_PID" "$TTS_PID" 2>/dev/null || true' EXIT
 
 for _ in $(seq 1 60); do curl -sf "http://localhost:$SYNAPSE_PORT/api/health" >/dev/null && break; sleep 1; done
 curl -sf "http://localhost:$SYNAPSE_PORT/api/health" >/dev/null || {
@@ -74,4 +81,4 @@ curl -sf "http://localhost:$WEB_PORT/" >/dev/null || {
 cd e2e
 [[ -d node_modules ]] || npm ci
 echo "→ signed-in click-path against http://localhost:$WEB_PORT"
-E2E_AUTH=1 E2E_BASE_URL="http://localhost:$WEB_PORT" npx playwright test authoring-authed private-book-authed "$@"
+E2E_AUTH=1 E2E_BASE_URL="http://localhost:$WEB_PORT" npx playwright test authoring-authed private-book-authed listen-authed "$@"

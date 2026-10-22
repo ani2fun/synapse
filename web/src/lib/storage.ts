@@ -88,6 +88,11 @@ export const PROBLEM_MODE_KEY = "problem-mode";
 export const WB_LANGUAGE_KEY = "wb-language";
 /** `"dark" | "light"` — read pre-paint by `Base.astro`'s inline bootstrap script too. */
 export const THEME_KEY = "theme";
+/** The listen bar's voice — one of the server's voice ids. A preference of the device, like the
+ *  theme, so "erase my data" leaves it. */
+export const LISTEN_VOICE_KEY = "listen-voice";
+/** The listen bar's playback speed (`"1"` … `"2"`) — `playbackRate`, never a synthesis setting. */
+export const LISTEN_RATE_KEY = "listen-rate";
 /** The diagram editors' two-pane split percentage. Shared by `/d2` and `/mermaid`: how wide the
  *  source pane sits is a preference about the workspace, not about the language in it. */
 export const DIAGRAM_LAB_PANE_KEY = "diagram-lab-pane";

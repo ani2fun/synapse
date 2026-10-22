@@ -11,6 +11,7 @@ pub mod config;
 pub mod execution;
 pub mod identity;
 pub mod insights;
+pub mod listen;
 pub mod notes;
 pub mod platform;
 pub mod progress;
@@ -39,6 +40,7 @@ use synapse_shared::submission::{
     AllowlistEntryDto, DeleteResultDto, GrantRequestDto, SubmissionAcceptedDto, SubmissionDto,
     SubmitRequestDto,
 };
+use tower_http::compression::Predicate as _;
 use utoipa::OpenApi;
 
 /// Everything `app` composes — one wiring struct so `main` and the ITs build the same graph
@@ -112,6 +114,9 @@ pub struct AppDeps<
     pub content_sources: Option<
         catalog::http::admin::ContentSourceRoutesState<catalog::infrastructure::PostgresContentSources>,
     >,
+    /// Lessons read aloud. `None` (no `SYNAPSE_TTS_URL`) leaves every `/api/listen` route and its
+    /// admin allowlist unmounted — the structural 404 the page reads as "not offered here".
+    pub listen: Option<listen::http::ListenRoutesState>,
 }
 
 /// The file routes that read a mounted checkout directly: `/media`, `/simulators` and the
@@ -139,6 +144,33 @@ fn file_routes(
         .merge(media.routes())
         .merge(simulators.routes())
         .merge(content_assets.routes())
+}
+
+/// The contexts a deployment may leave out. Each is absent rather than gated when unconfigured —
+/// a structural 404, never a flag re-checked per request.
+fn optional_routes(
+    authoring: Option<authoring::http::AuthoringRoutesState>,
+    content_sources: Option<
+        catalog::http::admin::ContentSourceRoutesState<catalog::infrastructure::PostgresContentSources>,
+    >,
+    listen: Option<listen::http::ListenRoutesState>,
+) -> Router {
+    let mut routes = Router::new();
+    // In-app editing mounts only where a forge is configured; `CONTENT_FORGE=off` leaves
+    // `/api/edits` and its admin allowlist absent rather than gated.
+    if let Some(state) = authoring {
+        routes = routes.merge(authoring::http::routes(state));
+    }
+    // The registry mounts wherever a store is wired; without it, satellites simply cannot be
+    // registered and the library is the primary checkout alone.
+    if let Some(state) = content_sources {
+        routes = routes.merge(catalog::http::admin::routes(state));
+    }
+    // Listening mounts only where a speech engine is configured (`SYNAPSE_TTS_URL`).
+    if let Some(state) = listen {
+        routes = routes.merge(listen::http::routes(state));
+    }
+    routes
 }
 
 /// The assembled HTTP surface. Contexts contribute their routers here; integration tests drive
@@ -197,7 +229,7 @@ where
         views: deps.views,
         identity: Arc::clone(&deps.ident.identity),
     };
-    let mut api = Router::new()
+    let api = Router::new()
         .merge(platform::http::routes(deps.readiness))
         .merge(catalog::http::routes(catalog_state))
         .merge(execution::http::routes(execution))
@@ -209,17 +241,8 @@ where
         .merge(progress::http::routes(progress_state))
         .merge(canvas::http::routes(canvas_state))
         .merge(notes::http::routes(notes_state))
-        .merge(tutoring::http::routes(deps.tutor));
-    // In-app editing mounts only where a forge is configured; `CONTENT_FORGE=off` leaves
-    // `/api/edits` and its admin allowlist absent rather than gated.
-    if let Some(state) = deps.authoring {
-        api = api.merge(authoring::http::routes(state));
-    }
-    // The registry mounts wherever a store is wired; without it, satellites simply cannot be
-    // registered and the library is the primary checkout alone.
-    if let Some(state) = deps.content_sources {
-        api = api.merge(catalog::http::admin::routes(state));
-    }
+        .merge(tutoring::http::routes(deps.tutor))
+        .merge(optional_routes(deps.authoring, deps.content_sources, deps.listen));
     let mut router = api
         .layer(axum::middleware::from_fn(platform::content_cache_control::stamp))
         .merge(files)
@@ -257,7 +280,11 @@ where
             tower_http::compression::CompressionLayer::new()
                 .gzip(true)
                 .deflate(true)
-                .compress_when(tower_http::compression::predicate::SizeAbove::new(1024)),
+                // Never audio: MP3 is already compressed, and gzip would BUFFER a listen stream
+                // that is meant to start playing while the rest is still being synthesised.
+                .compress_when(tower_http::compression::predicate::SizeAbove::new(1024).and(
+                    tower_http::compression::predicate::NotForContentType::const_new("audio/"),
+                )),
         );
     // Edge limits sit INSIDE tracing and outside everything else: a request killed by the
     // timeout should still produce a span saying so, but nothing below should get the chance
@@ -324,7 +351,12 @@ where
         catalog::http::admin::content_warnings,
         catalog::http::admin::list_readers,
         catalog::http::admin::grant_reader,
-        catalog::http::admin::revoke_reader
+        catalog::http::admin::revoke_reader,
+        listen::http::get_config,
+        listen::http::start_listen,
+        listen::http::list_listeners,
+        listen::http::grant_listener,
+        listen::http::revoke_listener
     ),
     components(schemas(
         HealthStatus,
@@ -382,7 +414,11 @@ where
         synapse_shared::catalog::ContentSourceDto,
         synapse_shared::catalog::RegisterContentSourceDto,
         synapse_shared::catalog::CatalogWarningDto,
-        synapse_shared::catalog::ContentReaderDto
+        synapse_shared::catalog::ContentReaderDto,
+        synapse_shared::listen::ListenConfigDto,
+        synapse_shared::listen::ListenVoiceDto,
+        synapse_shared::listen::ListenRequestDto,
+        synapse_shared::listen::ListenTicketDto
     ))
 )]
 pub struct ApiDoc;
