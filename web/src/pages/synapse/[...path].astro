@@ -38,6 +38,7 @@ import { DEFAULT_LEFT_PCT } from "../../lib/catalog/pane";
 import type { components } from "../../lib/api/schema.gen";
 
 import "../../../styles/reader.css";
+import "../../../styles/listen.css";
 import "../../../styles/runnable.css";
 // viz.css carries MORE than the viz widgets: the workbench's language dropdown
 // (`.wb__lang-menu`/`-scrim`/`-opt`) lives there too — without it the menu renders as bare
@@ -364,6 +365,9 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
           // for an allow-listed editor. Prose lessons only (the link is in the lesson header); the
           // problem-page editor surface is out of scope for v1.
           import("../../islands/authoring/editLink");
+          // Read aloud: one config probe; everything else loads only for a reader on the listen
+          // list, so the lesson's eager budget pays for the probe alone.
+          import("../../islands/listen");
         }
       </script>
     ) : null

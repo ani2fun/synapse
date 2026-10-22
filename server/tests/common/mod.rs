@@ -111,6 +111,7 @@ where
         views,
         tutor,
         content_sources: None,
+        listen: None,
         catalog: base.catalog,
         run: base.run,
         submit: base.submit,
@@ -232,6 +233,7 @@ pub fn deps_with(
         readiness,
         authoring,
         content_sources: None,
+        listen: None,
     }
 }
 

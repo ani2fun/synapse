@@ -1,0 +1,115 @@
+/* ── LISTEN ─────────────────────────────────────────────────────────────────────────────────
+   The read-aloud affordances: a header button, a popover over a selection, and the player bar.
+   Every element here is created by `islands/listen` for a reader on the listen list only, so on
+   anyone else's page these rules match nothing. */
+
+.listen-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-inline-start: 0.5rem;
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.listen-header:hover {
+  border-color: var(--border-interactive);
+  color: var(--brand);
+}
+
+/* Positioned in document coordinates by the island, so it scrolls with the text it belongs to. */
+.listen-pop {
+  position: absolute;
+  z-index: 40;
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-md);
+}
+
+.listen-pop[hidden] {
+  display: none;
+}
+
+.listen-pop__btn {
+  padding: 0.3rem 0.6rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.listen-pop__btn:hover {
+  background: var(--brand-soft);
+  color: var(--brand-soft-text);
+}
+
+/* The bar sits at the foot of the viewport and wraps on a narrow phone rather than overflowing. */
+.listen-bar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem max(1rem, env(safe-area-inset-left)) calc(0.5rem + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-md);
+}
+
+.listen-bar[hidden] {
+  display: none;
+}
+
+.listen-bar__btn {
+  min-width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.listen-bar__btn--primary {
+  border-color: transparent;
+  background: var(--brand);
+  color: var(--text-onbrand);
+}
+
+.listen-bar__status {
+  flex: 1 1 8rem;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.listen-bar__select {
+  height: 2.25rem;
+  padding-inline: 0.5rem;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.8125rem;
+}

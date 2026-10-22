@@ -57,6 +57,11 @@ fi
 # Unset, not "off": the address IS the switch, so there is no configuration in which the renderer
 # is named and ignored.
 unset SYNAPSE_D2_RENDER_URL
+# The speech engine follows the same rule: the main pass runs with none, so the listen routes are
+# absent, and the second pass below starts a stand-in and re-runs the listen spec against it.
+unset SYNAPSE_TTS_URL
+TTS_PORT="${TTS_PORT:-8392}"
+TTS_PID=""
 
 D2_RENDER_PORT="${D2_RENDER_PORT:-8391}"
 D2_RENDER_PID=""
@@ -75,6 +80,22 @@ start_d2_render() {
     sleep 1
   done
   echo "✗ the d2 renderer never answered on :$D2_RENDER_PORT"; tail -20 /tmp/e2e-d2-render.log; return 1
+}
+
+# A stand-in engine (silent MP3 per unit) and a fresh audio cache, so a warm cache can never let a
+# broken narrator pass on last run's units.
+start_fake_tts() {
+  reclaim "$TTS_PORT" "fake-tts"
+  echo "→ starting the stand-in speech engine on :$TTS_PORT"
+  rm -rf "$PWD/target/e2e-tts-cache"
+  export SYNAPSE_TTS_CACHE="$PWD/target/e2e-tts-cache"
+  node e2e/fake-tts.mjs "$TTS_PORT" >/tmp/e2e-fake-tts.log 2>&1 &
+  TTS_PID=$!
+  for _ in $(seq 1 30); do
+    curl -sf "http://127.0.0.1:$TTS_PORT/health" >/dev/null && return 0
+    sleep 1
+  done
+  echo "✗ the stand-in speech engine never answered on :$TTS_PORT"; tail -20 /tmp/e2e-fake-tts.log; return 1
 }
 
 start_sidecar() {
@@ -123,7 +144,7 @@ start_server() {
 }
 
 start_server
-trap 'kill "$SERVER_PID" 2>/dev/null || true; [[ -n "$SIDECAR_PID" ]] && kill "$SIDECAR_PID" 2>/dev/null || true; [[ -n "$D2_RENDER_PID" ]] && kill "$D2_RENDER_PID" 2>/dev/null || true' EXIT
+trap 'kill "$SERVER_PID" 2>/dev/null || true; [[ -n "$SIDECAR_PID" ]] && kill "$SIDECAR_PID" 2>/dev/null || true; [[ -n "$D2_RENDER_PID" ]] && kill "$D2_RENDER_PID" 2>/dev/null || true; [[ -n "$TTS_PID" ]] && kill "$TTS_PID" 2>/dev/null || true' EXIT
 
 
 if [[ -n "$SIDECAR_PID" ]]; then
@@ -174,19 +195,21 @@ dev-tools/check-page-budget.sh "http://localhost:$SYNAPSE_PORT"
 # Skipped when the caller filtered the suite — `dev-tools/e2e frames` means "just that one".
 if [[ $# -eq 0 ]]; then
   echo
-  echo "→ re-running the d2 spec with the renderer UP"
+  echo "→ re-running the d2 and listen specs with the renderer and a speech engine UP"
   kill "$SIDECAR_PID" 2>/dev/null || true
   wait "$SIDECAR_PID" 2>/dev/null || true
   kill "$SERVER_PID" 2>/dev/null || true
   wait "$SERVER_PID" 2>/dev/null || true
   start_d2_render
   export SYNAPSE_D2_RENDER_URL="http://127.0.0.1:$D2_RENDER_PORT"
+  start_fake_tts
+  export SYNAPSE_TTS_URL="http://127.0.0.1:$TTS_PORT"
   # BOTH halves, or the reader gets a drawn root board whose links 404: the page tier inlines the
   # root, and the server proxies every board behind it.
   start_server
   start_sidecar
   set +e
-  (cd e2e && npx playwright test d2-prerender)
+  (cd e2e && npx playwright test d2-prerender listen.spec)
   PRERENDER_STATUS=$?
   set -e
   if [[ $PRERENDER_STATUS -ne 0 ]]; then

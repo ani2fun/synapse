@@ -49,6 +49,10 @@ export type TutorConfig = components["schemas"]["TutorConfigDto"];
 export type ChatMessage = components["schemas"]["ChatMessage"];
 export type TutorChatRequest = components["schemas"]["TutorChatRequestDto"];
 export type TutorChatResponse = components["schemas"]["TutorChatResponseDto"];
+export type ListenConfig = components["schemas"]["ListenConfigDto"];
+export type ListenVoice = components["schemas"]["ListenVoiceDto"];
+export type ListenRequest = components["schemas"]["ListenRequestDto"];
+export type ListenTicket = components["schemas"]["ListenTicketDto"];
 
 /**
  * `DELETE /api/me`'s 200 body has no OpenAPI schema — `identity::http::delete_me` answers
@@ -440,4 +444,27 @@ export function contentEditorGrant(request: GrantRequest): Promise<AllowlistEntr
 
 export function contentEditorRevoke(username: string): Promise<void> {
   return del<void>(`/api/admin/content-editors/${username}`);
+}
+
+/** Whether this caller may have lessons read aloud — 404 when the deployment has no speech engine. */
+export function listenConfig(): Promise<ListenConfig> {
+  return get<ListenConfig>("/api/listen/config");
+}
+
+/** Spend the bearer on a ticket: the returned `url` is what the `<audio>` element plays. */
+export function startListen(request: ListenRequest): Promise<ListenTicket> {
+  return post<ListenTicket>("/api/listen", request);
+}
+
+/** The listen allowlist — a THIRD grant, separate from submitting and editing. */
+export function listeners(): Promise<AllowlistEntry[]> {
+  return get<AllowlistEntry[]>("/api/admin/listeners");
+}
+
+export function listenerGrant(request: GrantRequest): Promise<AllowlistEntry> {
+  return post<AllowlistEntry>("/api/admin/listeners", request);
+}
+
+export function listenerRevoke(username: string): Promise<void> {
+  return del<void>(`/api/admin/listeners/${username}`);
 }

@@ -1,5 +1,5 @@
 /**
- * `/admin`: the two allowlists and the content repositories. `me.admin` only gates the UI; every
+ * `/admin`: the three allowlists and the content repositories. `me.admin` only gates the UI; every
  * call is re-checked
  * server-side, so a non-admin who navigates here just sees the API's 403 in each section's banner.
  * Anonymous / non-admin see "Admin only".
@@ -7,7 +7,8 @@
  * The two lists are DELIBERATELY separate. The submit allowlist grants shared compute and storage
  * for saving code attempts; the content-editor list grants the ability to open pull requests
  * against the content repository under this deployment's token — a much larger trust grant.
- * Revoking one must never be the same act as revoking the other. They share a table/form/banner
+ * The listen list grants the speech engine, which keeps ahead of one listener at a time.
+ * Revoking one must never be the same act as revoking another. They share a table/form/banner
  * only because they share a shape, not a meaning — see AllowlistSection.
  */
 import { render, h } from "preact";
@@ -19,6 +20,9 @@ import {
   contentEditors,
   contentEditorGrant,
   contentEditorRevoke,
+  listenerGrant,
+  listenerRevoke,
+  listeners,
 } from "../../lib/api/client";
 import * as log from "../../lib/log";
 import { AllowlistSection } from "./AllowlistSection";
@@ -62,6 +66,13 @@ export function AdminPanel() {
               load={contentEditors}
               grant={contentEditorGrant}
               revoke={contentEditorRevoke}
+            />
+            <AllowlistSection
+              title="Listeners"
+              blurb="Who may have lessons read aloud. A grant here spends the speech engine's CPU, and one engine keeps ahead of only one listener on new text — which is why it is a list of its own. Offered only where a speech engine is configured; without one this section reports 404."
+              load={listeners}
+              grant={listenerGrant}
+              revoke={listenerRevoke}
             />
             <ContentSourcesSection />
           </>
