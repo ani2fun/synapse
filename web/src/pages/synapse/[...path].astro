@@ -188,6 +188,18 @@ const LISTEN_GATED_TIP = LISTEN_ACCESS_TEXT;
                 <p class="private-lesson__status" data-private-status aria-live="polite">
                   Sign in to read this book.
                 </p>
+                <!-- The same gated Listen pill a public lesson carries, HIDDEN until the private
+                     island has rendered the lesson: offering to read a book the reader cannot open
+                     would be a promise the page cannot keep. islands/reader/privateLesson reveals
+                     it and loads islands/listen, which gates or activates it from there. -->
+                <span class="wb__tip listen-tip" data-listen-tip data-tip={LISTEN_GATED_TIP} hidden>
+                  <button type="button" class="listen-header listen-header--gated" data-listen-header aria-disabled="true">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M11 5 6 9H2v6h4l5 4V5Z M15.5 8.5a5 5 0 0 1 0 7 M19 5a10 10 0 0 1 0 14" />
+                    </svg>
+                    Listen
+                  </button>
+                </span>
               </header>
               <article class="lesson-body synapse-prose" data-private-body />
               <nav class="reader-pager" data-private-pager />

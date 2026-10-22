@@ -10,6 +10,7 @@ import { expect, test } from "./fixtures";
 
 const ENGINE = (process.env.SYNAPSE_TTS_URL ?? "").trim() !== "";
 const LESSON = "/synapse/learn/smoke/intro";
+const PRIVATE_LESSON = "/synapse/programming-languages/insight-earned/notes/selection-sort";
 
 test.describe("no speech engine configured", () => {
   test.skip(ENGINE, "stack is running with a speech engine");
@@ -22,6 +23,12 @@ test.describe("no speech engine configured", () => {
     // Server-rendered for everyone, then removed once the probe hears 404.
     await expect(page.locator("[data-listen-header]")).toHaveCount(0);
     await expect(page.locator("[data-listen-bar], [data-listen-pop]")).toHaveCount(0);
+  });
+
+  test("a private lesson offers no Listen to a reader who cannot open it", async ({ page }) => {
+    await page.goto(PRIVATE_LESSON);
+    await expect(page.locator("[data-private-status]")).toContainText("Sign in to read this book");
+    await expect(page.locator("[data-listen-header]")).toBeHidden();
   });
 });
 
@@ -62,5 +69,12 @@ test.describe("a speech engine configured", () => {
     // this proves a click that gets through anyway still starts nothing.
     await pop.getByRole("button", { name: "Listen to the selection" }).click({ force: true });
     await expect(page.locator("[data-listen-bar]"), "a gated click starts nothing").toHaveCount(0);
+  });
+
+  test("a private lesson keeps its Listen pill hidden until the lesson is open", async ({ page }) => {
+    await page.goto(PRIVATE_LESSON);
+    await expect(page.locator("[data-private-status]")).toContainText("Sign in to read this book");
+    await page.waitForLoadState("networkidle");
+    await expect(page.locator("[data-listen-header]")).toBeHidden();
   });
 });
