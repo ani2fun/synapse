@@ -69,7 +69,19 @@ pub struct ListenTicketDto {
     pub url: String,
     /// How many units the stream will read, after blank ones are dropped.
     pub units: usize,
-    /// Seconds the address stays valid for STARTING playback. A stream already playing is not
-    /// cut off when it lapses.
+    /// Seconds the address stays valid after its last use — playing it, or asking for its marks,
+    /// renews it.
     pub expires_in: u64,
+}
+
+/// `GET /api/listen/{ticket}/marks?from=` — how long each unit plays, for the page to follow along.
+/// The units from `from` onwards that have been synthesised so far, contiguous, at most a page of
+/// them; a unit still being said ends the list. A unit starts where the durations before it add up
+/// to on the stream's clock.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct ListenMarksDto {
+    pub from: usize,
+    /// Seconds, one per unit, in order.
+    pub durations: Vec<f64>,
 }

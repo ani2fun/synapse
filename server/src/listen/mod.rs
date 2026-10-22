@@ -20,6 +20,7 @@
 mod cache;
 mod engine;
 pub mod http;
+mod mp3;
 mod narrate;
 mod postgres;
 mod tickets;

@@ -9,16 +9,27 @@
 // The bar owns its preferences (voice, speed) rather than the reader's Themes & Settings view:
 // only a reader on the listen list ever sees a voice picker, so it lives where only they will.
 
-import { ApiFailure, startListen } from "../../lib/api/client";
+import { ApiFailure, listenMarks, startListen } from "../../lib/api/client";
 import type { ListenConfig } from "../../lib/api/client";
 import * as log from "../../lib/log";
 import * as storage from "../../lib/storage";
 
 const RATES = ["1", "1.25", "1.5", "1.75", "2"] as const;
 
+/** How often the bar asks how long the units synthesised so far play. */
+const MARKS_EVERY_MS = 2000;
+
 export interface Player {
-  /** Read these units aloud, replacing whatever is playing. */
-  play: (units: string[], label: string) => Promise<void>;
+  /** Read these units aloud, replacing whatever is playing. `onUnit` hears which unit is being
+   *  spoken as playback moves, and `null` when it stops; `jump` is what "Jump to speech" calls. */
+  play: (
+    units: string[],
+    label: string,
+    onUnit: (index: number | null) => void,
+    jump: () => void,
+  ) => Promise<void>;
+  /** Offer "Jump to speech" — true when what is being said has scrolled out of view. */
+  setAway: (away: boolean) => void;
 }
 
 function select(label: string, options: readonly [string, string][], current: string): HTMLSelectElement {
@@ -75,6 +86,12 @@ export function createPlayer(config: ListenConfig): Player {
   bar.dataset.listenBar = "";
   const toggle = button("listen-bar__btn listen-bar__btn--primary", "Pause", "❚❚");
   const stop = button("listen-bar__btn", "Stop listening", "■");
+  // Shown only while what is being said is off screen: the way back to the voice.
+  const jumpTo = button("listen-bar__jump", "Jump to where the speech is", "↧ Jump to speech");
+  jumpTo.hidden = true;
+  jumpTo.dataset.listenJump = "";
+  let onJump: () => void = () => undefined;
+  jumpTo.addEventListener("click", () => onJump());
   const status = document.createElement("span");
   status.className = "listen-bar__status";
   status.setAttribute("aria-live", "polite");
@@ -88,8 +105,44 @@ export function createPlayer(config: ListenConfig): Player {
     RATES.map((r) => [r, `${r}×`]),
     rate,
   );
-  bar.append(toggle, status, ratePick, voicePick, stop, audio);
+  bar.append(toggle, status, jumpTo, ratePick, voicePick, stop, audio);
   document.body.append(bar);
+
+  // ── follow-along: where each unit starts on the stream's clock ──
+  // `starts[i]` is unit i's start; `starts.length - 1` units have a known duration. The stream
+  // is the units end to end, so a unit starts where the durations before it add up to.
+  let starts: number[] = [0];
+  let total = 0;
+  let marksPath = "";
+  let marksTimer: number | undefined;
+  let onUnit: (index: number | null) => void = () => undefined;
+  const pollMarks = async (): Promise<void> => {
+    window.clearTimeout(marksTimer);
+    const known = starts.length - 1;
+    if (!marksPath || known >= total) return;
+    try {
+      const marks = await listenMarks(marksPath, known);
+      if (marks.from === starts.length - 1) {
+        for (const seconds of marks.durations) starts.push(starts[starts.length - 1] + seconds);
+      }
+    } catch {
+      log.debug("listen: marks unavailable — following pauses");
+    }
+    if (starts.length - 1 < total) marksTimer = window.setTimeout(() => void pollMarks(), MARKS_EVERY_MS);
+  };
+  /** The unit playing at `t`: the last one starting at or before it. Past the known durations it
+   *  is the next unit, which is playing but whose length the server has not reported yet. */
+  const unitAt = (t: number): number => {
+    let index = 0;
+    while (index + 1 < starts.length && starts[index + 1] <= t) index += 1;
+    return Math.min(index, total - 1);
+  };
+  const stopFollowing = (): void => {
+    window.clearTimeout(marksTimer);
+    marksPath = "";
+    onUnit(null);
+    jumpTo.hidden = true;
+  };
 
   const say = (text: string): void => {
     status.textContent = text;
@@ -105,6 +158,7 @@ export function createPlayer(config: ListenConfig): Player {
     else audio.pause();
   });
   stop.addEventListener("click", () => {
+    stopFollowing();
     audio.pause();
     audio.removeAttribute("src");
     audio.load(); // drops the connection, so the server stops synthesising
@@ -128,7 +182,11 @@ export function createPlayer(config: ListenConfig): Player {
   audio.addEventListener("pause", syncToggle);
   audio.addEventListener("playing", () => say("Listening"));
   audio.addEventListener("waiting", () => say("Preparing the next part…"));
+  audio.addEventListener("timeupdate", () => {
+    if (marksPath) onUnit(unitAt(audio.currentTime));
+  });
   audio.addEventListener("ended", () => {
+    stopFollowing();
     say("Finished");
     syncToggle();
     log.info("listen: finished");
@@ -146,12 +204,18 @@ export function createPlayer(config: ListenConfig): Player {
   }
 
   return {
-    async play(allUnits, label) {
+    setAway(away) {
+      jumpTo.hidden = !away || !marksPath;
+    },
+    async play(allUnits, label, follower, jump) {
       const units = withinLimit(allUnits, config.maxRequestChars);
       if (units.length === 0) {
         log.debug("listen: nothing speakable in that range");
         return;
       }
+      stopFollowing();
+      onUnit = follower;
+      onJump = jump;
       bar.hidden = false;
       say("Preparing…");
       // Claim the element inside the click, before the network round trip: iOS only lets a page
@@ -160,6 +224,11 @@ export function createPlayer(config: ListenConfig): Player {
       try {
         const ticket = await startListen({ voice, units });
         audio.src = ticket.url;
+        starts = [0];
+        total = ticket.units;
+        marksPath = ticket.url.replace(/\.mp3$/, "/marks");
+        onUnit(0);
+        void pollMarks();
         audio.playbackRate = Number(rate);
         if ("mediaSession" in navigator) {
           navigator.mediaSession.metadata = new MediaMetadata({ title: label, artist: "Synapse" });

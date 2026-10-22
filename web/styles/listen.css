@@ -1,13 +1,18 @@
 /* ── LISTEN ─────────────────────────────────────────────────────────────────────────────────
-   The read-aloud affordances: a header button, a popover over a selection, and the player bar.
-   Every element here is created by `islands/listen` for a reader on the listen list only, so on
-   anyone else's page these rules match nothing. */
+   The read-aloud affordances: the header pill, a popover over a selection, the player bar and
+   the follow-along highlight. The pill is server-rendered gated for everyone (removed where there
+   is no speech engine); the popover is gated or live; the bar and highlight exist only for a
+   reader on the listen list. */
+
+/* The tooltip wrapper sits beside "Suggest an edit" and carries the same top margin, so the two
+   line up. `.wb__tip` anchors its bubble right; at the prose's left margin it must anchor left. */
+.listen-tip { margin-top: 0.75rem; margin-inline-start: 0.75rem; }
+.listen-tip:hover::after { left: 0; right: auto; }
 
 .listen-header {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  margin-inline-start: 0.5rem;
   padding: 0.2rem 0.65rem;
   border: 1px solid var(--border-default);
   border-radius: 999px;
@@ -21,6 +26,15 @@
 .listen-header:hover {
   border-color: var(--border-interactive);
   color: var(--brand);
+}
+
+/* Gated: present and legible, plainly not actionable — and still hoverable, because the hover is
+   what carries the explanation. Never `pointer-events: none`. */
+.listen-header--gated,
+.listen-header--gated:hover {
+  border-color: var(--border-subtle);
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
 
 /* Positioned in document coordinates by the island, so it scrolls with the text it belongs to. */
@@ -54,6 +68,43 @@
 .listen-pop__btn:hover {
   background: var(--brand-soft);
   color: var(--brand-soft-text);
+}
+
+.listen-pop__btn--gated,
+.listen-pop__btn--gated:hover {
+  background: transparent;
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* The gated popover carries the access tooltip under its buttons — the `.wb__tip` bubble, spelled
+   here because `.wb__tip` itself sets `position: relative`, which would unpin the popover. */
+.listen-pop--gated:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: max-content;
+  max-width: min(26rem, 70vw);
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.35rem;
+  background: hsl(var(--foreground));
+  color: hsl(var(--muted) / 0.5);
+  font-size: 0.72rem;
+  white-space: normal;
+}
+
+/* The sentence being spoken. A Custom Highlight paints a range without touching the DOM. */
+::highlight(listen-now) {
+  background-color: hsl(var(--primary) / 0.22);
+  color: inherit;
+}
+
+/* Where Custom Highlights are missing, the block being spoken is marked instead. */
+.listen-now-block {
+  border-radius: var(--radius-sm);
+  background: hsl(var(--primary) / 0.1);
+  box-shadow: 0 0 0 0.25rem hsl(var(--primary) / 0.1);
 }
 
 /* The bar sits at the foot of the viewport and wraps on a narrow phone rather than overflowing. */
@@ -91,6 +142,24 @@
   border-color: transparent;
   background: var(--brand);
   color: var(--text-onbrand);
+}
+
+/* "Jump to speech": appears only while what is being said is off screen. */
+.listen-bar__jump {
+  height: 2.25rem;
+  padding-inline: 0.75rem;
+  border: 1px solid var(--border-interactive);
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand-soft-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.listen-bar__jump[hidden] {
+  display: none;
 }
 
 .listen-bar__status {

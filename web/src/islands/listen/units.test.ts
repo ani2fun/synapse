@@ -3,7 +3,7 @@
 // opening so the first audio is quick.
 import { describe, expect, it } from "vitest";
 
-import { hardSplit, packSentences, sentences, splitIntoUnits, TARGET_CHARS } from "./units";
+import { hardSplit, packSentences, sentences, splitIntoUnits, TARGET_CHARS, unitSpans } from "./units";
 
 describe("sentences", () => {
   it("splits on terminal punctuation followed by whitespace", () => {
@@ -80,5 +80,20 @@ describe("splitIntoUnits", () => {
     expect(fromStart.slice(-packSentences(sentences(later), TARGET_CHARS).length)).toEqual(
       fromEarlier.slice(-packSentences(sentences(later), TARGET_CHARS).length),
     );
+  });
+});
+
+describe("unitSpans", () => {
+  it("points every unit back at the exact characters of its block", () => {
+    const blocks = ["First one. Second one here.", "A heading.", "x ".repeat(250).trim() + "."];
+    for (const span of unitSpans(blocks, 400)) {
+      expect(blocks[span.block].slice(span.start, span.end)).toBe(span.text);
+    }
+  });
+
+  it("walks forward, so a repeated sentence maps to its own occurrence", () => {
+    const spans = unitSpans(["Intro.", "Again. Again."], 6);
+    const inSecond = spans.filter((s) => s.block === 1);
+    expect(inSecond.map((s) => s.start)).toEqual([0, 7]);
   });
 });

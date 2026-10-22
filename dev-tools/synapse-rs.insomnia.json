@@ -945,7 +945,7 @@
       "method": "GET",
       "url": "{{ _.base_url }}/api/listen/REPLACE_WITH_TICKET.mp3",
       "headers": [],
-      "description": "One continuous audio/mpeg stream, unit by unit (cache, else the engine). 404 expired ticket, 429 already two streams for this reader, 503 four streams in total, 502 the engine failed on the first unit."
+      "description": "One continuous audio/mpeg stream, unit by unit (cache, else the engine). 404 lapsed ticket (10 minutes after its last use), 429 already two streams for this reader, 503 four streams in total, 502 the engine failed on the first unit."
     },
     {
       "_id": "req_listeners_list",
@@ -999,6 +999,16 @@
         }
       ],
       "description": "Revoke: 204 on removal, 404 when the grant never existed. A stream already playing finishes."
+    },
+    {
+      "_id": "req_listen_marks",
+      "_type": "request",
+      "parentId": "fld_listen",
+      "name": "GET /api/listen/{ticket}/marks",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/listen/REPLACE_WITH_TICKET/marks?from=0",
+      "headers": [],
+      "description": "How long each synthesised unit plays (seconds, read from the MP3 frames), contiguous from `from`, at most 64; a unit not yet said ends the list. Cache reads only, never the engine. Renews the ticket — the page polls it every 2 s while playing, which is what keeps a long listen's ticket alive. 404 once lapsed."
     }
   ]
 }

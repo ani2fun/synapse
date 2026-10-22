@@ -2,9 +2,10 @@
 //! that cannot send one.
 //!
 //! A ticket is a random id naming a validated [`Narration`] and the reader it was issued to. It
-//! may be redeemed more than once until it lapses — browsers routinely open a media URL twice
-//! (a probe, then the real fetch), and the second costs only cache reads. The TTL bounds STARTING
-//! playback, not playing: a stream already running is not cut off when its ticket lapses.
+//! may be redeemed more than once — browsers routinely open a media URL twice (a probe, then the
+//! real fetch), and the second costs only cache reads. The TTL is SLIDING: every use renews it, so
+//! a page that is playing (and asking for the stream's timing every few seconds) keeps its ticket
+//! for as long as it plays, and an abandoned one lapses a TTL after its last use.
 //!
 //! In memory, which is correct for the one replica this deployment runs (the rate limiter and the
 //! admission gate make the same assumption). A restart forgets every ticket, and the page simply
@@ -72,12 +73,13 @@ impl Tickets {
         id
     }
 
-    /// The reader and narration a live ticket names; `None` once it has lapsed or never existed.
+    /// The reader and narration a live ticket names, renewing it; `None` once it has lapsed or
+    /// never existed.
     pub fn redeem(&self, id: &str) -> Option<(Username, Arc<Narration>)> {
-        let issued = lock_unpoisoned(&self.issued);
-        issued
-            .get(id)
-            .filter(|ticket| ticket.expires > Instant::now())
-            .map(|ticket| (ticket.owner.clone(), Arc::clone(&ticket.narration)))
+        let now = Instant::now();
+        let mut issued = lock_unpoisoned(&self.issued);
+        let ticket = issued.get_mut(id).filter(|ticket| ticket.expires > now)?;
+        ticket.expires = now + self.ttl;
+        Some((ticket.owner.clone(), Arc::clone(&ticket.narration)))
     }
 }

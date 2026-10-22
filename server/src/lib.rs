@@ -354,6 +354,7 @@ where
         catalog::http::admin::revoke_reader,
         listen::http::get_config,
         listen::http::start_listen,
+        listen::http::marks,
         listen::http::list_listeners,
         listen::http::grant_listener,
         listen::http::revoke_listener
@@ -418,7 +419,8 @@ where
         synapse_shared::listen::ListenConfigDto,
         synapse_shared::listen::ListenVoiceDto,
         synapse_shared::listen::ListenRequestDto,
-        synapse_shared::listen::ListenTicketDto
+        synapse_shared::listen::ListenTicketDto,
+        synapse_shared::listen::ListenMarksDto
     ))
 )]
 pub struct ApiDoc;

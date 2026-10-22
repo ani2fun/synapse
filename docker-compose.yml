@@ -1,7 +1,7 @@
 # Synapse local backing services. The app itself runs from cargo + Astro during development
 # (dev-tools/dev), never in Docker — only the things it talks to live here.
 #
-#   docker compose up -d                  # db + keycloak + go-judge
+#   docker compose up -d                  # db + keycloak + go-judge + tts
 #
 # Host ports are offset +100 from the Cortex stack so both run side by side.
 #
@@ -65,6 +65,34 @@ services:
     cgroup: host
     ports:
       - "127.0.0.1:5150:5050"
+
+  # The speech engine lessons are read aloud with (Kokoro-FastAPI, CPU). The same release prod runs,
+  # pinned by its multi-arch index digest so an Apple-silicon laptop pulls the arm64 build and the
+  # cluster the amd64 one. ~1.5 GB to pull and ~2.5 GiB resident once warm, which is why it carries
+  # the prod limits: on a laptop it should cost what it costs in the cluster, not whatever is free.
+  # dev-tools/dev points the server at it (SYNAPSE_TTS_URL); `docker compose stop tts` frees the
+  # memory, and the lesson page then reports the engine as unavailable instead of hiding Listen.
+  tts:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:v0.9.0@sha256:ee3111d6a2c903ed62f3b4fa19543c6901205ed39fce3c177e895b34a8386b9c
+    restart: unless-stopped
+    environment:
+      # The model is baked into the image.
+      DOWNLOAD_MODEL: "false"
+      # Torch sizes its pool from every host core unless told; two matches the CPU limit below.
+      OMP_NUM_THREADS: "2"
+      MKL_NUM_THREADS: "2"
+      ENABLE_WEB_PLAYER: "false"
+      API_LOG_LEVEL: INFO
+    cpus: 2
+    mem_limit: 3584m
+    ports:
+      - "127.0.0.1:8880:8880"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8880/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
 
 volumes:
   pgdata:

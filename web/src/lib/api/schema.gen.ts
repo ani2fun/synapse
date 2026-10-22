@@ -468,6 +468,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/listen/{ticket}/marks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * How long each synthesised unit plays, so the page can highlight what is being said. A cache
+         *     read per unit and never the engine: a unit not yet said ends the list, and the page asks again.
+         */
+        get: operations["listenMarks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/me": {
         parameters: {
             query?: never;
@@ -1138,6 +1158,17 @@ export interface components {
             maxUnitChars: number;
             voices: components["schemas"]["ListenVoiceDto"][];
         };
+        /**
+         * @description `GET /api/listen/{ticket}/marks?from=` — how long each unit plays, for the page to follow along.
+         *     The units from `from` onwards that have been synthesised so far, contiguous, at most a page of
+         *     them; a unit still being said ends the list. A unit starts where the durations before it add up
+         *     to on the stream's clock.
+         */
+        ListenMarksDto: {
+            /** @description Seconds, one per unit, in order. */
+            durations: number[];
+            from: number;
+        };
         /** @description `POST /api/listen` body. */
         ListenRequestDto: {
             /** @description The text to read, in order, each at most [`LISTEN_MAX_UNIT_CHARS`]. */
@@ -1153,8 +1184,8 @@ export interface components {
         ListenTicketDto: {
             /**
              * Format: int64
-             * @description Seconds the address stays valid for STARTING playback. A stream already playing is not
-             *     cut off when it lapses.
+             * @description Seconds the address stays valid after its last use — playing it, or asking for its marks,
+             *     renews it.
              */
             expiresIn: number;
             /** @description How many units the stream will read, after blank ones are dropped. */
@@ -2760,6 +2791,41 @@ export interface operations {
             };
             /** @description The allowlist store failed */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    listenMarks: {
+        parameters: {
+            query?: {
+                /** @description The first unit to report (default 0) */
+                from?: number;
+            };
+            header?: never;
+            path: {
+                /** @description The ticket from startListen */
+                ticket: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Durations of the units synthesised so far */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListenMarksDto"];
+                };
+            };
+            /** @description The ticket lapsed */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -61,17 +61,45 @@ export function packSentences(sentences: readonly string[], target: number): str
   return units;
 }
 
-/** The whole listen: blocks → units, with the first unit cut down to one sentence. */
-export function splitIntoUnits(blocks: readonly string[], maxChars: number): string[] {
-  const units: string[] = [];
+/** One unit, and where it came from: block `block`, characters `[start, end)` of its text. */
+export interface UnitSpan {
+  text: string;
+  block: number;
+  start: number;
+  end: number;
+}
+
+/**
+ * The whole listen: blocks → units, with the first unit cut down to one sentence. Each unit is an
+ * exact substring of its block's text (sentences are cut on whitespace and joined with one space,
+ * and the text is already folded), so finding it again is a forward search — which is what lets
+ * the page highlight the unit being spoken.
+ */
+export function unitSpans(blocks: readonly string[], maxChars: number): UnitSpan[] {
+  const spans: UnitSpan[] = [];
   blocks.forEach((block, index) => {
     let parts = sentences(block).flatMap((s) => hardSplit(s, maxChars));
+    const units: string[] = [];
     if (index === 0 && parts.length > 1) {
       // Fast start: the opening sentence goes alone, the rest of the block packs as usual.
       units.push(parts[0]);
       parts = parts.slice(1);
     }
     units.push(...packSentences(parts, Math.min(TARGET_CHARS, maxChars)));
+    let cursor = 0;
+    for (const text of units) {
+      const found = block.indexOf(text, cursor);
+      // Not found only if a split cut inside a word; the unit then highlights its whole block.
+      const start = found >= 0 ? found : 0;
+      const end = found >= 0 ? found + text.length : block.length;
+      spans.push({ text, block: index, start, end });
+      if (found >= 0) cursor = end;
+    }
   });
-  return units;
+  return spans;
+}
+
+/** The units alone. */
+export function splitIntoUnits(blocks: readonly string[], maxChars: number): string[] {
+  return unitSpans(blocks, maxChars).map((span) => span.text);
 }

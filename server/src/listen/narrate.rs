@@ -40,6 +40,19 @@ impl<E> Clone for Narrator<E> {
 }
 
 impl<E: SpeechEngine + 'static> Narrator<E> {
+    /// How long each unit from `from` plays, as far as the cache can say: contiguous, stopping at
+    /// the first unit not yet synthesised, at most `limit` of them. Never touches the engine.
+    pub async fn durations(&self, narration: &Narration, from: usize, limit: usize) -> Vec<f64> {
+        let mut durations = Vec::new();
+        for text in narration.units.iter().skip(from).take(limit) {
+            let Some(audio) = self.cache.get(&cache_key(narration.voice, text)).await else {
+                break;
+            };
+            durations.push(crate::listen::mp3::duration_secs(&audio));
+        }
+        durations
+    }
+
     /// One unit's audio: the cache, or the engine (which then fills the cache).
     pub async fn unit(&self, narration: &Narration, index: usize) -> Result<Bytes, ListenError> {
         let text = &narration.units[index];
