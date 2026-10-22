@@ -53,6 +53,7 @@ export type ListenConfig = components["schemas"]["ListenConfigDto"];
 export type ListenVoice = components["schemas"]["ListenVoiceDto"];
 export type ListenRequest = components["schemas"]["ListenRequestDto"];
 export type ListenTicket = components["schemas"]["ListenTicketDto"];
+export type ListenMarks = components["schemas"]["ListenMarksDto"];
 
 /**
  * `DELETE /api/me`'s 200 body has no OpenAPI schema — `identity::http::delete_me` answers
@@ -454,6 +455,12 @@ export function listenConfig(): Promise<ListenConfig> {
 /** Spend the bearer on a ticket: the returned `url` is what the `<audio>` element plays. */
 export function startListen(request: ListenRequest): Promise<ListenTicket> {
   return post<ListenTicket>("/api/listen", request);
+}
+
+/** How long each synthesised unit of a listen plays, from unit `from` — `marksPath` is the
+ *  ticket's URL with `/marks` in place of `.mp3`. No bearer needed: the ticket is the grant. */
+export function listenMarks(marksPath: string, from: number): Promise<ListenMarks> {
+  return get<ListenMarks>(`${marksPath}?from=${from}`);
 }
 
 /** The listen allowlist — a THIRD grant, separate from submitting and editing. */

@@ -1,9 +1,10 @@
 // ──────────────────────────────────────────────────────────────────
 // HOW TO ASK FOR ACCESS
 // ──────────────────────────────────────────────────────────────────
-// Two capabilities on this deployment are granted rather than assumed: SAVING code attempts, which
-// spends shared compute and storage, and EDITING content, which opens pull requests against the
-// content repositories. They are separate grants, and a reader can hold one without the other.
+// Three capabilities on this deployment are granted rather than assumed: SAVING code attempts, which
+// spends shared compute and storage; EDITING content, which opens pull requests against the content
+// repositories; and LISTENING, which runs the speech engine. They are separate grants, and a reader
+// can hold any one without the others.
 //
 // The sentence is the same shape for both — what the grant is, how to ask, and the honest caveat —
 // because a reader who meets one gate and later meets the other should recognise the second as the
@@ -34,6 +35,11 @@ export function accessRequest(what: string): string {
 export const EDIT_ACCESS_TEXT = accessRequest("Editing needs a place on the content-editor list.");
 
 /** Saving code attempts: the submit list. Mirrors the server's 403 hint. */
+/** Having lessons read aloud: the listen list. The speech engine keeps ahead of one listener at a time. */
+export const LISTEN_ACCESS_TEXT = accessRequest(
+  "Listening needs a place on the listen list, because the speech engine runs on shared compute.",
+);
+
 export const SUBMIT_ACCESS_TEXT = accessRequest(
   "Saving attempts needs a place on the submit list, because it uses shared compute and storage.",
 );

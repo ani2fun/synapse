@@ -28,7 +28,7 @@ import NotFound from "../../components/NotFound.astro";
 import { lesson as fetchLesson, fetchIndex, ApiFailure } from "../../lib/api/client";
 import type { LessonPayload } from "../../lib/api/client";
 import { renderLesson } from "../../lib/markdown/render";
-import { EDIT_ACCESS_TEXT } from "../../lib/contact";
+import { EDIT_ACCESS_TEXT, LISTEN_ACCESS_TEXT } from "../../lib/contact";
 import * as log from "../../lib/log";
 import { titleForLesson, SITE_NAME } from "../../lib/seo";
 import { allBooksOf, bookOf, chapterProblems, chapterTitleOf, problemContentSplit } from "../../lib/catalog/tree";
@@ -152,6 +152,7 @@ const eyebrow = book ? (chapterTitleOf(book, segments.join("/")) ?? book.title) 
 // runs: the feature exists, here is how to ask for it. islands/authoring/editLink swaps in the
 // active copy once the server confirms the caller may edit.
 const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
+const LISTEN_GATED_TIP = LISTEN_ACCESS_TEXT;
 ---
 
 <Base title={title} description={description} canonicalPath={isLesson ? canonicalPath : undefined}>
@@ -241,6 +242,19 @@ const EDIT_GATED_TIP = EDIT_ACCESS_TEXT;
                     </svg>
                     Suggest an edit
                   </a>
+                </span>
+                <!-- Listen: the same grammar. VISIBLE and gated by default, so a reader who is not on
+                     the listen list still learns the feature exists and how to ask. islands/listen
+                     makes it live for a listed reader and removes it when this deployment has no
+                     speech engine. A button with no handler does nothing, so the gated default holds
+                     without JavaScript. -->
+                <span class="wb__tip listen-tip" data-listen-tip data-tip={LISTEN_GATED_TIP}>
+                  <button type="button" class="listen-header listen-header--gated" data-listen-header aria-disabled="true">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <path d="M11 5 6 9H2v6h4l5 4V5Z M15.5 8.5a5 5 0 0 1 0 7 M19 5a10 10 0 0 1 0 14" />
+                    </svg>
+                    Listen
+                  </button>
                 </span>
               </header>
 

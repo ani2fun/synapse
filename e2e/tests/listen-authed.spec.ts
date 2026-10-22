@@ -32,7 +32,8 @@ test.describe("listen — a listed reader, and one who is not", () => {
   test("the whole lesson is read without its code or its table, and the stream plays", async ({ page }) => {
     await signIn(page, READER, READER_PASS);
     await page.goto(LESSON);
-    const header = page.locator("[data-listen-header]");
+    // The pill is server-rendered gated; it becomes live once the probe says this reader may listen.
+    const header = page.locator("[data-listen-header]:not([aria-disabled])");
     await expect(header).toBeVisible({ timeout: 30_000 });
 
     const sent = page.waitForRequest((r) => r.url().endsWith("/api/listen") && r.method() === "POST");
@@ -55,12 +56,36 @@ test.describe("listen — a listed reader, and one who is not", () => {
     await expect
       .poll(() => page.locator("[data-listen-bar] audio").evaluate((a) => (a as HTMLAudioElement).currentTime))
       .toBeGreaterThan(0);
+
+    // Follow-along: the unit being spoken is painted as a Custom Highlight over exactly the text of
+    // one of the units sent (which one depends on how far ~1 s units have played by now).
+    const highlighted = await page.evaluate(() => {
+      const highlight = (CSS as unknown as { highlights: Map<string, Iterable<Range>> }).highlights.get("listen-now");
+      return highlight ? [...highlight][0].toString() : null;
+    });
+    // A heading or bullet gets a closing full stop so the engine pauses; the page never had it, so
+    // the highlight covers the unit's text minus that one character.
+    expect(highlighted).not.toBeNull();
+    expect(units.some((u) => u === highlighted || u === `${highlighted}.`)).toBe(true);
+    // The stream's timing comes from the marks endpoint, one duration per synthesised unit.
+    const marks = await page.evaluate(async (url) => (await fetch(url)).json(), response.url().replace(/\.mp3$/, "/marks?from=0"));
+    expect(marks.durations.length).toBeGreaterThan(0);
+    expect(marks.durations[0]).toBeCloseTo(1.045, 2);
+
+    // Scrolling away stops following and offers the way back; taking it returns to the voice.
+    const jump = page.locator("[data-listen-jump]");
+    await expect(jump).toBeHidden();
+    await page.mouse.move(600, 300);
+    await page.mouse.wheel(0, 6000);
+    await expect(jump).toBeVisible();
+    await jump.click();
+    await expect(jump).toBeHidden();
   });
 
   test("a selection offers Listen and From here", async ({ page }) => {
     await signIn(page, READER, READER_PASS);
     await page.goto(LESSON);
-    await expect(page.locator("[data-listen-header]")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("[data-listen-header]:not([aria-disabled])")).toBeVisible({ timeout: 30_000 });
     // Select the second paragraph's text, the way a reader's drag would.
     await page.locator("article.lesson-body p").nth(1).evaluate((p) => {
       const range = document.createRange();
@@ -79,12 +104,12 @@ test.describe("listen — a listed reader, and one who is not", () => {
     expect(units.join(" "), "a selection reads only itself").not.toContain("deterministic");
   });
 
-  test("a signed-in reader who is not listed sees nothing and is refused", async ({ page }) => {
+  test("a signed-in reader who is not listed sees Listen gated and is refused", async ({ page }) => {
     await signIn(page, OUTSIDER, OUTSIDER_PASS);
     await page.goto(LESSON);
     await expect(page.locator("article.lesson-body")).toContainText("deterministic");
     await page.waitForLoadState("networkidle");
-    await expect(page.locator("[data-listen-header]")).toHaveCount(0);
+    await expect(page.locator("[data-listen-header]")).toHaveAttribute("aria-disabled", "true");
     const status = await page.evaluate(async () => {
       const token = (window as unknown as { __synapseVizToken?: () => string | null }).__synapseVizToken?.();
       const res = await fetch("/api/listen", {

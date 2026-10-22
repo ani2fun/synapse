@@ -12,15 +12,15 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use axum::body::Body;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use synapse_shared::api::ApiError;
 use synapse_shared::listen::{
-    LISTEN_MAX_REQUEST_CHARS, LISTEN_MAX_UNIT_CHARS, LISTEN_VOICES, ListenConfigDto, ListenRequestDto,
-    ListenTicketDto, ListenVoiceDto,
+    LISTEN_MAX_REQUEST_CHARS, LISTEN_MAX_UNIT_CHARS, LISTEN_VOICES, ListenConfigDto, ListenMarksDto,
+    ListenRequestDto, ListenTicketDto, ListenVoiceDto,
 };
 use synapse_shared::submission::{AllowlistEntryDto, GrantRequestDto};
 use tokio::sync::Semaphore;
@@ -37,7 +37,10 @@ use crate::platform::admission::{Admission, Refused};
 
 pub type Reject = (StatusCode, Json<ApiError>);
 
-/// How long a ticket may wait before playback starts.
+/// A page of marks: enough for minutes of audio, few enough that one poll is a handful of reads.
+const MARKS_PAGE: usize = 64;
+
+/// How long a ticket lives after its last use.
 const TICKET_TTL: std::time::Duration = std::time::Duration::from_mins(10);
 
 #[derive(Clone)]
@@ -105,6 +108,7 @@ pub fn routes(state: ListenRoutesState) -> Router {
         .route("/api/listen/config", get(get_config))
         .route("/api/listen", post(start_listen))
         .route("/api/listen/{file}", get(play))
+        .route("/api/listen/{ticket}/marks", get(marks))
         .route("/api/admin/listeners", get(list_listeners).post(grant_listener))
         .route("/api/admin/listeners/{username}", delete(revoke_listener))
         .with_state(state)
@@ -299,6 +303,50 @@ pub(crate) async fn play(State(state): State<ListenRoutesState>, Path(file): Pat
         body,
     )
         .into_response()
+}
+
+#[derive(serde::Deserialize)]
+pub(crate) struct MarksQuery {
+    #[serde(default)]
+    from: usize,
+}
+
+/// How long each synthesised unit plays, so the page can highlight what is being said. A cache
+/// read per unit and never the engine: a unit not yet said ends the list, and the page asks again.
+#[utoipa::path(
+    get,
+    path = "/api/listen/{ticket}/marks",
+    operation_id = "listenMarks",
+    params(
+        ("ticket" = String, Path, description = "The ticket from startListen"),
+        ("from" = Option<usize>, Query, description = "The first unit to report (default 0)")
+    ),
+    responses(
+        (status = 200, description = "Durations of the units synthesised so far", body = ListenMarksDto),
+        (status = 404, description = "The ticket lapsed", body = ApiError)
+    )
+)]
+pub(crate) async fn marks(
+    State(state): State<ListenRoutesState>,
+    Path(ticket): Path<String>,
+    Query(query): Query<MarksQuery>,
+) -> Result<Json<ListenMarksDto>, Reject> {
+    let Some((_, narration)) = state.tickets.redeem(&ticket) else {
+        return Err(reject(
+            StatusCode::NOT_FOUND,
+            "This listen has expired",
+            None,
+            None,
+        ));
+    };
+    let durations = state
+        .narrator()
+        .durations(&narration, query.from, MARKS_PAGE)
+        .await;
+    Ok(Json(ListenMarksDto {
+        from: query.from,
+        durations,
+    }))
 }
 
 // ── ADMIN ─────────────────────────────────────────────────────────────────────────────────────

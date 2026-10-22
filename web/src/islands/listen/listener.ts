@@ -1,96 +1,73 @@
 // ──────────────────────────────────────────────────────────────────
-// LISTEN AFFORDANCES — a header button and a popover over a selection
+// LISTEN, LIVE — for a reader on the listen list
 // ──────────────────────────────────────────────────────────────────
-// Loaded only for a reader the server says may listen (see `./index`), so nothing here ships to
-// anyone else. Two ways in:
+// Loaded only when the server says this reader may listen (see `./index`). Two ways in:
 //
-//   · "Listen" in the lesson header — the whole lesson from the top;
-//   · select some prose and a small popover offers "Listen" (just the selection) and
-//     "From here" (from the selection's paragraph to the end of the lesson).
+//   · the lesson header's Listen pill (server-rendered gated; made live here) — the whole lesson;
+//   · select some prose and the popover offers "Listen" (just the selection) and "From here"
+//     (from the selection's paragraph to the end of the lesson).
+//
+// Whatever is playing, the sentence being spoken is highlighted and kept on screen (`./follow`).
 
 import type { ListenConfig } from "../../lib/api/client";
 import * as log from "../../lib/log";
+import type { ProseBlock } from "./extract";
 import { blockAt, proseFrom, proseInRange } from "./extract";
+import type { Follower } from "./follow";
+import { follow } from "./follow";
 import { createPlayer } from "./player";
-import { splitIntoUnits } from "./units";
+import { mountPopover } from "./popover";
+import { unitSpans } from "./units";
 
-const BODY = "article.lesson-body";
+const LIVE_TIP = "Listen to this lesson — select any text to start from there";
 
-function pill(text: string, label: string): HTMLButtonElement {
-  const el = document.createElement("button");
-  el.type = "button";
-  el.className = "listen-pop__btn";
-  el.textContent = text;
-  el.setAttribute("aria-label", label);
-  return el;
-}
-
-export function mount(config: ListenConfig): void {
-  const body = document.querySelector<HTMLElement>(BODY);
-  if (!body) return;
+export function mount(config: ListenConfig): () => void {
+  const body = document.querySelector<HTMLElement>("article.lesson-body");
+  if (!body) return () => undefined;
   const player = createPlayer(config);
   const title = document.querySelector("h1")?.textContent?.trim() ?? document.title;
-  const listen = (blocks: string[], label: string): void => {
-    void player.play(splitIntoUnits(blocks, config.maxUnitChars), label);
+
+  let follower: Follower | null = null;
+  const listen = (blocks: ProseBlock[]): void => {
+    const spans = unitSpans(
+      blocks.map((b) => b.text),
+      config.maxUnitChars,
+    );
+    follower?.dispose();
+    const current = follow(blocks, spans, (away) => player.setAway(away));
+    follower = current;
+    void player.play(
+      spans.map((s) => s.text),
+      title,
+      (index) => current.show(index),
+      () => current.jump(),
+    );
   };
 
-  // ── the header button: the whole lesson ──
-  const header = document.createElement("button");
-  header.type = "button";
-  header.className = "listen-header";
-  header.dataset.listenHeader = "";
-  header.textContent = "▶ Listen";
-  header.setAttribute("aria-label", "Listen to this lesson");
-  header.addEventListener("click", () => {
+  // ── the header pill: the whole lesson ──
+  const header = document.querySelector<HTMLButtonElement>("[data-listen-header]");
+  const onHeader = (): void => {
     const first = body.firstElementChild;
-    if (first) listen(proseFrom(body, first), title);
-  });
-  const anchor = document.querySelector("[data-edit-tip]") ?? document.querySelector(".reader-prose__title");
-  anchor?.after(header);
-
-  // ── the selection popover ──
-  const pop = document.createElement("div");
-  pop.className = "listen-pop";
-  pop.hidden = true;
-  pop.dataset.listenPop = "";
-  const listenSel = pill("▶ Listen", "Listen to the selection");
-  const fromHere = pill("From here", "Listen from here to the end");
-  pop.append(listenSel, fromHere);
-  document.body.append(pop);
-
-  let range: Range | null = null;
-  // `pointerdown` on the popover would otherwise collapse the selection before the click lands.
-  pop.addEventListener("pointerdown", (event) => event.preventDefault());
-  listenSel.addEventListener("click", () => {
-    if (range) listen(proseInRange(body, range), title);
-    pop.hidden = true;
-  });
-  fromHere.addEventListener("click", () => {
-    const start = range ? blockAt(body, range.startContainer) : null;
-    if (start) listen(proseFrom(body, start), title);
-    pop.hidden = true;
-  });
-
-  const place = (): void => {
-    const selection = document.getSelection();
-    const live = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
-    if (!live || live.collapsed || !body.contains(live.commonAncestorContainer)) {
-      pop.hidden = true;
-      range = null;
-      return;
-    }
-    range = live.cloneRange();
-    const rect = live.getBoundingClientRect();
-    pop.hidden = false;
-    pop.style.top = `${window.scrollY + rect.bottom + 8}px`;
-    pop.style.left = `${Math.max(8, window.scrollX + rect.left)}px`;
+    if (first) listen(proseFrom(body, first));
   };
-  let timer: number | undefined;
-  document.addEventListener("selectionchange", () => {
-    window.clearTimeout(timer);
-    // Settle first: a drag fires dozens of these, and the popover should land once.
-    timer = window.setTimeout(place, 200);
+  if (header) {
+    header.classList.remove("listen-header--gated");
+    header.removeAttribute("aria-disabled");
+    header.addEventListener("click", onHeader);
+    document.querySelector("[data-listen-tip]")?.setAttribute("data-tip", LIVE_TIP);
+  }
+
+  const unmountPopover = mountPopover(body, {
+    listen: (range) => listen(proseInRange(body, range)),
+    fromHere: (range) => {
+      const start = blockAt(body, range.startContainer);
+      if (start) listen(proseFrom(body, start));
+    },
   });
 
-  log.info("listen: affordances mounted");
+  log.info("listen: live");
+  return () => {
+    header?.removeEventListener("click", onHeader);
+    unmountPopover();
+  };
 }

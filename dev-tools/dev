@@ -109,6 +109,16 @@ D2_RENDER_CACHE="$PWD/target/d2-render-cache" D2_RENDER_ADDR=":${D2_RENDER_PORT:
 D2_RENDER_PID=$!
 export SYNAPSE_D2_RENDER_URL="${SYNAPSE_D2_RENDER_URL:-http://localhost:${D2_RENDER_PORT:-8390}}"
 
+# ── THE SPEECH ENGINE ────────────────────────────────────────────────────────
+# Lessons read aloud come from the compose `tts` service. The address is set whether or not the
+# engine is up yet — it takes ~20 s to warm — so the listen routes exist from the first request,
+# exactly as in prod; an engine that is down answers 502 "unavailable" rather than hiding the
+# feature. Export SYNAPSE_TTS_URL= (empty) to run without it.
+export SYNAPSE_TTS_URL="${SYNAPSE_TTS_URL-http://localhost:8880}"
+if [[ -n "$SYNAPSE_TTS_URL" ]] && ! curl -sf -o /dev/null --max-time 2 "$SYNAPSE_TTS_URL/health"; then
+  echo "  ⚠ the speech engine is not answering at $SYNAPSE_TTS_URL yet — 'docker compose up -d tts'"
+fi
+
 # `render-local-only` renders `local-only-content/` — study material that is gitignored and must
 # never be served. A cargo feature rather than an env var on purpose: the production binary does
 # not contain the branch at all, so ADR-RS002's guarantee stays structural. Only this loop enables
