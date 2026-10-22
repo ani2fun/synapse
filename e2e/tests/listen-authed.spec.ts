@@ -13,6 +13,7 @@ const READER_PASS = process.env.E2E_KC_PASS ?? "tester";
 const OUTSIDER = process.env.E2E_KC_USER2 ?? "test1";
 const OUTSIDER_PASS = process.env.E2E_KC_PASS2 ?? "test1";
 const LESSON = "/synapse/learn/smoke/intro";
+const PRIVATE_LESSON = "/synapse/programming-languages/insight-earned/notes/selection-sort";
 
 async function signIn(page: import("@playwright/test").Page, user: string, pass: string) {
   await page.goto("/");
@@ -80,6 +81,23 @@ test.describe("listen — a listed reader, and one who is not", () => {
     await expect(jump).toBeVisible();
     await jump.click();
     await expect(jump).toBeHidden();
+  });
+
+  test("a private book's lesson reads aloud for a reader on both lists", async ({ page }) => {
+    // tester is on the private book's reader list (dev-tools/e2e-auth) and on the listen list.
+    await signIn(page, READER, READER_PASS);
+    await page.goto(PRIVATE_LESSON);
+    await expect(page.locator("[data-private-body]")).toContainText("quokka invariant", { timeout: 30_000 });
+    const header = page.locator("[data-listen-header]:not([aria-disabled])");
+    await expect(header).toBeVisible({ timeout: 30_000 });
+
+    const sent = page.waitForRequest((r) => r.url().endsWith("/api/listen") && r.method() === "POST");
+    const stream = page.waitForResponse((r) => /\/api\/listen\/[0-9a-f]+\.mp3$/.test(r.url()));
+    await header.click();
+    const units: string[] = (await sent).postDataJSON().units;
+    expect(units.join(" ")).toContain("The quokka invariant");
+    expect((await stream).status()).toBe(200);
+    await expect(page.locator("[data-listen-bar]")).toBeVisible();
   });
 
   test("a selection offers Listen and From here", async ({ page }) => {

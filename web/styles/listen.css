@@ -8,6 +8,9 @@
    line up. `.wb__tip` anchors its bubble right; at the prose's left margin it must anchor left. */
 .listen-tip { margin-top: 0.75rem; margin-inline-start: 0.75rem; }
 .listen-tip:hover::after { left: 0; right: auto; }
+/* `.wb__tip` sets `display`, which would beat the UA's `[hidden]`; a private lesson hides the pill
+   until the lesson has rendered. */
+.listen-tip[hidden] { display: none; }
 
 .listen-header {
   display: inline-flex;

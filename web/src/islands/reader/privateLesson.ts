@@ -281,6 +281,10 @@ async function render(payload: LessonPayload, segments: string[]): Promise<void>
   // rendered headings and the sidebar once, at init, so it loads only now that both are in the
   // page. A public lesson gets it from the page script; this is the same island, one step later.
   await import("../chrome");
+  // Read aloud: the same island a public lesson loads, now that there is prose to read. The pill
+  // stays hidden until here, so a reader refused the book is never offered to hear it.
+  root?.querySelector<HTMLElement>("[data-listen-tip]")?.removeAttribute("hidden");
+  await import("../listen");
   log.info(`private lesson rendered client-side: /synapse/${segments.join("/")}`);
 }
 
