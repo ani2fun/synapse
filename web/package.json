@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@astrojs/node": "^11.1.6",
-    "@astrojs/preact": "^6.0.5",
+    "@astrojs/preact": "^6.1.1",
     "@terrastruct/d2": "^0.1.33",
     "astro": "^7.3.5",
     "keycloak-js": "^26.2.4",
