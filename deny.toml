@@ -60,6 +60,19 @@ ignore = [
   #
   # Revisit when `rsa` ships a fixed release: drop this entry, do not widen it.
   "RUSTSEC-2023-0071",
+
+  # RUSTSEC-2026-0387 — timing variability in `crypto-bigint` 0.5 operations meant to be
+  # constant-time. The fix is 0.7.6, which `elliptic-curve` 0.13 cannot take, so no lockfile
+  # update reaches it. It arrives under the same `rust_crypto` backend, through `p256` and `p384`.
+  #
+  # Ignored for the same reason as the entry above, and more strongly. A timing sidechannel
+  # leaks a SECRET operand, and this server holds none: `jwks.rs` pins `Algorithm::RS256` and
+  # only verifies against Keycloak's PUBLIC JWKS, so the elliptic-curve code is linked but never
+  # executed, not even on public data. `aws_lc_rs` stays rejected for the cost stated above.
+  #
+  # Revisit when `jsonwebtoken`'s `rust_crypto` backend moves to `elliptic-curve` 0.14 /
+  # `crypto-bigint` 0.7: drop this entry, do not widen it.
+  "RUSTSEC-2026-0387",
 ]
 
 # ── licences ──────────────────────────────────────────────────────────────────
