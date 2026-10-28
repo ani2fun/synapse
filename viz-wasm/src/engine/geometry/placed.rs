@@ -295,17 +295,6 @@ impl Placement {
     fn pointer_arrows(&self, step: &VizStep, at: &Spots) -> (Vec<Arrow>, bool, bool) {
         let hw = self.box_w() / 2.0;
         let hh = LIST_BOX_H / 2.0;
-        let has = |from: &str, to: &str, prev: bool| {
-            step.edges.iter().any(|e| {
-                e.from.value() == from
-                    && e.to.value() == to
-                    && if prev {
-                        is_prev(&e.label)
-                    } else {
-                        is_next(&e.label)
-                    }
-            })
-        };
         // Is there a node strictly between a and b on their (shared) row?
         let blocked = |a: Point, b: Point| {
             let (lo, hi) = if a.x < b.x { (a.x, b.x) } else { (b.x, a.x) };
@@ -366,14 +355,14 @@ impl Placement {
                     a.x - 10.0,
                     a.y - hh
                 )
-            } else if !blocked(a, b) {
-                // Neighbours on the row: one straight arrow; opposite arrows take two lanes
-                // (next above, prev below in a doubly list).
+            } else if !blocked(a, b) && (b.x > a.x || self.doubly) {
+                // Neighbours on the row: one straight arrow; a doubly list's opposite arrows take
+                // two lanes (next above, prev below). A singly list's next to its left neighbour
+                // is a turned link (a reversal in progress) and takes the back arc below instead,
+                // clear of the `∅` that may sit in the gap.
                 let right = b.x > a.x;
                 let lane = if self.doubly {
                     if prev { LANE } else { -LANE }
-                } else if has(e.to.value(), e.from.value(), prev) {
-                    if right { -LANE } else { LANE }
                 } else {
                     0.0
                 };
@@ -416,7 +405,8 @@ impl Placement {
                 )
             } else {
                 arc_below = true;
-                // Back past other nodes (a cycle): an arc under them, into the target's bottom.
+                // Back past other nodes (a cycle), or back to the left neighbour: an arc under
+                // them, into the target's bottom.
                 let (sy, ty) = (a.y + hh, b.y + hh);
                 format!(
                     "M{:.1},{:.1} C{:.1},{:.1} {:.1},{:.1} {:.1},{:.1}",
