@@ -61,3 +61,23 @@ fn non_java_and_traced_java_pass_through() {
     let traced = format!("{JAVA_TRACER_SENTINEL}\nclass Solution {{ }}");
     assert_eq!(effective_source(Language::Java, &traced), traced);
 }
+
+#[test]
+fn a_compact_source_file_keeps_its_helper_classes() {
+    let source = "class Node { int v = 7; }\n\nvoid main() {\n  IO.println(new Node().v);\n}";
+    assert_eq!(effective_source(Language::Java, source), source);
+}
+
+#[test]
+fn a_compact_source_file_without_classes_passes_through() {
+    let source = "static void main(String[] args) {\n  IO.println(\"hi\");\n}";
+    assert_eq!(effective_source(Language::Java, source), source);
+}
+
+#[test]
+fn a_main_inside_a_class_is_not_compact_however_it_is_indented() {
+    let source = "class Solution {\npublic static void main(String[] a) { new Solution(); }\n}";
+    let rewritten = effective_source(Language::Java, source);
+    assert!(rewritten.contains("class Main"));
+    assert!(rewritten.contains("new Main()"));
+}

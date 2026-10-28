@@ -35,7 +35,7 @@ impl Language {
     pub fn label(self) -> &'static str {
         match self {
             Self::Python => "Python 3",
-            Self::Java => "Java 21 (OpenJDK)",
+            Self::Java => "Java 25 (OpenJDK)",
             Self::Scala => "Scala 3",
             Self::C => "C (GCC)",
             Self::Cpp => "C++ (GCC)",

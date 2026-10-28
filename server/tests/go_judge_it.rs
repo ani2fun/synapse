@@ -58,6 +58,50 @@ async fn the_whole_pipeline_normalises_java_and_reads_stdin() {
     assert_eq!(result.stdout, "42\n");
 }
 
+/// `IO` and compact source files are Java 25, so this passes only on a JDK 25 sandbox — and only
+/// if the normaliser leaves the helper class alone.
+#[tokio::test]
+async fn a_compact_source_file_runs_on_java_25() {
+    let Some(runner) = gated() else { return };
+    let service = RunCodeService::new(runner);
+    let java = "class Node { int v = 21; }\n\nvoid main() {\n  IO.println(new Node().v * 2);\n  IO.println(System.getProperty(\"java.specification.version\"));\n}";
+    let result = service
+        .run(
+            &RunRequest {
+                language: "java".to_owned(),
+                source: java.to_owned(),
+                stdin: None,
+            },
+            Tier::SignedIn,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        result.status,
+        RunStatus::Accepted,
+        "compile: {} stderr: {}",
+        result.compile_output,
+        result.stderr
+    );
+    assert_eq!(result.stdout, "42\n25\n");
+}
+
+/// Scala's `LazyVals` touches `sun.misc.Unsafe`, which JDK 25 reports on stderr unless the run
+/// allows it. A clean program must leave stderr empty.
+#[tokio::test]
+async fn a_scala_run_leaves_stderr_clean() {
+    use synapse_server::execution::domain::Language;
+    let Some(runner) = gated() else { return };
+    let scala = "@main def run(): Unit =\n  lazy val answer = 21 * 2\n  println(answer)";
+    let result = runner
+        .run(Language::Scala, scala, None, Tier::SignedIn)
+        .await
+        .unwrap();
+    assert_eq!(result.status, RunStatus::Accepted, "stderr: {}", result.stderr);
+    assert_eq!(result.stdout, "42\n");
+    assert_eq!(result.stderr, "");
+}
+
 #[tokio::test]
 async fn jvm_runs_print_non_ascii_text_as_utf8() {
     use synapse_server::execution::domain::Language;
