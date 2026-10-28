@@ -12,9 +12,13 @@
 #
 # The toolchains mirror the languages in synapse.server.execution.domain.Language:
 # python, java, scala, c, c++, go, rust, kotlin, typescript, javascript, sql.
-# JDK 21 (not 17): trixie dropped openjdk-17; mount.yaml already binds
-# /etc/java-21-openjdk.
+# JDK 25, the only JDK: Java, Kotlin and Scala all run on it. A second JDK would
+# not stay idle — `update-alternatives` points /usr/bin/java at the newest one
+# installed. The JDK reads its config from /etc/java-25-openjdk, which the stock
+# mount table does not bind, so this image ships its own (mount.yaml).
 FROM criyle/go-judge:latest
+
+COPY mount.yaml /opt/mount.yaml
 
 # Declared only so the shared release engine can pass --build-arg SYNAPSE_VERSION to every
 # image it builds without docker warning about an unconsumed arg. The sandbox does not use it.
@@ -30,7 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 \
       build-essential \
       golang \
-      openjdk-21-jdk-headless \
+      openjdk-25-jdk-headless \
       sqlite3 \
       rustc \
       nodejs npm \
@@ -42,7 +46,7 @@ RUN npm install -g typescript tsx && npm cache clean --force
 
 # Kotlin compiler → /usr/local (NOT /opt). kotlinc is a JVM launcher; needs java
 # (present) at run time, no network for a single-file compile.
-ENV KOTLIN_VERSION=2.1.0
+ENV KOTLIN_VERSION=2.2.21
 RUN curl -fsSL "https://github.com/JetBrains/kotlin/releases/download/v${KOTLIN_VERSION}/kotlin-compiler-${KOTLIN_VERSION}.zip" -o /tmp/kotlin.zip \
  && unzip -q /tmp/kotlin.zip -d /usr/local \
  && ln -sf /usr/local/kotlinc/bin/kotlinc /usr/local/bin/kotlinc \
@@ -54,7 +58,10 @@ RUN curl -fsSL "https://github.com/JetBrains/kotlin/releases/download/v${KOTLIN_
 # ⚠ Scala caveat: scala-cli fetches the Scala toolchain via coursier at run
 # time (network). go-judge sandboxes have NO network, so the cache is pre-warmed
 # below into a mounted, uid-1536-readable path so run-time compiles are offline.
-ENV SCALA_CLI_VERSION=1.5.4
+# 1.18.0 defaults to Scala 3.9: older Scala's LazyVals call sun.misc.Unsafe, which
+# JDK 25 reports on stderr in every run — from the compiler's own JVM, which no
+# --java-opt reaches.
+ENV SCALA_CLI_VERSION=1.18.0
 RUN ARCH="$(uname -m)" \
  && case "$ARCH" in \
       x86_64)  SCALA_ARCH=x86_64-pc-linux ;; \
@@ -69,7 +76,7 @@ RUN ARCH="$(uname -m)" \
 # Pre-warm the Scala 3 toolchain so `scala run` works OFFLINE (the sandbox has NO
 # network — that UnknownHostException was scala-cli fetching coursier's jvm-index
 # at run time). Two parts, both consumed by the Scala run command in GoJudgeSpec:
-#   * --jvm system → use the installed openjdk-21 (no JVM-index fetch), and
+#   * --jvm system → use the installed openjdk-25 (no JVM-index fetch), and
 #   * COURSIER_CACHE under /usr/local (a mounted, uid-1536-readable path) populated
 #     HERE at build time (network available) with the Scala 3 compiler + stdlib,
 #     so run-time compiles are pure cache hits.

@@ -52,7 +52,7 @@ services:
       - "8181:8080"
 
   # Code-execution sandbox behind /api/run. Built from runner/go-judge/ — the stock criyle/go-judge
-  # image plus the language toolchains the sandbox runs (JDK 21 / Python / Node / Go / Rust /
+  # image plus the language toolchains the sandbox runs (JDK 25 / Python / Node / Go / Rust /
   # Kotlin / scala-cli / gcc / sqlite). See that Dockerfile for why they must live under /usr.
   go-judge:
     build: ./runner/go-judge
