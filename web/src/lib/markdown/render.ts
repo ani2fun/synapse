@@ -221,6 +221,37 @@ function frameSequenceTransform() {
   };
 }
 
+export interface RenderOptions {
+  /** The page's slug path (`/synapse/{slug path}`), which lesson-local images resolve against. */
+  readonly slugPath?: string;
+}
+
+/**
+ * Lesson-local images (ADR-RS013): `![…](_assets/shot.png)` names a file in the `_assets/` folder
+ * beside the lesson. The reader URL (`/synapse/{slug path}`) is not that folder, so a relative src
+ * would resolve to nothing; this rewrites it to the server route that serves it,
+ * `/content-assets/{slug path}/_assets/shot.png`. Runs before the frame-run pass, so a stepping
+ * figure built from lesson-local frames carries the rewritten URLs too. Without a slug path (a
+ * caller that renders markdown with no page behind it) every src stays as written.
+ */
+const LOCAL_IMAGE = /^(?:\.\/)?(_assets\/(?!.*\.\.)[^?#\s]+)$/;
+
+export function localImageUrl(url: string, slugPath: string | undefined): string {
+  if (!slugPath) return url;
+  const m = LOCAL_IMAGE.exec(url);
+  return m ? `/content-assets/${slugPath}/${m[1]}` : url;
+}
+
+function lessonLocalImages(slugPath: string | undefined) {
+  const walk = (node: { type: string; url?: string; children?: unknown[] }): void => {
+    if (node.type === "image" && typeof node.url === "string") node.url = localImageUrl(node.url, slugPath);
+    for (const child of node.children ?? []) walk(child as typeof node);
+  };
+  return () => (tree: Root) => {
+    if (slugPath) walk(tree);
+  };
+}
+
 // A lesson-local simulator's `src=`: inside `_assets/_simulators/`, optional query, no `..`.
 const SIMULATOR_SRC = /^_assets\/_simulators\/(?!.*\.\.)[A-Za-z0-9._\/-]*(\?[A-Za-z0-9=&._-]*)?$/;
 
@@ -466,11 +497,12 @@ function mermaidOrdinals() {
  * a Promise boundary via dynamic import, so the contract stays stable when
  * async plugins (katex, mermaid) arrive later.
  */
-export async function renderLesson(raw: string): Promise<string> {
+export async function renderLesson(raw: string, opts: RenderOptions = {}): Promise<string> {
   const file = await unified()
     .use(remarkParse)
     .use(remarkGfm)
     .use(d2Transform) // parse-time d2 → SVG placeholders (before rehype; no-op without a d2 fence)
+    .use(lessonLocalImages(opts.slugPath)) // `_assets/…` image → its /content-assets URL
     .use(frameSequenceTransform) // frame-image runs → ONE stepping figure (no-op without images)
     .use(mermaidOrdinals) // number the mermaid fences, so a figure can name the one it came from
     .use(remarkRehype, {

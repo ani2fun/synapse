@@ -14,7 +14,7 @@ let fetcher: Fetcher | null = null;
 /** One promise per path, so a frame asked for twice (shown, then warmed) is fetched once. */
 const resolved = new Map<string, Promise<string>>();
 
-/** Route every later `/media/…` lookup through `fetchBlobUrl`. */
+/** Route every later `/media/…` and `/content-assets/…` lookup through `fetchBlobUrl`. */
 export function installPrivateMedia(fetchBlobUrl: Fetcher, fetchText?: TextFetcher): void {
   if (fetchText) textFetcher = fetchText;
   if (fetcher === fetchBlobUrl) return; // a second body on the same page: keep what it fetched
@@ -42,13 +42,16 @@ export function privateMediaActive(): boolean {
   return fetcher != null;
 }
 
+/** The gated paths a resolver fetches: book media, and lesson-local images (ADR-RS013). */
+const GATED = ["/media/", "/content-assets/"];
+
 /**
  * A URL the browser can show for `url`: itself when no resolver is installed or it is not a
- * `/media/…` path, otherwise the resolver's blob URL. A refused or missing file resolves to the
+ * `/media/…` or `/content-assets/…` path, otherwise the resolver's blob URL. A refused or missing file resolves to the
  * original path, so the broken-image mark still says what happened rather than leaving a blank.
  */
 export function resolveMedia(url: string): Promise<string> {
-  if (fetcher == null || !url.startsWith("/media/")) return Promise.resolve(url);
+  if (fetcher == null || !GATED.some((prefix) => url.startsWith(prefix))) return Promise.resolve(url);
   let hit = resolved.get(url);
   if (hit == null) {
     hit = fetcher(url).catch(() => url);

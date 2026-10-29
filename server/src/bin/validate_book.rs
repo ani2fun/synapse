@@ -116,7 +116,10 @@ fn collect(root: &Path, dir: &Path, out: &mut Sidecars) {
         } else if let Ok(relative) = path.strip_prefix(root) {
             let relative = relative.to_string_lossy().replace('\\', "/");
             if name.ends_with(".tests.json") {
-                out.test_suites.push(relative);
+                out.test_suites.push(relative.clone());
+            }
+            if relative.starts_with("_assets/") || relative.contains("/_assets/") {
+                out.asset_files.push(relative);
             }
         }
     }

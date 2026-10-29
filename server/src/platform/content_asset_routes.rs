@@ -3,10 +3,16 @@
 //! next to the lesson instead of in a repository-wide tree (ADR-RS012).
 //!
 //! The slug path is the reader URL's (`/synapse/{slug path}`), resolved through the catalog to the
-//! lesson file's folder, or to the book's folder when it names a book. Only `_assets/_simulators/`
-//! is served: diagram sources and anything else under `_assets/` stay unpublished. A directory
-//! resolves to its `index.html`, and a directory without its trailing slash 301s to it, as for
-//! `/simulators`.
+//! lesson file's folder, or to the book's folder when it names a book. Two things are served:
+//!
+//! - `_assets/_simulators/…` (ADR-RS012). A directory resolves to its `index.html`, and a
+//!   directory without its trailing slash 301s to it, as for `/simulators`.
+//! - Images (ADR-RS013): an svg/png/webp/jpg/jpeg/gif file directly in `_assets/` or in a
+//!   subfolder whose name does not start with `_` or `.`, so `![…](_assets/shot.png)` in a lesson
+//!   renders from the file beside it.
+//!
+//! Everything else under `_assets/` stays unpublished: diagram sources (`_diagrams/`), a `.d2`
+//! file beside a screenshot, any non-image file.
 //!
 //! Gated like `/media`: a file of a PRIVATE source goes only to that source's readers (401 to an
 //! anonymous caller, 403 to a signed-in one not on the list) and is sent `private, no-store`; the
@@ -27,6 +33,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 
 use crate::catalog::application::{Audiences, Viewer};
+use crate::catalog::domain::lesson_assets::is_public_image;
 use crate::catalog::http::routes::LiveCatalogService;
 use crate::catalog::infrastructure::MountedSources;
 use crate::identity::http::{LiveIdentityService, optional_user};
@@ -35,7 +42,7 @@ use crate::platform::simulator_routes::content_type_of;
 const PUBLIC_CACHE: &str = "public, max-age=60";
 const PRIVATE_CACHE: &str = "private, no-store";
 const MISS_CACHE: &str = "no-store";
-/// The one `_assets/` subtree this route publishes.
+/// The one `_assets/` subtree this route publishes whole.
 const SERVED: &str = "_simulators";
 
 #[derive(Clone)]
@@ -70,14 +77,25 @@ impl ContentAssetRoutes {
     }
 }
 
-/// `{slug path}/_assets/{file}` → the two halves, or `None` when there is no `_assets` segment or
-/// the file is outside the served subtree.
-fn split(rest: &str) -> Option<(Vec<String>, &str)> {
+/// What a request under `_assets/` may be.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    /// Inside `_simulators/`: any file, and directories by their `index.html`.
+    Simulator,
+    /// An image file outside every `_` or `.` folder.
+    Image,
+}
+
+/// `{slug path}/_assets/{file}` → the two halves and what the file may be, or `None` when there is
+/// no `_assets` segment or the file is neither a simulator file nor a public image.
+fn split(rest: &str) -> Option<(Vec<String>, &str, Kind)> {
     let at = rest.find("/_assets/")?;
     let slugs: Vec<String> = rest[..at].split('/').map(ToOwned::to_owned).collect();
     let file = &rest[at + "/_assets/".len()..];
-    let inside = file.strip_prefix(SERVED)?;
-    (inside.is_empty() || inside.starts_with('/')).then_some((slugs, file))
+    if let Some(inside) = file.strip_prefix(SERVED) {
+        return (inside.is_empty() || inside.starts_with('/')).then_some((slugs, file, Kind::Simulator));
+    }
+    is_public_image(file).then_some((slugs, file, Kind::Image))
 }
 
 enum Resolved {
@@ -85,15 +103,23 @@ enum Resolved {
     TrailingSlashRedirect,
 }
 
-/// `file` (starting `_simulators`) inside `<folder>/_assets/`, guarded: the realpath of the target
-/// must stay under the realpath of `<folder>/_assets/_simulators`.
-fn resolve_in(assets: &Path, file: &str) -> Option<Resolved> {
-    let served_real = assets.join(SERVED).canonicalize().ok()?;
+/// `file` inside `<folder>/_assets/`, guarded: the realpath of the target must stay under the
+/// realpath of the subtree its kind may read — `_assets/_simulators` for a simulator, `_assets`
+/// for an image — so a symlink cannot reach past it.
+fn resolve_in(assets: &Path, file: &str, kind: Kind) -> Option<Resolved> {
+    let served = match kind {
+        Kind::Simulator => assets.join(SERVED),
+        Kind::Image => assets.to_path_buf(),
+    };
+    let served_real = served.canonicalize().ok()?;
     let target = assets.join(file.trim_end_matches('/')).canonicalize().ok()?;
     if !target.starts_with(&served_real) {
         return None;
     }
     let file_path = if target.is_dir() {
+        if kind == Kind::Image {
+            return None;
+        }
         // Relative script and style URLs resolve against the request path, so the directory
         // form must carry its trailing slash before its index is worth serving.
         if !file.ends_with('/') {
@@ -124,7 +150,7 @@ async fn content_asset(
     axum::extract::Path(rest): axum::extract::Path<String>,
     headers: HeaderMap,
 ) -> Response {
-    let Some((slugs, file)) = split(&rest) else {
+    let Some((slugs, file, kind)) = split(&rest) else {
         return miss();
     };
     let home = match state.catalog.asset_home(&slugs).await {
@@ -166,7 +192,7 @@ async fn content_asset(
     };
     let assets: PathBuf = root.join(&folder).join("_assets");
     let file = file.to_owned();
-    let resolved = crate::platform::blocking::run_blocking(move || resolve_in(&assets, &file)).await;
+    let resolved = crate::platform::blocking::run_blocking(move || resolve_in(&assets, &file, kind)).await;
     match resolved {
         Some(Resolved::File(bytes, content_type)) => Response::builder()
             .status(StatusCode::OK)

@@ -157,7 +157,7 @@ async function textOf(src: string): Promise<string> {
 async function attachPrivateMedia(body: HTMLElement): Promise<void> {
   installPrivateMedia(blobUrlOf, textOf);
   const nodes = body.querySelectorAll<HTMLImageElement | HTMLMediaElement | HTMLSourceElement>(
-    'img[src^="/media/"], video[src^="/media/"], audio[src^="/media/"], source[src^="/media/"]',
+    'img[src^="/media/"], img[src^="/content-assets/"], video[src^="/media/"], audio[src^="/media/"], source[src^="/media/"]',
   );
   let swapped = 0;
   await Promise.all(
@@ -203,7 +203,7 @@ async function renderProblem(payload: LessonPayload, segments: string[]): Promis
   const [descriptionMd, inlineEditorial] = problemContentSplit(payload.raw);
   const editorialMd = inlineEditorial.trim() !== "" ? inlineEditorial : (payload.editorial ?? "");
   const { renderLesson } = await import("../../lib/markdown/render");
-  const descriptionHtml = await renderLesson(descriptionMd);
+  const descriptionHtml = await renderLesson(descriptionMd, { slugPath: segments.join("/") });
   const book = await admittedBook(segments);
   const current = segments.join("/");
 
@@ -264,7 +264,7 @@ async function render(payload: LessonPayload, segments: string[]): Promise<void>
   root?.setAttribute("data-book-title", payload.book.title);
 
   const { renderPreview, hydratePreview } = await import("../authoring/preview");
-  const { bodyHtml } = await renderPreview(payload.raw);
+  const { bodyHtml } = await renderPreview(payload.raw, { slugPath: segments.join("/") });
   const body = root?.querySelector<HTMLElement>("[data-private-body]");
   if (!body) return;
   body.innerHTML = bodyHtml;

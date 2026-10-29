@@ -159,6 +159,7 @@ fn a_problem_with_a_tests_json_sidecar_is_clean() {
     );
     let sidecars = Sidecars {
         test_suites: vec!["01-two-sum/two-sum.tests.json".to_owned()],
+        ..Sidecars::default()
     };
     assert!(errors(&lint(&source, &sidecars)).is_empty());
 }
@@ -176,6 +177,7 @@ fn a_suite_whose_lesson_was_renamed_away_is_flagged() {
     let source = book_source(Some("dsa"), vec![file("01-new-name.md", &lesson("x"))]);
     let sidecars = Sidecars {
         test_suites: vec!["01-old-name.tests.json".to_owned()],
+        ..Sidecars::default()
     };
     let findings = lint(&source, &sidecars);
     assert!(
@@ -260,4 +262,63 @@ fn an_editorial_beside_a_real_problem_is_clean() {
     );
     let findings = lint(&source, &Sidecars::default());
     assert!(findings.is_empty(), "{findings:?}");
+}
+
+// ── lesson-local images (ADR-RS013) ───────────────────────────────────────────
+
+#[test]
+fn a_local_image_with_its_file_beside_the_lesson_is_clean() {
+    let source = book_source(
+        Some("java"),
+        vec![dir(
+            "01-c4",
+            vec![file("01-context.md", &lesson("![c](_assets/context.png)"))],
+        )],
+    );
+    let sidecars = Sidecars {
+        asset_files: vec!["01-c4/_assets/context.png".to_owned()],
+        ..Sidecars::default()
+    };
+    assert!(errors(&lint(&source, &sidecars)).is_empty());
+}
+
+#[test]
+fn a_local_image_with_no_file_is_an_error() {
+    // It renders as a broken image, and nothing before the push says so.
+    let source = book_source(
+        Some("java"),
+        vec![dir(
+            "01-c4",
+            vec![file("01-context.md", &lesson("![c](_assets/missing.png)"))],
+        )],
+    );
+    let findings = lint(&source, &Sidecars::default());
+    assert!(
+        errors(&findings)
+            .iter()
+            .any(|m| m.contains("no file at 01-c4/_assets/missing.png"))
+    );
+}
+
+#[test]
+fn a_local_image_the_server_never_serves_is_an_error() {
+    let source = book_source(
+        Some("java"),
+        vec![file(
+            "01-a.md",
+            &lesson("![d](_assets/_drafts/a.png) ![s](_assets/c4.d2)"),
+        )],
+    );
+    let sidecars = Sidecars {
+        asset_files: vec!["_assets/_drafts/a.png".to_owned(), "_assets/c4.d2".to_owned()],
+        ..Sidecars::default()
+    };
+    let findings = lint(&source, &sidecars);
+    assert_eq!(
+        errors(&findings)
+            .iter()
+            .filter(|m| m.contains("is never served"))
+            .count(),
+        2
+    );
 }

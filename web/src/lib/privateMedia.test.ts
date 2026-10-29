@@ -24,6 +24,17 @@ describe("privateMedia", () => {
     expect(fetchBlob).toHaveBeenCalledTimes(1);
   });
 
+  it("fetches a lesson-local /content-assets image with the bearer too", async () => {
+    vi.resetModules();
+    const media = await import("./privateMedia");
+    const fetchBlob = vi.fn(async (url: string) => `blob:${url}`);
+    media.installPrivateMedia(fetchBlob);
+
+    const url = "/content-assets/learn/book/lesson/_assets/shot.png";
+    await expect(media.resolveMedia(url)).resolves.toBe(`blob:${url}`);
+    expect(fetchBlob).toHaveBeenCalledWith(url);
+  });
+
   it("leaves non-media URLs alone even when private", async () => {
     vi.resetModules();
     const media = await import("./privateMedia");

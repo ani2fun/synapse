@@ -14,6 +14,7 @@ use std::collections::BTreeSet;
 
 use crate::catalog::domain::content_tree::{ContentEntry, SourceTree};
 use crate::catalog::domain::frontmatter;
+use crate::catalog::domain::lesson_assets;
 use crate::catalog::domain::walker;
 
 /// An error means the repository will not render as intended; a warning means it will, but
@@ -55,6 +56,8 @@ impl Finding {
 pub struct Sidecars {
     /// Source-root-relative paths of every `*.tests.json`.
     pub test_suites: Vec<String>,
+    /// Source-root-relative paths of every file inside an `_assets/` folder.
+    pub asset_files: Vec<String>,
 }
 
 /// Lint one content source.
@@ -158,9 +161,37 @@ fn check_lesson(path: &str, content: &str, sidecars: &Sidecars, findings: &mut V
         ));
     }
     check_quiz_fences(path, content, findings);
+    check_local_images(path, content, sidecars, findings);
 
     if frontmatter::extract_kind(content).as_deref() == Some("problem") {
         check_problem(path, content, sidecars, findings);
+    }
+}
+
+/// A lesson-local image (ADR-RS013) that the server will not serve renders as a broken image, and
+/// nothing on the author's side of the push says so.
+fn check_local_images(path: &str, content: &str, sidecars: &Sidecars, findings: &mut Vec<Finding>) {
+    let folder = path.rsplit_once('/').map_or("", |(folder, _)| folder);
+    for file in lesson_assets::local_image_refs(content) {
+        let expected = if folder.is_empty() {
+            format!("_assets/{file}")
+        } else {
+            format!("{folder}/_assets/{file}")
+        };
+        if !lesson_assets::is_public_image(&file) {
+            findings.push(Finding::error(
+                path,
+                format!(
+                    "image `_assets/{file}` is never served — only svg/png/webp/jpg/jpeg/gif \
+                     files outside `_` and `.` folders are"
+                ),
+            ));
+        } else if !sidecars.asset_files.iter().any(|f| f == &expected) {
+            findings.push(Finding::error(
+                path,
+                format!("image `_assets/{file}` has no file at {expected} — it renders broken"),
+            ));
+        }
     }
 }
 

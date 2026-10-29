@@ -15,6 +15,7 @@ import { render, h } from "preact";
 
 import * as log from "../../lib/log";
 import { splitFrontmatter, titleOf, summaryOf } from "../../lib/markdown/frontmatter";
+import type { RenderOptions } from "../../lib/markdown/render";
 import { VIZ_RESCAN } from "../workbench/contracts";
 
 export interface PreviewHtml {
@@ -42,7 +43,7 @@ function escape(text: string): string {
  * `body.innerHTML =` into a Preact-managed node does — the bug the signed-in e2e caught). Hydrate
  * with `hydratePreview` AFTER Preact has committed the body.
  */
-export async function renderPreview(source: string): Promise<PreviewHtml> {
+export async function renderPreview(source: string, opts: RenderOptions = {}): Promise<PreviewHtml> {
   const title = titleOf(source) ?? "Untitled";
   const summary = summaryOf(source);
   const headerHtml =
@@ -53,7 +54,7 @@ export async function renderPreview(source: string): Promise<PreviewHtml> {
   // and so must the preview, or the raw `--- title: … ---` block shows up as text.
   const { body: markdown } = splitFrontmatter(source);
   const { renderLesson } = await import("../../lib/markdown/render");
-  const bodyHtml = await renderLesson(markdown);
+  const bodyHtml = await renderLesson(markdown, opts);
   log.debug("preview: rendered");
   return { headerHtml, bodyHtml };
 }

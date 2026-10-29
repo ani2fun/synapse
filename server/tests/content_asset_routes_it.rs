@@ -1,7 +1,8 @@
 //! Integration: `/content-assets` — the `_assets/_simulators/` folder beside a lesson (or at a
 //! book's root), over the real router and a real two-source catalog: slug path → folder, the
-//! directory redirect, only `_simulators` published, the traversal guard, `no-store` on a miss,
-//! and a PRIVATE source's files gated exactly like its prose and its `/media` (401 / 403 / 200).
+//! directory redirect, only `_simulators` and public images published (ADR-RS013), the traversal
+//! and symlink guards, `no-store` on a miss, and a PRIVATE source's files gated exactly like its
+//! prose and its `/media` (401 / 403 / 200).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -54,6 +55,26 @@ fn app(issuer: &str) -> Router {
         &p.join("01-learn/02-dsa/_assets/_simulators/runtime/figures.js"),
         "runtime()",
     );
+    write(&p.join("01-learn/02-dsa/01-basics/_assets/flow.svg"), "<svg/>");
+    write(&p.join("01-learn/02-dsa/01-basics/_assets/flow.d2"), "a -> b");
+    write(
+        &p.join("01-learn/02-dsa/01-basics/_assets/screens/login.png"),
+        "png bytes",
+    );
+    write(
+        &p.join("01-learn/02-dsa/01-basics/_assets/_drafts/old.png"),
+        "draft",
+    );
+    write(
+        &p.join("01-learn/02-dsa/01-basics/_assets/screens.png/inner.txt"),
+        "a folder",
+    );
+    // A link that names an image but points at the lesson's own prose.
+    std::os::unix::fs::symlink(
+        p.join("01-learn/02-dsa/01-basics/01-intro.md"),
+        p.join("01-learn/02-dsa/01-basics/_assets/escape.png"),
+    )
+    .unwrap();
 
     let satellite = tempfile::tempdir().unwrap();
     let s = satellite.path();
@@ -69,6 +90,7 @@ fn app(issuer: &str) -> Router {
         &s.join("01-sorting/_assets/_simulators/index.html"),
         "<p>private figure</p>",
     );
+    write(&s.join("01-sorting/_assets/sorted.png"), "private png");
 
     let mounted = MountedSources::new(vec![
         SourceRoot::new(PRIMARY_SOURCE_ID, p),
@@ -210,4 +232,54 @@ async fn a_private_books_assets_go_to_its_readers_only() {
     assert_eq!(reader.status, StatusCode::OK);
     assert_eq!(reader.cache, "private, no-store");
     assert_eq!(reader.body, "<p>private figure</p>");
+}
+
+#[tokio::test]
+async fn an_image_beside_a_lesson_is_served_with_its_type() {
+    let issuer = stub_realm().await;
+    let r = get(app(&issuer), &format!("{LESSON}/flow.svg"), None).await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert_eq!(r.content_type, "image/svg+xml");
+    assert_eq!(r.cache, "public, max-age=60");
+    assert_eq!(r.body, "<svg/>");
+
+    let r = get(app(&issuer), &format!("{LESSON}/screens/login.png"), None).await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert_eq!(r.content_type, "image/png");
+    assert_eq!(r.body, "png bytes");
+}
+
+#[tokio::test]
+async fn only_images_outside_hidden_folders_are_published_beside_a_lesson() {
+    let issuer = stub_realm().await;
+    for uri in [
+        format!("{LESSON}/flow.d2"),                 // the diagram source beside its image
+        format!("{LESSON}/_drafts/old.png"),         // an image in an underscore folder
+        format!("{LESSON}/escape.png"),              // a symlink out of `_assets/`
+        format!("{LESSON}/screens.png"),             // a folder named like an image
+        format!("{LESSON}/missing.png"),             // absent
+        format!("{LESSON}/screens/%2e%2e/flow.svg"), // encoded traversal
+    ] {
+        let r = get(app(&issuer), &uri, None).await;
+        assert_eq!(r.status, StatusCode::NOT_FOUND, "{uri}");
+        assert_eq!(r.cache, "no-store", "{uri}");
+    }
+}
+
+#[tokio::test]
+async fn a_private_books_images_go_to_its_readers_only() {
+    let issuer = stub_realm().await;
+    let uri = "/content-assets/learn/dsa-guide-insight/sorting/selection-sort/_assets/sorted.png";
+
+    let anonymous = get(app(&issuer), uri, None).await;
+    assert_eq!(anonymous.status, StatusCode::UNAUTHORIZED);
+    assert!(!anonymous.body.contains("private png"));
+
+    let stranger = get(app(&issuer), uri, Some(&mint(&issuer, "stranger"))).await;
+    assert_eq!(stranger.status, StatusCode::FORBIDDEN);
+
+    let reader = get(app(&issuer), uri, Some(&mint(&issuer, "tester"))).await;
+    assert_eq!(reader.status, StatusCode::OK);
+    assert_eq!(reader.cache, "private, no-store");
+    assert_eq!(reader.body, "private png");
 }

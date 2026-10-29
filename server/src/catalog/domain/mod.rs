@@ -6,6 +6,7 @@ pub mod catalog;
 pub mod content_tree;
 pub mod frontmatter;
 pub mod lesson;
+pub mod lesson_assets;
 pub mod lint;
 pub mod merge;
 pub mod resolver;
