@@ -320,7 +320,14 @@
 .viz-plist .viz-node rect { fill: hsl(var(--card)); }
 .viz-plist .viz-node text { font-weight: 600; font-size: 15px; }
 .viz-plist__divider { stroke: hsl(var(--border)); stroke-width: 1; }
-.viz-plist__dot { fill: hsl(var(--foreground) / 0.7); }
+/* Each pointer field carries its name, in the colour its arrows share (the legend's next and prev). */
+.viz-plist .viz-node text.viz-plist__field { font-family: var(--font-mono); font-size: 8.5px; font-weight: 600; }
+.viz-plist__field--next, .viz-plist .viz-node text.viz-plist__field--next { fill: var(--viz-role-ahead, #5a8a5a); }
+.viz-plist__field--prev, .viz-plist .viz-node text.viz-plist__field--prev { fill: var(--viz-role-trail, #8a4f7d); }
+.viz-plist .viz-edge--next { stroke: var(--viz-role-ahead, #5a8a5a); }
+.viz-plist .viz-edge--prev { stroke: var(--viz-role-trail, #8a4f7d); }
+.viz-plist .viz-arrowhead--next { fill: var(--viz-role-ahead, #5a8a5a); }
+.viz-plist .viz-arrowhead--prev { fill: var(--viz-role-trail, #8a4f7d); }
 .viz-plist__null { fill: hsl(var(--muted-foreground)); font-size: 16px; }
 .viz-plist .viz-node--removed line { opacity: 0.35; }
 /* a node being deleted: red and dashed, as the book's figures draw it, still readable */

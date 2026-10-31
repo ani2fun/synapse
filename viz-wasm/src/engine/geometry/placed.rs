@@ -366,13 +366,9 @@ impl Placement {
                 } else {
                     0.0
                 };
-                let x1 = if right {
-                    if prev { a.x + hw } else { dot }
-                } else if prev {
-                    dot
-                } else {
-                    a.x - hw
-                };
+                // From the box edge: the field's name fills the field, and the arrow must not
+                // cross it.
+                let x1 = if right { a.x + hw } else { a.x - hw };
                 let x2 = if right { b.x - hw } else { b.x + hw };
                 format!("M{:.1},{:.1} L{:.1},{:.1}", x1, a.y + lane, x2, a.y + lane)
             } else if b.x > a.x {
@@ -534,7 +530,7 @@ impl Placement {
                 arrows.push(Arrow {
                     d: format!(
                         "M{:.1},{:.1} L{:.1},{:.1}",
-                        self.next_dot(p),
+                        p.x + hw,
                         g.y,
                         p.x + hw + NULL_ARROW,
                         g.y
@@ -553,7 +549,7 @@ impl Placement {
                 arrows.push(Arrow {
                     d: format!(
                         "M{:.1},{:.1} L{:.1},{:.1}",
-                        self.prev_dot(p),
+                        p.x - hw,
                         g.y,
                         p.x - hw - NULL_ARROW,
                         g.y
