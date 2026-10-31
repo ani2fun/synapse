@@ -185,6 +185,17 @@ fn doubly_lists_get_null_at_both_ends() {
 }
 
 #[test]
+fn the_hint_makes_a_lone_node_doubly() {
+    let s = step(vec![node("a", 0, 0)], vec![], vec![]);
+    assert!(!placement(&graph(vec![s.clone()])).doubly);
+    let mut gr = graph(vec![s.clone()]);
+    gr.layout_hint = "placed doubly".to_owned();
+    let p = placement(&gr);
+    assert!(p.doubly);
+    assert_eq!(p.frame(&s).nulls.len(), 2);
+}
+
+#[test]
 fn the_extent_covers_every_step() {
     let s1 = step(vec![node("a", 0, 0)], vec![], vec![]);
     let s2 = step(vec![node("a", 0, 0), node("b", 3, 1)], vec![], vec![]);

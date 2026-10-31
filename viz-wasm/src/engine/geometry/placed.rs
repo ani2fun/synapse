@@ -10,8 +10,8 @@
 //!
 //! Pointers:
 //! - a node with no `next` edge has `next = null`: a short arrow to a `∅` after it;
-//! - in a doubly list (any `prev` edge in any step) a node with no `prev` edge gets a `∅`
-//!   before it;
+//! - in a doubly list (any `prev` edge in any step, or `doubly` in the layout hint, for a
+//!   figure whose only node is alone) a node with no `prev` edge gets a `∅` before it;
 //! - a cursor whose target is `null` sits on the `∅` after the last node of row 0 (a
 //!   standalone `∅` when there is none, the empty list); `null:<id>` names the node whose
 //!   `∅` it is.
@@ -20,7 +20,8 @@
 //! from one side, picked so that it crosses no other node. A node of kind `region` is not a
 //! list node: it draws a labelled frame behind the list (meta `cols`, `rows`, `label`, and
 //! `grid` for cell lines), so one figure can show, say, the nodes scattered in a memory grid
-//! above the same list drawn logically. `layoutHint: "placed dy=72"` sets the row pitch.
+//! above the same list drawn logically. `layoutHint: "placed dy=72"` sets the row pitch, and
+//! `"placed doubly"` draws a doubly list whose steps have no `prev` edge yet.
 
 use std::collections::HashMap;
 
@@ -674,11 +675,12 @@ fn path_points(d: &str) -> Vec<Point> {
 #[must_use]
 pub fn placement(graph: &VizGraph) -> Placement {
     let nodes: Vec<&VizNode> = graph.steps.iter().flat_map(|s| &s.nodes).collect();
-    let doubly = graph
-        .steps
-        .iter()
-        .flat_map(|s| &s.edges)
-        .any(|e| is_prev(&e.label));
+    let doubly = graph.layout_hint.split_whitespace().any(|t| t == "doubly")
+        || graph
+            .steps
+            .iter()
+            .flat_map(|s| &s.edges)
+            .any(|e| is_prev(&e.label));
     let mut p = Placement {
         doubly,
         width: 0.0,
