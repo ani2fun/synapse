@@ -264,6 +264,26 @@ fn nested_rows_follow_the_outer_ref_cells_columns_by_slot() {
 }
 
 #[test]
+fn grid_rows_carry_the_names_of_their_reference_cells() {
+    let mut names = cell("g#0", "·", 0);
+    names.meta.push(VizField {
+        name: "name".to_owned(),
+        value: "names".to_owned(),
+    });
+    let s = step(
+        vec![
+            names,
+            cell("g#1", "·", 1),
+            cell("r0#0", "Ram", 0),
+            cell("r1#0", "14551", 0),
+        ],
+        vec![edge("g#0", "r0#0", ""), edge("g#1", "r1#0", "")],
+        vec![],
+    );
+    assert_eq!(grid_row_names(&s), [Some("names".to_owned()), None]);
+}
+
+#[test]
 fn a_flat_row_falls_back_to_sqrt_n_columns() {
     let s = step(
         vec![

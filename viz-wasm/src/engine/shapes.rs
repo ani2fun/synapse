@@ -280,6 +280,24 @@ pub fn forest_graph(graph: &VizGraph) -> VizGraph {
 // 2-D GRID
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// The name each grid row's reference cell carries in its `name` meta field, in row order
+/// (`None` for a row without one, and an empty list for a grid with no reference cells).
+/// The table draws a name in the row's gutter in place of its index.
+#[must_use]
+pub fn grid_row_names(step: &VizStep) -> Vec<Option<String>> {
+    let froms = by_from(step);
+    let mut outer: Vec<&VizNode> = step
+        .nodes
+        .iter()
+        .filter(|n| n.kind == "cell" && n.label == REF_LABEL && froms.contains_key(n.id.value()))
+        .collect();
+    outer.sort_by_key(|n| n.slot.unwrap_or(i32::MAX));
+    outer
+        .iter()
+        .map(|o| o.meta.iter().find(|f| f.name == "name").map(|f| f.value.clone()))
+        .collect()
+}
+
 /// Row-major cells; holes stay `None`. Nested rows follow the outer ref-cells when the
 /// trace is a list of lists; a flat row falls back to √n columns.
 #[must_use]

@@ -364,6 +364,13 @@
 .viz-grid__cell .viz-dom-cursor__name { font-size: 9px; line-height: 1; }
 .viz-grid__cell .viz-dom-cursor__caret { display: none; }
 .viz-grid { padding-top: 0; }
+/* The table is one CSS grid (its columns come inline from the renderer) and each row lends it
+   its cells, so a column takes its widest cell's width in every row and the index above it
+   stays centred over it. A row may name itself; the name sits right-aligned in the gutter. */
+.viz-grid__table { display: grid; }
+.viz-grid__table > .viz-grid__row { display: contents; }
+.viz-grid__table .viz-grid__colidx, .viz-grid__table .viz-grid__cell { min-width: 44px; }
+.viz-grid__rowidx--name { justify-content: flex-end; padding-right: 8px; font-size: 12px; white-space: nowrap; }
 
 /* ── dual views ── */
 .viz-dual { gap: 14px; }

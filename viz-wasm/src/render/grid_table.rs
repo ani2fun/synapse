@@ -30,6 +30,7 @@ fn frame(step: &VizStep) -> AnyView {
         .into_any();
     }
     let cursors = dom::cursors_by_target(step);
+    let names = shapes::grid_row_names(step);
     let cols = rows.iter().map(Vec::len).max().unwrap_or(0);
     let header: Vec<_> = (0..cols)
         .map(|c| view! { <span class="viz-grid__colidx">{c}</span> })
@@ -56,20 +57,30 @@ fn frame(step: &VizStep) -> AnyView {
                     )
                 })
                 .collect();
+            let gutter = match names.get(r).cloned().flatten() {
+                Some(name) => {
+                    view! { <span class="viz-grid__rowidx viz-grid__rowidx--name">{name}</span> }.into_any()
+                }
+                None => view! { <span class="viz-grid__rowidx">{r}</span> }.into_any(),
+            };
             view! {
                 <div class="viz-grid__row">
-                    <span class="viz-grid__rowidx">{r}</span>
+                    {gutter}
                     {cells}
                 </div>
             }
         })
         .collect();
+    // One CSS grid for the whole table, so a column is as wide as its widest cell in every row.
+    let columns = format!("grid-template-columns: max-content repeat({cols}, max-content)");
     view! {
-        <div class="viz-grid__row viz-grid__row--header">
-            <span class="viz-grid__corner">" "</span>
-            {header}
+        <div class="viz-grid__table" style=columns>
+            <div class="viz-grid__row viz-grid__row--header">
+                <span class="viz-grid__corner">" "</span>
+                {header}
+            </div>
+            {body}
         </div>
-        {body}
     }
     .into_any()
 }
