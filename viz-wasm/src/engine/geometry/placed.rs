@@ -509,7 +509,8 @@ impl Placement {
         }
     }
 
-    /// The `∅` ends: their short arrows, the glyphs, and which node owns each next `∅`.
+    /// The `∅` ends: their short arrows, the glyphs, and which node owns each `∅` (its next
+    /// `∅`, or its prev `∅` when its next is not null).
     fn null_ends<'a>(
         &self,
         step: &'a VizStep,
@@ -517,48 +518,57 @@ impl Placement {
     ) -> (Vec<Arrow>, Vec<Point>, HashMap<&'a str, Point>) {
         let hw = self.box_w() / 2.0;
         let mut arrows = Vec::new();
-        // `∅` after every null next (and before every null prev when doubly), keyed by owner.
+        // `∅` after every null next (and before every null prev when doubly), keyed by owner. A
+        // doubly linked node turned round (its prev pointing right or its next pointing left, as
+        // in a reversal) gets its `∅` on the other side, where that pointer now leads.
         let mut nulls = Vec::new();
         let mut null_of: HashMap<&str, Point> = HashMap::new();
         for n in &step.nodes {
             let (p, _) = at[n.id.value()];
-            let lane = if self.doubly { -LANE } else { 0.0 };
-            if !step.edges.iter().any(|e| e.from == n.id && is_next(&e.label)) {
+            let points_right = |kind: fn(&str) -> bool| {
+                step.edges
+                    .iter()
+                    .find(|e| e.from == n.id && kind(&e.label))
+                    .and_then(|e| at.get(e.to.value()))
+                    .map(|(q, _)| q.x > p.x)
+            };
+            let mut end = |dir: f64, lane: f64, prev: bool| {
                 let g = Point {
-                    x: p.x + hw + NULL_DX,
+                    x: p.x + dir * (hw + NULL_DX),
                     y: p.y + lane,
                 };
                 arrows.push(Arrow {
                     d: format!(
                         "M{:.1},{:.1} L{:.1},{:.1}",
-                        p.x + hw,
+                        p.x + dir * hw,
                         g.y,
-                        p.x + hw + NULL_ARROW,
+                        p.x + dir * (hw + NULL_ARROW),
                         g.y
                     ),
-                    prev: false,
+                    prev,
                     pts: vec![g],
                 });
                 nulls.push(g);
-                null_of.insert(n.id.value(), g);
+                g
+            };
+            if !step.edges.iter().any(|e| e.from == n.id && is_next(&e.label)) {
+                let (dir, lane) = if !self.doubly {
+                    (1.0, 0.0)
+                } else if points_right(is_prev) == Some(true) {
+                    (-1.0, -LANE)
+                } else {
+                    (1.0, -LANE)
+                };
+                null_of.insert(n.id.value(), end(dir, lane, false));
             }
             if self.doubly && !step.edges.iter().any(|e| e.from == n.id && is_prev(&e.label)) {
-                let g = Point {
-                    x: p.x - hw - NULL_DX,
-                    y: p.y + LANE,
+                let dir = if points_right(is_next) == Some(false) {
+                    1.0
+                } else {
+                    -1.0
                 };
-                arrows.push(Arrow {
-                    d: format!(
-                        "M{:.1},{:.1} L{:.1},{:.1}",
-                        p.x - hw,
-                        g.y,
-                        p.x - hw - NULL_ARROW,
-                        g.y
-                    ),
-                    prev: true,
-                    pts: vec![g],
-                });
-                nulls.push(g);
+                let g = end(dir, LANE, true);
+                null_of.entry(n.id.value()).or_insert(g);
             }
         }
 

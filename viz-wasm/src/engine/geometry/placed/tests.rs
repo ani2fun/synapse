@@ -185,6 +185,37 @@ fn doubly_lists_get_null_at_both_ends() {
 }
 
 #[test]
+fn a_reversed_doubly_list_gets_its_nulls_on_the_far_sides() {
+    let prev = |f: &str, t: &str| VizEdge {
+        from: NodeId::new(f),
+        to: NodeId::new(t),
+        label: "prev".to_owned(),
+    };
+    // a ⇄ b turned round: a's prev leads right to b, b's next leads left to a.
+    let s = step(
+        vec![node("a", 0, 0), node("b", 1, 0)],
+        vec![prev("a", "b"), next("b", "a")],
+        vec![cursor("curr", "null"), cursor("from_b", "null:b")],
+    );
+    let p = placement(&graph(vec![s.clone()]));
+    let f = p.frame(&s);
+    let left = f.boxes[0].at;
+    let right = f.boxes[1].at;
+    assert_eq!(f.nulls.len(), 2);
+    assert!(
+        f.nulls.iter().any(|g| g.x < left.x),
+        "a's null next sits left of a"
+    );
+    assert!(
+        f.nulls.iter().any(|g| g.x > right.x),
+        "b's null prev sits right of b"
+    );
+    assert!(f.nulls.iter().all(|g| g.x > 0.0 && g.x < p.width));
+    // A null cursor finds b's prev `∅`, the end of the row, by itself and by its owner.
+    assert!(f.cursors.iter().all(|c| c.at.x > right.x));
+}
+
+#[test]
 fn the_hint_makes_a_lone_node_doubly() {
     let s = step(vec![node("a", 0, 0)], vec![], vec![]);
     assert!(!placement(&graph(vec![s.clone()])).doubly);
