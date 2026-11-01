@@ -57,6 +57,38 @@ fn pill(n: &VizNode) -> BucketEntry {
     }
 }
 
+/// How a hashmap widget lays its buckets out, read off the graph's layout hint: `columns` stands
+/// the buckets side by side with each chain hanging down from its index (a separate-chaining
+/// table as the textbooks draw it), and `doubly` joins the chain's pills both ways.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct BucketLayout {
+    pub columns: bool,
+    pub doubly: bool,
+}
+
+#[must_use]
+pub fn bucket_layout(layout_hint: &str) -> BucketLayout {
+    let has = |t: &str| layout_hint.split_whitespace().any(|w| w == t);
+    BucketLayout {
+        columns: has("columns"),
+        doubly: has("doubly"),
+    }
+}
+
+/// The connectors of a column bucket holding `entries` pills, top to bottom: the head link into
+/// the first pill (or straight to ∅ when the bucket is empty), one link between each pair of
+/// pills (both ways when the chain is doubly linked), and the last pill's link to ∅.
+#[must_use]
+pub fn column_links(entries: usize, doubly: bool) -> Vec<&'static str> {
+    let between = if doubly { "⇅" } else { "↓" };
+    let mut links = vec!["↓"];
+    links.extend(std::iter::repeat_n(between, entries.saturating_sub(1)));
+    if entries > 0 {
+        links.push("↓");
+    }
+    links
+}
+
 /// A dict step → its buckets: each `kind == "entry"` node is a bucket; a ref entry (`·`)
 /// walks entry → cells → instances; a scalar entry is one pill whose value is its own label.
 /// Numeric bucket indices sort first in numeric order, text ones after, lexicographically.

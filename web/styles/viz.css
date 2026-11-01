@@ -260,6 +260,28 @@
                                border-color: hsl(var(--primary)); }
 .viz-hashmap__entry--removed { opacity: 0.35; border-style: dashed; }
 .viz-hashmap__entry--cursor { box-shadow: 0 0 0 2px hsl(var(--primary) / 0.35); }
+/* The `columns` layout: the index chips join into one strip, the internal array, and each
+   bucket's chain hangs down from its chip to ∅. A pointer's badge sits to the left of its pill,
+   since the links above and below it are taken. */
+.viz-hashmap--columns { flex-direction: row; align-items: flex-start; gap: 0; padding-left: 4px; }
+.viz-hashmap--columns .viz-hashmap__bucket { flex-direction: column; align-items: stretch; gap: 0;
+                                             padding-top: 0; width: 148px; flex: none; }
+.viz-hashmap--columns .viz-hashmap__bucket + .viz-hashmap__bucket .viz-hashmap__index {
+  border-left-width: 0; }
+.viz-hashmap--columns .viz-hashmap__index { border-radius: 0; height: 34px; }
+.viz-hashmap--columns .viz-hashmap__bucket:first-child .viz-hashmap__index { border-radius: 6px 0 0 6px; }
+.viz-hashmap--columns .viz-hashmap__bucket:last-child .viz-hashmap__index { border-radius: 0 6px 6px 0; }
+.viz-hashmap--columns .viz-hashmap__chain { flex-direction: column; flex-wrap: nowrap; gap: 0;
+                                            align-items: center; padding-left: 40px; }
+.viz-hashmap--columns .viz-dom-connector { padding: 2px 0; line-height: 1.1; font-size: 15px; }
+.viz-hashmap--columns .viz-dom-cursor { bottom: auto; left: auto; right: calc(100% + 6px); top: 50%;
+                                        transform: translateY(-50%); flex-direction: row; gap: 3px; }
+.viz-hashmap--columns .viz-dom-cursor__caret { transform: rotate(-90deg); }
+/* The ∅ ending a column chain can carry a pointer too: a walk that ran off the chain. */
+.viz-hashmap__null { position: relative; display: inline-flex; padding: 2px 8px; border-radius: 6px; }
+.viz-hashmap__null--cursor { box-shadow: 0 0 0 2px hsl(var(--primary) / 0.35); }
+.viz-hashmap__null--new { outline: 1.5px solid hsl(var(--status-ok, var(--primary))); }
+.viz-hashmap__null--changed { background: hsl(var(--primary) / 0.14); }
 
 /* ── queue / deque strip + stack column ── */
 .viz-queue { align-items: flex-start; }

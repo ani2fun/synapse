@@ -122,7 +122,7 @@ fn write_board(
         RenderFamily::Queue => cells_board(out, graph, step, "queue", false),
         RenderFamily::Stack => cells_board(out, graph, step, "stack", true),
         RenderFamily::Grid => grid_board(out, step),
-        RenderFamily::Buckets => buckets_board(out, step),
+        RenderFamily::Buckets => buckets_board(out, step, shapes::bucket_layout(&graph.layout_hint).columns),
         RenderFamily::LinkedList => chain_board(out, step),
         RenderFamily::Forest => {
             let forest = shapes::forest_graph(graph);
@@ -236,8 +236,9 @@ fn grid_board(out: &mut String, step: &VizStep) -> HashMap<NodeId, String> {
     keys
 }
 
-/// The hash map: one container per bucket, its chain inside.
-fn buckets_board(out: &mut String, step: &VizStep) -> HashMap<NodeId, String> {
+/// The hash map: one container per bucket, its chain inside. The buckets stack and each chain
+/// runs right; `columns` turns both, as the widget does.
+fn buckets_board(out: &mut String, step: &VizStep, columns: bool) -> HashMap<NodeId, String> {
     let buckets = shapes::buckets(step);
     if buckets.is_empty() {
         let _ = writeln!(out, "map: \"(empty)\" {{ style.stroke: \"{RULE}\" }}");
@@ -245,10 +246,15 @@ fn buckets_board(out: &mut String, step: &VizStep) -> HashMap<NodeId, String> {
     }
     let mut keys = HashMap::new();
     let _ = writeln!(out, "map: {{");
-    let _ = writeln!(out, "  grid-columns: 1");
+    let (outer, inner) = if columns {
+        ("grid-rows", "grid-columns")
+    } else {
+        ("grid-columns", "grid-rows")
+    };
+    let _ = writeln!(out, "  {outer}: 1");
     for (b, bucket) in buckets.iter().enumerate() {
         let _ = writeln!(out, "  b{b}: {} {{", quote(&bucket.index));
-        let _ = writeln!(out, "    grid-rows: 1");
+        let _ = writeln!(out, "    {inner}: 1");
         for (e, entry) in bucket.entries.iter().enumerate() {
             let label = match &entry.key {
                 Some(key) => format!("{key}: {}", entry.value),

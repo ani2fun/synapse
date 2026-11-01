@@ -328,3 +328,30 @@ fn steps_that_already_carry_edges_pass_through_untouched() {
     };
     assert_eq!(heap_tree(&g).steps[0].edges, vec![edge("a", "b", "left")]);
 }
+
+#[test]
+fn bucket_layout_reads_columns_and_doubly_off_the_hint() {
+    assert_eq!(bucket_layout(""), BucketLayout::default());
+    assert_eq!(
+        bucket_layout("columns doubly"),
+        BucketLayout {
+            columns: true,
+            doubly: true
+        }
+    );
+    assert_eq!(
+        bucket_layout("columns"),
+        BucketLayout {
+            columns: true,
+            doubly: false
+        }
+    );
+}
+
+#[test]
+fn a_column_bucket_links_head_pills_and_null() {
+    assert_eq!(column_links(0, true), ["↓"]);
+    assert_eq!(column_links(1, true), ["↓", "↓"]);
+    assert_eq!(column_links(3, true), ["↓", "⇅", "⇅", "↓"]);
+    assert_eq!(column_links(2, false), ["↓", "↓", "↓"]);
+}
