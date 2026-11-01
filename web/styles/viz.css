@@ -480,6 +480,17 @@
                 color: hsl(var(--foreground)); cursor: pointer; }
 .wb__lang-opt:hover { background: hsl(var(--secondary) / 0.5); }
 .wb__lang-opt--active { color: hsl(var(--primary)); }
+/* The language pin (LanguagePin.tsx): the lang pill's height, so the two read as one control.
+   Pressed = this language is ALREADY the default, the filled state `.pwb__rpin--on` uses. */
+.wb__pin { display: inline-flex; align-items: center; justify-content: center;
+           width: 28px; height: 28px; padding: 0; border: 1px solid hsl(var(--border));
+           border-radius: 8px; background: hsl(var(--card)); cursor: pointer;
+           color: hsl(var(--muted-foreground)); }
+.wb__pin:hover { border-color: hsl(var(--primary) / 0.5); color: hsl(var(--primary)); }
+.wb__pin--on { border-color: hsl(var(--primary) / 0.45); background: hsl(var(--primary) / 0.1);
+               color: hsl(var(--primary)); }
+.wb__pin-ic { width: 13px; height: 13px; flex: none; }
+.wb__pin--on .wb__pin-ic { fill: hsl(var(--primary) / 0.2); }
 .wb__ghost-ic { width: 12px; height: 12px; flex: none; }
 .wb__ghost--icon { padding: 0.25rem 0.4rem; }
 .wb__ghost--icon .wb__ghost-ic { width: 14px; height: 14px; }

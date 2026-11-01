@@ -240,6 +240,25 @@
 .synapse-prose .fence-group__copy--done { color: var(--fence-accent); }
 .synapse-prose .fence-group__copy-ic { width: 15px; height: 15px; }
 
+/* The language pin: Copy's footprint, so the two icons sit as a pair. Pressed = this tab is
+   ALREADY the default — a readout of the setting, the same filled state `.pwb__rpin--on` uses. */
+.synapse-prose .fence-group__pin {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fence-ink-dim);
+  cursor: pointer;
+}
+.synapse-prose .fence-group__pin:hover { background: hsl(0 0% 100% / 0.07); color: var(--fence-ink); }
+.synapse-prose .fence-group__pin--on { color: var(--fence-accent); }
+.synapse-prose .fence-group__pin--on:hover { color: var(--fence-accent); }
+.synapse-prose .fence-group__pin--on svg { fill: currentColor; fill-opacity: 0.25; }
+
 .synapse-prose .fence-group__try {
   display: inline-flex;
   align-items: center;

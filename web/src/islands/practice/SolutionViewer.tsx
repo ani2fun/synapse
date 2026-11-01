@@ -20,10 +20,11 @@ import { displayLang } from "../../lib/execution/blocks";
 import type { Variant } from "../../lib/execution/blocks";
 import { canonicalLang, preferredIndex } from "../../lib/execution/language";
 import type { EditorHandle } from "../../lib/islands/editor/monaco";
-import { WB_LANGUAGE_KEY, get as storageGet, set as storageSet } from "../../lib/storage";
+import { pinnedLanguage } from "../../lib/execution/pinnedLanguage";
 import { CopyButton } from "../workbench/CopyButton";
-import { LOAD_CODE, RELAYOUT } from "../workbench/contracts";
-import type { LoadCode } from "../workbench/contracts";
+import { LanguagePin } from "../workbench/LanguagePin";
+import { LANGUAGE_PINNED, LOAD_CODE, RELAYOUT } from "../workbench/contracts";
+import type { LanguagePinned, LoadCode } from "../workbench/contracts";
 import * as log from "../../lib/log";
 
 /** The editor height rule: clamp to a line count, with a floor and a ceiling. */
@@ -46,7 +47,7 @@ export interface SolutionViewerProps {
 }
 
 export function SolutionViewer({ variants, workbenchRoot }: SolutionViewerProps) {
-  const start = preferredIndex(variants, storageGet(WB_LANGUAGE_KEY));
+  const start = preferredIndex(variants, pinnedLanguage());
   const [active, setActive] = useState(start);
   const [menuOpen, setMenuOpen] = useState(false);
   const host = useRef<HTMLDivElement>(null);
@@ -124,6 +125,17 @@ export function SolutionViewer({ variants, workbenchRoot }: SolutionViewerProps)
     mounted.current?.setLanguage(v.language);
   };
 
+  // A pin set anywhere on the page shows the solution in that language too, if there is one.
+  useEffect(() => {
+    const onPinned = (event: Event) => {
+      const { language } = (event as CustomEvent<LanguagePinned>).detail;
+      const index = preferredIndex(variants, language);
+      if (canonicalLang(variants[index]!.language) === language) switchTo(index);
+    };
+    window.addEventListener(LANGUAGE_PINNED, onPinned);
+    return () => window.removeEventListener(LANGUAGE_PINNED, onPinned);
+  }, []);
+
   const copyToEditor = () => {
     const root = workbenchRoot();
     if (!root) {
@@ -157,8 +169,6 @@ export function SolutionViewer({ variants, workbenchRoot }: SolutionViewerProps)
                 <button
                   class={`wb__lang-opt${active === i ? " wb__lang-opt--active" : ""}`}
                   onClick={() => {
-                    // `canonicalLang` keeps the stored preference the same token the workbench reads.
-                    storageSet(WB_LANGUAGE_KEY, canonicalLang(v.language) ?? v.language);
                     switchTo(i);
                     setMenuOpen(false);
                   }}
@@ -182,6 +192,9 @@ export function SolutionViewer({ variants, workbenchRoot }: SolutionViewerProps)
         </span>
         <span class="wb__actions">
           {langChrome}
+          {variants.length > 1 && canonicalLang(variant.language) !== null && (
+            <LanguagePin language={variant.language} />
+          )}
           <button class="wb__ghost" title="Load this solution into its language tab on the right" onClick={copyToEditor}>
             Copy to editor
           </button>

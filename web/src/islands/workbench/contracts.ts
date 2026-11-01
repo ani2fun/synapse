@@ -64,6 +64,15 @@ export interface ThemeChanged {
   dark: boolean;
 }
 
+/** Fired on window when the reader pins a code language (`lib/execution/pinnedLanguage`).
+ *  Every code surface on the page that offers that language switches to it, and every pin
+ *  repaints — including the ones on blocks that lack the language, which must stop reading as
+ *  pressed. detail: LanguagePinned, the CANONICAL token. */
+export const LANGUAGE_PINNED = "synapse:language-pinned";
+export interface LanguagePinned {
+  language: string;
+}
+
 /** The relayout nudge — panes that unhide a Monaco fire it so the editor re-measures. */
 export const RELAYOUT = "synapse:relayout";
 

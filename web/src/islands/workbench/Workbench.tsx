@@ -20,11 +20,12 @@ import { judge, pendingPrompt, ranOutOfInput, stdinFor } from "../../lib/executi
 import type { TestSpec } from "../../lib/execution/judge";
 import { canonicalLang, preferredIndex } from "../../lib/execution/language";
 import type { EditorHandle } from "../../lib/islands/editor/monaco";
-import { WB_LANGUAGE_KEY, get as storageGet, set as storageSet } from "../../lib/storage";
+import { pinnedLanguage } from "../../lib/execution/pinnedLanguage";
 import { Store, useStore } from "../../lib/store";
 import {
   AUTH_CHANGED,
   CODE_CHANGED,
+  LANGUAGE_PINNED,
   LOAD_CODE,
   RELAYOUT,
   SUBMITTED,
@@ -33,9 +34,10 @@ import {
   currentUser,
   isAuthed,
 } from "./contracts";
-import type { LoadCode, UseCase } from "./contracts";
+import type { LanguagePinned, LoadCode, UseCase } from "./contracts";
 import * as log from "../../lib/log";
 import { CopyButton } from "./CopyButton";
+import { LanguagePin } from "./LanguagePin";
 import * as lazy from "./lazy";
 import { Output, TestsPanel, VerdictPanel } from "./panels";
 import { BlockStore, SubmitStore, TestsState } from "./state";
@@ -128,7 +130,7 @@ export function Workbench({
     log.debug(`tests: restored ${restored.cases.length} case(s) from this browser`);
     return new TestsState({ ...spec, cases: restored.cases }, restored.activeCase);
   }, []);
-  const start = useMemo(() => preferredIndex(variants, storageGet(WB_LANGUAGE_KEY)), []);
+  const start = useMemo(() => preferredIndex(variants, pinnedLanguage()), []);
   const [active, setActive] = useState(start);
   const [menuOpen, setMenuOpen] = useState(false);
   const [authTick, setAuthTick] = useState(0);
@@ -247,13 +249,22 @@ export function Workbench({
       mounted.current?.setReadOnly(!editable && !isAuthed());
       setAuthTick((n) => n + 1);
     };
+    // A pin set on any block opens this one in that language too, if it has it. Each variant
+    // keeps its own BlockStore, so what was typed in the tab being left is still there on return.
+    const onPinned = (event: Event) => {
+      const { language } = (event as CustomEvent<LanguagePinned>).detail;
+      const index = preferredIndex(variants, language);
+      if (canonicalLang(variants[index]!.language) === language) switchTo(index);
+    };
     root.addEventListener(LOAD_CODE, onLoadCode);
     root.addEventListener(USE_CASE, onUseCase);
     window.addEventListener(AUTH_CHANGED, onAuth);
+    window.addEventListener(LANGUAGE_PINNED, onPinned);
     return () => {
       root.removeEventListener(LOAD_CODE, onLoadCode);
       root.removeEventListener(USE_CASE, onUseCase);
       window.removeEventListener(AUTH_CHANGED, onAuth);
+      window.removeEventListener(LANGUAGE_PINNED, onPinned);
     };
   }, [active]);
 
@@ -491,7 +502,6 @@ export function Workbench({
                 <button
                   class={`wb__lang-opt${active === i ? " wb__lang-opt--active" : ""}`}
                   onClick={() => {
-                    storageSet(WB_LANGUAGE_KEY, v.language);
                     switchTo(i);
                     setMenuOpen(false);
                   }}
@@ -519,6 +529,9 @@ export function Workbench({
         </span>
         <span class="wb__actions">
           {langChrome}
+          {variants.length > 1 && canonicalLang(variant.language) !== null && (
+            <LanguagePin language={variant.language} />
+          )}
           {/* The lock is shown only to the reader it applies to. A signed-in reader's editor is
               editable from the first keystroke, so an Edit button would be a step that does
               nothing; an anonymous reader sees it disabled, and the tooltip is where they learn

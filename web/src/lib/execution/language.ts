@@ -52,7 +52,10 @@ export function runnableFence(lang: string): boolean {
  * build doesn't know, or simply not among THIS block's variants. Built from `findIndex`, so the
  * result is structurally in-bounds for any inputs; callers index `variants` with it directly.
  */
-export function preferredIndex(variants: Variant[], preferred: string | null | undefined): number {
+export function preferredIndex(
+  variants: readonly Pick<Variant, "language">[],
+  preferred: string | null | undefined,
+): number {
   const wanted = preferred == null ? null : canonicalLang(preferred);
   if (wanted === null) return 0;
   const index = variants.findIndex((v) => canonicalLang(v.language) === wanted);

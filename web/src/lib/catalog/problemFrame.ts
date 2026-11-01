@@ -59,6 +59,12 @@ function esc(text: string): string {
 const ICON = (cls: string, inner: string) =>
   `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
 
+/** The pushpin, as the inner paths of a 24×24 stroked icon. Every "make this the default"
+ *  control draws it — this pane's mode pin and the code-language pins (`fenceGroups`,
+ *  `Workbench`, `SolutionViewer`) — so a reader learns one mark for one meaning. */
+export const PIN_PATHS =
+  '<path d="M12 17v5" /><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />';
+
 const ICONS = {
   plan: ICON("pwb__plan-ic", '<path d="M9 18h6 M10 22h4 M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" />'),
   description: ICON(
@@ -80,10 +86,7 @@ const ICONS = {
     "pwb__rtab-ic",
     '<path d="M12 20h9" /><path d="M16.38 3.62a2.12 2.12 0 1 1 3 3L7.37 18.64a2 2 0 0 1-.86.5l-2.87.84a.5.5 0 0 1-.62-.62l.84-2.87a2 2 0 0 1 .5-.86z" />',
   ),
-  pin: ICON(
-    "pwb__rpin-ic",
-    '<path d="M12 17v5" /><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />',
-  ),
+  pin: ICON("pwb__rpin-ic", PIN_PATHS),
   // The library glyph (books on a shelf) — the same mark the lesson page's desktop Browse pill
   // wears (components/ReaderNavFab.astro), since both open the one drawer.
   contents: ICON("pwb__contents-ic", '<path d="m16 6 4 14 M12 6v14 M8 8v12 M4 4v16" />'),

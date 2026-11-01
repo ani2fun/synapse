@@ -84,8 +84,14 @@ export const PROBLEM_APPROACH_KEY = "problem-approach";
  *  same statement as "this is how I want to start", and a preference a casual click can
  *  overwrite is not a preference. */
 export const PROBLEM_MODE_KEY = "problem-mode";
-/** The runnable block's remembered language tab. */
-export const WB_LANGUAGE_KEY = "wb-language";
+/** The reader's PINNED code language, as a canonical token (`python`, `java`, `cpp`, …). Every
+ *  code surface opens on it — a lesson's language tabs, the runnable workbench, the solution
+ *  viewer — and a pin on any of them writes it (`lib/execution/pinnedLanguage`).
+ *
+ *  Written only by a pin, never by switching tabs, for the reason `PROBLEM_MODE_KEY` gives: a
+ *  glance at the C++ version is not "show me C++ everywhere". The value is still `wb-language`
+ *  so a reader keeps the language this key held before it became a pin. */
+export const LANGUAGE_PIN_KEY = "wb-language";
 /** `"dark" | "light"` — read pre-paint by `Base.astro`'s inline bootstrap script too. */
 export const THEME_KEY = "theme";
 /** The listen bar's voice — one of the server's voice ids. A preference of the device, like the

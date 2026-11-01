@@ -34,6 +34,27 @@ def greet(name: str) -> str:
 That is enough prose to put this comfortably past the length assertion without being a wall of
 filler. The suite checks structure and behaviour, never wording.
 
+The same idea in two languages, twice, so `language-pin.spec.ts` can pin one group and watch the
+other follow.
+
+```python
+total = sum([1, 2, 3])
+```
+
+```java
+int total = 1 + 2 + 3;
+```
+
+And once more, further down the page.
+
+```python
+print("pinned")
+```
+
+```java
+System.out.println("pinned");
+```
+
 // Diagram: A single still, captioned by the line above it
 
 ![A single still, captioned by the line above it](/media/smoke/frames/step-01.png)
