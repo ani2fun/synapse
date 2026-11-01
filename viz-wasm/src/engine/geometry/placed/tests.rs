@@ -216,6 +216,31 @@ fn a_reversed_doubly_list_gets_its_nulls_on_the_far_sides() {
 }
 
 #[test]
+fn a_turned_nodes_null_moves_off_an_arrow_coming_in() {
+    let prev = |f: &str, t: &str| VizEdge {
+        from: NodeId::new(f),
+        to: NodeId::new(t),
+        label: "prev".to_owned(),
+    };
+    // x → b, with b turned round (its prev leads right to c) and its next null: b's `∅` goes
+    // left, where x's next arrow comes in, so it takes the prev lane instead.
+    let s = step(
+        vec![node("x", 0, 0), node("b", 1, 0), node("c", 2, 0)],
+        vec![next("x", "b"), prev("b", "c"), next("c", "b")],
+        vec![],
+    );
+    let f = placement(&graph(vec![s.clone()])).frame(&s);
+    let b = f.boxes[1].at;
+    let left: Vec<_> = f
+        .nulls
+        .iter()
+        .filter(|g| g.x < b.x && g.x > f.boxes[0].at.x)
+        .collect();
+    assert_eq!(left.len(), 1, "b's null next sits between x and b");
+    assert_eq!(left[0].y, b.y + LANE, "in the prev lane, clear of x's next arrow");
+}
+
+#[test]
 fn the_hint_makes_a_lone_node_doubly() {
     let s = step(vec![node("a", 0, 0)], vec![], vec![]);
     assert!(!placement(&graph(vec![s.clone()])).doubly);

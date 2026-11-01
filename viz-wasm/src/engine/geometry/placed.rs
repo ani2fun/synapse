@@ -532,6 +532,26 @@ impl Placement {
                     .and_then(|e| at.get(e.to.value()))
                     .map(|(q, _)| q.x > p.x)
             };
+            // An edge of `kind` coming into this node from the side `dir` points to: it holds that
+            // side's lane in the gap, where a `∅` would sit on top of its arrowhead.
+            let arrives_from = |kind: fn(&str) -> bool, dir: f64| {
+                step.edges.iter().any(|e| {
+                    e.to == n.id
+                        && kind(&e.label)
+                        && at
+                            .get(e.from.value())
+                            .is_some_and(|(q, _)| (q.x - p.x) * dir > 0.0 && (q.y - p.y).abs() < 1.0)
+                })
+            };
+            // The `∅` lane on the side `dir`: `own`, unless an edge of `own_kind` comes in there and
+            // the other lane is free of `other_kind` edges.
+            let lane_at = |dir: f64, own: f64, own_kind: fn(&str) -> bool, other_kind: fn(&str) -> bool| {
+                if arrives_from(own_kind, dir) && !arrives_from(other_kind, dir) {
+                    -own
+                } else {
+                    own
+                }
+            };
             let mut end = |dir: f64, lane: f64, prev: bool| {
                 let g = Point {
                     x: p.x + dir * (hw + NULL_DX),
@@ -555,19 +575,19 @@ impl Placement {
                 let (dir, lane) = if !self.doubly {
                     (1.0, 0.0)
                 } else if points_right(is_prev) == Some(true) {
-                    (-1.0, -LANE)
+                    (-1.0, lane_at(-1.0, -LANE, is_next, is_prev))
                 } else {
                     (1.0, -LANE)
                 };
                 null_of.insert(n.id.value(), end(dir, lane, false));
             }
             if self.doubly && !step.edges.iter().any(|e| e.from == n.id && is_prev(&e.label)) {
-                let dir = if points_right(is_next) == Some(false) {
-                    1.0
+                let (dir, lane) = if points_right(is_next) == Some(false) {
+                    (1.0, lane_at(1.0, LANE, is_prev, is_next))
                 } else {
-                    -1.0
+                    (-1.0, LANE)
                 };
-                let g = end(dir, LANE, true);
+                let g = end(dir, lane, true);
                 null_of.entry(n.id.value()).or_insert(g);
             }
         }
