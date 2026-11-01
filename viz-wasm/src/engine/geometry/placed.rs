@@ -29,7 +29,7 @@ use super::constants::{LIST_ARC, LIST_BOX_H, LIST_DY, LIST_FIELD_W, LIST_GAP, LI
 
 /// The node kind that draws a labelled frame instead of a list node.
 pub const REGION: &str = "region";
-use super::{LayoutResult, Point};
+use super::{LayoutResult, Point, cubic, path_points};
 use crate::engine::graph::{NodeId, VizCursor, VizGraph, VizNode, VizStep};
 
 /// The cursor target that means "this pointer holds null".
@@ -676,28 +676,6 @@ fn last_null(step: &VizStep, null_of: &HashMap<&str, Point>) -> Option<Point> {
         .filter_map(|n| null_of.get(n.id.value()).map(|g| (col_of(n), *g)))
         .max_by(|(a, _), (b, _)| a.total_cmp(b))
         .map(|(_, g)| g)
-}
-
-fn cubic(c: &[Point; 4], t: f64) -> Point {
-    let u = 1.0 - t;
-    let (w0, w1, w2, w3) = (u * u * u, 3.0 * u * u * t, 3.0 * u * t * t, t * t * t);
-    Point {
-        x: w0 * c[0].x + w1 * c[1].x + w2 * c[2].x + w3 * c[3].x,
-        y: w0 * c[0].y + w1 * c[1].y + w2 * c[2].y + w3 * c[3].y,
-    }
-}
-
-/// Every coordinate pair in an SVG path string (end points and control points).
-fn path_points(d: &str) -> Vec<Point> {
-    d.split(|ch: char| ch.is_ascii_alphabetic() || ch == ' ')
-        .filter_map(|xy| {
-            let (x, y) = xy.split_once(',')?;
-            Some(Point {
-                x: x.parse().ok()?,
-                y: y.parse().ok()?,
-            })
-        })
-        .collect()
 }
 
 /// The frame of reference over every step: whether the list is doubly, the row pitch, and an

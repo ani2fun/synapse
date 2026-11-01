@@ -58,3 +58,26 @@ pub fn union(graph: &VizGraph) -> (Vec<VizNode>, Vec<VizEdge>) {
     }
     (nodes, edges)
 }
+
+/// The point at `t` (0..=1) along the cubic Bézier with control points `c`.
+fn cubic(c: &[Point; 4], t: f64) -> Point {
+    let u = 1.0 - t;
+    let (w0, w1, w2, w3) = (u * u * u, 3.0 * u * u * t, 3.0 * u * t * t, t * t * t);
+    Point {
+        x: w0 * c[0].x + w1 * c[1].x + w2 * c[2].x + w3 * c[3].x,
+        y: w0 * c[0].y + w1 * c[1].y + w2 * c[2].y + w3 * c[3].y,
+    }
+}
+
+/// Every coordinate pair in an SVG path string (end points and control points).
+fn path_points(d: &str) -> Vec<Point> {
+    d.split(|ch: char| ch.is_ascii_alphabetic() || ch == ' ')
+        .filter_map(|xy| {
+            let (x, y) = xy.split_once(',')?;
+            Some(Point {
+                x: x.parse().ok()?,
+                y: y.parse().ok()?,
+            })
+        })
+        .collect()
+}

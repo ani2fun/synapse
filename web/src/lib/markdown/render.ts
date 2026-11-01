@@ -22,6 +22,7 @@ import rehypeStringify from "rehype-stringify";
 
 import { isBoardsFence } from "../islands/diagram/boards";
 import { d2Salt } from "../islands/diagram/d2";
+import { parseQuiz, parseTestSpec, type TestSpecJson } from "./blockJson";
 import { groupFrameRuns } from "./frameRun";
 
 // Shiki "CSS variables" theme — token colors are emitted as var(--shiki-*)
@@ -97,52 +98,13 @@ function isPlainFence(node: RootContent): node is Code {
 // ── Workbench blocks ──────────────────────────────────────
 // Adjacent run fences group into ONE workbench placeholder (its language
 // variants); a ```testcases JSON fence directly after the group is parsed
-// as the block's TestSpec and spliced out of the prose. The shapes mirror
-// shared/src/execution/test_run.rs's ArgSpec/TestCase/TestSpec — the
-// authored JSON uses `type` (mapped to the Rust DTO's `tpe` field at the
-// codec).
+// as the block's TestSpec (blockJson.ts) and spliced out of the prose.
 
 type FenceVariant = { lang: string; source: string; viz?: string };
-type ArgSpecJson = { id: string; label: string; type: string; placeholder?: string };
-type TestCaseJson = { args: Record<string, string>; expected?: string };
-type TestSpecJson = { args: ArgSpecJson[]; cases: TestCaseJson[] };
 
 // Group heads consume their following fences during one render pass; the
 // handler sees each node once, in order, so a plain marker property works.
 const CONSUMED = "__synapseWorkbenchConsumed";
-
-/**
- * Parse + shape-check an authored ```testcases fence. Strict on purpose:
- * an invalid fence renders a visible `.workbench-error` card (and the raw
- * fence below it) so authors see the mistake — never a silently-degraded
- * panel.
- */
-function parseTestSpec(raw: string): { spec?: TestSpecJson; error?: string } {
-  let data: unknown;
-  try {
-    data = JSON.parse(raw);
-  } catch (e) {
-    return { error: `not valid JSON (${(e as Error).message})` };
-  }
-  const isStr = (v: unknown): v is string => typeof v === "string";
-  const isObj = (v: unknown): v is Record<string, unknown> =>
-    typeof v === "object" && v !== null && !Array.isArray(v);
-  if (!isObj(data)) return { error: "the top level must be an object with `args` and `cases`" };
-  const { args, cases } = data;
-  if (!Array.isArray(args)) return { error: "`args` must be an array of {id, label, type}" };
-  for (const a of args) {
-    const okPlaceholder = !isObj(a) || a.placeholder === undefined || isStr(a.placeholder);
-    if (!isObj(a) || !isStr(a.id) || !isStr(a.label) || !isStr(a.type) || !okPlaceholder)
-      return { error: "every arg needs string `id`, `label`, `type` (+ optional string `placeholder`)" };
-  }
-  if (!Array.isArray(cases) || cases.length === 0) return { error: "`cases` must be a non-empty array" };
-  for (const c of cases) {
-    const okExpected = !isObj(c) || c.expected === undefined || isStr(c.expected);
-    if (!isObj(c) || !isObj(c.args) || Object.values(c.args).some((v) => !isStr(v)) || !okExpected)
-      return { error: "every case needs an `args` object of strings (+ optional string `expected`)" };
-  }
-  return { spec: data as unknown as TestSpecJson };
-}
 
 /** The visible card an invalid authored block earns (the raw fence still renders after it). */
 function authoringError(prefix: string, message: string): Element {
@@ -152,36 +114,6 @@ function authoringError(prefix: string, message: string): Element {
     properties: { className: ["workbench-error"] },
     children: [{ type: "text", value: `${prefix} — ${message}.` }],
   };
-}
-
-// ── Quiz blocks ───────────────────────────────────────────────────
-// A ```quiz fence carries one check-your-understanding card as JSON:
-// {prompt, options: [String], answer: String (one of the options), input?}.
-// Client-only — it never crosses the wire, so the model lives in the
-// client, not in shared.
-
-type QuizJson = { prompt: string; options: string[]; answer: string; input?: string };
-
-/** Parse + shape-check a ```quiz fence — strict, so authoring mistakes surface as a visible card. */
-function parseQuiz(raw: string): { quiz?: QuizJson; error?: string } {
-  let data: unknown;
-  try {
-    data = JSON.parse(raw);
-  } catch (e) {
-    return { error: `not valid JSON (${(e as Error).message})` };
-  }
-  const isStr = (v: unknown): v is string => typeof v === "string";
-  const isObj = (v: unknown): v is Record<string, unknown> =>
-    typeof v === "object" && v !== null && !Array.isArray(v);
-  if (!isObj(data)) return { error: "the top level must be an object" };
-  const { prompt, options, answer, input } = data;
-  if (!isStr(prompt) || prompt.trim() === "") return { error: "`prompt` must be a non-empty string" };
-  if (!Array.isArray(options) || options.length < 2 || options.some((o) => !isStr(o)))
-    return { error: "`options` must be an array of at least two strings" };
-  if (!isStr(answer)) return { error: "`answer` must be a string" };
-  if (!options.includes(answer)) return { error: "`answer` must be one of the `options`" };
-  if (input !== undefined && !isStr(input)) return { error: "`input`, when present, must be a string" };
-  return { quiz: data as unknown as QuizJson };
 }
 
 // ── D2 diagrams ──────────
