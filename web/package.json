@@ -13,7 +13,7 @@
     "@astrojs/preact": "^6.1.1",
     "@terrastruct/d2": "^0.1.33",
     "astro": "^7.3.5",
-    "keycloak-js": "^26.2.4",
+    "keycloak-js": "^26.2.5",
     "mdast-util-to-hast": "^13.2.0",
     "mermaid": "^12.2.0",
     "monaco-editor": "^0.52.2",
@@ -28,9 +28,9 @@
     "unified": "^11.0.5"
   },
   "devDependencies": {
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@vitest/coverage-v8": "^5.0.2",
-    "postcss": "8.5.31",
+    "postcss": "8.5.32",
     "typescript": "^7.0.2",
     "vitest": "^5.0.2"
   }
