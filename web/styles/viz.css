@@ -391,6 +391,7 @@
    stays centred over it. A row may name itself; the name sits right-aligned in the gutter. */
 .viz-grid__table { display: grid; }
 .viz-grid__table > .viz-grid__row { display: contents; }
+.viz-grid__pad { min-width: 44px; }
 .viz-grid__table .viz-grid__colidx, .viz-grid__table .viz-grid__cell { min-width: 44px; }
 .viz-grid__rowidx--name { justify-content: flex-end; padding-right: 8px; font-size: 12px; white-space: nowrap; }
 

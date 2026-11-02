@@ -39,6 +39,9 @@ fn frame(step: &VizStep) -> AnyView {
         .iter()
         .enumerate()
         .map(|(r, row)| {
+            // A short row (Pascal's triangle, a map under a longer string) ends in blank pads: the
+            // table is one CSS grid, so without them the next row's gutter would fill this row.
+            let pads = (row.len()..cols).map(|_| view! { <span class="viz-grid__pad"></span> }.into_any());
             let cells: Vec<AnyView> = row
                 .iter()
                 .map(|cell| {
@@ -56,6 +59,7 @@ fn frame(step: &VizStep) -> AnyView {
                         },
                     )
                 })
+                .chain(pads)
                 .collect();
             let gutter = match names.get(r).cloned().flatten() {
                 Some(name) => {
