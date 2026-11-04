@@ -24,6 +24,8 @@ pub const TREE_ROW_H: f64 = 82.0;
 pub const CHAIN_DX: f64 = 96.0;
 
 // Cursor labels drawn above a node: per-line rise when several stack, and glyph headroom
+/// Gap between the caret glyph and the first stacked name.
+pub const CURSOR_CARET_GAP: f64 = 12.0;
 pub const CURSOR_LINE_H: f64 = 15.0;
 pub const CURSOR_GLYPH_UP: f64 = 14.0;
 

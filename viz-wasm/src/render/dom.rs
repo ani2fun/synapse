@@ -34,7 +34,7 @@ pub fn cursors_by_target(step: &VizStep) -> HashMap<String, Vec<VizCursor>> {
     m
 }
 
-/// The floating pointer badge above a node: stacked names, one shared ▾ caret.
+/// The floating pointer badge above a node: stacked names, one shared caret.
 #[must_use]
 pub fn cursor_badge(cursors: &[VizCursor]) -> AnyView {
     let caret_color = themed(&cursors.first().map(|c| c.color.clone()).unwrap_or_default());
@@ -49,7 +49,7 @@ pub fn cursor_badge(cursors: &[VizCursor]) -> AnyView {
     view! {
         <div class="viz-dom-cursor">
             {names}
-            <span class="viz-dom-cursor__caret" style=format!("color: {caret_color}")>"▾"</span>
+            <span class="viz-dom-cursor__caret" style=format!("color: {caret_color}")></span>
         </div>
     }
     .into_any()

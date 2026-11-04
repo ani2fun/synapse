@@ -26,7 +26,7 @@ fn field(name: &'static str, x: f64, y: f64) -> impl IntoView {
 
 /// The next and the prev arrowhead, `<marker>-next` and `<marker>-prev`.
 fn arrowheads(marker: &str) -> Vec<impl IntoView + use<>> {
-    ["next", "prev"]
+    ["next", "prev", "note"]
         .into_iter()
         .map(|kind| {
             view! {
@@ -40,6 +40,7 @@ fn arrowheads(marker: &str) -> Vec<impl IntoView + use<>> {
 }
 
 #[must_use]
+#[allow(clippy::too_many_lines)] // one view over everything a frame draws
 pub fn list(graph: &VizGraph, step_index: Signal<usize>) -> AnyView {
     let placement = placed::placement(graph);
     let hh = LIST_BOX_H / 2.0;
@@ -121,12 +122,36 @@ pub fn list(graph: &VizGraph, step_index: Signal<usize>) -> AnyView {
                         }
                     })
                     .collect();
+                let gaps: Vec<_> = f
+                    .gaps
+                    .iter()
+                    .map(|g| {
+                        let head = format!("url(#{marker}-note)");
+                        let label = (!g.label.is_empty()).then(|| view! {
+                            <text class="viz-plist__gap-label" x=g.x + placed::GAP_LABEL_DX
+                                  y=f64::midpoint(g.y0, g.y1) dominant-baseline="central">{g.label.clone()}</text>
+                        });
+                        view! {
+                            <g class="viz-plist__gap">
+                                <line x1=g.x y1=g.y0 x2=g.x y2=g.y1 marker-end=head></line>
+                                {label}
+                            </g>
+                        }
+                    })
+                    .collect();
+                let rings: Vec<_> = f
+                    .rings
+                    .iter()
+                    .map(|r| view! { <ellipse class="viz-plist__ring" cx=r.x cy=r.y rx=r.rx ry=r.ry></ellipse> })
+                    .collect();
                 view! {
                     <g class="viz-plist__regions">{regions}</g>
+                    <g class="viz-plist__gaps">{gaps}</g>
                     <g class="viz-plist__edges">{arrows}</g>
                     <g class="viz-plist__nodes">{boxes}</g>
                     <g class="viz-plist__nulls">{nulls}</g>
                     <g class="viz-plist__cursors">{cursors}</g>
+                    <g class="viz-plist__rings">{rings}</g>
                 }
             }}
         </svg>

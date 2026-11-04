@@ -48,7 +48,6 @@
 .viz-node--key > text { fill: hsl(var(--muted-foreground)); font-style: italic; }
 .viz-node__ring { stroke-width: 2; }
 .viz-node__cursor { font-family: var(--font-mono); font-size: 11px; font-weight: 600; }
-.viz-node__cursor-caret { font-size: 10px; }
 .viz-edge { stroke: hsl(var(--muted-foreground)); stroke-width: 1.5; }
 .viz-edge--prev { stroke-dasharray: 3 3; opacity: 0.7; }
 .viz-arrowhead { fill: hsl(var(--muted-foreground)); }
@@ -56,7 +55,7 @@
 .viz-edge__label { fill: hsl(var(--muted-foreground)); font-family: var(--font-mono); font-size: 11px; }
 
 /* labels stay readable over lines: a card-colored halo */
-.viz-edge__label, .viz-node__cursor, .viz-node__cursor-caret, .viz-caret__name {
+.viz-edge__label, .viz-node__cursor, .viz-caret__name {
   paint-order: stroke; stroke: hsl(var(--card)); stroke-width: 4px; }
 
 /* ── transport ── */
@@ -233,7 +232,9 @@
                   transform: translateX(-50%); display: flex; flex-direction: column;
                   align-items: center; line-height: 1.15; pointer-events: none; }
 .viz-dom-cursor__name { font-size: 11px; font-weight: 600; white-space: nowrap; }
-.viz-dom-cursor__caret { font-size: 10px; }
+/* a triangle the size of the SVG widgets' caret (render/mod.rs), in the element's own colour */
+.viz-dom-cursor__caret { width: 0; height: 0; margin-top: 1px; border-style: solid; border-color: currentColor transparent transparent;
+                         border-width: 8px 6px 0; }
 .viz-dom-null { color: hsl(var(--muted-foreground)); font-size: 15px; }
 .viz-dom-connector { color: hsl(var(--muted-foreground)); padding: 0 8px; }
 
@@ -359,6 +360,11 @@
 .viz-plist__region rect { fill: none; stroke: hsl(var(--border)); stroke-width: 1.5; }
 .viz-plist__cell { stroke: hsl(var(--border) / 0.7); stroke-width: 1; }
 .viz-plist__region-label { fill: hsl(var(--muted-foreground)); font-size: 13px; font-weight: 600; }
+/* a down arrow between two drawings of the same list, and a dashed ring around a pointer's name */
+.viz-plist__gap line { stroke: var(--viz-role-active, #4f5bd5); stroke-width: 1.5; }
+.viz-plist .viz-arrowhead--note { fill: var(--viz-role-active, #4f5bd5); }
+.viz-plist__gap-label { fill: var(--viz-role-active, #4f5bd5); font-size: 14px; font-weight: 600; }
+.viz-plist__ring { fill: none; stroke: hsl(var(--foreground)); stroke-width: 1.5; stroke-dasharray: 5 4; }
 
 /* ── grid table ── */
 .viz-grid { gap: 0; align-items: flex-start; padding-top: 26px; }

@@ -92,8 +92,7 @@ pub fn array(graph: &VizGraph, step_index: Signal<usize>) -> AnyView {
                                         <text class="viz-caret__name" x=cx y=name_y
                                               text-anchor="middle" fill=fill.clone()>{name}</text>
                                         {(stack_pos == 0).then(|| view! {
-                                            <text x=cx y=CARET_ROW_H - 3.0 text-anchor="middle"
-                                                  fill=fill>"▾"</text>
+                                            <path d=super::caret_path(cx, CARET_ROW_H - 1.0) fill=fill></path>
                                         })}
                                     </g>
                                 })

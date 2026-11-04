@@ -342,7 +342,7 @@ fn a_cross_row_arrow_bends_round_a_node_in_its_way() {
     let frame = placed.frame(&one);
     let blocker = frame.boxes.iter().find(|x| x.node.id.value() == "a").unwrap().at;
     let arrow = frame.arrows.iter().find(|x| x.d.contains('C')).unwrap();
-    let curve: [Point; 4] = arrow.pts.clone().try_into().unwrap();
+    let curve: [Point; 4] = arrow.pts[..4].to_vec().try_into().unwrap();
     let hw = placed.box_w() / 2.0;
     for i in 0..=40 {
         let point = cubic(&curve, f64::from(i) / 40.0);
@@ -375,7 +375,7 @@ fn a_cross_row_arrow_keeps_clear_of_a_pointer_name() {
     let frame = placed.frame(&one);
     let target = frame.boxes.iter().find(|x| x.node.id.value() == "d").unwrap().at;
     let arrow = frame.arrows.iter().find(|x| x.d.contains('C')).unwrap();
-    let curve: [Point; 4] = arrow.pts.clone().try_into().unwrap();
+    let curve: [Point; 4] = arrow.pts[..4].to_vec().try_into().unwrap();
     for i in 0..=40 {
         let point = cubic(&curve, f64::from(i) / 40.0);
         let name = Point {
@@ -399,10 +399,99 @@ fn a_skip_arc_runs_under_the_row_when_a_spanned_node_has_a_pointer_name() {
     let frame = placement(&graph(vec![one.clone()])).frame(&one);
     let skip = frame.arrows.iter().find(|x| x.d.contains('C')).unwrap();
     let mid = frame.boxes.iter().find(|x| x.node.id.value() == "b").unwrap().at;
-    let curve: [Point; 4] = skip.pts.clone().try_into().unwrap();
+    let curve: [Point; 4] = skip.pts[..4].to_vec().try_into().unwrap();
     assert!(frame.arc_below && !frame.arc_above);
     assert!(
         cubic(&curve, 0.5).y > mid.y + LIST_BOX_H / 2.0,
         "the arc should pass under the row"
     );
+}
+
+#[test]
+fn a_curved_arrow_ends_in_a_straight_run_under_its_head() {
+    let one = step(
+        vec![node("a", 0, 0), node("b", 1, 0), node("c", 2, 0)],
+        vec![next("a", "c"), next("b", "c")],
+        vec![],
+    );
+    let frame = placement(&graph(vec![one.clone()])).frame(&one);
+    let skip = frame.arrows.iter().find(|x| x.d.contains('C')).unwrap();
+    assert_eq!(skip.pts.len(), 5, "a curve with a straight run has five points");
+    let (control, join, end) = (skip.pts[2], skip.pts[3], skip.pts[4]);
+    assert!(
+        (join.x - end.x).abs() < 0.11 && (control.x - end.x).abs() < 0.11,
+        "the run is in line"
+    );
+    assert!((join.y - end.y).abs() >= 11.9, "the run is as long as the head");
+}
+
+fn mark(kind: &str, col: i32, row: &str, meta: &[(&str, &str)]) -> VizNode {
+    let mut fields = vec![("row", row)];
+    fields.extend_from_slice(meta);
+    VizNode {
+        id: NodeId::new(format!("{kind}{col}")),
+        kind: kind.to_owned(),
+        slot: Some(col),
+        meta: fields
+            .iter()
+            .map(|(name, value)| VizField {
+                name: (*name).to_owned(),
+                value: (*value).to_owned(),
+            })
+            .collect(),
+        ..VizNode::default()
+    }
+}
+
+#[test]
+fn a_next_to_a_far_null_runs_over_the_row_and_draws_that_null() {
+    let g = graph(vec![step(
+        vec![node("a", 0, 0), node("b", 1, 0), node("c", 2, 0)],
+        vec![next("a", "null:c"), next("b", "a"), next("c", "b")],
+        vec![cursor("previous", "null:c")],
+    )]);
+    let p = placement(&g);
+    let f = p.frame(&g.steps[0]);
+    assert_eq!(f.nulls.len(), 1, "only the far null, and a has none of its own");
+    let c = f.boxes.iter().find(|b| b.node.id.value() == "c").unwrap().at;
+    assert!(f.nulls[0].x > c.x && (f.nulls[0].y - c.y).abs() < 1e-9);
+    assert_eq!(f.cursors[0].at, f.nulls[0], "the cursor stands on that null");
+    let over = &f.arrows[0];
+    assert!(
+        over.pts.iter().any(|q| q.y < c.y - 40.0),
+        "above the names: {:?}",
+        over.pts
+    );
+    assert!(
+        over.d
+            .ends_with(&format!("{:.1},{:.1}", f.nulls[0].x + 10.0, f.nulls[0].y))
+    );
+    assert!(
+        over.pts.iter().all(|q| q.x <= p.width && q.y >= 0.0),
+        "inside the extent"
+    );
+}
+
+#[test]
+fn a_gap_arrow_and_a_ring_are_not_list_nodes_and_fit_the_extent() {
+    let g = graph(vec![step(
+        vec![
+            node("a", 0, 0),
+            node("b", 1, 0),
+            mark(GAP_ARROW, 1, "0.5", &[("len", "40"), ("label", "reverse")]),
+            mark(RING, 0, "0", &[("name", "rightBound")]),
+        ],
+        vec![next("a", "b")],
+        vec![cursor("rightBound", "b")],
+    )]);
+    let p = placement(&g);
+    let f = p.frame(&g.steps[0]);
+    assert_eq!(f.boxes.len(), 2);
+    assert_eq!(f.gaps.len(), 1);
+    assert_eq!(f.gaps[0].label, "reverse");
+    assert!((f.gaps[0].y1 - f.gaps[0].y0 - 40.0).abs() < 1e-9);
+    assert_eq!(f.rings.len(), 1);
+    let (ring, owner) = (f.rings[0], f.boxes[1].at);
+    assert!((ring.x - owner.x).abs() < 1e-9 && ring.y < owner.y - LIST_BOX_H / 2.0);
+    assert!(ring.y - ring.ry >= 0.0 && ring.x + ring.rx <= p.width);
 }

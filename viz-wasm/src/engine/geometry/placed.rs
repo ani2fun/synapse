@@ -22,18 +22,38 @@
 //! `grid` for cell lines), so one figure can show, say, the nodes scattered in a memory grid
 //! above the same list drawn logically. `layoutHint: "placed dy=72"` sets the row pitch, and
 //! `"placed doubly"` draws a doubly list whose steps have no `prev` edge yet.
+//!
+//! A next edge to `null:<id>` holds null, but its `∅` stands at another node's place (a reversal
+//! whose first node now ends the list, with the `∅` still at the far right). The arrow runs over
+//! the row, above the pointer names, and that `∅` is drawn even if `<id>` has a next of its own.
+//!
+//! Two more kinds are annotations: `gap-arrow` is a straight down arrow centred on its (`col`,
+//! `row`) with meta `len` and an optional `label` beside it; `ring` draws a dashed ellipse around
+//! the pointer name in its meta `name`.
 
 use std::collections::HashMap;
 
-use super::constants::{LIST_ARC, LIST_BOX_H, LIST_DY, LIST_FIELD_W, LIST_GAP, LIST_VAL_W, PAD};
+use super::constants::{
+    CURSOR_CARET_GAP, CURSOR_GLYPH_UP, CURSOR_LINE_H, LIST_ARC, LIST_BOX_H, LIST_DY, LIST_FIELD_W, LIST_GAP,
+    LIST_VAL_W, PAD,
+};
 
 /// The node kind that draws a labelled frame instead of a list node.
 pub const REGION: &str = "region";
+/// The node kind that draws a down arrow between two drawings.
+pub const GAP_ARROW: &str = "gap-arrow";
+/// The node kind that rings a pointer's name.
+pub const RING: &str = "ring";
 use super::{LayoutResult, Point, cubic, path_points};
 use crate::engine::graph::{NodeId, VizCursor, VizGraph, VizNode, VizStep};
 
 /// The cursor target that means "this pointer holds null".
 pub const NULL_TARGET: &str = "null";
+
+/// Is this node an annotation rather than a list node?
+fn is_mark(n: &VizNode) -> bool {
+    matches!(n.kind.as_str(), REGION | GAP_ARROW | RING)
+}
 
 /// How far the `∅` glyph sits beyond a box edge, and where its short arrow stops.
 const NULL_DX: f64 = 28.0;
@@ -122,6 +142,33 @@ pub struct Region {
 /// How far below its frame a region's label sits, and the room it takes.
 pub const REGION_LABEL_DY: f64 = 18.0;
 
+/// A straight down arrow between two drawings, with an optional label to its right.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GapArrow {
+    pub x: f64,
+    pub y0: f64,
+    pub y1: f64,
+    pub label: String,
+}
+
+/// How far right of a gap arrow its label starts.
+pub const GAP_LABEL_DX: f64 = 14.0;
+
+/// A dashed ellipse around a pointer's name.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Ring {
+    pub x: f64,
+    pub y: f64,
+    pub rx: f64,
+    pub ry: f64,
+}
+
+/// Half the drawn width of a pointer name.
+#[allow(clippy::cast_precision_loss)] // pointer names are short
+fn name_half(name: &str) -> f64 {
+    name.chars().count() as f64 * 3.7 + 4.0
+}
+
 /// Pointer names stacked over one point, `rise` above it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CursorStack {
@@ -138,6 +185,8 @@ pub struct Frame {
     pub nulls: Vec<Point>,
     pub cursors: Vec<CursorStack>,
     pub regions: Vec<Region>,
+    pub gaps: Vec<GapArrow>,
+    pub rings: Vec<Ring>,
     /// An arc runs above the top row (a skip) or below the bottom row (a cycle).
     pub arc_above: bool,
     pub arc_below: bool,
@@ -154,6 +203,8 @@ pub struct Placement {
     min_col: f64,
     min_row: f64,
     dy: f64,
+    /// The most pointer names any step stacks on one spot: an arrow over the row clears them.
+    stack_max: usize,
     centres: Vec<Point>,
 }
 
@@ -205,9 +256,30 @@ impl Placement {
             .map(|n| self.region(n))
             .collect();
         let list = VizStep {
-            nodes: step.nodes.iter().filter(|n| n.kind != REGION).cloned().collect(),
+            nodes: step.nodes.iter().filter(|n| !is_mark(n)).cloned().collect(),
             ..step.clone()
         };
+        let gaps = step
+            .nodes
+            .iter()
+            .filter(|n| n.kind == GAP_ARROW)
+            .map(|n| {
+                let c = self.centre(n);
+                let len = meta_f(n, "len").unwrap_or(40.0);
+                GapArrow {
+                    x: c.x,
+                    y0: c.y - len / 2.0,
+                    y1: c.y + len / 2.0,
+                    label: meta_s(n, "label").unwrap_or_default().to_owned(),
+                }
+            })
+            .collect();
+        let rung: Vec<&str> = step
+            .nodes
+            .iter()
+            .filter(|n| n.kind == RING)
+            .filter_map(|n| meta_s(n, "name"))
+            .collect();
         let step = &list;
         let at: Spots = step
             .nodes
@@ -218,6 +290,7 @@ impl Placement {
         let (ends, mut nulls, null_of) = self.null_ends(step, &at);
         arrows.extend(ends);
         let cursors = self.cursor_stacks(step, &at, &null_of, &mut nulls);
+        let rings = rings_of(&cursors, &rung);
         Frame {
             boxes: step
                 .nodes
@@ -231,6 +304,8 @@ impl Placement {
             nulls,
             cursors,
             regions,
+            gaps,
+            rings,
             arc_above,
             arc_below,
         }
@@ -309,6 +384,12 @@ impl Placement {
             if !prev && !is_next(&e.label) {
                 continue;
             }
+            if let Some(owner) = e.to.value().strip_prefix("null:") {
+                if let (Some(&(a, _)), Some(&(b, _))) = (at.get(e.from.value()), at.get(owner)) {
+                    arrows.push(self.over_to_null(a, self.null_spot(b), prev));
+                }
+                continue;
+            }
             let (Some(&(a, _)), Some(&(b, _))) = (at.get(e.from.value()), at.get(e.to.value())) else {
                 continue;
             };
@@ -345,17 +426,21 @@ impl Placement {
             let d = if (a.x - b.x).abs() < f64::EPSILON {
                 // A node pointing at itself: a loop over its top.
                 arc_above = true;
-                format!(
-                    "M{:.1},{:.1} C{:.1},{:.1} {:.1},{:.1} {:.1},{:.1}",
-                    dot,
-                    a.y - hh,
-                    dot + 18.0,
-                    a.y - hh - LIST_ARC,
-                    a.x - 10.0,
-                    a.y - hh - LIST_ARC,
-                    a.x - 10.0,
-                    a.y - hh
-                )
+                curve_d(&[
+                    Point { x: dot, y: a.y - hh },
+                    Point {
+                        x: dot + 18.0,
+                        y: a.y - hh - LIST_ARC,
+                    },
+                    Point {
+                        x: a.x - 10.0,
+                        y: a.y - hh - LIST_ARC,
+                    },
+                    Point {
+                        x: a.x - 10.0,
+                        y: a.y - hh,
+                    },
+                ])
             } else if !blocked(a, b) && (b.x > a.x || self.doubly) {
                 // Neighbours on the row: one straight arrow; a doubly list's opposite arrows take
                 // two lanes (next above, prev below). A singly list's next to its left neighbour
@@ -389,39 +474,88 @@ impl Placement {
                     arc_above = true;
                 }
                 let (sy, ty) = (a.y + side * hh, b.y + side * hh);
-                format!(
-                    "M{:.1},{:.1} C{:.1},{:.1} {:.1},{:.1} {:.1},{:.1}",
-                    dot,
-                    sy,
-                    dot,
-                    sy + side * lift,
-                    b.x - 8.0,
-                    ty + side * lift,
-                    b.x - 8.0,
-                    ty
-                )
+                curve_d(&[
+                    Point { x: dot, y: sy },
+                    Point {
+                        x: dot,
+                        y: sy + side * lift,
+                    },
+                    Point {
+                        x: b.x - 8.0,
+                        y: ty + side * lift,
+                    },
+                    Point { x: b.x - 8.0, y: ty },
+                ])
             } else {
                 arc_below = true;
                 // Back past other nodes (a cycle), or back to the left neighbour: an arc under
                 // them, into the target's bottom.
                 let (sy, ty) = (a.y + hh, b.y + hh);
-                format!(
-                    "M{:.1},{:.1} C{:.1},{:.1} {:.1},{:.1} {:.1},{:.1}",
-                    dot,
-                    sy,
-                    dot,
-                    sy + LIST_ARC,
-                    b.x + 8.0,
-                    ty + LIST_ARC,
-                    b.x + 8.0,
-                    ty
-                )
+                curve_d(&[
+                    Point { x: dot, y: sy },
+                    Point {
+                        x: dot,
+                        y: sy + LIST_ARC,
+                    },
+                    Point {
+                        x: b.x + 8.0,
+                        y: ty + LIST_ARC,
+                    },
+                    Point { x: b.x + 8.0, y: ty },
+                ])
             };
             let pts = path_points(&d);
             arrows.push(Arrow { d, prev, pts });
         }
 
         (arrows, arc_above, arc_below)
+    }
+
+    /// Where the `∅` after a node stands.
+    fn null_spot(&self, p: Point) -> Point {
+        Point {
+            x: p.x + self.box_w() / 2.0 + NULL_DX,
+            y: p.y,
+        }
+    }
+
+    /// An arrow from `a`'s right edge to a far `∅`: up through the gap beside `a`, along a lane
+    /// above the tallest stack of pointer names, down past the `∅`, and back into it from the
+    /// right, so it crosses no name, not even one standing over that `∅`.
+    fn over_to_null(&self, a: Point, g: Point, prev: bool) -> Arrow {
+        const RUN: f64 = 14.0;
+        const R: f64 = 8.0;
+        const PAST: f64 = 40.0;
+        const CLEAR: f64 = 6.0;
+        let hh = LIST_BOX_H / 2.0;
+        let x0 = a.x + self.box_w() / 2.0;
+        let up = x0 + RUN;
+        #[allow(clippy::cast_precision_loss)] // cursor stacks are tiny
+        let names = self.stack_max.saturating_sub(1) as f64 * CURSOR_LINE_H;
+        let lane = a.y - (hh + 8.0 + CURSOR_CARET_GAP + names + CURSOR_GLYPH_UP + CLEAR);
+        let rx = g.x + PAST;
+        let d = format!(
+            "M{x0:.1},{ay:.1} L{l1:.1},{ay:.1} Q{up:.1},{ay:.1} {up:.1},{u1:.1} L{up:.1},{u2:.1} \
+             Q{up:.1},{lane:.1} {r1:.1},{lane:.1} L{r2:.1},{lane:.1} Q{rx:.1},{lane:.1} {rx:.1},{d1:.1} \
+             L{rx:.1},{d2:.1} Q{rx:.1},{gy:.1} {r2:.1},{gy:.1} L{end:.1},{gy:.1}",
+            ay = a.y,
+            l1 = up - R,
+            u1 = a.y - R,
+            u2 = lane + R,
+            r1 = up + R,
+            r2 = rx - R,
+            d1 = lane + R,
+            d2 = g.y - R,
+            gy = g.y,
+            end = g.x + 10.0,
+        );
+        let pts = vec![
+            Point { x: x0, y: a.y },
+            Point { x: up, y: lane },
+            Point { x: rx, y: lane },
+            Point { x: rx, y: g.y },
+        ];
+        Arrow { d, prev, pts }
     }
 
     /// A cubic from the pointer field of `a` into `b`: it leaves the field down, up or
@@ -499,14 +633,9 @@ impl Placement {
             }
         }
         let c = best.map_or([a, a, b, b], |(_, _, curve)| curve);
-        Arrow {
-            d: format!(
-                "M{:.1},{:.1} C{:.1},{:.1} {:.1},{:.1} {:.1},{:.1}",
-                c[0].x, c[0].y, c[1].x, c[1].y, c[2].x, c[2].y, c[3].x, c[3].y
-            ),
-            prev,
-            pts: c.to_vec(),
-        }
+        let d = curve_d(&c);
+        let pts = path_points(&d);
+        Arrow { d, prev, pts }
     }
 
     /// The `∅` ends: their short arrows, the glyphs, and which node owns each `∅` (its next
@@ -591,6 +720,17 @@ impl Placement {
                 null_of.entry(n.id.value()).or_insert(g);
             }
         }
+        // A `∅` an arrow from over the row ends at, where its owner has no `∅` of its own.
+        for e in &step.edges {
+            if let Some(owner) = e.to.value().strip_prefix("null:")
+                && let Some(&(b, _)) = at.get(owner)
+                && !null_of.contains_key(owner)
+            {
+                let g = self.null_spot(b);
+                nulls.push(g);
+                null_of.insert(owner, g);
+            }
+        }
 
         (arrows, nulls, null_of)
     }
@@ -660,6 +800,31 @@ impl Placement {
 
 type Spots<'a> = HashMap<&'a str, (Point, &'a VizNode)>;
 
+/// How far a curved arrow runs straight before its target. The head is about 10.5 px long
+/// (`markerWidth` 7 at stroke 1.5) and takes the direction at the very end of the path, so the
+/// line under the head has to run in that direction, or the two meet at a visible angle.
+const HEAD_RUN: f64 = 12.0;
+
+/// The path of a curved arrow: the cubic `c`, stopping `HEAD_RUN` short of its end, then a
+/// straight run into the end along the last control point's direction, so the bend stays
+/// smooth. A last control point nearer than that leaves no room, and the cubic stays whole.
+fn curve_d(c: &[Point; 4]) -> String {
+    let [start, c1, c2, end] = *c;
+    let reach = (end.x - c2.x).hypot(end.y - c2.y);
+    if reach <= HEAD_RUN {
+        return format!(
+            "M{:.1},{:.1} C{:.1},{:.1} {:.1},{:.1} {:.1},{:.1}",
+            start.x, start.y, c1.x, c1.y, c2.x, c2.y, end.x, end.y
+        );
+    }
+    let back = HEAD_RUN / reach;
+    let (jx, jy) = (end.x + (c2.x - end.x) * back, end.y + (c2.y - end.y) * back);
+    format!(
+        "M{:.1},{:.1} C{:.1},{:.1} {:.1},{:.1} {:.1},{:.1} L{:.1},{:.1}",
+        start.x, start.y, c1.x, c1.y, c2.x, c2.y, jx, jy, end.x, end.y
+    )
+}
+
 /// Something a curved arrow must keep clear of: a box around `at`, `hw` × `hh` half sizes.
 #[derive(Debug, Clone, Copy)]
 struct Obstacle {
@@ -678,9 +843,30 @@ fn last_null(step: &VizStep, null_of: &HashMap<&str, Point>) -> Option<Point> {
         .map(|(_, g)| g)
 }
 
+/// The ring of each named pointer that has a stack in this frame.
+fn rings_of(stacks: &[CursorStack], names: &[&str]) -> Vec<Ring> {
+    let mut rings = Vec::new();
+    for s in stacks {
+        for (i, c) in s.cursors.iter().enumerate() {
+            if names.contains(&c.name.as_str()) {
+                #[allow(clippy::cast_precision_loss)] // cursor stacks are tiny
+                let baseline = s.at.y - (s.rise + CURSOR_CARET_GAP + i as f64 * CURSOR_LINE_H);
+                rings.push(Ring {
+                    x: s.at.x,
+                    y: baseline - 4.0,
+                    rx: name_half(&c.name) + 9.0,
+                    ry: 13.0,
+                });
+            }
+        }
+    }
+    rings
+}
+
 /// The frame of reference over every step: whether the list is doubly, the row pitch, and an
 /// extent that holds every box, `∅`, arrow, region and region label of every step.
 #[must_use]
+#[allow(clippy::too_many_lines)] // one measuring pass over everything a frame can draw
 pub fn placement(graph: &VizGraph) -> Placement {
     let nodes: Vec<&VizNode> = graph.steps.iter().flat_map(|s| &s.nodes).collect();
     let doubly = graph.layout_hint.split_whitespace().any(|t| t == "doubly")
@@ -698,6 +884,18 @@ pub fn placement(graph: &VizGraph) -> Placement {
         min_col: nodes.iter().map(|n| col_of(n)).fold(0.0, f64::min),
         min_row: nodes.iter().map(|n| row_of(n)).fold(0.0, f64::min),
         dy: row_pitch(&graph.layout_hint),
+        stack_max: graph
+            .steps
+            .iter()
+            .flat_map(|s| {
+                let mut counts: HashMap<&str, usize> = HashMap::new();
+                for c in &s.cursor {
+                    *counts.entry(c.target.value()).or_default() += 1;
+                }
+                counts.into_values().collect::<Vec<_>>()
+            })
+            .max()
+            .unwrap_or(0),
         centres: Vec::new(),
     };
     let hw = p.box_w() / 2.0;
@@ -731,15 +929,7 @@ pub fn placement(graph: &VizGraph) -> Placement {
         }
         // Pointer names are centred over their node and can be wider than it.
         for c in &f.cursors {
-            #[allow(clippy::cast_precision_loss)]
-            let half = c
-                .cursors
-                .iter()
-                .map(|x| x.name.chars().count())
-                .max()
-                .unwrap_or(0) as f64
-                * 3.7
-                + 4.0;
+            let half = c.cursors.iter().map(|x| name_half(&x.name)).fold(4.0, f64::max);
             grow(c.at.x - half, c.at.y, c.at.x + half, c.at.y);
         }
         for g in &f.nulls {
@@ -758,6 +948,19 @@ pub fn placement(graph: &VizGraph) -> Placement {
             };
             grow(r.x, r.y, r.x + r.w, r.y + r.h + label);
         }
+        for g in &f.gaps {
+            #[allow(clippy::cast_precision_loss)] // labels are short
+            let text = g.label.chars().count() as f64 * 8.0;
+            grow(g.x - 6.0, g.y0, g.x + GAP_LABEL_DX + text, g.y1);
+        }
+        for r in &f.rings {
+            grow(
+                r.x - r.rx - 2.0,
+                r.y - r.ry - 2.0,
+                r.x + r.rx + 2.0,
+                r.y + r.ry + 2.0,
+            );
+        }
     }
     if !lo.x.is_finite() {
         (lo, hi) = (Point { x: -10.0, y: -10.0 }, Point { x: 10.0, y: 10.0 });
@@ -768,7 +971,7 @@ pub fn placement(graph: &VizGraph) -> Placement {
     p.height = hi.y - lo.y + 2.0 * PAD;
     p.centres = nodes
         .iter()
-        .filter(|n| n.kind != REGION)
+        .filter(|n| !is_mark(n))
         .map(|n| p.centre(n))
         .collect();
     if p.centres.is_empty() {

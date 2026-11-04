@@ -20,8 +20,27 @@ use crate::engine::geometry::{LayoutResult, Point};
 use crate::engine::graph::{NodeId, VizCursor, VizGraph, VizStep};
 use leptos::prelude::*;
 
-/// Gap between the caret glyph and the first stacked name.
-pub const CURSOR_CARET_GAP: f64 = 12.0;
+pub use crate::engine::geometry::constants::CURSOR_CARET_GAP;
+
+/// A pointer caret: a filled triangle `CARET_W` wide and `CARET_H` tall, its tip at (`x`, `tip_y`).
+/// It is drawn rather than typed: a `▾` glyph's size and position depend on the font.
+pub const CARET_W: f64 = 12.0;
+pub const CARET_H: f64 = 8.0;
+
+#[must_use]
+pub fn caret_path(x: f64, tip_y: f64) -> String {
+    let top = tip_y - CARET_H;
+    let half = CARET_W / 2.0;
+    format!(
+        "M{:.1},{:.1} L{:.1},{:.1} L{:.1},{:.1} z",
+        x - half,
+        top,
+        x + half,
+        top,
+        x,
+        tip_y
+    )
+}
 
 /// The diff-cue class for a node id in a step (`--new` / `--changed` / `--removed`).
 #[must_use]
@@ -58,8 +77,8 @@ pub fn themed(hex: &str) -> String {
     )
 }
 
-/// Cursors grouped onto one node stack UPWARD one line apart — never overlap: a single `▾`
-/// caret at `base_rise`, then the names.
+/// Cursors grouped onto one node stack UPWARD one line apart — never overlap: a single caret
+/// at `base_rise`, then the names.
 #[must_use]
 pub fn cursor_stack(cursors: &[VizCursor], p: Point, base_rise: f64) -> impl IntoView + use<> {
     if cursors.is_empty() {
@@ -81,8 +100,7 @@ pub fn cursor_stack(cursors: &[VizCursor], p: Point, base_rise: f64) -> impl Int
         .collect();
     Some(view! {
         <g class="viz-cursors">
-            <text class="viz-node__cursor-caret" x=p.x y=p.y - base_rise
-                  text-anchor="middle" fill=caret_color>"▾"</text>
+            <path class="viz-node__cursor-caret" d=caret_path(p.x, p.y - base_rise + 4.0) fill=caret_color></path>
             {names}
         </g>
     })
