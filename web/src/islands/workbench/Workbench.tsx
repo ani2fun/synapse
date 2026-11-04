@@ -17,6 +17,7 @@ import { displayLang, canVisualise, expectedFor, seedValues } from "../../lib/ex
 import type { Variant } from "../../lib/execution/blocks";
 import * as executor from "../../lib/execution/executor";
 import { judge, pendingPrompt, ranOutOfInput, stdinFor } from "../../lib/execution/judge";
+import { joinHarness, visiblePart } from "../../lib/execution/harness";
 import type { TestSpec } from "../../lib/execution/judge";
 import { canonicalLang, preferredIndex } from "../../lib/execution/language";
 import type { EditorHandle } from "../../lib/islands/editor/monaco";
@@ -164,7 +165,7 @@ export function Workbench({
   const run = () => {
     wantsEditor.current = true;
     if (tests) tests.ranCase.set(tests.activeCase.get());
-    activeStore.launch(variant.language, stdin());
+    activeStore.launch(variant.language, stdin(), variant.harness);
   };
   // The verdict recorder (the Rust Effect): a store subscription that reacts to a NEW runId
   // reaching done, judges against ranCase, and badges the chip.
@@ -191,7 +192,11 @@ export function Workbench({
   // ── submit + the submitted tick ──
   const doSubmit = () => {
     if (!hasSubmit || !isAuthed()) return;
-    submit.submit(lessonPath, variant.language, activeStore.state.get().code);
+    submit.submit(
+      lessonPath,
+      variant.language,
+      joinHarness(variant.language, variant.harness, activeStore.state.get().code),
+    );
   };
   useEffect(() => {
     let wasDone = false;
@@ -222,7 +227,7 @@ export function Workbench({
   // ── the event contracts on the hydrated root ──
   useEffect(() => {
     const onLoadCode = (event: Event) => {
-      const { language, code } = (event as CustomEvent<LoadCode>).detail;
+      const { language, code: loaded } = (event as CustomEvent<LoadCode>).detail;
       // Canonical, not raw: a `python3` solution must find the `py` tab. Guarded on non-null
       // so two UNKNOWN languages don't both read as null and match.
       const wanted = canonicalLang(language);
@@ -230,6 +235,9 @@ export function Workbench({
         (v) => wanted !== null && canonicalLang(v.language) === wanted,
       );
       const index = target >= 0 ? target : active;
+      // A problem tab shows its class alone, so a whole program arriving (a past submission)
+      // lands as just its class; the tab's own harness drives it again on Run.
+      const code = variants[index]!.harness ? visiblePart(variants[index]!.language, loaded) : loaded;
       log.debug(`solution copied into the ${variants[index]!.language} tab`);
       switchTo(index);
       stores[index]!.state.update((s) => executor.setCode(s, code));
@@ -596,7 +604,7 @@ export function Workbench({
               onClick={() =>
                 window.__synapseViz?.({
                   language: variant.language,
-                  source: activeStore.state.get().code,
+                  source: joinHarness(variant.language, variant.harness, activeStore.state.get().code),
                   vizHint: variant.viz ?? "",
                   stdin: stdin() ?? "",
                 })

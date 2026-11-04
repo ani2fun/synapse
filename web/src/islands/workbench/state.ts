@@ -6,6 +6,8 @@ import { run as apiRun, submit as apiSubmit, submission as apiSubmission } from 
 import type { Submission } from "../../lib/api/client";
 import * as executor from "../../lib/execution/executor";
 import type { ExecutorState } from "../../lib/execution/executor";
+import { joinHarness } from "../../lib/execution/harness";
+import type { Harness } from "../../lib/execution/harness";
 import type { TestCase, TestSpec } from "../../lib/execution/judge";
 import { seedValues } from "../../lib/execution/blocks";
 import type { Verdict } from "../../lib/execution/judge";
@@ -24,14 +26,15 @@ export class BlockStore {
   /**
    * Run the current buffer. Guards like the Run button: a run in flight wins. The reply is
    * applied through the FSM's handle check, so a stale response after a re-launch is a no-op —
-   * the semantics the executor tests pin.
+   * the semantics the executor tests pin. A problem block's buffer is only its `class Solution`;
+   * `harness` puts it back into the complete program the sandbox runs.
    */
-  launch(language: string, stdin: string | null): void {
+  launch(language: string, stdin: string | null, harness: Harness | null = null): void {
     const current = this.state.get();
     if (current.runState === "running") return;
     const startedState = executor.started(current);
     const handle = startedState.runId;
-    const source = startedState.code;
+    const source = joinHarness(language, harness, startedState.code);
     log.info(`running ${language} block${stdin != null ? " (with case stdin)" : ""}`);
     this.state.set(startedState);
     void (async () => {

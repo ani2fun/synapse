@@ -5,7 +5,7 @@ import { LANGUAGES, canonicalLang, preferredIndex, runnableFence } from "./langu
 import type { Variant } from "./blocks";
 
 function variant(language: string): Variant {
-  return { language, source: "", viz: null };
+  return { language, source: "", viz: null, harness: null };
 }
 
 describe("language", () => {

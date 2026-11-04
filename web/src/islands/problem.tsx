@@ -35,7 +35,7 @@ import { useEffect, useState } from "preact/hooks";
 import * as log from "../lib/log";
 import { PROBLEM_MODE_KEY, PROBLEM_PANE_KEY, get as storageGet, set as storageSet } from "../lib/storage";
 import { DEFAULT_LEFT_PCT, MAX_LEFT_PCT, MIN_LEFT_PCT, parseLeftPct, serializeLeftPct } from "../lib/catalog/pane";
-import { parseVariants } from "../lib/execution/blocks";
+import { hideHarness, parseVariants } from "../lib/execution/blocks";
 import type { Variant } from "../lib/execution/blocks";
 import type { TestSpec } from "../lib/execution/judge";
 import { Workbench } from "./workbench/Workbench";
@@ -106,7 +106,8 @@ function decodeWorkbench(element: Element): { variants: Variant[]; spec: TestSpe
       spec = null;
     }
   }
-  return { variants, spec };
+  // A judged block in the description is a problem too; an unjudged one is shown whole.
+  return { variants: spec ? hideHarness(variants) : variants, spec };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -446,6 +447,8 @@ function init(): void {
       // The starter `run` block no longer carries `data-spec`; the suite comes from the payload.
       if (extracted) {
         extracted.spec = extracted.spec ?? injected;
+        // The problem's own starter: its reader works on `class Solution`, not on the driver.
+        extracted.variants = hideHarness(extracted.variants);
         first.remove();
       }
     }

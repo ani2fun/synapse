@@ -4,6 +4,8 @@
 // list means the block is skipped. URI decoding is the view/island's job (it needs the DOM) —
 // this stays pure and native-testable.
 
+import { splitHarness } from "./harness";
+import type { Harness } from "./harness";
 import type { TestSpec } from "./judge";
 
 interface RawVariant {
@@ -18,6 +20,9 @@ export interface Variant {
   source: string;
   /** The fence's `viz=<structure>[:<root>]` hint, raw (parsed on use). */
   viz: string | null;
+  /** The hidden driver around a problem's `class Solution` (`harness.ts`); `source` is then the
+   *  class alone. Null for a block shown whole. */
+  harness: Harness | null;
 }
 
 /** Visualise needs a Python or Java variant with a `viz=` hint. */
@@ -41,9 +46,22 @@ export function parseVariants(json: string): Variant[] | null {
       language: v.lang.trim(),
       source: v.source,
       viz: v.viz ?? null,
+      harness: null,
     }))
     .filter((v) => v.language !== "");
   return variants.length === 0 ? null : variants;
+}
+
+/**
+ * A PROBLEM's variants: each shows its `class Solution` alone and keeps the driver as its
+ * harness. Only problem surfaces call this (a judged workbench, a practice widget, an editorial's
+ * solutions); a lesson's listing is a whole program on purpose and is never split.
+ */
+export function hideHarness(variants: Variant[]): Variant[] {
+  return variants.map((variant) => {
+    const split = splitHarness(variant.language, variant.source);
+    return split ? { ...variant, source: split.body, harness: split.harness } : variant;
+  });
 }
 
 /** Display name for a fence alias. */

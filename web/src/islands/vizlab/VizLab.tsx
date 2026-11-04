@@ -139,6 +139,7 @@ export function VizLab() {
         // No hint: the STRUCTURE lives in the left pane here, and a hint would grow the
         // workbench a Visualise button that opens the modal over this very page.
         viz: null,
+        harness: null,
       })),
     [],
   );

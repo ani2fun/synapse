@@ -7,7 +7,7 @@
 import { render, h } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 
-import { parseVariants } from "../../lib/execution/blocks";
+import { hideHarness, parseVariants } from "../../lib/execution/blocks";
 import type { Variant } from "../../lib/execution/blocks";
 import { hydrateFenceGroups } from "../workbench/fenceGroups";
 import { RELAYOUT, VIZ_RESCAN } from "../workbench/contracts";
@@ -36,8 +36,10 @@ export function mountSolutionBlocks(
   const hosts: HTMLElement[] = [];
   for (const element of root.querySelectorAll("div.solution-block")) {
     const json = decodedAttr(element, "data-variants");
-    const variants = json ? parseVariants(json) : null;
-    if (!variants || variants.length === 0) continue;
+    const parsed = json ? parseVariants(json) : null;
+    if (!parsed || parsed.length === 0) continue;
+    // A solution is read like the problem's starter: the class, without the driver.
+    const variants = hideHarness(parsed);
     const host = element as HTMLElement;
     host.replaceChildren();
     render(h(SolutionViewer, { variants, workbenchRoot }), host);

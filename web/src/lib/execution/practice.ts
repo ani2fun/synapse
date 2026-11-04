@@ -10,7 +10,7 @@
  * consumers share this one parser.
  */
 
-import { parseVariants } from "./blocks";
+import { hideHarness, parseVariants } from "./blocks";
 import type { Variant } from "./blocks";
 import type { TestSpec } from "./judge";
 
@@ -68,7 +68,7 @@ export function decodePractice(
     }
   }
 
-  return { problemMd: problem, variants, spec, editorials: labelApproaches(wire) };
+  return { problemMd: problem, variants: hideHarness(variants), spec, editorials: labelApproaches(wire) };
 }
 
 /**
