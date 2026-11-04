@@ -92,6 +92,10 @@ export const PROBLEM_MODE_KEY = "problem-mode";
  *  glance at the C++ version is not "show me C++ everywhere". The value is still `wb-language`
  *  so a reader keeps the language this key held before it became a pin. */
 export const LANGUAGE_PIN_KEY = "wb-language";
+/** The signed-in session's refresh token, which is how a sign-in survives quitting the browser
+ *  (`lib/islands/auth/sessionToken`). A credential, unlike everything else here: it is removed at
+ *  sign-out and when Keycloak rejects it, and it is never logged. */
+export const AUTH_REFRESH_KEY = "auth-refresh-token";
 /** `"dark" | "light"` — read pre-paint by `Base.astro`'s inline bootstrap script too. */
 export const THEME_KEY = "theme";
 /** The listen bar's voice — one of the server's voice ids. A preference of the device, like the

@@ -6,9 +6,9 @@
  * SAME instance) with a subscribe/notify seam plus the window-scoped contracts the
  * workbench/problem gates read. The state starts `loading` — never a "Sign in" flash before
  * check-sso answers — adopts the session by echoing `GET /api/me` (the SERVER, not the token, is
- * the identity authority), and a 30 s loop refreshes the token when < 60 s remain; a failed
- * refresh degrades to `anonymous`. Every failure lands on `anonymous`, never an error page. NEVER
- * logs a token.
+ * the identity authority), and a 30 s loop refreshes the token when < 60 s remain; a refresh
+ * Keycloak rejects degrades to `anonymous`, in every open tab. Every failure lands on `anonymous`,
+ * never an error page. NEVER logs a token.
  */
 
 import * as api from "../../lib/api/client";
@@ -17,6 +17,7 @@ import * as log from "../../lib/log";
 import * as storage from "../../lib/storage";
 import type { AuthHandle } from "../../lib/islands/auth/loader";
 import { bootAuth } from "../../lib/islands/auth/loader";
+import { isRejected } from "../../lib/islands/auth/sessionToken";
 import { AUTH_CHANGED } from "../workbench/contracts";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -120,6 +121,7 @@ export async function boot(): Promise<void> {
     return;
   }
   await adopt();
+  followSignOutElsewhere();
   void refreshLoop();
 }
 
@@ -135,17 +137,34 @@ async function adopt(): Promise<void> {
   }
 }
 
-/** Poll every 30 s, refreshing when < 60 s remain; a failed refresh means the session is gone.
- *  Polls `updateToken` on an interval rather than relying on keycloak-js's `onTokenExpired`
- *  callback. */
+/** Another tab dropping the saved token means the session is over — it signed out, or Keycloak
+ *  rejected it. `storage` events fire only in the OTHER tabs. */
+function followSignOutElsewhere(): void {
+  window.addEventListener("storage", (event) => {
+    if (event.key !== storage.AUTH_REFRESH_KEY || event.newValue !== null) return;
+    if (state.kind !== "authed") return;
+    log.info("auth: session ended in another tab — signed out");
+    handle?.clear();
+    setState({ kind: "anonymous" });
+  });
+}
+
+/** Poll every 30 s, refreshing when < 60 s remain. Only Keycloak's refusal means the session is
+ *  gone: a laptop waking up with no network yet must not sign the reader out, so any other failure
+ *  just waits for the next tick. Polls `updateToken` on an interval rather than relying on
+ *  keycloak-js's `onTokenExpired` callback. */
 async function refreshLoop(): Promise<void> {
   for (;;) {
     await sleep(30_000);
     if (state.kind !== "authed") return;
     try {
       await handle?.updateToken(60);
-    } catch {
-      log.warn("auth: session refresh failed — signed out");
+    } catch (error) {
+      if (!isRejected(error)) {
+        log.warn("auth: session refresh failed — will retry");
+        continue;
+      }
+      log.warn("auth: session refresh rejected — signed out");
       setState({ kind: "anonymous" });
       return;
     }

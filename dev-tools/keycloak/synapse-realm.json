@@ -7,6 +7,10 @@
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 2592000,
+  "ssoSessionMaxLifespan": 2592000,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 1,
   "loginTheme": "synapse",
   "clients": [
     {
