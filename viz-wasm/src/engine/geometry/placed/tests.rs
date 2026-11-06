@@ -3,6 +3,7 @@
 #![allow(clippy::unwrap_used, clippy::float_cmp)]
 
 use super::*;
+use crate::engine::geometry::cubic;
 use crate::engine::graph::{VizEdge, VizField};
 
 fn node(id: &str, col: i32, row: i32) -> VizNode {
