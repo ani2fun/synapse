@@ -53,6 +53,11 @@ test.describe("signed-in design canvas — save, read back, delete", () => {
     // The tab's own count is the fastest honest signal that a row landed.
     await expect(page.locator(".pcanvas__seg-btn", { hasText: "Saved" })).toContainText("Saved · 1");
 
+    // ── keep writing after the save, so the draft and the entry differ: the view below follows
+    //    within the autosave debounce, and the draft must still hold this line afterwards ──
+    const draftOnly = "· draft only — N ≤ 1e5";
+    await page.locator('.pcanvas__field[aria-label="Constraints"]').fill(draftOnly);
+
     // ── the Saved table: the row DERIVES its title, areas and best complexity from the body ──
     await page.locator(".pcanvas__seg-btn", { hasText: "Saved" }).click();
     const row = page.locator(".pcanvas__table tbody tr", { hasText: marker });
@@ -65,11 +70,16 @@ test.describe("signed-in design canvas — save, read back, delete", () => {
     await expect(page.locator(".pcanvas__viewing-title")).toHaveText(marker);
     await expect(page.locator('.pcanvas__field[aria-label="Problem"]')).toHaveValue(marker);
     await expect(page.locator('.pcanvas__field[aria-label="Problem"]')).toHaveAttribute("readonly", "");
+    await expect(page.locator('.pcanvas__field[aria-label="Constraints"]')).toHaveValue("· max N — 1e4");
+
+    // ── the page being hidden while an entry is on screen must not save that entry as the draft ──
+    await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));
 
     // ── back to the draft: reading an entry must not have overwritten what was being written ──
     await page.locator(".pcanvas__btn", { hasText: "Back to draft" }).click();
     await expect(page.locator(".pcanvas__viewing-title")).toHaveCount(0);
     await expect(page.locator('.pcanvas__field[aria-label="Problem"]')).toHaveValue(marker);
+    await expect(page.locator('.pcanvas__field[aria-label="Constraints"]')).toHaveValue(draftOnly);
 
     // ── the entry SURVIVES a reload: it is the account's, not the page's ──
     await page.reload();

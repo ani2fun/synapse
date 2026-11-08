@@ -67,6 +67,10 @@ export function CanvasPane({ path, title }: { path: string[]; title: string }) {
   const [view, setView] = useState<"canvas" | "saved">("canvas");
   const [entries, setEntries] = useState<EntriesState>({ kind: "loading" });
   const [viewing, setViewing] = useState<CanvasEntry | null>(null);
+  // The save paths read this, not `viewing`: the `pagehide`/`visibilitychange` listeners are
+  // bound once at mount, and the `viewing` they would close over is the first render's `null`.
+  const reading = useRef(viewing);
+  reading.current = viewing;
   const [info, setInfo] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -90,7 +94,7 @@ export function CanvasPane({ path, title }: { path: string[]; title: string }) {
   };
 
   const queueSave = () => {
-    if (viewing) return; // reading a saved entry — nothing to autosave
+    if (reading.current) return; // reading a saved entry — nothing to autosave
     window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => draftStore.save(draftKey(), body.current), AUTOSAVE_MS);
   };
@@ -100,7 +104,7 @@ export function CanvasPane({ path, title }: { path: string[]; title: string }) {
    *  any moment — and a page being hidden or torn down is exactly when that matters. A pane that
    *  promises "draft autosaves" must not lose the last word to a closed tab. */
   const flushSave = () => {
-    if (viewing) return;
+    if (reading.current) return;
     window.clearTimeout(saveTimer.current);
     draftStore.save(draftKey(), body.current);
   };
@@ -225,6 +229,9 @@ export function CanvasPane({ path, title }: { path: string[]; title: string }) {
   };
 
   const viewEntry = (entry: CanvasEntry) => {
+    // The draft is written before the entry replaces it: a pending debounce would otherwise
+    // drop the last keystrokes, or fire after the swap and save the ENTRY as the draft.
+    flushSave();
     loadBody(normalizeBody(entry.body));
     setViewing(entry);
     setView("canvas");
