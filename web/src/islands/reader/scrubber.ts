@@ -32,9 +32,9 @@ export interface Scrubber {
   destroy: () => void;
 }
 
-/** Scroll at once. The page sets `scroll-behavior: smooth` on <html>, which a bare
- *  `scrollTo(x, y)` honours — so every pointer move started an animation and the page trailed
- *  the finger instead of following it. */
+/** Scroll at once, whatever the reader's Scrolling preference. A bare `scrollTo(x, y)` honours
+ *  `scroll-behavior: smooth` when the reader chose it, and then every pointer move would start an
+ *  animation and the page would trail the finger instead of following it. */
 function scrollNow(top: number): void {
   window.scrollTo({ top, behavior: "instant" });
 }

@@ -232,7 +232,8 @@ function wireOutline(headings: Heading[], onProgress: (fraction: number) => void
   toTop.type = "button";
   toTop.setAttribute("aria-label", "Scroll to top");
   toTop.append(icon("reader-scrolltop__ic", '<path d="m5 12 7-7 7 7"></path><path d="M12 19V5"></path>'));
-  toTop.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+  // No `behavior`: the reader's Scrolling preference (`html[data-reader-scroll]`) decides.
+  toTop.addEventListener("click", () => window.scrollTo({ top: 0 }));
   document.body.append(toTop);
 
   // The desktop rail's rows; one scroll pass keeps the current section highlighted. Below 1180px

@@ -280,9 +280,6 @@
   box-sizing: border-box;
   border-color: hsl(var(--border));
 }
-html {
-  scroll-behavior: smooth;
-}
 body {
   margin: 0;
   background-color: hsl(var(--background));

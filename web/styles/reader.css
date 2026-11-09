@@ -17,6 +17,13 @@ html[data-reader-family="serif"] .synapse-prose { font-family: Georgia, "Times N
 html[data-reader-family="sans"] .synapse-prose { font-family: var(--font-read); }
 html[data-reader-family="mono"] .synapse-prose { font-family: "JetBrains Mono", ui-monospace, monospace; }
 
+/* An in-page jump (outline row, `#` link, scroll-to-top) animates only when the reader asked for
+   it, and never when the system asks for reduced motion. Absent the attribute, a jump is instant. */
+html[data-reader-scroll="smooth"] { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-reader-scroll="smooth"] { scroll-behavior: auto; }
+}
+
 /* `margin-inline: auto` joined these in step 46. The width preference had always set a
    max-width and nothing had ever centred the result, so at any viewport where the cap
    actually binds (≈872px up) the column sat flush LEFT and every pixel of slack piled onto

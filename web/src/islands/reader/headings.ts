@@ -36,7 +36,8 @@ export function documentTop(id: string): number | null {
   return el.getBoundingClientRect().top + window.scrollY;
 }
 
-/** Jump to a heading, offset for the fixed header. */
+/** Jump to a heading, offset for the fixed header. A bare `scrollTo`, so the reader's Scrolling
+ *  preference (`html[data-reader-scroll]`) decides whether the jump animates. */
 export function scrollToHeading(id: string): void {
   const top = documentTop(id);
   if (top === null) return;

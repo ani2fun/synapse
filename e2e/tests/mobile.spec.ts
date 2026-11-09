@@ -151,8 +151,8 @@ test("a citation survives the scroll that focusing it causes", async ({ page }) 
   const marker = page.locator("abbr[data-cite]").first();
   await expect(marker).toBeVisible();
 
-  // Mid-viewport first, and INSTANTLY. The reader scrolls smoothly, so a default
-  // `scrollIntoView` is still animating when the assertions below run — the marker is genuinely
+  // Mid-viewport first, and INSTANTLY. A reader who chose smooth scrolling gets an animated default
+  // `scrollIntoView`, still moving when the assertions below run — the marker is genuinely
   // off-screen for a few hundred milliseconds, the bubble correctly gives up, and the spec fails
   // for a reason that has nothing to do with the behaviour under test. Measured: the marker sat
   // at y=958 in a 727px viewport a full frame after `focus()`, reaching centre only ~400ms later.

@@ -7,7 +7,7 @@ import * as log from "../lib/log";
 // Four jobs:
 //   (a) inject a progress bar + pct into each book card's footer (`.lib-card__progress` / `--all`),
 //   (b) render the `.lib-continue` "pick up where you left off" card above the grid,
-//   (c) the "Start reading" CTA's smooth-scroll-with-header-offset (the grid's bounding-rect top
+//   (c) the "Start reading" CTA's jump-with-header-offset (the grid's bounding-rect top
 //       + `scrollY` − 80, the sticky header's height), and
 //   (d) once the session settles, the books served to THIS reader alone. The page is rendered
 //       from an anonymous index and a private book is absent from it for everyone; the index
@@ -116,7 +116,7 @@ function renderContinueCard(index: SynapseIndex): void {
   mount.replaceChildren(a);
 }
 
-/** (c) Smooth-jump to the grid, offset for the sticky header. */
+/** (c) Jump to the grid, offset for the sticky header. */
 function wireStartReading(): void {
   document.getElementById("lib-start-reading")?.addEventListener("click", () => {
     const grid = document.getElementById("library-grid");

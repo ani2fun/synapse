@@ -1,5 +1,5 @@
 import * as log from "../../lib/log";
-// The reader menu's "Themes & Settings" view: the light/dark theme plus the four reading
+// The reader menu's "Themes & Settings" view: the light/dark theme plus the five reading
 // preferences, each a segmented control. The pure parse/serialize/applyToHtml half of the
 // preferences lives in `lib/catalog/prefs.ts`, and the theme in `lib/theme.ts`; this file is only
 // the editing UI, built when the view opens and torn down when it closes.
@@ -9,6 +9,7 @@ import {
   DEFAULT_PREFS,
   FAMILIES,
   LEADINGS,
+  SCROLLS,
   SIZES,
   WIDTHS,
   applyToHtml,
@@ -125,6 +126,7 @@ export function buildSettings(onBack: () => void): SettingsView {
     ["Leading", LEADINGS, "leading", false],
     ["Type family", FAMILIES, "family", true],
     ["Width", WIDTHS, "width", false],
+    ["Scrolling", SCROLLS, "scroll", false],
   ];
   for (const [label, options, field, preview] of specs) {
     const control = segmented(

@@ -103,6 +103,35 @@ test("settings switch the theme and the reading size, and the header toggle agre
   await expect(page.locator(".reader-menu [role=menuitem]", { hasText: "Themes & Settings" })).toBeFocused();
 });
 
+test("the Scrolling setting is instant by default, opts into smooth, and survives a reload", async ({ page }) => {
+  const html = page.locator("html");
+  const behaviour = (): Promise<string> =>
+    page.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior);
+  const openSettings = async (): Promise<void> => {
+    await openMenu(page);
+    await page.locator(".reader-menu [role=menuitem]", { hasText: "Themes & Settings" }).click();
+  };
+
+  await openSettings();
+  await expect(html).toHaveAttribute("data-reader-scroll", "instant");
+  expect(await behaviour()).toBe("auto");
+  await expect(page.locator(".reader-settings__opt", { hasText: "Instant" })).toHaveAttribute("aria-pressed", "true");
+
+  await page.locator(".reader-settings__opt", { hasText: "Smooth" }).click();
+  await expect(html).toHaveAttribute("data-reader-scroll", "smooth");
+  expect(await behaviour()).toBe("smooth");
+  await expect(page.locator(".reader-settings__opt", { hasText: "Smooth" })).toHaveAttribute("aria-pressed", "true");
+
+  // The choice is stored, so the next page load applies it before the menu is ever opened.
+  await page.reload();
+  await expect(html).toHaveAttribute("data-reader-scroll", "smooth");
+
+  await openSettings();
+  await page.locator(".reader-settings__reset").click();
+  await expect(html).toHaveAttribute("data-reader-scroll", "instant");
+  expect(await behaviour()).toBe("auto");
+});
+
 test("the scrubber steps from section to section and follows a drag", async ({ page }) => {
   await openMenu(page);
   const scrub = page.locator(".reader-scrub");
@@ -122,8 +151,8 @@ test("the scrubber steps from section to section and follows a drag", async ({ p
   await page.keyboard.press("Home");
   await expect(scrub).toHaveAttribute("aria-valuenow", "0");
 
-  // A drag moves the page AT ONCE — the reader scrolls smoothly, and a drag that animated would
-  // trail the pointer instead of following it.
+  // A drag moves the page AT ONCE, even for a reader who chose smooth scrolling — a drag that
+  // animated would trail the pointer instead of following it.
   const thumb = await scrub.locator(".reader-scrub__thumb").boundingBox();
   const track = await scrub.locator(".reader-scrub__track").boundingBox();
   if (!thumb || !track) throw new Error("the scrubber has no box");
