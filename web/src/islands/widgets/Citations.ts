@@ -97,8 +97,16 @@ function close(): void {
 /** The marker under an event, or null — one lookup shared by every delegated handler. */
 const markerFrom = (event: Event): HTMLElement | null => {
   const node = event.target;
-  return node instanceof Element ? node.closest<HTMLElement>(`abbr[${CITE}]`) : null;
+  if (!(node instanceof Element)) return null;
+  const marker = node.closest<HTMLElement>(`abbr[${CITE}]`);
+  if (marker != null) return marker;
+  // A linked cite — `<a href><abbr>[i]</abbr></a>` — takes keyboard focus on the anchor, not the
+  // abbr, so resolve the anchor back to the marker it wraps.
+  return node.closest("a[href]")?.querySelector<HTMLElement>(`:scope > abbr[${CITE}]`) ?? null;
 };
+
+/** True when the marker sits inside a link: the link, not the bubble, owns the click. */
+const isLinked = (marker: HTMLElement): boolean => marker.parentElement?.closest("a[href]") != null;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DELEGATION
@@ -115,6 +123,12 @@ function wire(): void {
   document.addEventListener("click", (event) => {
     const marker = markerFrom(event);
     if (marker == null) {
+      close();
+      return;
+    }
+    // A linked cite opens its source (the link's own `target`), so the click must not be cancelled.
+    // Hover and focus still show the bubble; a click just puts it away as the new tab opens.
+    if (isLinked(marker)) {
       close();
       return;
     }
@@ -204,6 +218,13 @@ export function hydrateCitations(root: ParentNode): number {
     const cite = marker.getAttribute("title") ?? "";
     marker.removeAttribute("title"); // retire the native tooltip — see the module doc
     marker.setAttribute(CITE, cite);
+    // Inside a link the anchor is already the focusable, announced control; a nested button would
+    // be interactive-in-interactive. Name the anchor instead and leave the abbr passive.
+    const link = marker.parentElement?.closest("a[href]");
+    if (link != null) {
+      link.setAttribute("aria-label", `Citation: ${cite}`);
+      continue;
+    }
     // Focusable and announced as a control: without this the marker is inert to the keyboard and
     // a screen reader reads a bare "[i]" with nothing attached to it.
     marker.setAttribute("tabindex", "0");
