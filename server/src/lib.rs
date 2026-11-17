@@ -282,9 +282,21 @@ where
                 .deflate(true)
                 // Never audio: MP3 is already compressed, and gzip would BUFFER a listen stream
                 // that is meant to start playing while the rest is still being synthesised.
-                .compress_when(tower_http::compression::predicate::SizeAbove::new(1024).and(
-                    tower_http::compression::predicate::NotForContentType::const_new("audio/"),
-                )),
+                // Never video or raster images either (SVG still compresses): they are already
+                // compressed, so gzip only burns CPU — a 100 MB lesson video crawled through at
+                // ~7 MB/s — and it drops Content-Length and Range support, so a player cannot seek.
+                // A custom predicate replaces tower-http's DefaultPredicate, which is what skipped
+                // images before; hence the explicit IMAGES.
+                .compress_when(
+                    tower_http::compression::predicate::SizeAbove::new(1024)
+                        .and(tower_http::compression::predicate::NotForContentType::const_new(
+                            "audio/",
+                        ))
+                        .and(tower_http::compression::predicate::NotForContentType::const_new(
+                            "video/",
+                        ))
+                        .and(tower_http::compression::predicate::NotForContentType::IMAGES),
+                ),
         );
     // Edge limits sit INSIDE tracing and outside everything else: a request killed by the
     // timeout should still produce a span saying so, but nothing below should get the chance

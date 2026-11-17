@@ -173,3 +173,48 @@ async fn origin_compression_gzips_big_json_but_leaves_small_bodies_alone() {
         .unwrap();
     assert_eq!(big.headers().get(header::CONTENT_ENCODING).unwrap(), "gzip");
 }
+
+#[tokio::test]
+async fn origin_compression_leaves_video_and_raster_images_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    seed(dir.path());
+    let media = dir.path().join("_media/dsa");
+    fs::write(media.join("lesson.mp4"), vec![7u8; 8192]).unwrap();
+    fs::write(media.join("photo.png"), vec![7u8; 8192]).unwrap();
+    for path in ["/media/dsa/lesson.mp4", "/media/dsa/photo.png"] {
+        let response = common::app_over(dir.path())
+            .oneshot(
+                Request::builder()
+                    .uri(path)
+                    .header(header::ACCEPT_ENCODING, "gzip")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
+        assert!(
+            response.headers().get(header::CONTENT_ENCODING).is_none(),
+            "{path} was compressed"
+        );
+        assert_eq!(
+            response.headers().get(header::CONTENT_LENGTH).unwrap(),
+            "8192",
+            "{path}"
+        );
+    }
+    // A player's Range request still gets a slice when gzip is offered.
+    let partial = common::app_over(dir.path())
+        .oneshot(
+            Request::builder()
+                .uri("/media/dsa/lesson.mp4")
+                .header(header::ACCEPT_ENCODING, "gzip")
+                .header(header::RANGE, "bytes=0-99")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(partial.status(), StatusCode::PARTIAL_CONTENT);
+    assert_eq!(partial.headers().get(header::CONTENT_LENGTH).unwrap(), "100");
+}
