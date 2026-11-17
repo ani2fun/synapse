@@ -1,5 +1,5 @@
 /**
- * The lesson-body widget families — quiz, diagrams, simulators and citations — plus the one
+ * The lesson-body widget families — quiz, exercise sets, diagrams, simulators and citations — plus the one
  * page-wide singleton they share, the codebench modal. Auto-hydrates on import, mirroring
  * `workbench/index.ts` and `practice/index.ts`: the entry script imports this unconditionally
  * (`[...path].astro`, `blog/[slug].astro`), and this module decides what applies.
@@ -15,6 +15,7 @@ import { render, h } from "preact";
 
 import * as log from "../../lib/log";
 import { hydrateQuizzes } from "./Quiz";
+import { hydrateExercises } from "./Exercise";
 import { hydrateDiagrams } from "./Diagrams";
 import { hydrateSimulators } from "./Simulator";
 import { hydrateCitations } from "./Citations";
@@ -36,14 +37,17 @@ function init(): void {
   // The problem page owns its own hydration, scoped to the description pane.
   if (document.querySelector(".pwb[data-problem]")) return;
   const quizzes = hydrateQuizzes(document);
+  const exercises = hydrateExercises(document);
   const diagrams = hydrateDiagrams(document);
   const sims = hydrateSimulators(document);
   // Citations are prose furniture rather than a widget family, so they hydrate over the whole
   // document like the rest but report separately — a lesson carries hundreds of them, and folding
   // that count into the widget line would drown it.
   const cites = hydrateCitations(document);
-  if (quizzes > 0 || diagrams > 0 || sims > 0) {
-    log.info(`hydrated ${quizzes} quiz card(s), ${diagrams} diagram(s), ${sims} simulator(s)`);
+  if (quizzes > 0 || exercises > 0 || diagrams > 0 || sims > 0) {
+    log.info(
+      `hydrated ${quizzes} quiz card(s), ${exercises} exercise set(s), ${diagrams} diagram(s), ${sims} simulator(s)`,
+    );
   }
   if (cites > 0) log.debug(`citations: ${cites} marker(s) tappable`);
 }

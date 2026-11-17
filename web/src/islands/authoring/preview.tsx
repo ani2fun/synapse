@@ -69,12 +69,14 @@ let codebenchMounted = false;
 export async function hydratePreview(body: HTMLElement): Promise<void> {
   const [
     { hydrateQuizzes },
+    { hydrateExercises },
     { hydrateDiagrams },
     { hydrateSimulators },
     { hydrateWorkbenches },
     { hydratePractices },
   ] = await Promise.all([
     import("../widgets/Quiz"),
+    import("../widgets/Exercise"),
     import("../widgets/Diagrams"),
     import("../widgets/Simulator"),
     import("../workbench"),
@@ -82,6 +84,7 @@ export async function hydratePreview(body: HTMLElement): Promise<void> {
   ]);
 
   hydrateQuizzes(body);
+  hydrateExercises(body);
   hydrateDiagrams(body);
   hydrateSimulators(body);
   hydrateWorkbenches(body);
