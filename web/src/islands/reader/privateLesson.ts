@@ -268,7 +268,11 @@ async function render(payload: LessonPayload, segments: string[]): Promise<void>
   const body = root?.querySelector<HTMLElement>("[data-private-body]");
   if (!body) return;
   body.innerHTML = bodyHtml;
-  await attachPrivateMedia(body);
+  // Start the media fetch, but do not wait for it here: a private lesson video is fetched whole
+  // with the bearer (tens of MB), and the widgets, pager, sidebar and chrome below do not need it.
+  // The media nodes are collected synchronously before the first await, so the hydrators' DOM
+  // changes cannot hide one from the swap. Awaited at the end so a failure still reaches `load`.
+  const media = attachPrivateMedia(body);
   await hydratePreview(body);
   status("");
   renderPager(payload);
@@ -285,6 +289,7 @@ async function render(payload: LessonPayload, segments: string[]): Promise<void>
   // stays hidden until here, so a reader refused the book is never offered to hear it.
   root?.querySelector<HTMLElement>("[data-listen-tip]")?.removeAttribute("hidden");
   await import("../listen");
+  await media;
   log.info(`private lesson rendered client-side: /synapse/${segments.join("/")}`);
 }
 
