@@ -19,5 +19,10 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
-// Monaco's deep ESM entry ships no types — the moved island imports it untyped by design.
-declare module "monaco-editor/esm/vs/editor/edcore.main";
+// Monaco's deep ESM entry ships no .d.ts of its own, but at runtime it is `export * from
+// './editor.api.js'` plus the editor contributions, so it has exactly the package's public API.
+// Borrowing those types lets `monaco.Environment` and `monaco.editor.*` resolve as types too:
+// a shorthand `declare module "…";` makes the values `any` but leaves the namespaces empty.
+declare module "monaco-editor/esm/vs/editor/edcore.main" {
+  export * from "monaco-editor";
+}

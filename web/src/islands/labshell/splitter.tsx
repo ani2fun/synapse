@@ -23,7 +23,7 @@ export interface LabSplitter {
   /** The left pane's width, in percent. */
   leftPct: number;
   /** Goes on `.lab-panes` — the box a drag is measured against. */
-  panes: RefObject<HTMLDivElement>;
+  panes: RefObject<HTMLDivElement | null>;
   /** Goes on the seam's `pointerdown`. */
   startDrag: (event: PointerEvent) => void;
 }

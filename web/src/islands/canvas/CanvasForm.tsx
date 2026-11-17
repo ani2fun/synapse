@@ -95,7 +95,7 @@ function AreaCard({
   readOnly: boolean;
   hint?: string;
   size: "sm" | "md" | "lg";
-  fieldRef: RefObject<HTMLTextAreaElement>;
+  fieldRef: RefObject<HTMLTextAreaElement | null>;
 }) {
   const chips = CHIPS[area] ?? [];
   const label = AREA_LABEL[area];
@@ -230,10 +230,10 @@ export function CanvasForm({
   readOnly,
 }: FormProps) {
   // One ref per area, minted once — the chips write through them.
-  const refs = useRef<Record<Area, RefObject<HTMLTextAreaElement>>>(
+  const refs = useRef<Record<Area, RefObject<HTMLTextAreaElement | null>>>(
     Object.fromEntries(AREAS.map((area) => [area, { current: null }])) as Record<
       Area,
-      RefObject<HTMLTextAreaElement>
+      RefObject<HTMLTextAreaElement | null>
     >,
   );
   const card = (area: Area, size: "sm" | "md" | "lg", hint?: string) => (
