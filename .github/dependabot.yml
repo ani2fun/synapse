@@ -3,8 +3,12 @@
 # suite), and the GitHub Actions themselves — the last one matters because a
 # compromised or abandoned action runs with `packages: write` in the release job.
 #
-# Weekly, not daily: every merged bump builds an image and promotes it to the
-# cluster, so the cadence is a deploy cadence.
+# VERSION updates are OFF (`open-pull-requests-limit: 0` on every entry). Every
+# merged bump builds an image and promotes it to the cluster, so a bump cadence is
+# a deploy cadence, and routine bumps are not worth a deploy each. Only SECURITY
+# updates open PRs (see below). Routine upgrades happen by hand, batched, when
+# there is a reason to take them. The entries stay so that raising a limit turns
+# an ecosystem back on with its schedule, groups and ignore list intact.
 #
 # What is NOT here, and must not be mistaken for it: this file covers VERSION
 # updates, which are direct-dependency-only for every ecosystem below. A
@@ -21,7 +25,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     groups:
       # One PR for the noisy, low-risk patch traffic; anything minor/major stays
       # its own PR so it gets read.
@@ -38,7 +42,7 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 0
     groups:
       patch-updates:
         update-types: [patch]
@@ -60,3 +64,4 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    open-pull-requests-limit: 0
