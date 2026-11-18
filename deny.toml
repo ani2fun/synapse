@@ -73,6 +73,19 @@ ignore = [
   # Revisit when `jsonwebtoken`'s `rust_crypto` backend moves to `elliptic-curve` 0.14 /
   # `crypto-bigint` 0.7: drop this entry, do not widen it.
   "RUSTSEC-2026-0387",
+
+  # RUSTSEC-2026-0543 — `chrono` is unmaintained (an `unmaintained` notice, not a vulnerability:
+  # no known flaw, "No safe upgrade is available"). It is a WORKSPACE dependency — the server
+  # stores and serialises timestamps with it, and sqlx's `chrono` feature maps Postgres
+  # `timestamptz` onto it — so the `unmaintained = "workspace"` scope above catches it, as
+  # intended.
+  #
+  # Ignored for now because the fix is a migration, not a lockfile bump: move the timestamp
+  # types to `time` (sqlx 0.8 has a `time` feature) across the server and the shared DTOs, and
+  # drop sqlx's `chrono` feature. That is its own change, with its own tests.
+  #
+  # Revisit with that migration: drop this entry when `cargo tree -i chrono` comes back empty.
+  "RUSTSEC-2026-0543",
 ]
 
 # ── licences ──────────────────────────────────────────────────────────────────

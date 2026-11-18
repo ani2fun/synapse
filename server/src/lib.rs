@@ -276,28 +276,7 @@ where
             security,
             platform::security_headers::stamp,
         ))
-        .layer(
-            tower_http::compression::CompressionLayer::new()
-                .gzip(true)
-                .deflate(true)
-                // Never audio: MP3 is already compressed, and gzip would BUFFER a listen stream
-                // that is meant to start playing while the rest is still being synthesised.
-                // Never video or raster images either (SVG still compresses): they are already
-                // compressed, so gzip only burns CPU — a 100 MB lesson video crawled through at
-                // ~7 MB/s — and it drops Content-Length and Range support, so a player cannot seek.
-                // A custom predicate replaces tower-http's DefaultPredicate, which is what skipped
-                // images before; hence the explicit IMAGES.
-                .compress_when(
-                    tower_http::compression::predicate::SizeAbove::new(1024)
-                        .and(tower_http::compression::predicate::NotForContentType::const_new(
-                            "audio/",
-                        ))
-                        .and(tower_http::compression::predicate::NotForContentType::const_new(
-                            "video/",
-                        ))
-                        .and(tower_http::compression::predicate::NotForContentType::IMAGES),
-                ),
-        );
+        .layer(compression());
     // Edge limits sit INSIDE tracing and outside everything else: a request killed by the
     // timeout should still produce a span saying so, but nothing below should get the chance
     // to read an unbounded body first.
@@ -306,6 +285,31 @@ where
     // inside the header layers cannot report on them, and a request rejected at the edge is
     // exactly the one worth having a trace for.
     platform::telemetry::apply(bounded)
+}
+
+/// The origin compression layer: gzip/deflate for anything over 1 KiB, except audio, video and
+/// raster images. Its own function so `app` stays inside clippy's `too_many_lines` budget.
+fn compression() -> tower_http::compression::CompressionLayer<impl tower_http::compression::Predicate> {
+    tower_http::compression::CompressionLayer::new()
+        .gzip(true)
+        .deflate(true)
+        // Never audio: MP3 is already compressed, and gzip would BUFFER a listen stream
+        // that is meant to start playing while the rest is still being synthesised.
+        // Never video or raster images either (SVG still compresses): they are already
+        // compressed, so gzip only burns CPU — a 100 MB lesson video crawled through at
+        // ~7 MB/s — and it drops Content-Length and Range support, so a player cannot seek.
+        // A custom predicate replaces tower-http's DefaultPredicate, which is what skipped
+        // images before; hence the explicit IMAGES.
+        .compress_when(
+            tower_http::compression::predicate::SizeAbove::new(1024)
+                .and(tower_http::compression::predicate::NotForContentType::const_new(
+                    "audio/",
+                ))
+                .and(tower_http::compression::predicate::NotForContentType::const_new(
+                    "video/",
+                ))
+                .and(tower_http::compression::predicate::NotForContentType::IMAGES),
+        )
 }
 
 /// The code-first OpenAPI document (utoipa). The contract-lock test diffs this rendered
