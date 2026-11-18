@@ -32,7 +32,12 @@
 .synapse-prose p { margin: 0 0 0.9em; }
 .synapse-prose ul, .synapse-prose ol { margin: 0 0 0.9em; padding-left: 1.5rem; }
 .synapse-prose li { margin: 0.3em 0; }
-.synapse-prose strong { font-weight: 600; color: var(--text-primary); }
+/* Bold used to take the body colour at weight 600, so on the dark surface (foreground at 90%
+   lightness) the only cue was a weight step the eye barely sees: a bold **au** in the middle of
+   a sentence read as plain text. The accent colour gives it a second cue in both themes; links
+   share the hue but stay underlined. Inside a link, heading or summary, bold keeps that colour. */
+.synapse-prose strong { font-weight: 700; color: hsl(var(--primary)); }
+.synapse-prose :is(a, h1, h2, h3, h4, summary) strong { color: inherit; }
 .synapse-prose blockquote {
   border-left: 3px solid hsl(var(--primary));
   margin: 1em 0;
