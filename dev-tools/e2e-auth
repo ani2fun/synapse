@@ -67,7 +67,13 @@ export SYNAPSE_API_URL="http://localhost:$SYNAPSE_PORT"
 echo "→ starting astro dev on :$WEB_PORT (the Keycloak-allowlisted origin)"
 (cd web && exec npx astro dev --port "$WEB_PORT" >/tmp/e2e-auth-web.log 2>&1) &
 WEB_PID=$!
-trap 'kill "$SERVER_PID" "$WEB_PID" "$TTS_PID" 2>/dev/null || true' EXIT
+# astro dev RELAUNCHES itself (a detached child carrying `--json`) and the process this script
+# started exits, so no PID held here reaches the server. The port is the one handle that does.
+cleanup() {
+  kill "$SERVER_PID" "$WEB_PID" "$TTS_PID" 2>/dev/null || true
+  reclaim "$WEB_PORT" "astro-dev"
+}
+trap cleanup EXIT
 
 for _ in $(seq 1 60); do curl -sf "http://localhost:$SYNAPSE_PORT/api/health" >/dev/null && break; sleep 1; done
 curl -sf "http://localhost:$SYNAPSE_PORT/api/health" >/dev/null || {
