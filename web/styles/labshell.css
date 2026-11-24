@@ -1,7 +1,7 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    THE LAB SHELL — what every full-page two-pane tool wears.
 
-   `/d2`, `/mermaid` and `/viz` are three different tools sharing one room: a
+   `/d2`, `/mermaid`, `/viz` and `/code` are four different tools sharing one room: a
    full-bleed page that never scrolls, a document header, two panes reading as
    ONE framed surface (left rounded left, right rounded right, the rail between
    them sharing their border), a pane header, a status pill, a zoom cluster and
@@ -19,10 +19,24 @@
    a grandchild and a `> .dlab` selector silently never matches. The host is in the SSR'd HTML,
    so the page is full-width from first paint rather than reflowing when Preact arrives. */
 .shell-main:has(> [data-diagramlab-root]),
-.shell-main:has(> [data-vizlab-root]) { max-width: none; padding: 3.75rem 0 0; }
+.shell-main:has(> [data-vizlab-root]),
+.shell-main:has(> [data-codelab-root]) { max-width: none; padding: 3.75rem 0 0; }
 .shell-main > [data-diagramlab-root],
-.shell-main > [data-vizlab-root] { height: 100%; }
-.dlab, .vlab { height: calc(100vh - 3.75rem); display: flex; flex-direction: column; }
+.shell-main > [data-vizlab-root],
+.shell-main > [data-codelab-root] { height: 100%; }
+.dlab, .vlab, .clab { height: calc(100vh - 3.75rem); display: flex; flex-direction: column; }
+
+/* ── the door ──
+   What a lab shows a caller it will not open for: the same full-height room, one card in the
+   middle saying why and what to do about it. */
+.lab-gate { height: calc(100vh - 3.75rem); display: flex; align-items: center;
+            justify-content: center; padding: 24px 16px; }
+.lab-gate__card { max-width: 30rem; display: flex; flex-direction: column; align-items: flex-start;
+                  gap: 12px; padding: 28px; border: 1px solid var(--border-default);
+                  border-radius: var(--radius-lg); background: hsl(var(--card) / 0.7); }
+.lab-gate__title { margin: 0; font-size: 1.35rem; line-height: 1.25; color: var(--text-primary); }
+.lab-gate__blurb, .lab-gate__why { margin: 0; color: var(--text-secondary); line-height: 1.5; }
+.lab-gate__why { font-size: 0.92rem; }
 
 /* ── the document header ──
    What the tool is working on, on the left; what can be done to it, on the right. */
@@ -72,6 +86,12 @@
 .lab-split__grip i { width: 3px; height: 3px; border-radius: 50%; background: var(--text-faint); }
 .lab-split:hover { background: hsl(var(--primary) / 0.12); }
 .lab-split:hover .lab-split__grip i { background: var(--brand); }
+/* A seam between ROWS, inside one pane: the same rail turned on its side. Its frame is the
+   pane's own, so it draws only the rule above and below, never the pane's outer border. */
+.lab-split--row { flex: 0 0 11px; cursor: row-resize; border: 0;
+                  border-top: 1px solid hsl(var(--border) / 0.7);
+                  border-bottom: 1px solid hsl(var(--border) / 0.7); }
+.lab-split--row .lab-split__grip { flex-direction: row; }
 
 .pane-hd { flex: none; height: 44px; display: flex; align-items: center; gap: 10px;
            padding: 0 12px 0 14px; border-bottom: 1px solid hsl(var(--border) / 0.7);
@@ -124,9 +144,6 @@
              border-right: 1px solid var(--border-default); }
 .zoom__b:hover, .zoom__lvl:hover { background: var(--bg-hover); color: var(--brand); }
 
-/* ── the receipt ──
-   A toast, not a line in the toolbar: an action's confirmation must not move the
-   controls under the pointer that just used them. */
 /* ── the receipt ──
    A toast, not a line in the toolbar: an action's confirmation must not move the
    button that produced it. */

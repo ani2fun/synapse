@@ -34,6 +34,7 @@ import {
   VIZ_READY,
   currentUser,
   isAuthed,
+  requestSignIn,
 } from "./contracts";
 import type { LanguagePinned, LoadCode, UseCase } from "./contracts";
 import * as log from "../../lib/log";
@@ -72,10 +73,9 @@ export interface WorkbenchProps {
   practice?: boolean;
   /** Problem page right pane: editor fills the free height until a drag pins one. */
   fill?: boolean;
-  /** A playground (`/viz`): the buffer takes typing whatever the auth state, and neither the Edit
-   *  lock nor Reset renders. The lock exists to keep an anonymous reader from typing over an
-   *  AUTHORED example they cannot submit; a playground has no authored source, and locking it
-   *  would leave an anonymous reader unable to type at all. */
+  /** A playground (`/viz`): the buffer takes typing outright, and neither the Edit lock nor Reset
+   *  renders. The lock guards an AUTHORED example; a playground has no authored source to guard,
+   *  so a lock there would only be one more click between the reader and the editor. */
   editable?: boolean;
   /** stdin for a Run when the block has no suite to read one from — the viz lab's shared input
    *  pair, so Run and Trace are fed the same thing. Ignored when `spec` is set: a suite's cases
@@ -163,6 +163,13 @@ export function Workbench({
   const stdin = () =>
     spec && tests ? stdinFor(tests.spec.get().args, tests.values.get()) : (stdinProp?.() ?? null);
   const run = () => {
+    // The server refuses an anonymous run, so a signed-out Run (button or ⌘⏎) asks for an
+    // account instead of sending a request that can only come back 401.
+    if (!isAuthed()) {
+      log.info("workbench: run needs a sign-in");
+      requestSignIn();
+      return;
+    }
     wantsEditor.current = true;
     if (tests) tests.ranCase.set(tests.activeCase.get());
     activeStore.launch(variant.language, stdin(), variant.harness);
@@ -600,15 +607,19 @@ export function Workbench({
           {vizReady && (
             <button
               class="wb__ghost"
-              title="Trace this code and watch the structure animate"
-              onClick={() =>
+              title={authed ? "Trace this code and watch the structure animate" : "Sign in to trace this code"}
+              onClick={() => {
+                if (!authed) {
+                  requestSignIn();
+                  return;
+                }
                 window.__synapseViz?.({
                   language: variant.language,
                   source: joinHarness(variant.language, variant.harness, activeStore.state.get().code),
                   vizHint: variant.viz ?? "",
                   stdin: stdin() ?? "",
-                })
-              }
+                });
+              }}
             >
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                 <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
@@ -617,9 +628,14 @@ export function Workbench({
               <span>Visualise</span>
             </button>
           )}
-          <button class="runnable__run" title="Run (⌘⏎)" disabled={running} onClick={run}>
+          <button
+            class="runnable__run"
+            title={authed ? "Run (⌘⏎)" : "Running code needs an account"}
+            disabled={running}
+            onClick={run}
+          >
             {PLAY("runnable__run-ic")}
-            <span>{running ? "Running…" : "Run"}</span>
+            <span>{running ? "Running…" : authed ? "Run" : "Sign in to run"}</span>
           </button>
         </span>
       </div>

@@ -1,0 +1,22 @@
+---
+// `/code` — the code lab. An editor on the left; Input above Output on the right.
+//
+// Fully client-driven. SSR renders the shell and an empty mount host; the gate, the tabs and the
+// editor live in the browser, and a run goes through the ordinary `/api/run`. Unlisted like the
+// other labs: nothing links here, and the sitemap does not name it.
+//
+// `runnable.css` is for the run badges and hint the Output pane shares with every workbench.
+import Base from "../layouts/Base.astro";
+import "../../styles/labshell.css";
+import "../../styles/runnable.css";
+import "../../styles/codelab.css";
+---
+
+<Base title="Code lab — Synapse">
+  <main class="shell-main">
+    <div data-codelab-root></div>
+  </main>
+  <script>
+    import "../islands/codelab/CodeLab";
+  </script>
+</Base>

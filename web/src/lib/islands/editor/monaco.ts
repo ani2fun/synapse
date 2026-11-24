@@ -22,6 +22,8 @@
 import * as monaco from "monaco-editor/esm/vs/editor/edcore.main";
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 
+import { isDark } from "../../theme";
+
 // Syntax highlighting (Monarch) for the runnable languages — see the server's
 // Language registry (execution/domain). C maps onto the cpp grammar.
 import "monaco-editor/esm/vs/basic-languages/python/python.contribution";
@@ -256,6 +258,9 @@ export interface EditorHandle {
   setReadOnly: (readOnly: boolean) => void;
   /** Replace the whole buffer (the workbench's Reset-to-starter). */
   setValue: (value: string) => void;
+  /** Replace the whole buffer as ONE undoable edit (the code lab's Format), where `setValue`
+   *  would also wipe the undo history the reader may want to step back through. */
+  replaceAll: (value: string) => void;
   /** Read the live buffer (the one-click copy overlay). */
   getValue: () => string;
   /**
@@ -283,9 +288,40 @@ export interface EditorHandle {
    * collapsed section wrappers, so the reveal calls this.
    */
   relayout: () => void;
+  /** Restyle in place — the code lab's settings popover. Cursor, undo and scroll survive. */
+  applySettings: (settings: EditorLook) => void;
+  /** Take keyboard focus. */
+  focus: () => void;
 }
 
-export interface EditorOptions {
+/**
+ * How the editor LOOKS, separate from what it holds. Every field is optional so the reader's
+ * blocks keep the house look; the code lab passes all four from its settings.
+ *
+ * `theme` is a Monaco theme id (`vs`, `vs-dark`, `hc-black`, `hc-light`) or `"default"`, which is
+ * the Synapse pair following the site's light/dark mode.
+ */
+export interface EditorLook {
+  theme?: string;
+  tabSize?: number;
+  fontFamily?: string;
+  fontSize?: number;
+}
+
+const HOUSE_FONT = '"JetBrains Mono", ui-monospace, monospace';
+const HOUSE_SIZE = 13;
+
+function themeId(theme: string | undefined, dark: boolean): string {
+  if (theme == null || theme === "default") return dark ? "synapse-dark" : "synapse-light";
+  return theme;
+}
+
+/** Line height tracks the font size, or a 20px line under a 22px face clips every descender. */
+function lineHeightFor(fontSize: number): number {
+  return Math.round(fontSize * 1.55);
+}
+
+export interface EditorOptions extends EditorLook {
   value: string;
   language: string; // fence alias
   readOnly: boolean;
@@ -296,6 +332,10 @@ export interface EditorOptions {
   onRun?: () => void; // Cmd/Ctrl+Enter — run the block
   onSubmit?: () => void; // Cmd/Ctrl+Shift+Enter — submit against the hidden suite (problems)
   onToggleEdit?: () => void; // Cmd/Ctrl+E — toggle the page-local Edit unlock (lesson blocks)
+  onCopy?: () => void; // Alt+C — copy the whole buffer (the code lab)
+  onSave?: () => void; // Cmd/Ctrl+S — save now instead of the browser's "save page" (the code lab)
+  /** Fires on every caret move and edit with the 1-indexed caret and the buffer's line count. */
+  onCursor?: (line: number, column: number, lines: number) => void;
 }
 
 /** Create a Monaco editor in `container`; returns a dispose handle for unmount. */
@@ -306,15 +346,15 @@ export function createEditor(container: HTMLElement, opts: EditorOptions): Edito
     language: monacoLanguage(opts.language),
     readOnly: opts.readOnly,
     domReadOnly: opts.readOnly,
-    theme: opts.dark ? "synapse-dark" : "synapse-light",
+    theme: themeId(opts.theme, opts.dark),
     automaticLayout: true, // monaco's own ResizeObserver — no manual layout dance
     minimap: { enabled: false },
     scrollBeyondLastLine: false,
     lineNumbers: "on",
-    fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-    fontSize: 13,
-    lineHeight: 20,
-    tabSize: 4,
+    fontFamily: opts.fontFamily ?? HOUSE_FONT,
+    fontSize: opts.fontSize ?? HOUSE_SIZE,
+    lineHeight: opts.fontSize == null ? 20 : lineHeightFor(opts.fontSize),
+    tabSize: opts.tabSize ?? 4,
     padding: { top: 12, bottom: 12 },
     // Let the page keep scrolling once the editor's own scroll is exhausted.
     scrollbar: { alwaysConsumeMouseWheel: false },
@@ -381,6 +421,39 @@ export function createEditor(container: HTMLElement, opts: EditorOptions): Edito
       run: () => toggle(),
     });
   }
+  if (opts.onCopy) {
+    const copy = opts.onCopy;
+    editor.addAction({
+      id: "synapse.copy",
+      label: "Copy editor code",
+      keybindings: [monaco.KeyMod.Alt | monaco.KeyCode.KeyC],
+      contextMenuGroupId: "1_synapse",
+      contextMenuOrder: 4,
+      run: () => copy(),
+    });
+  }
+  if (opts.onSave) {
+    const save = opts.onSave;
+    editor.addAction({
+      id: "synapse.save",
+      label: "Save in this browser",
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
+      run: () => save(),
+    });
+  }
+  if (opts.onCursor) {
+    const report = opts.onCursor;
+    const notify = () => {
+      const at = editor.getPosition();
+      report(at?.lineNumber ?? 1, at?.column ?? 1, editor.getModel()?.getLineCount() ?? 1);
+    };
+    editor.onDidChangeCursorPosition(notify);
+    editor.onDidChangeModelContent(notify);
+    notify();
+  }
+  // Monaco's tab size lives on the MODEL, and a new model resets it from `detectIndentation`;
+  // pin it there too so the status bar's "Spaces: N" is what Tab actually inserts.
+  if (opts.tabSize != null) editor.getModel()?.updateOptions({ tabSize: opts.tabSize, indentSize: opts.tabSize });
   // One collection, replaced wholesale on every step (SourcePane calls this once per step change).
   const highlights = editor.createDecorationsCollection([]);
   return {
@@ -401,12 +474,33 @@ export function createEditor(container: HTMLElement, opts: EditorOptions): Edito
       });
     },
     setValue: (value: string) => editor.setValue(value),
+    replaceAll: (value: string) => {
+      const model = editor.getModel();
+      if (!model) return;
+      editor.pushUndoStop();
+      editor.executeEdits("replace-all", [{ range: model.getFullModelRange(), text: value }]);
+      editor.pushUndoStop();
+    },
     getValue: () => editor.getValue(),
     setLanguage: (fenceLang: string) => {
       const model = editor.getModel();
       if (model) monaco.editor.setModelLanguage(model, monacoLanguage(fenceLang));
     },
     relayout: () => editor.layout(),
+    focus: () => editor.focus(),
+    applySettings: (look: EditorLook) => {
+      if (look.theme != null) {
+        monaco.editor.setTheme(themeId(look.theme, isDark()));
+      }
+      editor.updateOptions({
+        ...(look.fontFamily != null ? { fontFamily: look.fontFamily } : {}),
+        ...(look.fontSize != null ? { fontSize: look.fontSize, lineHeight: lineHeightFor(look.fontSize) } : {}),
+        ...(look.tabSize != null ? { tabSize: look.tabSize } : {}),
+      });
+      if (look.tabSize != null) {
+        editor.getModel()?.updateOptions({ tabSize: look.tabSize, indentSize: look.tabSize });
+      }
+    },
     goToLine: (line: number) => {
       // Clamped: the line comes from a compiler message about a buffer the author may have kept
       // editing, so it can point past the end by the time it is clicked.

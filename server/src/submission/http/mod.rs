@@ -15,7 +15,9 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
 use synapse_shared::api::ApiError;
-use synapse_shared::submission::{DeleteResultDto, SubmissionAcceptedDto, SubmissionDto, SubmitRequestDto};
+use synapse_shared::submission::{
+    DeleteResultDto, SubmissionAcceptedDto, SubmissionDto, SubmitAccessDto, SubmitRequestDto,
+};
 use uuid::Uuid;
 
 use crate::catalog::infrastructure::FileSystemContentRepository;
@@ -55,6 +57,7 @@ pub fn routes(state: SubmissionRoutesState) -> Router {
             "/api/submissions",
             post(submit_solution).get(list_submissions).delete(erase_all),
         )
+        .route("/api/submissions/access", get(submit_access))
         .route(
             "/api/submissions/{id}",
             get(get_submission).delete(delete_submission),
@@ -122,6 +125,32 @@ pub(crate) async fn submit_solution(
             StatusCode::ACCEPTED,
             Json(SubmissionAcceptedDto { id: id.to_string() }),
         )),
+        Err(error) => Err(dto::to_error(&error)),
+    }
+}
+
+/// Whether the caller passes the submit gate (anonymous callers included — on an open
+/// instance they do). Answers only the question: nothing is stored or spent.
+#[utoipa::path(
+    get,
+    path = "/api/submissions/access",
+    operation_id = "getSubmitAccess",
+    responses(
+        (status = 200, description = "Whether this caller may submit", body = SubmitAccessDto),
+        (status = 401, description = "Bad bearer token", body = ApiError),
+        (status = 500, description = "The allowlist store failed", body = ApiError)
+    )
+)]
+pub(crate) async fn submit_access(
+    State(state): State<SubmissionRoutesState>,
+    headers: HeaderMap,
+) -> ApiResult<SubmitAccessDto> {
+    let submitter = caller_user(&state, &headers).await?.map(|user| Submitter {
+        user_id: user.id.0,
+        username: user.username,
+    });
+    match state.submit.may_submit(submitter.as_ref()).await {
+        Ok(can_submit) => Ok((StatusCode::OK, Json(SubmitAccessDto { can_submit }))),
         Err(error) => Err(dto::to_error(&error)),
     }
 }

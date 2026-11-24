@@ -500,6 +500,29 @@ async fn gating_on_requires_sign_in_and_the_allowlist() {
 }
 
 #[tokio::test]
+async fn may_submit_answers_the_submit_gate_without_storing_anything() {
+    let (gated, _) = service_gated(None, vec![], FakeAllowlist(vec!["ada"]), true);
+    let ada = Submitter {
+        user_id: "sub-2".into(),
+        username: named("ada"),
+    };
+    let stranger = Submitter {
+        user_id: "sub-1".into(),
+        username: named("stranger"),
+    };
+    assert!(!gated.may_submit(None).await.unwrap(), "anonymous");
+    assert!(!gated.may_submit(Some(&stranger)).await.unwrap(), "not listed");
+    assert!(gated.may_submit(Some(&ada)).await.unwrap(), "listed");
+    assert!(gated.repo.rows.lock().unwrap().is_empty());
+
+    let (open, _) = service_gated(None, vec![], FakeAllowlist(vec![]), false);
+    assert!(
+        open.may_submit(Some(&stranger)).await.unwrap(),
+        "an open instance"
+    );
+}
+
+#[tokio::test]
 async fn get_unknown_is_unknown_submission() {
     let (svc, _) = service(Some(spec(&[Some("0")])), vec![]);
     let err = svc.get(SubmissionId(Uuid::new_v4())).await.unwrap_err();

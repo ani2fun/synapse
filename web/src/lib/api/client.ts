@@ -19,6 +19,7 @@ export type RunRequest = components["schemas"]["RunRequest"];
 export type RunResult = components["schemas"]["RunResult"];
 export type SubmitRequest = components["schemas"]["SubmitRequestDto"];
 export type SubmissionAccepted = components["schemas"]["SubmissionAcceptedDto"];
+export type SubmitAccess = components["schemas"]["SubmitAccessDto"];
 export type Submission = components["schemas"]["SubmissionDto"];
 export type DeleteResult = components["schemas"]["DeleteResultDto"];
 export type ProgressList = components["schemas"]["ProgressListDto"];
@@ -216,7 +217,10 @@ export function lesson(path: string[]): Promise<LessonPayload> {
   return get<LessonPayload>(`/api/synapse/${path.join("/")}`);
 }
 
-/** Run one snippet in the sandbox — a badly-running program is still a resolved `RunResult`. */
+/**
+ * Run one snippet in the sandbox — a badly-running program is still a resolved `RunResult`.
+ * Needs a signed-in caller: anonymous is a 401.
+ */
 export function run(request: RunRequest): Promise<RunResult> {
   return post<RunResult>("/api/run", request);
 }
@@ -224,6 +228,11 @@ export function run(request: RunRequest): Promise<RunResult> {
 /** Submit a solution — the 202 hands back the id the poll loop watches. */
 export function submit(request: SubmitRequest): Promise<SubmissionAccepted> {
   return post<SubmissionAccepted>("/api/submissions", request);
+}
+
+/** Whether the caller passes the submit gate — the code labs open for exactly these accounts. */
+export function submitAccess(): Promise<SubmitAccess> {
+  return get<SubmitAccess>("/api/submissions/access");
 }
 
 /** The caller's OWN submissions for a lesson, newest first (anonymous → `[]`). */

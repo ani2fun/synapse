@@ -73,6 +73,8 @@ function installSeams(): void {
   // The codebench keys its draft per account (contracts.ts) — the gates need only the boolean
   // above, but a per-account storage key needs the name.
   window.__synapseUser = () => (state.kind === "authed" ? state.me.username : null);
+  // A signed-out Run asks for a sign-in instead of a run the server would refuse (contracts.ts).
+  window.__synapseSignIn = () => signIn();
 }
 
 /** Flip the state: notify Preact subscribers AND dispatch AUTH_CHANGED so already-mounted

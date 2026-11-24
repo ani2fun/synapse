@@ -8,8 +8,8 @@ use synapse_server::execution::infrastructure::GoJudgeRunner;
 const PLACEHOLDER: &str = "__SYNAPSE_USER_SOURCE_B64__";
 
 /// The live sandbox, or `None` (with the line CI greps for) when the suite is not asked to run.
-/// At the production anonymous share (50%), and the suites run `Tier::Anonymous`: the lab is
-/// used signed-out, so a trace has to fit an anonymous budget, and this is where that is proved.
+/// At the production anonymous share (50%), and the suites run `Tier::Anonymous` — the smallest
+/// budget any run gets, so a trace that fits here fits every caller the lab admits.
 pub fn gated() -> Option<GoJudgeRunner> {
     if std::env::var("GOJUDGE_IT").is_err() {
         eprintln!("skipped (set GOJUDGE_IT=1 with a live go-judge to run)");

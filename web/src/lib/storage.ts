@@ -128,6 +128,21 @@ export const VIZ_LAB_DRAFT_PREFIX = "viz-lab-draft";
 export const VIZ_LAB_HINT_KEY = "viz-lab-hint";
 /** The viz lab's stdin box. Shared by Run and Trace, so it is remembered like the buffer is. */
 export const VIZ_LAB_STDIN_KEY = "viz-lab-stdin";
+/** The code lab's open buffers: a JSON list of `{id, name, language, source}`. One key for the
+ *  whole list, because tabs are added, renamed and closed together and a half-written list is
+ *  worse than a lost keystroke. */
+export const CODE_LAB_TABS_KEY = "code-lab-tabs";
+/** Which of the code lab's tabs is on screen, by tab id. */
+export const CODE_LAB_ACTIVE_KEY = "code-lab-active";
+/** The code lab's Input box. One for the page rather than one per tab: it is the program's stdin
+ *  for whatever tab is run next, which is how the reference editors behave. */
+export const CODE_LAB_STDIN_KEY = "code-lab-stdin";
+/** The code lab's editor look: theme, tab size, font family, font size (JSON). */
+export const CODE_LAB_SETTINGS_KEY = "code-lab-settings";
+/** The code lab's editor/IO split percentage (the column seam). */
+export const CODE_LAB_PANE_KEY = "code-lab-pane";
+/** The code lab's Input/Output split percentage (the row seam inside the right pane). */
+export const CODE_LAB_IO_PANE_KEY = "code-lab-io-pane";
 /** The content editor's per-page draft key PREFIX — the username and lesson path are appended
  *  (`content-draft:<username>:<lesson-path>`) so one browser can hold a draft for each page a
  *  contributor is editing, and a draft never leaks across accounts. See islands/authoring/draft. */

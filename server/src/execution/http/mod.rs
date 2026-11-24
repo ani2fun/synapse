@@ -1,12 +1,15 @@
 //! `POST /api/run`. A badly-running program is a 200 with a
 //! non-`Accepted` status; the error channel is for the CALLER's mistakes (422/413), the
-//! BACKEND's failures (503/502), the budget (429) and a full sandbox (503). The gate is
-//! identity-aware: an absent bearer meters per IP, a verified bearer per subject (bad tokens
-//! 401, never silently anonymous), and the signed-in budget is deliberately bigger.
+//! BACKEND's failures (503/502), the budget (429) and a full sandbox (503).
 //!
-//! Three gates, in this order, because each is cheaper to fail than the next is to pass:
-//! ADMISSION (runs in flight — refused outright, spending nothing), then the RATE budget, then
-//! the run itself at the caller's TIER (an anonymous run gets a share of the time limits).
+//! Running code needs an ACCOUNT: an absent bearer is a 401 before anything is spent, and a bad
+//! one is a 401 too (never silently anonymous). Anyone could otherwise point the sandbox at
+//! anything, and an address-keyed budget is only as strong as the cheapest way to get a new
+//! address. The anonymous ledger and tier stay in the crate — submissions still use them.
+//!
+//! Three gates follow sign-in, in this order, because each is cheaper to fail than the next is
+//! to pass: ADMISSION (runs in flight — refused outright, spending nothing), then the RATE
+//! budget, then the run itself at the signed-in TIER.
 
 use std::sync::Arc;
 
@@ -22,8 +25,7 @@ use crate::execution::domain::Tier;
 use crate::execution::infrastructure::GoJudgeRunner;
 use crate::identity::http::{LiveIdentityService, optional_user};
 use crate::platform::admission::{Admission, Refused};
-use crate::platform::client_ip::{Peer, client_ip};
-use crate::platform::rate_limiter::{RateLimiter, ThrottleScope, Throttled, budget_key};
+use crate::platform::rate_limiter::{RateLimiter, ThrottleScope, Throttled};
 
 pub type LiveRunService = RunCodeService<GoJudgeRunner>;
 
@@ -47,7 +49,7 @@ pub fn routes(state: ExecutionRoutesState) -> Router {
     request_body = RunRequest,
     responses(
         (status = 200, description = "The run's outcome (including failed programs)", body = RunResult),
-        (status = 401, description = "Bad bearer token", body = ApiError),
+        (status = 401, description = "No bearer token, or a bad one", body = ApiError),
         (status = 422, description = "Unknown language", body = ApiError),
         (status = 413, description = "Payload over the byte caps", body = ApiError),
         (status = 429, description = "Over the run budget, or the caller already has runs in flight", body = ApiError),
@@ -57,26 +59,21 @@ pub fn routes(state: ExecutionRoutesState) -> Router {
 )]
 pub(crate) async fn run_code(
     State(state): State<ExecutionRoutesState>,
-    peer: Peer,
     headers: HeaderMap,
     Json(request): Json<RunRequest>,
 ) -> Result<Json<RunResult>, (StatusCode, Json<ApiError>)> {
-    // The caller first (bad token → 401), then the three gates.
-    let subject = optional_user(&state.identity, &headers)
-        .await?
-        .map(|user| user.id.0);
-    let ip = client_ip(&headers, peer.0);
-    let (key, tier) = match &subject {
-        Some(sub) => (format!("auth:{sub}"), Tier::SignedIn),
-        None => (format!("anon:{}", budget_key(&ip)), Tier::Anonymous),
+    // The caller first (no token or a bad one → 401), then the three gates.
+    let Some(user) = optional_user(&state.identity, &headers).await? else {
+        return Err(needs_sign_in());
     };
-    let ticket = state.admission.admit(&key).map_err(not_admitted)?;
-    let consumed = match &subject {
-        Some(sub) => state.limiter.consume_authenticated(sub),
-        None => state.limiter.consume_anonymous(&ip),
-    };
-    if let Err(throttled) = consumed {
-        return Err(over_budget(throttled, "Sign in for a bigger run budget."));
+    let subject = user.id.0;
+    let tier = Tier::SignedIn;
+    let ticket = state
+        .admission
+        .admit(&format!("auth:{subject}"))
+        .map_err(not_admitted)?;
+    if let Err(throttled) = state.limiter.consume_authenticated(&subject) {
+        return Err(over_budget(throttled, "Wait for the window to reset."));
     }
 
     tracing::info!(
@@ -106,6 +103,18 @@ pub(crate) async fn run_code(
             )))
         }
     }
+}
+
+/// An anonymous run. Refused before admission and the budget, so it costs the server nothing.
+fn needs_sign_in() -> (StatusCode, Json<ApiError>) {
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(ApiError {
+            error: "Sign in to run code".to_owned(),
+            detail: None,
+            hint: Some("Running code needs an account.".to_owned()),
+        }),
+    )
 }
 
 /// A run the sandbox has no room for. The caller's own limit is a 429 — theirs to wait out —
@@ -143,8 +152,8 @@ pub(crate) fn over_budget(throttled: Throttled, hint: &str) -> (StatusCode, Json
     let (error, hint) = match throttled.scope {
         ThrottleScope::Caller => ("Rate limit exceeded", hint),
         ThrottleScope::AllAnonymous => (
-            "Too many anonymous runs right now",
-            "Sign in to run on your own budget.",
+            "Too many anonymous requests right now",
+            "Sign in to use your own budget.",
         ),
     };
     (

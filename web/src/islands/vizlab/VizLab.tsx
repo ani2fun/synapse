@@ -39,6 +39,7 @@ import {
   get as storageGet,
   set as storageSet,
 } from "../../lib/storage";
+import { LabGate } from "../labshell/LabGate";
 import { LabSplit, useLabSplitter } from "../labshell/splitter";
 import { ensureViz } from "../viz";
 import { CODE_CHANGED, VIZ_READY } from "../workbench/contracts";
@@ -490,6 +491,13 @@ export function VizLab() {
 
 const host = document.querySelector<HTMLElement>("[data-vizlab-root]");
 if (host != null) {
-  render(h(VizLab, {}), host);
+  render(
+    h(LabGate, {
+      title: "The visualisation lab",
+      blurb: "Trace a program and watch its data structures change, step by step.",
+      children: h(VizLab, {}),
+    }),
+    host,
+  );
   log.info("viz lab mounted");
 }

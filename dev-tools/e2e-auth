@@ -81,4 +81,4 @@ curl -sf "http://localhost:$WEB_PORT/" >/dev/null || {
 cd e2e
 [[ -d node_modules ]] || npm ci
 echo "→ signed-in click-path against http://localhost:$WEB_PORT"
-E2E_AUTH=1 E2E_BASE_URL="http://localhost:$WEB_PORT" npx playwright test authoring-authed private-book-authed listen-authed "$@"
+E2E_AUTH=1 E2E_BASE_URL="http://localhost:$WEB_PORT" npx playwright test authoring-authed private-book-authed listen-authed vizlab-authed codelab-authed "$@"

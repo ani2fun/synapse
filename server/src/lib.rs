@@ -38,7 +38,7 @@ use synapse_shared::insights::LessonViewDto;
 use synapse_shared::search::{SearchHitDto, SearchResultsDto, SnippetSegmentDto};
 use synapse_shared::submission::{
     AllowlistEntryDto, DeleteResultDto, GrantRequestDto, SubmissionAcceptedDto, SubmissionDto,
-    SubmitRequestDto,
+    SubmitAccessDto, SubmitRequestDto,
 };
 use tower_http::compression::Predicate as _;
 use utoipa::OpenApi;
@@ -327,6 +327,7 @@ fn compression() -> tower_http::compression::CompressionLayer<impl tower_http::c
         catalog::http::routes::get_synapse_lesson,
         execution::http::run_code,
         submission::http::submit_solution,
+        submission::http::submit_access,
         submission::http::get_submission,
         submission::http::list_submissions,
         submission::http::delete_submission,
@@ -403,6 +404,7 @@ fn compression() -> tower_http::compression::CompressionLayer<impl tower_http::c
         RunResult,
         SubmitRequestDto,
         SubmissionAcceptedDto,
+        SubmitAccessDto,
         SubmissionDto,
         DeleteResultDto,
         MeDto,

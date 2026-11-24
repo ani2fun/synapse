@@ -45,7 +45,8 @@ test("the problem page renders its frame and extracts the workbench", async ({ p
   await page.locator(".pwb__rtab--code").click();
   const right = page.locator(".pwb__right");
   await expect(right.locator(".runnable")).toBeVisible();
-  await expect(right.locator(".runnable__run")).toBeVisible();
+  // The server refuses an anonymous run, so the button asks for an account instead of a run.
+  await expect(right.locator(".runnable__run")).toHaveText("Sign in to run");
   await expect(right.locator(".wb__chip").first()).toBeVisible();
 
   // The page itself must not scroll — the panes own all scrolling.

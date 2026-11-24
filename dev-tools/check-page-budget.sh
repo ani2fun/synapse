@@ -9,7 +9,7 @@
 # Seven page kinds, one budget each: the landing, a prose lesson, a problem page, the blog list,
 # the two diagram editors, and the visualisation lab.
 # Measured against fixture content, in the shape this script runs in (pre-rendering OFF):
-# landing 44 · lesson 58 · problem 57 · blog 13 · d2lab 48 · mmdlab 49 · vizlab 50 KiB gz. With pre-rendering ON the
+# landing 44 · lesson 58 · problem 57 · blog 13 · d2lab 48 · mmdlab 49 · vizlab 50 · codelab 48 KiB gz. With pre-rendering ON the
 # lesson measures ~64 — inline SVG, counted in the document's own gzip, not new JavaScript.
 # (Astro 7 / Vite 8 took 1-2 KiB off every page: rolldown chunks the same graph slightly tighter.)
 # These drift with ordinary feature work (the reader redesign, the long-form stylesheet and the
@@ -89,6 +89,9 @@ measure_page "mmdlab" "/mermaid" || fail=1
 # be a dynamic import here: the page is useless without it and asks for it outright on mount, so
 # a static import would be the easy mistake — and would land ~280 KiB gz on this line.
 measure_page "vizlab" "/viz" || fail=1
+# The code lab. Monaco is its only heavy dependency and must stay behind the dynamic import the
+# editor loader makes — the page has nothing else to send.
+measure_page "codelab" "/code" || fail=1
 
 # ── the lazy viz wasm cap (release builds only — see header) ──
 if [[ "${VIZ_WASM_RELEASE:-}" == "1" ]]; then

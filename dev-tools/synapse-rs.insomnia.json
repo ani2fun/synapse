@@ -99,14 +99,14 @@
       "_type": "request_group",
       "parentId": "wrk_synapse_rs",
       "name": "execution",
-      "description": "Rate limited (step 18): anonymous 10/60s per IP, signed-in 100/3600s per sub; over the window = 429 + retry seconds in the ApiError detail (no Retry-After header)."
+      "description": "Sign-in required: no bearer (or a bad one) is a 401 before anything is spent. Rate limited per account, 100/3600s; over the window = 429 + retry seconds in the ApiError detail (no Retry-After header)."
     },
     {
       "_id": "req_run",
       "_type": "request",
       "parentId": "fld_execution",
       "name": "POST /api/run",
-      "description": "Run one snippet in the go-judge sandbox. A badly-running program is a 200 with a non-Accepted status; 422 unknown language, 413 over the byte caps, 429 over the run budget (per caller, or the ceiling all anonymous callers share) or with runs already in flight, 503 sandbox queue full or backend down, 502 backend failed. An anonymous run gets SYNAPSE_RUN_ANON_TIME_PERCENT of the language's time limits.",
+      "description": "Run one snippet in the go-judge sandbox. A badly-running program is a 200 with a non-Accepted status; 422 unknown language, 413 over the byte caps, 429 over the account's run budget or with runs already in flight, 503 sandbox queue full or backend down, 502 backend failed. 401 'Sign in to run code' without a bearer.",
       "method": "POST",
       "url": "{{ _.base_url }}/api/run",
       "body": {
@@ -117,6 +117,10 @@
         {
           "name": "Content-Type",
           "value": "application/json"
+        },
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
         }
       ]
     },
@@ -373,6 +377,21 @@
       "description": "Poll one submission until status == completed (step 14).",
       "method": "GET",
       "url": "{{ _.base_url }}/api/submissions/00000000-0000-0000-0000-000000000000"
+    },
+    {
+      "_id": "req_submission_access",
+      "_type": "request",
+      "parentId": "fld_submissions",
+      "name": "GET /api/submissions/access",
+      "description": "{ canSubmit } — whether this caller passes the submit gate (anonymous on an open instance does; enforced: only allow-listed accounts). The code labs (/code, /viz) open for signed-in callers with canSubmit. Stores and spends nothing; a bad bearer is a 401.",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/submissions/access",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ]
     },
     {
       "_id": "req_submission_list",

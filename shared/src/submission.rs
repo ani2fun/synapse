@@ -15,6 +15,15 @@ pub struct SubmitRequestDto {
     pub source: String,
 }
 
+/// `GET /api/submissions/access` — whether the caller passes the submit gate. The code labs
+/// (`/code`, `/viz`) open for exactly these accounts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[serde(rename_all = "camelCase")]
+pub struct SubmitAccessDto {
+    pub can_submit: bool,
+}
+
 /// The 202 body — poll `GET /api/submissions/{id}` until `status == "completed"`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]

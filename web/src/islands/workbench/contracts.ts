@@ -95,6 +95,10 @@ declare global {
      *  mounts on every page kind, and pulling in the auth store would drag its module graph into
      *  every page's eager bundle. */
     __synapseUser?: () => string | null;
+    /** Start the sign-in redirect. A seam for the same reason as `__synapseUser`: a signed-out
+     *  Run must ask for an account (the server refuses an anonymous run), and the workbench
+     *  cannot import the auth store without growing every page's eager bundle. */
+    __synapseSignIn?: () => void;
     /** The viz loader installs the viz entry; its presence is what makes Visualise render at all. */
     __synapseViz?: (detail: {
       language: string;
@@ -144,6 +148,12 @@ declare global {
 
 export function isAuthed(): boolean {
   return window.__synapseAuth?.() ?? false;
+}
+
+/** Send the reader to sign in. A no-op until the auth store has installed the seam, which is
+ *  the moment before the header chip could offer the same thing. */
+export function requestSignIn(): void {
+  window.__synapseSignIn?.();
 }
 
 /** The signed-in handle, or null when anonymous (or before the auth store has installed its

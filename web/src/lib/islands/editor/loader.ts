@@ -47,6 +47,15 @@ export async function mountDiagramEditor(
   return createEditor(container, { value, language, readOnly: false, dark, onChange });
 }
 
+/**
+ * The code lab's editor: the whole options object, because the lab is the one surface that sets
+ * the editor's look (theme, font, tab size) and wires the copy/save/cursor hooks. Same lazy chunk.
+ */
+export async function mountCodeLabEditor(container: HTMLElement, opts: EditorOptions): Promise<EditorHandle> {
+  const { createEditor } = await import("./monaco");
+  return createEditor(container, opts);
+}
+
 export async function mountEditor(
   container: HTMLElement,
   value: string,

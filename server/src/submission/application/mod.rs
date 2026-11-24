@@ -192,6 +192,16 @@ where
         }
     }
 
+    /// Whether `submitter` would pass the submit gate — the same rule `submit` applies, answered
+    /// without a submission. A refusal is `false`; only a failing allowlist store is an error.
+    pub async fn may_submit(&self, submitter: Option<&Submitter>) -> Result<bool, SubmissionError> {
+        match self.authorize(submitter).await {
+            Ok(()) => Ok(true),
+            Err(SubmissionError::SubmitRequiresSignIn | SubmissionError::NotAllowlisted(_)) => Ok(false),
+            Err(other) => Err(other),
+        }
+    }
+
     /// Store `Pending`, fire the judge as a detached task, answer immediately (the 202).
     // skip(source): the submitted solution is the user's, and large.
     #[tracing::instrument(

@@ -643,6 +643,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/submissions/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Whether the caller passes the submit gate (anonymous callers included — on an open
+         *     instance they do). Answers only the question: nothing is stored or spent.
+         */
+        get: operations["getSubmitAccess"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/submissions/{id}": {
         parameters: {
             query?: never;
@@ -1356,6 +1376,13 @@ export interface components {
             total?: number | null;
             /** @description `"accepted" | "rejected" | "judge-failed"` — present when completed. */
             verdict?: string | null;
+        };
+        /**
+         * @description `GET /api/submissions/access` — whether the caller passes the submit gate. The code labs
+         *     (`/code`, `/viz`) open for exactly these accounts.
+         */
+        SubmitAccessDto: {
+            canSubmit: boolean;
         };
         /** @description `POST /api/submissions` body. */
         SubmitRequestDto: {
@@ -3222,7 +3249,7 @@ export interface operations {
                     "application/json": components["schemas"]["RunResult"];
                 };
             };
-            /** @description Bad bearer token */
+            /** @description No bearer token, or a bad one */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -3363,6 +3390,44 @@ export interface operations {
             };
             /** @description Anonymous */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getSubmitAccess: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether this caller may submit */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmitAccessDto"];
+                };
+            };
+            /** @description Bad bearer token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description The allowlist store failed */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
