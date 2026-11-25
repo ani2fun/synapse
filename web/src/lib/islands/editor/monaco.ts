@@ -23,6 +23,7 @@ import * as monaco from "monaco-editor/esm/vs/editor/edcore.main";
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 
 import { isDark } from "../../theme";
+import { HOUSE_FONT_SIZE, HOUSE_LINE_HEIGHT } from "./houseLook";
 
 // Syntax highlighting (Monarch) for the runnable languages — see the server's
 // Language registry (execution/domain). C maps onto the cpp grammar.
@@ -309,7 +310,6 @@ export interface EditorLook {
 }
 
 const HOUSE_FONT = '"JetBrains Mono", ui-monospace, monospace';
-const HOUSE_SIZE = 13;
 
 function themeId(theme: string | undefined, dark: boolean): string {
   if (theme == null || theme === "default") return dark ? "synapse-dark" : "synapse-light";
@@ -352,8 +352,8 @@ export function createEditor(container: HTMLElement, opts: EditorOptions): Edito
     scrollBeyondLastLine: false,
     lineNumbers: "on",
     fontFamily: opts.fontFamily ?? HOUSE_FONT,
-    fontSize: opts.fontSize ?? HOUSE_SIZE,
-    lineHeight: opts.fontSize == null ? 20 : lineHeightFor(opts.fontSize),
+    fontSize: opts.fontSize ?? HOUSE_FONT_SIZE,
+    lineHeight: opts.fontSize == null ? HOUSE_LINE_HEIGHT : lineHeightFor(opts.fontSize),
     tabSize: opts.tabSize ?? 4,
     padding: { top: 12, bottom: 12 },
     // Let the page keep scrolling once the editor's own scroll is exhausted.

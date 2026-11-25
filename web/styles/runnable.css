@@ -85,7 +85,7 @@
 .runnable__preview { position: absolute; inset: 0; overflow: auto; cursor: text; }
 .runnable__preview pre { margin: 0; padding: 10px 16px; min-height: 100%;
                          font-family: var(--font-mono, ui-monospace, monospace);
-                         font-size: 13px; line-height: 20px; }
+                         font-size: 11px; line-height: 17px; } /* = houseLook.ts, or the swap jumps */
 
 .runnable__out { padding: 0.6rem 0.9rem; border-top: 1px solid hsl(var(--border)); }
 .runnable__out--running { color: hsl(var(--muted-foreground)); font-size: 0.85rem; }

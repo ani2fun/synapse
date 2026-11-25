@@ -21,6 +21,7 @@ import { joinHarness, visiblePart } from "../../lib/execution/harness";
 import type { TestSpec } from "../../lib/execution/judge";
 import { canonicalLang, preferredIndex } from "../../lib/execution/language";
 import type { EditorHandle } from "../../lib/islands/editor/monaco";
+import { editorHeightPx as defaultHeightPx } from "../../lib/islands/editor/houseLook";
 import { pinnedLanguage } from "../../lib/execution/pinnedLanguage";
 import { Store, useStore } from "../../lib/store";
 import {
@@ -49,12 +50,6 @@ import * as testsDraft from "./testsDraft";
  *  typed matrix is one write rather than one per character; short enough that a reader who edits
  *  and immediately reloads keeps it — and the hide-flush covers the rest. */
 const DRAFT_SAVE_MS = 600;
-
-/** The editor height rule: clamp to a line count, with a floor and a ceiling. */
-function defaultHeightPx(source: string): number {
-  const lines = source.split("\n").length;
-  return Math.min(Math.max(lines * 20 + 28, 64), 520);
-}
 
 const PLAY = (cls: string) => (
   <svg class={cls} viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">

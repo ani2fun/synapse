@@ -128,7 +128,10 @@
   overflow-x: auto;
   border-radius: 0.5rem;
   padding: 0.9rem 1.1rem;
-  font-size: 0.875rem;
+  /* x-small, the same 11px / 17px the Monaco editors use (lib/islands/editor/houseLook.ts) — a
+     fixed px rather than rem/em so the reader's text-size preference resizes prose, not code. */
+  font-size: 11px;
+  line-height: 17px;
 }
 .synapse-prose pre code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

@@ -20,18 +20,13 @@ import { displayLang } from "../../lib/execution/blocks";
 import type { Variant } from "../../lib/execution/blocks";
 import { canonicalLang, preferredIndex } from "../../lib/execution/language";
 import type { EditorHandle } from "../../lib/islands/editor/monaco";
+import { editorHeightPx as defaultHeightPx } from "../../lib/islands/editor/houseLook";
 import { pinnedLanguage } from "../../lib/execution/pinnedLanguage";
 import { CopyButton } from "../workbench/CopyButton";
 import { LanguagePin } from "../workbench/LanguagePin";
 import { LANGUAGE_PINNED, LOAD_CODE, RELAYOUT } from "../workbench/contracts";
 import type { LanguagePinned, LoadCode } from "../workbench/contracts";
 import * as log from "../../lib/log";
-
-/** The editor height rule: clamp to a line count, with a floor and a ceiling. */
-function defaultHeightPx(source: string): number {
-  const lines = source.split("\n").length;
-  return Math.min(Math.max(lines * 20 + 28, 64), 520);
-}
 
 const CHEVRON = (
   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
