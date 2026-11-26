@@ -771,3 +771,7 @@ a.book-version__sha:focus-visible { outline: 2px solid hsl(var(--primary)); outl
   font-size: 0.85em;
   color: hsl(var(--status-ok));
 }
+
+/* The private shelf follows the public list on the same face, so its heading takes a little
+   more air than the gap between rows — it starts a second list, not another row of the first. */
+.reader-sidebar__eyebrow--shelf { margin-top: 6px; }

@@ -1,10 +1,14 @@
 /* ─────────────────────────────────────────────────────────────────────────────
-   AUTHORED DIAGRAMS (step 31; oracle: diagrams.css) — mermaid + d2 cards and the
-   shared zoom overlay. Authored diagrams always render LIGHT (d2 themeID 0 ·
-   mermaid "default"): dark label text on fixed light pastel fills — so a FIXED
-   light card frames them on both themes. House rule: the diagram chrome —
-   Enlarge on the card AND Close in the overlay — sits top-LEFT.
+   AUTHORED DIAGRAMS — mermaid + d2 cards and the shared zoom overlay. Authored
+   diagrams always render LIGHT (d2 themeID 0 · mermaid "default"): dark label text
+   on fixed light pastel fills — so a FIXED light card frames them on both themes.
+   House rule: diagram chrome never sits ON the figure. The card and the overlay
+   each carry a header bar above the paper, label left and actions right — the
+   shape of a code card's tab bar.
    ───────────────────────────────────────────────────────────────────────────── */
+
+/* One height for every card's header bar, so a placeholder can reserve it before hydration. */
+:root { --diagram-bar-h: 36px; }
 
 .diagram { position: relative; margin: 1.5rem 0; display: flex; flex-direction: column;
            align-items: center; }
@@ -57,8 +61,7 @@
   font-size: inherit;
 }
 
-/* The shared modal-chrome pill (oracle: dialog.css .modal-btn) — the teal
-   icon+label button both Enlarge (card) and Close (overlay) wear. */
+/* The shared modal-chrome pill — the teal icon+label button Enlarge, Edit and Close wear. */
 .modal-btn { display: inline-flex; align-items: center; gap: 6px; border-radius: 6px;
              padding: 6px 12px; font-size: 13px; font-weight: 500; line-height: 1;
              cursor: pointer; border: 1px solid hsl(var(--primary) / 0.3);
@@ -67,15 +70,32 @@
 .modal-btn:hover { background: hsl(var(--primary) / 0.15);
                    border-color: hsl(var(--primary) / 0.5); }
 .modal-btn svg { width: 15px; height: 15px; flex: none; }
+/* Enlarge renders with the bar, before the figure exists to enlarge. */
+.modal-btn:disabled { opacity: 0.45; cursor: default; }
+.modal-btn:disabled:hover { background: hsl(var(--primary) / 0.08);
+                            border-color: hsl(var(--primary) / 0.3); }
 
-/* The figure's controls — top-LEFT, revealed on hover once it has rendered. One row rather than
-   two absolutely-positioned pills, so Enlarge and Edit cannot both claim `left: 6px`.
-   Positioning only; .modal-btn owns the look of each. */
-.diagram__chrome { position: absolute; top: 6px; left: 6px; z-index: 1; display: flex; gap: 6px;
-                   opacity: 0; transition: opacity 140ms ease; }
-.diagram:hover .diagram__chrome, .diagram__chrome:focus-within { opacity: 1; }
+/* The card's header bar: what the figure is on the left, Edit and Enlarge on the right. It sits
+   ABOVE the paper and joins it into one card. The bar follows the theme like a code card's tab
+   bar; the paper under it stays fixed-light. Always visible — a control that appears on hover
+   lands on whatever the figure draws in that corner. */
+.diagram__bar { width: 100%; min-height: var(--diagram-bar-h); display: flex; align-items: center;
+                justify-content: space-between; gap: 0.5rem; padding: 0.25rem 0.5rem 0.25rem 0.75rem;
+                background: hsl(var(--muted)); border: 1px solid hsl(var(--border));
+                border-bottom: 0; border-radius: 12px 12px 0 0; }
+.diagram__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+                  font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600;
+                  letter-spacing: 0.08em; text-transform: uppercase;
+                  color: hsl(var(--muted-foreground)); }
+.diagram__actions { display: flex; align-items: center; gap: 6px; flex: none; }
+/* A bar is a toolbar, so its pills are the compact size. */
+:is(.diagram__bar, .diagram-zoom__bar) .modal-btn { padding: 4px 10px; font-size: 12px; }
+:is(.diagram__bar, .diagram-zoom__bar) .modal-btn svg { width: 13px; height: 13px; }
+/* The paper under a bar loses its top corners, so the two read as one card. */
+.diagram__bar + .diagram__figure { border-top-left-radius: 0; border-top-right-radius: 0; }
 .diagram__zoom, .diagram__edit { transition: color 0.12s, border-color 0.12s, background 0.12s; }
-.diagram__edit { text-decoration: none; }
+/* Two classes: the pill is an `<a>` inside `.synapse-prose`, whose `a` rule outranks one class. */
+.diagram__bar .diagram__edit { text-decoration: none; }
 /* Gated: the affordance is honest about existing before it is honest about being usable — the
    title carries the instructions for asking. */
 .diagram__edit--gated { opacity: 0.55; cursor: not-allowed; }
@@ -85,10 +105,10 @@
 /* ── the pending state: what a figure shows while its renderer works ──
    Silence and failure looked identical before this: an un-drawn figure compiles in the browser
    behind a ~5.9 MB gz engine, and until it lands the card was simply empty. Overlaid on .diagram
-   (already positioned) rather than inside .diagram__figure, whose innerHTML a renderer owns;
-   pointer-events stay off so a slideshow's transport is still usable while slide 0 draws.
+   (already positioned) rather than inside .diagram__figure, whose innerHTML a renderer owns, and
+   starting below the header bar; pointer-events stay off so a slideshow's transport is still usable while slide 0 draws.
    Fixed colours — the card is fixed-light on both themes. */
-.diagram__pending { position: absolute; inset: 0; z-index: 1; pointer-events: none;
+.diagram__pending { position: absolute; inset: var(--diagram-bar-h) 0 0 0; z-index: 1; pointer-events: none;
                     display: flex; align-items: center; justify-content: center; gap: 0.5rem;
                     color: #64748b; font-size: 0.875rem; }
 .diagram__pending-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #cbd5e1;
@@ -109,17 +129,23 @@
                      font-family: var(--font-mono); font-size: 0.8rem; overflow-x: auto;
                      white-space: pre; }
 
-/* ── the zoom overlay: near-fullscreen light card over a blurred scrim ── */
+/* ── the zoom overlay: near-fullscreen card over a blurred scrim — header bar, then the paper ── */
 .diagram-zoom-scrim { position: fixed; inset: 0; z-index: 70; display: flex;
                       align-items: center; justify-content: center; padding: 2.5vh 2.5vw;
                       background: hsl(var(--foreground) / 0.45); backdrop-filter: blur(3px); }
-.diagram-zoom { position: relative; width: 100%; height: 100%;
+.diagram-zoom { position: relative; width: 100%; height: 100%; display: flex; flex-direction: column;
                 border: 1px solid hsl(var(--border)); border-radius: 16px;
                 background: hsl(var(--card)); overflow: hidden;
                 box-shadow: 0 24px 60px -18px hsl(var(--foreground) / 0.5); }
+/* The overlay's header bar: label, the viewer's own chrome, then zoom controls and Close. It
+   wraps on a narrow screen rather than squeezing the chrome to nothing. */
+.diagram-zoom__bar { flex: none; display: flex; flex-wrap: wrap; align-items: center;
+                     gap: 0.5rem 0.75rem; padding: 0.5rem 0.75rem 0.5rem 1rem;
+                     background: hsl(var(--muted)); border-bottom: 1px solid hsl(var(--border)); }
+.diagram-zoom__bar > .diagram__label { flex: 0 1 auto; max-width: 40ch; }
 /* The SVG zoom is always light paper — mermaid's transparent SVG needs the light backdrop. */
-.diagram-zoom--paper { background: #ffffff; }
-.diagram-zoom__zoomable { width: 100%; height: 100%; display: flex; flex-direction: column; }
+.diagram-zoom--paper .diagram-zoom__zoomable { background: #ffffff; }
+.diagram-zoom__zoomable { width: 100%; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .diagram-zoom__viewport { position: relative; flex: 1; min-height: 0; overflow: hidden;
                           cursor: grab; touch-action: none; }
 .diagram-zoom__viewport:active { cursor: grabbing; }
@@ -131,14 +157,8 @@
 .diagram-zoom__figure :is(svg, img) { display: block; width: auto; height: auto;
                                       max-width: 100% !important; max-height: 100% !important; }
 
-.diagram-zoom__controls { position: absolute; bottom: 16px; left: 50%;
-                          transform: translateX(-50%); z-index: 2; display: inline-flex;
-                          align-items: center; gap: 6px; padding: 6px 8px;
-                          border: 1px solid hsl(var(--border)); border-radius: 999px;
-                          background: hsl(var(--card) / 0.92);
-                          box-shadow: 0 8px 24px -12px hsl(var(--foreground) / 0.5);
-                          backdrop-filter: blur(4px); }
-.diagram-zoom__ctl { width: 32px; height: 32px; display: inline-flex; align-items: center;
+.diagram-zoom__controls { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.diagram-zoom__ctl { width: 28px; height: 28px; display: inline-flex; align-items: center;
                      justify-content: center; font-size: 16px; line-height: 1;
                      border: 1px solid hsl(var(--border)); border-radius: 8px;
                      background: hsl(var(--card)); color: hsl(var(--foreground));
@@ -147,9 +167,8 @@
 .diagram-zoom__level { min-width: 3.2rem; text-align: center; font-family: var(--font-mono);
                        font-size: 0.8rem; color: hsl(var(--muted-foreground));
                        user-select: none; }
-/* Top-LEFT, deliberately — the house rule for diagram chrome.
-   Positioning only; .modal-btn owns the look. */
-.diagram-zoom__close { position: absolute; top: 12px; left: 14px; z-index: 3; }
+/* Close ends the bar, set off from the zoom buttons beside it. */
+.diagram-zoom__close { margin-left: 6px; }
 
 /* d2 (and mermaid) now render on the CLIENT when the card nears the viewport (prose-first,
    2026-07-17). Reserve a minimum figure height so the empty card holds its place — the SVG
@@ -258,19 +277,16 @@
                      font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
                      color: hsl(var(--muted-foreground) / 0.65); }
 
-/* The overlay's copy sits top-CENTRE: Close owns top-left (house rule) and the zoom bar owns the
-   bottom, so this is the one edge left. The menu drops DOWNWARD here for the same reason. */
-/* The bar is the pill now, so this wrapper is only a positioner — leaving its own capsule on
-   would paint one inside the other. */
-.diagram-zoom__chrome { position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
-                        z-index: 3; max-width: min(70ch, calc(100% - 14rem)); }
-/* The chrome is a slot, and a single-board diagram declines it. Without this the pill still
-   paints — a bordered, blurred, empty capsule floating over the figure. */
-.diagram-zoom__chrome:empty { display: none; }
-.diagram-zoom__chrome .boards-bar { margin: 0; }
+/* The overlay's copy sits in the MIDDLE of its header bar, between the label and the zoom
+   controls, and its menu drops DOWNWARD because the bar is at the top of the panel. An empty slot
+   (a single-board diagram declines it) still takes the middle, which keeps the controls right.
+   The wrapper is only a positioner — the bar inside it is the pill. */
+.diagram-zoom__chrome { flex: 1 1 auto; min-width: 0; display: flex; justify-content: center; }
+.diagram-zoom__chrome .boards-bar { margin: 0; box-shadow: none; }
 .diagram-zoom__chrome .boards-menu { bottom: auto; top: calc(100% + 6px); }
+/* On a phone the chrome takes a row of its own under the label and controls. */
 @media (max-width: 720px) {
-  .diagram-zoom__chrome { max-width: calc(100% - 2rem); left: 1rem; transform: none; }
+  .diagram-zoom__chrome:not(:empty) { order: 3; flex-basis: 100%; }
 }
 
 /* A board change is a cross-fade, not a slide — the frame, the chrome and the toolbar must not
@@ -286,10 +302,11 @@
 /* ── the frame slideshow: a run of authored stills, stepped one <img> at a time ──
    It carries `.diagram--slides` on purpose, so the fixed figure box above and the transport's
    margin apply verbatim; every frame of a run is generated at one size, so nothing jitters
-   while stepping. The placeholder reserves that box PLUS the caption and transport under it —
+   while stepping. The placeholder reserves that box PLUS the header bar above it and the caption
+   and transport under it —
    the widget hydrates from a whole-document sweep, and the prose below must not jump when it
    does. */
-.frame-slideshow { min-height: calc(clamp(16rem, 70vh, 32rem) + 5rem); }
+.frame-slideshow { min-height: calc(clamp(16rem, 70vh, 32rem) + 5rem + var(--diagram-bar-h)); }
 .diagram--frames .diagram__figure img { display: block; width: auto; height: auto;
                                         max-width: 100%; max-height: 100%; }
 /* Both stepping cards take arrow keys, and both carry `.diagram--slides` — one ring for the two. */
@@ -305,8 +322,8 @@
 
 /* ─────────────────────────────────────────────────────────────────────────────
    SIMULATOR EMBEDS — the ```simulator fence's iframe over /simulators/<name>/.
-   The chrome mirrors the diagram cards: Enlarge top-LEFT (house rule), revealed
-   on hover/focus; .modal-btn owns the pill's look, this only positions it.
+   The chrome mirrors the diagram cards: the same header bar above the frame,
+   its title on the left and Enlarge on the right.
    ───────────────────────────────────────────────────────────────────────────── */
 /* Pre-hydration placeholder: the marker holds its place so the iframe (or the
    missing-bundle card) fills in without shifting the prose below it. */
@@ -315,16 +332,12 @@
 .sim-embed iframe { display: block; width: 100%; max-width: 100%;
                     border: 1px solid hsl(var(--border)); border-radius: 12px;
                     background: hsl(var(--card)); }
-.sim-embed__zoom { position: absolute; top: 10px; left: 10px; z-index: 2; opacity: 0;
-                   transition: opacity 140ms ease, color 0.12s, border-color 0.12s,
-                               background 0.12s; backdrop-filter: blur(4px); }
-.sim-embed:hover .sim-embed__zoom, .sim-embed__zoom:focus-visible { opacity: 1; }
+/* The bar joins the frame into one card. A raw authored iframe's bar renders inside a host div,
+   hence the second selector. */
+:is(.sim-embed__bar, .sim-embed__host) + iframe { border-top-left-radius: 0;
+                                                  border-top-right-radius: 0; }
 
-.diagram-zoom__hint { padding: 0 6px 0 4px; font-size: 0.75rem;
-                      color: hsl(var(--muted-foreground)); user-select: none;
-                      white-space: nowrap; }
-@media (max-width: 720px) { .diagram-zoom__hint { display: none; } }
-.diagram-zoom__live { position: relative; width: 100%; height: 100%; display: block; }
+.diagram-zoom__live { position: relative; width: 100%; flex: 1; min-height: 0; display: block; }
 .diagram-zoom__iframe { width: 100%; height: 100%; border: 0; display: block;
                         background: transparent; pointer-events: auto; }
 .diagram-zoom--fill { max-width: none; max-height: none; padding: 0; overflow: hidden;

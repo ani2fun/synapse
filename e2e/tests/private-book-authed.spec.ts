@@ -52,6 +52,23 @@ test.describe("private book — a listed reader, and one who is not", () => {
     await expect(page.getByRole("button", { name: "Reader menu" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Scroll to top" })).toHaveCount(1);
 
+    // Back to Main on the private rail has both lists: the public books, then this reader's shelf
+    // with the current book marked.
+    const rail = page.locator("[data-private-sidebar]");
+    await rail.locator('[data-sidebar-view="browse"]').click();
+    await expect(rail.locator(".reader-sidebar__inner")).toHaveAttribute("data-view", "browse");
+    await expect(rail.locator(".reader-sidebar__browse-list:not([data-private-shelf])")).toContainText("Java");
+    const railShelf = rail.locator("ul[data-private-shelf]");
+    await expect(railShelf.locator(".reader-sidebar__book--active")).toHaveText("Insight Earned");
+
+    // A PUBLIC lesson's rail is server-rendered from the anonymous index; the shelf joins it once
+    // the session is known.
+    await page.goto("/synapse/programming-languages/java/first-steps/what-java-is");
+    const publicShelf = page.locator(".reader-sidebar ul[data-private-shelf]");
+    await expect(publicShelf).toContainText("Insight Earned", { timeout: 30_000 });
+    await expect(page.locator(".reader-sidebar [data-private-shelf].reader-sidebar__eyebrow")).toHaveText("Your private books");
+    await expect(publicShelf.locator(".reader-sidebar__book--active")).toHaveCount(0);
+
     // The library landing is rendered from the anonymous index, so the book reaches it only
     // after the session settles — as its own group, ahead of the public grid.
     await page.goto("/");

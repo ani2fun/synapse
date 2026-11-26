@@ -15,15 +15,18 @@
 //
 // Loaded ONLY in the page's private mode, so the ordinary lesson's eager budget does not move.
 import { ApiFailure, bearerHeaders, fetchIndex, lesson as fetchLesson } from "../../lib/api/client";
-import type { LessonPayload } from "../../lib/api/client";
+import type { LessonPayload, SynapseIndex } from "../../lib/api/client";
 import type { components } from "../../lib/api/schema.gen";
 import { DEFAULT_LEFT_PCT } from "../../lib/catalog/pane";
 import { bookVersionHtml } from "../../lib/catalog/bookVersion";
 import { humanize, problemFrame } from "../../lib/catalog/problemFrame";
-import { bookOf, chapterProblems, problemContentSplit } from "../../lib/catalog/tree";
+import { CHEVRON_ICON, HOME_ICON } from "../../lib/catalog/sidebarIcons";
+import { allBooksOf, bookOf, chapterProblems, problemContentSplit } from "../../lib/catalog/tree";
 import * as log from "../../lib/log";
 import { installPrivateMedia, resolveMedia } from "../../lib/privateMedia";
 import { boot, getState, signIn, subscribe } from "../auth/store";
+import { mountPrivateShelf } from "./privateShelf";
+import { browseRowsHtml, escapeHtml as escape } from "./shelf";
 
 type Book = components["schemas"]["BookDto"];
 type BookEntry = components["schemas"]["BookEntryDto"];
@@ -42,15 +45,6 @@ function status(text: string, action?: { label: string; run: () => void }): void
     button.addEventListener("click", action.run);
     line.append(" ", button);
   }
-}
-
-function escape(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 /** The sidebar tree the Astro `SidebarTree` renders for a public book, rebuilt from the index
@@ -80,16 +74,29 @@ function tree(entries: BookEntry[], prefix: string[], current: string): string {
     .join("");
 }
 
-function renderSidebar(aside: HTMLElement, book: Book, current: string): void {
+/** The same two faces `Sidebar.astro` renders for a public book: the book's contents, and — behind
+ *  "Back to Main" — every public book, then the reader's private shelf with this book marked. */
+function renderSidebar(aside: HTMLElement, book: Book, index: SynapseIndex, current: string): void {
+  const publicBooks = allBooksOf(index).filter((candidate) => candidate.private !== true);
   aside.innerHTML =
-    `<div class="reader-sidebar__inner" data-view="book"><div class="reader-sidebar__book-view">` +
-    `<div class="reader-sidebar__toprow"><a class="reader-sidebar__home" href="/">← Library</a></div>` +
+    `<div class="reader-sidebar__inner" data-view="book" data-book-slug="${escape(book.slug)}">` +
+    `<div class="reader-sidebar__book-view">` +
+    `<div class="reader-sidebar__toprow"><a class="reader-sidebar__home" href="/" data-sidebar-view="browse">` +
+    `${CHEVRON_ICON}<span>Back to Main</span></a></div>` +
     `<div class="reader-sidebar__book-head"><div class="reader-sidebar__book-txt">` +
     `<div class="reader-sidebar__eyebrow">🔒 Private book</div>` +
     `<div class="reader-sidebar__title">${escape(book.title)}</div></div></div>` +
     (book.description ? `<div class="reader-sidebar__desc">${escape(book.description)}</div>` : "") +
     `<ul class="reader-sidebar__tree">${tree(book.entries, [...book.categoryPath, book.slug], current)}</ul>` +
+    `</div>` +
+    `<div class="reader-sidebar__browse">` +
+    `<div class="reader-sidebar__toprow"><button class="reader-sidebar__home" type="button" data-sidebar-view="book">` +
+    `${HOME_ICON}<span>Your Dashboard</span></button></div>` +
+    `<div class="reader-sidebar__eyebrow">All courses</div>` +
+    `<ul class="reader-sidebar__browse-list">${browseRowsHtml(publicBooks, book.slug)}</ul>` +
+    `<a class="reader-sidebar__browse-all" href="/">Browse the full library →</a>` +
     `</div></div>`;
+  mountPrivateShelf(index, aside);
 }
 
 /** `two-sum` → `Two Sum`, the pager's own rule. */
@@ -178,11 +185,13 @@ async function attachPrivateMedia(body: HTMLElement): Promise<void> {
   if (swapped > 0) log.debug(`private lesson: ${swapped} media file(s) fetched with the bearer`);
 }
 
-/** The book this lesson sits in, from the index the reader was admitted to — or null when the
+/** The book this lesson sits in, and the index the reader was admitted to — or null when the
  *  index cannot be read; the page still renders, without a rail or a counter. */
-async function admittedBook(segments: string[]): Promise<Book | null> {
+async function admittedBook(segments: string[]): Promise<{ book: Book; index: SynapseIndex } | null> {
   try {
-    return bookOf(await fetchIndex(), segments);
+    const index = await fetchIndex();
+    const book = bookOf(index, segments);
+    return book ? { book, index } : null;
   } catch (error) {
     log.debug(`private lesson: no index (${error instanceof Error ? error.message : String(error)})`);
     return null;
@@ -204,7 +213,8 @@ async function renderProblem(payload: LessonPayload, segments: string[]): Promis
   const editorialMd = inlineEditorial.trim() !== "" ? inlineEditorial : (payload.editorial ?? "");
   const { renderLesson } = await import("../../lib/markdown/render");
   const descriptionHtml = await renderLesson(descriptionMd, { slugPath: segments.join("/") });
-  const book = await admittedBook(segments);
+  const admitted = await admittedBook(segments);
+  const book = admitted?.book ?? null;
   const current = segments.join("/");
 
   main.innerHTML = problemFrame({
@@ -221,7 +231,7 @@ async function renderProblem(payload: LessonPayload, segments: string[]): Promis
     version: payload.version ?? null,
     leftPct: DEFAULT_LEFT_PCT,
   });
-  if (book) {
+  if (admitted) {
     const src = document.createElement("div");
     src.className = "pwb-sidebar-src";
     src.hidden = true;
@@ -229,7 +239,7 @@ async function renderProblem(payload: LessonPayload, segments: string[]): Promis
     aside.className = "reader-sidebar";
     src.append(aside);
     main.append(src);
-    renderSidebar(aside, book, current);
+    renderSidebar(aside, admitted.book, admitted.index, current);
   }
   // The drawer's PINNED mount host, as the server-rendered problem page carries: the problem
   // frame's own Browse pill is this page's trigger, and `--pinned` stands the reader's FAB and
@@ -277,9 +287,9 @@ async function render(payload: LessonPayload, segments: string[]): Promise<void>
   status("");
   renderPager(payload);
 
-  const book = await admittedBook(segments);
+  const admitted = await admittedBook(segments);
   const aside = root?.querySelector<HTMLElement>("[data-private-sidebar]");
-  if (book && aside) renderSidebar(aside, book, segments.join("/"));
+  if (admitted && aside) renderSidebar(aside, admitted.book, admitted.index, segments.join("/"));
   renderUpNext(payload);
   // The reader chrome (sidebar faces, reader menu + scrubber, outline, scroll-to-top) reads the
   // rendered headings and the sidebar once, at init, so it loads only now that both are in the

@@ -275,6 +275,7 @@ export function D2BoardsCard(props: {
         onKeyDown={walk.onKeyDown}
       >
         <ZoomAffordance
+          kind="Walkthrough"
           svgHtml={walk.svg}
           chrome={chrome}
           edit={props.edit}

@@ -3,7 +3,7 @@
  * iframe over `/simulators/<name>/` — a self-contained static bundle a content repo ships under
  * `_simulators/<name>/`. A HEAD probe of the bundle's index.html gates the mount, so a missing
  * bundle earns the loud `.diagram-error` card (ADR-S026), never a blank frame. Raw authored
- * `<iframe src="/simulators/…">` gets the Enlarge chrome (the same wrap pattern).
+ * `<iframe src="/simulators/…">` gets the same header bar above it (the same wrap pattern).
  *
  * A lesson can also keep its widget BESIDE it (ADR-RS012): ```simulator src=_assets/_simulators/…
  * is resolved against the reader URL (`/synapse/<slug path>`) to `/content-assets/<slug path>/…`.
@@ -23,6 +23,7 @@ import { useEffect, useState } from "preact/hooks";
 import * as log from "../../lib/log";
 import { fetchPrivateText, privateMediaActive } from "../../lib/privateMedia";
 import { contentAssetUrl, selfContained } from "../../lib/simulatorDoc";
+import { ICON_MAXIMIZE, ZoomClose } from "./Zoom";
 
 const DEFAULT_HEIGHT = 480;
 const SANDBOX = "allow-scripts allow-same-origin";
@@ -54,7 +55,7 @@ export function hydrateSimulators(root: ParentNode): number {
     }
     count += 1;
   }
-  // Raw authored iframes keep their own attributes and gain only the Enlarge chrome. The
+  // Raw authored iframes keep their own attributes and gain only the header bar. The
   // `.sim-embed` ancestor check keeps a re-run (and the marker path's own iframe) unwrapped.
   for (const frame of Array.from(root.querySelectorAll<HTMLIFrameElement>("iframe[src^='/simulators/']"))) {
     const parent = frame.parentElement;
@@ -65,8 +66,9 @@ export function hydrateSimulators(root: ParentNode): number {
     parent.insertBefore(wrap, frame);
     wrap.appendChild(frame); // re-parenting reloads the iframe — accepted; the load listener rewires
     const host = document.createElement("div");
-    wrap.appendChild(host);
-    render(h(ZoomAffordance, { src, title: frame.title || "Simulator" }), host);
+    host.className = "sim-embed__host";
+    wrap.insertBefore(host, frame);
+    render(h(SimBar, { src, title: frame.title || "Simulator" }), host);
     count += 1;
   }
   return count;
@@ -141,6 +143,7 @@ function SimulatorCard({ src, probe, height, title, missing }: CardProps) {
   }
   return (
     <div class="sim-embed not-prose">
+      <SimBar src={src} doc={doc} title={title} ready={state === "ok"} />
       {state === "ok" && (
         <iframe
           {...(doc == null ? { src } : { srcdoc: doc })}
@@ -150,18 +153,40 @@ function SimulatorCard({ src, probe, height, title, missing }: CardProps) {
           style={{ height: `${height}px` }}
         ></iframe>
       )}
-      {state === "ok" && <ZoomAffordance src={src} doc={doc} title={title} />}
     </div>
   );
 }
 
-function ZoomAffordance({ src, doc = null, title }: { src: string; doc?: string | null; title: string }) {
+/** The header bar above a simulator: its title on the left, Enlarge on the right — never ON the
+ *  frame, where it would cover whatever the simulator draws in its corner. */
+function SimBar({
+  src,
+  doc = null,
+  title,
+  ready = true,
+}: {
+  src: string;
+  doc?: string | null;
+  title: string;
+  ready?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button class="sim-embed__zoom modal-btn" aria-label="Enlarge simulator" onClick={() => setOpen(true)}>
-        ⤢ Enlarge
-      </button>
+      <div class="diagram__bar sim-embed__bar">
+        <span class="diagram__label">{title}</span>
+        <div class="diagram__actions">
+          <button
+            class="sim-embed__zoom modal-btn"
+            aria-label="Enlarge simulator"
+            disabled={!ready}
+            onClick={() => setOpen(true)}
+          >
+            {ICON_MAXIMIZE}
+            <span>Enlarge</span>
+          </button>
+        </div>
+      </div>
       {open && <SimZoom src={src} doc={doc} title={title} onClose={() => setOpen(false)} />}
     </>
   );
@@ -195,20 +220,12 @@ function SimZoom({
   return (
     <div class="diagram-zoom-scrim" onClick={onClose}>
       <div class="diagram-zoom diagram-zoom--fill" onClick={(event) => event.stopPropagation()}>
-        <button class="diagram-zoom__close modal-btn" aria-label="Close" onClick={onClose}>
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M18 6 6 18M6 6l12 12"></path>
-          </svg>
-          Close
-        </button>
+        <div class="diagram-zoom__bar">
+          <span class="diagram__label">{title}</span>
+          <div class="diagram-zoom__controls">
+            <ZoomClose onClose={onClose} />
+          </div>
+        </div>
         <div class="diagram-zoom__live">
           <iframe
             class="diagram-zoom__iframe"

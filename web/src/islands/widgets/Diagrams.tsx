@@ -176,8 +176,8 @@ export function hydrateDiagrams(root: ParentNode): number {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CARDS
-// Every diagram sits on a FIXED-LIGHT card (the authored palettes assume light), with the
-// Enlarge pill revealed once the figure has rendered.
+// Every diagram sits on a FIXED-LIGHT card (the authored palettes assume light) under a header
+// bar that names it and carries Edit and Enlarge — Enlarge enabled once the figure has rendered.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** A ```mermaid fence: source → SVG via the lazy island; a malformed diagram becomes the loud
@@ -224,7 +224,7 @@ function MermaidCard({
         </div>
       )}
       <div class={failed != null ? "diagram not-prose hidden" : "diagram not-prose"}>
-        <ZoomAffordance svgHtml={svgHtml} edit={editPill("mermaid", fenceAt, fenceCount)} />
+        <ZoomAffordance kind="Mermaid" svgHtml={svgHtml} edit={editPill("mermaid", fenceAt, fenceCount)} />
         <div class="diagram__figure" ref={figureRef}></div>
         {svgHtml == null && failed == null && <DiagramPending />}
       </div>
@@ -301,7 +301,7 @@ function D2Card({
         </div>
       )}
       <div class={failed != null ? "diagram not-prose hidden" : "diagram not-prose"}>
-        <ZoomAffordance svgHtml={svgHtml} edit={editPill("d2", fenceAt, fenceCount)} />
+        <ZoomAffordance kind="D2" svgHtml={svgHtml} edit={editPill("d2", fenceAt, fenceCount)} />
         <div class="diagram__figure" ref={figureRef}></div>
         {svgHtml == null && failed == null && <DiagramPending />}
       </div>
@@ -373,7 +373,7 @@ function D2Slideshow({
       tabIndex={0}
       onKeyDown={onKeyDown}
     >
-      <ZoomAffordance svgHtml={svgHtml} edit={editPill("d2", fenceAt, fenceCount)} />
+      <ZoomAffordance kind="D2 · Slides" svgHtml={svgHtml} edit={editPill("d2", fenceAt, fenceCount)} />
       <div class="diagram__figure" ref={figureRef}></div>
       {svgHtml == null && <DiagramPending />}
       <div class="transport">
@@ -555,11 +555,9 @@ function FrameSlideshow({ frames, caption }: { frames: string[]; caption: string
       tabIndex={0}
       onKeyDown={onKeyDown}
     >
-      {ready && urls[shown] != null && (
-        <ZoomAffordance>
-          <img src={urls[shown]} alt={altFor(shown)} />
-        </ZoomAffordance>
-      )}
+      <ZoomAffordance kind="Frames" label={caption}>
+        {ready && urls[shown] != null ? <img src={urls[shown]} alt={altFor(shown)} /> : undefined}
+      </ZoomAffordance>
       {/* The live region announces each frame through the img's alt, which carries the position. */}
       <div class="diagram__figure" aria-live="polite" aria-atomic="true">
         <img

@@ -426,6 +426,15 @@ function init(): void {
   sync();
   window.addEventListener(AUTH_CHANGED, sync);
 
+  // The private shelf on the browse face — imported only once a reader is signed in (or a shelf
+  // is already up and a sign-out must take it down), so an anonymous page fetches nothing for it.
+  const shelf = (): void => {
+    if (!isAuthed() && !document.querySelector("[data-private-shelf]")) return;
+    void import("./reader/privateShelf").then((module) => module.refreshPrivateShelf());
+  };
+  shelf();
+  window.addEventListener(AUTH_CHANGED, shelf);
+
   if (path) visit(path);
 }
 

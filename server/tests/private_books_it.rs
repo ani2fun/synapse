@@ -229,6 +229,43 @@ async fn the_index_carries_a_private_book_only_to_its_readers_and_marks_it_for_t
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
+/// `(cache-control, vary)` of a 200 GET, with or without a bearer.
+async fn cache_headers(app: Router, uri: &str, bearer: Option<&str>) -> (String, String) {
+    let mut builder = Request::builder().uri(uri);
+    if let Some(token) = bearer {
+        builder = builder.header(header::AUTHORIZATION, format!("Bearer {token}"));
+    }
+    let res = app.oneshot(builder.body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK, "{uri}");
+    let joined = |name: header::HeaderName| {
+        res.headers()
+            .get_all(name)
+            .iter()
+            .map(|value| value.to_str().unwrap().to_owned())
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    (joined(header::CACHE_CONTROL), joined(header::VARY))
+}
+
+/// A reader's index and their private lesson must never be stored by a shared cache, and the
+/// anonymous copy the browser holds must never answer the reader's own fetch.
+#[tokio::test]
+async fn a_signed_in_read_is_never_publicly_cacheable_and_the_anonymous_copy_varies_on_the_bearer() {
+    let issuer = stub_realm().await;
+    let reader = mint(&issuer, "tester");
+
+    let (cache, vary) = cache_headers(app(&issuer), "/api/synapse/index", None).await;
+    assert_eq!(cache, "public, max-age=60, stale-while-revalidate=600");
+    assert!(vary.contains("authorization"), "vary: {vary}");
+
+    for uri in ["/api/synapse/index", PRIVATE_LESSON] {
+        let (cache, vary) = cache_headers(app(&issuer), uri, Some(&reader)).await;
+        assert_eq!(cache, "private, no-store", "{uri}");
+        assert!(vary.contains("authorization"), "{uri} vary: {vary}");
+    }
+}
+
 #[tokio::test]
 async fn search_and_the_sitemap_keep_a_private_book_to_its_readers() {
     let issuer = stub_realm().await;

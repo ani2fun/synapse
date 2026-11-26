@@ -68,9 +68,18 @@ test("Enlarge opens the current frame and Esc closes it", async ({ page }) => {
   await card.getByRole("button", { name: "Next frame" }).click();
   await expect(card.locator(".diagram__figure img")).toHaveAttribute("src", /step-02\.png$/);
 
+  // The chrome is a header bar ABOVE the paper, never on it.
+  const bar = await card.locator(".diagram__bar").boundingBox();
+  const paper = await card.locator(".diagram__figure").boundingBox();
+  expect(bar!.y + bar!.height).toBeLessThanOrEqual(paper!.y + 0.5);
+
   await card.locator(".diagram__zoom").click();
   const scrim = page.locator(".diagram-zoom-scrim");
   await expect(scrim).toBeVisible();
+  // So is the overlay's: Close sits in its bar, above the viewport.
+  const close = await scrim.locator(".diagram-zoom__close").boundingBox();
+  const viewport = await scrim.locator(".diagram-zoom__viewport").boundingBox();
+  expect(close!.y + close!.height).toBeLessThanOrEqual(viewport!.y + 0.5);
   await expect(scrim.locator(".diagram-zoom__figure img")).toHaveAttribute("src", /step-02\.png$/);
 
   await page.keyboard.press("Escape");

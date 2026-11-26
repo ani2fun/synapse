@@ -2,9 +2,11 @@
  * The Enlarge affordance and the near-fullscreen overlay behind it — shared by every authored
  * figure: mermaid, d2, a d2 walkthrough, the frame slideshow.
  *
- * House rule: the diagram chrome — Enlarge on the card AND Close in the overlay — sits top-LEFT
- * A viewer with its own controls passes them as
- * `chrome`, which lands top-CENTRE, clear of Close and of the zoom bar along the bottom.
+ * House rule: diagram chrome never sits ON the figure. The card carries a header bar above the
+ * paper — a kind label on the left, Edit and Enlarge on the right, the shape of a code card's tab
+ * bar — and the overlay carries the same bar above its viewport: label left, the viewer's own
+ * `chrome` in the middle, zoom controls and Close on the right. A floating pill hides whatever the
+ * figure draws in that corner, and a figure's corner is where titles live.
  *
  * The overlay is a real dialog: it takes focus, traps Tab, and gives focus back on close. That
  * matters more than it used to — it now holds breadcrumbs, a menu and navigation buttons, so a
@@ -13,7 +15,7 @@
 import { type ComponentChildren, h } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 
-const ICON_MAXIMIZE = (
+export const ICON_MAXIMIZE = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path d="M15 3h6v6"></path>
     <path d="M9 21H3v-6"></path>
@@ -33,8 +35,9 @@ const FOCUSABLE =
   'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
 export interface ZoomProps {
-  /** A second pill beside Enlarge — the d2 figures' "Edit". Rendered in the same top-left row, so
-   *  the corner stays one control group rather than two things racing for `left: 6px`. */
+  /** What the figure is — `D2`, `Mermaid`, `Walkthrough` — the bar's left-hand label. */
+  kind: string;
+  /** A second pill beside Enlarge — the d2 figures' "Edit". Rendered in the bar's action group. */
   edit?: ComponentChildren;
   /** A renderer's SVG, as a string. */
   svgHtml?: string | null;
@@ -49,27 +52,36 @@ export interface ZoomProps {
 }
 
 /**
- * The Enlarge pill and the overlay behind it. The pill only exists once there is something to
- * enlarge, so a card that has not rendered yet shows no affordance.
+ * The card's header bar and the overlay behind its Enlarge button. The bar renders from the first
+ * paint, so the figure never shifts down when it arrives; Enlarge stays disabled until there is
+ * something to enlarge.
  */
-export function ZoomAffordance({ svgHtml, children, chrome, edit, onFigureClick, label }: ZoomProps) {
+export function ZoomAffordance({ kind, svgHtml, children, chrome, edit, onFigureClick, label }: ZoomProps) {
   const [open, setOpen] = useState(false);
-  if (svgHtml == null && children == null) return null;
+  const ready = svgHtml != null || children != null;
   return (
     <>
-      <div class="diagram__chrome">
-        <button class="diagram__zoom modal-btn" aria-label="Enlarge diagram" onClick={() => setOpen(true)}>
-          {ICON_MAXIMIZE}
-          <span>Enlarge</span>
-        </button>
-        {edit}
+      <div class="diagram__bar">
+        <span class="diagram__label">{kind}</span>
+        <div class="diagram__actions">
+          {edit}
+          <button
+            class="diagram__zoom modal-btn"
+            aria-label="Enlarge diagram"
+            disabled={!ready}
+            onClick={() => setOpen(true)}
+          >
+            {ICON_MAXIMIZE}
+            <span>Enlarge</span>
+          </button>
+        </div>
       </div>
-      {open && (
+      {open && ready && (
         <ZoomOverlay
           svg={svgHtml ?? undefined}
           chrome={chrome}
           onFigureClick={onFigureClick}
-          label={label}
+          label={label ?? kind}
           onClose={() => setOpen(false)}
         >
           {children}
@@ -194,11 +206,30 @@ export function ZoomOverlay({
         ref={panel}
         onClick={(event) => event.stopPropagation()}
       >
-        <button class="diagram-zoom__close modal-btn" aria-label="Close" onClick={onClose}>
-          {ICON_CLOSE}
-          <span>Close</span>
-        </button>
-        {chrome != null && <div class="diagram-zoom__chrome">{chrome}</div>}
+        <div class="diagram-zoom__bar">
+          <span class="diagram__label">{label ?? "Diagram"}</span>
+          <div class="diagram-zoom__chrome">{chrome}</div>
+          <div class="diagram-zoom__controls">
+            <button class="diagram-zoom__ctl" aria-label="Zoom out" onClick={() => zoomBy(1 / 1.25)}>
+              −
+            </button>
+            <span class="diagram-zoom__level">{`${Math.round(scale * 100)}%`}</span>
+            <button class="diagram-zoom__ctl" aria-label="Zoom in" onClick={() => zoomBy(1.25)}>
+              +
+            </button>
+            <button
+              class="diagram-zoom__ctl"
+              aria-label="Reset zoom"
+              onClick={() => {
+                setScale(1);
+                setPan({ x: 0, y: 0 });
+              }}
+            >
+              ⟲
+            </button>
+            <ZoomClose onClose={onClose} />
+          </div>
+        </div>
         <div class="diagram-zoom__zoomable">
           <div
             class="diagram-zoom__viewport"
@@ -225,26 +256,17 @@ export function ZoomOverlay({
             )}
           </div>
         </div>
-        <div class="diagram-zoom__controls">
-          <button class="diagram-zoom__ctl" aria-label="Zoom out" onClick={() => zoomBy(1 / 1.25)}>
-            −
-          </button>
-          <span class="diagram-zoom__level">{`${Math.round(scale * 100)}%`}</span>
-          <button class="diagram-zoom__ctl" aria-label="Zoom in" onClick={() => zoomBy(1.25)}>
-            +
-          </button>
-          <button
-            class="diagram-zoom__ctl"
-            aria-label="Reset zoom"
-            onClick={() => {
-              setScale(1);
-              setPan({ x: 0, y: 0 });
-            }}
-          >
-            ⟲
-          </button>
-        </div>
       </div>
     </div>
+  );
+}
+
+/** The overlay's Close pill — shared with the simulator's overlay so both bars end the same way. */
+export function ZoomClose({ onClose }: { onClose: () => void }) {
+  return (
+    <button class="diagram-zoom__close modal-btn" aria-label="Close" onClick={onClose}>
+      {ICON_CLOSE}
+      <span>Close</span>
+    </button>
   );
 }

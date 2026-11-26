@@ -27,8 +27,17 @@ test("the fence hydrates into a sandboxed iframe whose bundle runs", async ({ pa
 test("Enlarge opens a second live instance and Esc closes it", async ({ page }) => {
   await page.goto(LESSON);
   await expect(page.frameLocator(FRAME).locator("#root")).toBeVisible();
+  // Enlarge lives in a header bar above the frame, so it never covers what the simulator draws.
+  const bar = await page.locator(".sim-embed__bar").boundingBox();
+  const frame = await page.locator(FRAME).boundingBox();
+  expect(bar!.y + bar!.height).toBeLessThanOrEqual(frame!.y + 0.5);
+  await expect(page.locator(".sim-embed__bar .diagram__label")).toHaveText("Hello Simulator");
+
   await page.locator(".sim-embed__zoom").click();
   await expect(page.locator(".diagram-zoom-scrim")).toBeVisible();
+  const close = await page.locator(".diagram-zoom__close").boundingBox();
+  const live = await page.locator(".diagram-zoom__iframe").boundingBox();
+  expect(close!.y + close!.height).toBeLessThanOrEqual(live!.y + 0.5);
   await expect(
     page.frameLocator(".diagram-zoom__iframe").locator("#root"),
   ).toHaveText("hello from the simulator");
